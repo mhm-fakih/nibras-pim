@@ -9,9 +9,11 @@ import com.nibras.pim.domain.Planner;
 import com.nibras.pim.domain.SyncMutable;
 import com.nibras.pim.domain.Task;
 import com.nibras.pim.domain.Writing;
+import com.nibras.pim.domain.lookup.Department;
 import com.nibras.pim.domain.lookup.JournalType;
 import com.nibras.pim.domain.lookup.PlannerType;
 import com.nibras.pim.repo.BookRepository;
+import com.nibras.pim.repo.DepartmentRepository;
 import com.nibras.pim.repo.GoalRepository;
 import com.nibras.pim.repo.IndexCardRepository;
 import com.nibras.pim.repo.JournalRepository;
@@ -74,13 +76,14 @@ public class SyncService {
     private final WritingStatusRepository writingStatusRepo;
     private final JournalTypeRepository journalTypeRepo;
     private final PlannerTypeRepository plannerTypeRepo;
+    private final DepartmentRepository departmentRepo;
 
     public SyncService(TaskRepository taskRepo, GoalRepository goalRepo, PlannerRepository plannerRepo,
                        JournalRepository journalRepo, IndexCardRepository indexCardRepo,
                        WritingRepository writingRepo, BookRepository bookRepo,
                        WorkStatusRepository workStatusRepo, ResourceStatusRepository resourceStatusRepo,
                        WritingStatusRepository writingStatusRepo, JournalTypeRepository journalTypeRepo,
-                       PlannerTypeRepository plannerTypeRepo) {
+                       PlannerTypeRepository plannerTypeRepo, DepartmentRepository departmentRepo) {
         this.taskRepo = taskRepo;
         this.goalRepo = goalRepo;
         this.plannerRepo = plannerRepo;
@@ -93,6 +96,7 @@ public class SyncService {
         this.writingStatusRepo = writingStatusRepo;
         this.journalTypeRepo = journalTypeRepo;
         this.plannerTypeRepo = plannerTypeRepo;
+        this.departmentRepo = departmentRepo;
     }
 
     // ====================================================================== reads (exportJson*)
@@ -384,6 +388,134 @@ public class SyncService {
             }
         }
         return ids;
+    }
+
+    /**
+     * {@code mobilePushCreate}: create a record of ANY exportable type from the phone — the generic
+     * companion to {@link #pushCalendar}. Item shape:
+     * {@code {ecode, summary, description, priority, department, startDate?, endDate?}} where
+     * {@code department} is the single-letter Department code (same vocabulary as note filenames).
+     * Every record is saved with {@code bookmarked=true} so it round-trips on the next
+     * {@code exportJson<CODE>} pull — phone-authored records come back down everywhere.
+     */
+    @Transactional
+    public List<Long> pushCreates(List<Map<String, Object>> data) {
+        List<Long> ids = new ArrayList<>();
+        for (Map<String, Object> r : data) {
+            String ecode = str(r.get("ecode")).trim().toUpperCase(Locale.ROOT);
+            String summary = str(r.get("summary"));
+            String html = toHtml(str(r.get("description")));
+            Integer priority = asInt(r.get("priority"));
+            Department dept = department(str(r.get("department")));
+            LocalDateTime start = parseCalDate(str(r.get("startDate")));
+            LocalDateTime end = parseCalDate(str(r.get("endDate")));
+
+            switch (ecode) {
+                case "T" -> {
+                    Task t = new Task();
+                    t.setSummary(summary);
+                    t.setDescription(html);
+                    t.setPriority(priority);
+                    t.setDepartment(dept);
+                    t.setEndDate(end);
+                    t.setBookmarked(true);
+                    taskRepo.save(t);
+                    ids.add(t.getId());
+                }
+                case "J" -> {
+                    Journal j = new Journal();
+                    j.setSummary(summary);
+                    j.setDescription(html);
+                    j.setPriority(priority);
+                    j.setDepartment(dept);
+                    j.setStartDate(start != null ? start : LocalDateTime.now());   // NOT NULL in schema
+                    j.setEndDate(end);
+                    j.setBookmarked(true);
+                    journalRepo.save(j);
+                    ids.add(j.getId());
+                }
+                case "P" -> {
+                    Planner p = new Planner();
+                    p.setSummary(summary);
+                    p.setDescription(html);
+                    p.setPriority(priority);
+                    p.setDepartment(dept);
+                    p.setStartDate(start);
+                    p.setEndDate(end);
+                    p.setStartTime(start != null ? start.format(HM) : null);
+                    p.setEndTime(end != null ? end.format(HM) : null);
+                    p.setBookmarked(true);
+                    plannerRepo.save(p);
+                    ids.add(p.getId());
+                }
+                case "N" -> {
+                    IndexCard c = new IndexCard();
+                    c.setSummary(summary);
+                    c.setDescription(html);
+                    c.setPriority(priority);
+                    c.setDepartment(dept);
+                    c.setBookmarked(true);
+                    indexCardRepo.save(c);
+                    ids.add(c.getId());
+                }
+                case "G" -> {
+                    Goal g = new Goal();
+                    g.setTitle(summary);
+                    g.setDescription(html);
+                    g.setPriority(priority);
+                    g.setDepartment(dept);
+                    g.setBookmarked(true);
+                    goalRepo.save(g);
+                    ids.add(g.getId());
+                }
+                case "W" -> {
+                    Writing w = new Writing();
+                    w.setSummary(summary != null ? summary : "");   // NOT NULL
+                    w.setDescription(html);
+                    w.setPriority(priority);
+                    w.setDepartment(dept);
+                    w.setBookmarked(true);
+                    writingRepo.save(w);
+                    ids.add(w.getId());
+                }
+                case "R" -> {
+                    Book b = new Book();
+                    b.setTitle(summary);
+                    b.setDescription(html);
+                    b.setPriority(priority);
+                    b.setDepartment(dept);
+                    b.setBookmarked(true);
+                    bookRepo.save(b);
+                    ids.add(b.getId());
+                }
+                default -> { /* unknown ecode: skip, keep batch going */ }
+            }
+        }
+        return ids;
+    }
+
+    /** First Department matching the single-letter code (the note-filename vocabulary), else null. */
+    private Department department(String code) {
+        if (code == null || code.isBlank()) {
+            return null;
+        }
+        return departmentRepo.findByCodeIgnoreCase(code.trim()).stream().findFirst().orElse(null);
+    }
+
+    /** Plain text -> minimal HTML so the richtext view keeps line breaks. No literal newline after
+     *  the {@code <br>}: the exportJson serializers also map {@code \n} to {@code <br/>}, and keeping
+     *  both would double every break on the round-trip back to the phone. */
+    private static String toHtml(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        String escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+        return escaped.replace("\n", "<br>");
+    }
+
+    private static Integer asInt(Object o) {
+        Long l = asLong(o);
+        return l == null ? null : l.intValue();
     }
 
     /** Shared "this record was actioned on the phone" effect: unbookmark + per-type completion. */

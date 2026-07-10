@@ -120,6 +120,24 @@ class NibrasApi {
             postAuthed("${base.trimEnd('/')}$PATH_MOBILE_PUSH_CALENDAR", JSONObject().put("data", data))
         }
 
+    /** Creates records of ANY exportable type (bookmarked=true server-side so they round-trip).
+     *  Envelope: {data:[{ecode, summary, description, priority, department}]}. */
+    suspend fun pushCreates(base: String, items: List<PendingCreate>): Boolean =
+        withContext(Dispatchers.IO) {
+            if (items.isEmpty()) return@withContext true
+            val data = JSONArray()
+            items.forEach {
+                val o = JSONObject()
+                    .put("ecode", it.ecode)
+                    .put("summary", it.summary)
+                    .put("description", it.description)
+                    .put("department", it.department)
+                it.priority?.let { p -> o.put("priority", p) }
+                data.put(o)
+            }
+            postAuthed("${base.trimEnd('/')}$PATH_MOBILE_PUSH_CREATE", JSONObject().put("data", data))
+        }
+
     private suspend fun push(url: String, items: List<PendingPush>): Boolean =
         withContext(Dispatchers.IO) {
             if (items.isEmpty()) return@withContext true
@@ -238,6 +256,7 @@ class NibrasApi {
         const val PATH_MOBILE_PUSH_HIGHLIGHT = "/sync/mobilePushHighlight"
         const val PATH_MOBILE_PUSH_COMPLETE = "/sync/mobilePushComplete"
         const val PATH_MOBILE_PUSH_CALENDAR = "/sync/mobilePushCalendar"
+        const val PATH_MOBILE_PUSH_CREATE = "/sync/mobilePushCreate"
         const val PATH_MODULES = "/api/modules"
         const val PATH_DEPARTMENTS = "/api/departments?bookmarked=true&size=500"
     }
