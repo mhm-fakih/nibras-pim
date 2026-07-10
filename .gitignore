@@ -1,0 +1,36 @@
+# ---- Backend (Spring Boot / Gradle) ----
+backend/.gradle/
+backend/build/
+backend/bin/
+backend/src/main/resources/static/   # SPA copied in at build time
+
+# ---- Frontend (Vite / npm) ----
+frontend/node_modules/
+frontend/dist/
+frontend/build-number.json
+*.tsbuildinfo
+
+# ---- Mobile (Android / Gradle) ----
+mobile/.gradle/
+mobile/build/
+mobile/app/build/
+mobile/local.properties
+
+# ---- Python (terminal / desktop) ----
+__pycache__/
+*.pyc
+
+# ---- Secrets / signing — NEVER commit ----
+mobile/keystore.properties
+*.jks
+*.keystore
+*.env
+.env
+.env.*
+secrets*
+*.pem
+*.key
+
+# ---- OS / editor ----
+.DS_Store
+*.log

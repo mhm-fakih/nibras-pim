@@ -1,0 +1,196 @@
+/* knotes desktop — structural styling. The actual colours come from a theme block prepended at
+ * runtime (see THEMES in knotes.py): @bg, @bg_alt, @card_bg, @fg, @fg_muted, @accent, @accent_fg,
+ * @chip_bg, @chip_fg, @chip_hover, @violet, @cyan. Tweak the theme block to recolour everything. */
+
+/* Window / chrome tint so the Solarized slate (or light parchment) shows through the whole app. */
+window {
+    background-color: @bg;
+    color: @fg;
+}
+headerbar {
+    background-image: none;
+    background-color: @bg_alt;
+    color: @fg;
+    /* Compact toolbar. */
+    min-height: 34px;
+    padding: 2px 6px;
+}
+headerbar button {
+    min-height: 26px;
+    min-width: 26px;
+    padding: 2px 6px;
+}
+
+/* Kanban board */
+.column {
+    background: alpha(@fg_muted, 0.07);
+    border: 1px solid alpha(@fg_muted, 0.18);
+    border-radius: 10px;
+    padding: 6px;
+}
+.column-header {
+    font-size: 1.05em;
+    font-weight: 700;
+    color: @fg;
+    padding: 4px 6px;
+}
+/* Collapsible type subgroup header — a full-width clickable bar. */
+.group-header {
+    background: alpha(@fg_muted, 0.10);
+    color: @fg;
+    border: none;
+    box-shadow: none;
+    border-radius: 6px;
+    padding: 5px 6px;
+    min-height: 0;
+    font-size: 0.86em;
+    font-weight: 600;
+}
+.group-header:hover {
+    background: alpha(@accent, 0.16);
+}
+.card {
+    background: @card_bg;
+    border: 1px solid alpha(@fg_muted, 0.28);
+    border-radius: 8px;
+    /* Inner spacing is set via the row's border_width — a GtkEventBox ignores CSS padding. */
+}
+.card:hover {
+    border-color: @accent;
+    background: alpha(@accent, 0.08);
+}
+/* Selected card — a clear accent ring (inset box-shadow avoids reflow from a thicker border). */
+.card.selected {
+    border-color: @accent;
+    box-shadow: inset 0 0 0 1px @accent;
+    background: alpha(@accent, 0.13);
+}
+.card:focus {
+    outline: none;
+}
+/* Merge set (Ctrl+G): a teal tint, distinct from the blue selection ring, so a card can be both
+   selected and marked at once. The survivor (first marked) gets a heavier ring. */
+.card.merge-mark {
+    border-color: @cyan;
+    box-shadow: inset 0 0 0 2px @cyan;
+    background: alpha(@cyan, 0.20);
+}
+.card.merge-anchor {
+    border-color: @cyan;
+    box-shadow: inset 0 0 0 3px @cyan;
+    background: alpha(@cyan, 0.30);
+}
+/* Compact icon button (card delete): no min-size/padding so it doesn't inflate the row height. */
+.iconbtn {
+    min-height: 0;
+    min-width: 0;
+    padding: 2px;
+    margin: 0;
+}
+.last-note {
+    background: alpha(@accent, 0.14);
+    border: 1px solid alpha(@accent, 0.55);
+    border-radius: 8px;
+    /* Inner spacing is set via the row's border_width — a GtkEventBox ignores CSS padding. */
+}
+.last-note-caption {
+    color: @accent;
+    font-weight: 700;
+    font-size: 0.8em;
+}
+
+.title {
+    font-size: 1.0em;
+    color: @fg;
+}
+.time {
+    color: @fg_muted;
+    font-size: 0.82em;
+    margin: 0 4px;
+}
+
+/* Tag badges on each card */
+.badge {
+    border-radius: 8px;
+    padding: 1px 8px;
+    font-size: 0.8em;
+    font-weight: 600;
+}
+.badge.type { background: alpha(@accent, 0.18); color: @accent; }
+.badge.prio { background: alpha(@violet, 0.18); color: @violet; }
+.badge.cat  { background: alpha(@cyan, 0.18);  color: @cyan; }
+
+/* Input bar */
+.inputbar {
+    background: alpha(@fg_muted, 0.07);
+    border-top: 1px solid alpha(@fg_muted, 0.2);
+}
+.tag-caption {
+    color: @fg_muted;
+    font-size: 0.82em;
+}
+.editing-label {
+    color: @accent;
+    font-weight: 600;
+}
+.editor {
+    background: @card_bg;
+    border: 1px solid alpha(@fg_muted, 0.3);
+    border-radius: 12px;
+}
+/* Round the inner nodes too so the corners aren't squared off by the text area. */
+.editor viewport,
+.editor text {
+    border-radius: 12px;
+    background: transparent;
+}
+/* Force the strong text colour at every node (scrolledwindow → textview → text), so the editor
+ * doesn't inherit the window's muted @fg — which otherwise showed as grey text until a restyle
+ * (e.g. pressing Enter) flipped it to the strong colour. */
+.editor,
+.editor textview,
+.editor text {
+    color: @fg_strong;
+    caret-color: @fg_strong;
+}
+
+/* Chips (type / priority / category toggles) */
+.chip {
+    background: @chip_bg;
+    color: @chip_fg;
+    border: none;
+    border-radius: 14px;
+    padding: 3px 10px;
+    min-height: 0;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+.chip:hover {
+    background: @chip_hover;
+}
+.chip:checked {
+    background: @accent;
+    color: @accent_fg;
+}
+
+/* One-line #hashtag index under the add field. */
+.tags-summary {
+    padding: 4px 2px 0 2px;
+    font-size: 0.9em;
+}
+
+/* Status bar — folder path (left) + save key (right). */
+.statusbar {
+    background: @bg_alt;
+    border-top: 1px solid alpha(@fg_muted, 0.35);
+    color: @fg_strong;
+    font-size: 0.9em;
+    font-weight: 600;
+    padding: 3px 8px;
+}
+
+/* Help dialog */
+.shortcut-key {
+    font-family: monospace;
+    font-weight: 600;
+}

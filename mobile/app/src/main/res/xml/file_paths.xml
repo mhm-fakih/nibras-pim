@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Grant content:// access to files under shared external storage (e.g. /storage/emulated/0/Nibras). -->
+    <external-path name="external_storage" path="." />
+</paths>

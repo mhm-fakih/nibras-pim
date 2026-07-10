@@ -1,0 +1,68 @@
+server:
+  # 0.0.0.0 = reachable from the LAN (e.g. the mobile app at http://<this-host-ip>:8081).
+  # Override with SERVER_ADDRESS=127.0.0.1 to go loopback-only again.
+  address: ${SERVER_ADDRESS:0.0.0.0}
+  port: 8081
+
+spring:
+  application:
+    name: nibras-pim
+  datasource:
+    # Develop against the working copy. Switch to db_nibras when ready.
+    # Cairo time: the legacy schema stores naive local datetimes (written in Africa/Cairo, +02/+03).
+    # Matching the connection + Hibernate zone below preserves the literal wall-clock value instead
+    # of shifting it (a UTC connection rendered 10:30 as 13:30, drifting calendar/journal/plan times).
+    url: jdbc:mysql://localhost:3306/db_nibras2_s?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Africa/Cairo
+    username: ${DB_USERNAME:user1}
+    password: ${DB_PASSWORD:user1}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      # NEVER let Hibernate alter this legacy schema. 'none' avoids validate's
+      # strict longtext/varchar type false-positives; mappings are proven by the
+      # entity SELECTs at runtime (a wrong column name fails the first GET).
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: Africa/Cairo
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: Africa/Cairo
+    serialization:
+      write-dates-as-timestamps: false
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+nibras:
+  # GitHub repo "owner/name" for the "check for updates" link (empty = not configured yet).
+  repo: ${NIBRAS_REPO:}
+  rss:
+    # Number of most-recent items per feed.
+    max-items: 50
+  import:
+    # Folder of plain-text knotes to import. Imported files move to <dir>/imported/.
+    notes-dir: ${NIBRAS_KNOTES_DIR:/home/akil/knotes}
+  cors:
+    allowed-origins: "http://localhost:5173,http://127.0.0.1:5173"
+  security:
+    jwt:
+      # HMAC signing secret (>= 32 chars). Override in production via NIBRAS_JWT_SECRET.
+      secret: ${NIBRAS_JWT_SECRET:change-this-nibras-jwt-secret-please-min-32-chars-long-0123456789}
+      # Token lifetime in hours.
+      expiry-hours: ${NIBRAS_JWT_EXPIRY_HOURS:12}
+    # Password for the "admin" account auto-created on a fresh install (empty users table).
+    # Log in and change it immediately. Override via NIBRAS_BOOTSTRAP_ADMIN_PASSWORD.
+    bootstrap-admin-password: ${NIBRAS_BOOTSTRAP_ADMIN_PASSWORD:admin}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    org.hibernate.SQL: info

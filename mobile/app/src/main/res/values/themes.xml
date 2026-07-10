@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Pre-Compose window theme. Actual UI colors come from the Compose theme. -->
+    <style name="Theme.Knotes" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Opaque system bars so the app sits within them (not drawn edge-to-edge behind them). -->
+        <item name="android:statusBarColor">#FFFFFFFF</item>
+        <item name="android:navigationBarColor">#FFFFFFFF</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

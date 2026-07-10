@@ -1,0 +1,102 @@
+plugins {
+    id 'java'
+    id 'war'
+    id 'org.springframework.boot' version '3.5.3'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.nibras'
+version = '0.1.0'
+
+// Generate META-INF/build-info.properties so BuildProperties exposes the version/build time
+// to InfoController (single source of truth = the gradle `version` above).
+springBoot {
+    buildInfo()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // JWT (JJWT) for stateless auth shared by the SPA and the mobile app.
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    implementation 'com.rometools:rome:2.1.0'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6'
+
+    // Server-side Markdown -> HTML for the static-site generator (GFM tables/strikethrough/autolinks).
+    implementation 'org.commonmark:commonmark:0.22.0'
+    implementation 'org.commonmark:commonmark-ext-gfm-tables:0.22.0'
+    implementation 'org.commonmark:commonmark-ext-gfm-strikethrough:0.22.0'
+    implementation 'org.commonmark:commonmark-ext-autolink:0.22.0'
+    runtimeOnly 'com.mysql:mysql-connector-j'
+
+    // Hot-reload: restarts the app when classes on the classpath change (excluded from the WAR).
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Required so the executable WAR can also run standalone (java -jar app.war).
+    providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// ---- Bundle the React frontend into the WAR (served as static resources) ----------------
+
+def frontendDir = file("$rootDir/../frontend")
+def isWindows = System.getProperty('os.name').toLowerCase().contains('win')
+def npm = isWindows ? 'npm.cmd' : 'npm'
+def generatedFrontend = layout.buildDirectory.dir('generated-frontend')
+
+tasks.register('frontendInstall', Exec) {
+    workingDir frontendDir
+    inputs.file("$frontendDir/package.json")
+    inputs.file("$frontendDir/package-lock.json")
+    outputs.dir("$frontendDir/node_modules")
+    commandLine npm, 'ci'
+}
+
+tasks.register('frontendBuild', Exec) {
+    dependsOn 'frontendInstall'
+    workingDir frontendDir
+    inputs.dir("$frontendDir/src")
+    inputs.file("$frontendDir/index.html")
+    inputs.file("$frontendDir/package.json")
+    inputs.file("$frontendDir/package-lock.json")
+    inputs.file("$frontendDir/vite.config.ts")
+    inputs.files(fileTree(frontendDir) { include 'tsconfig*.json' })
+    outputs.dir("$frontendDir/dist")
+    commandLine npm, 'run', 'build'
+}
+
+// Place the SPA under static/ so Spring serves it from the classpath root. Sync (not Copy) so stale
+// hashed bundles from previous builds are pruned — the WAR ships exactly the current UI.
+tasks.register('copyFrontend', Sync) {
+    dependsOn 'frontendBuild'
+    from "$frontendDir/dist"
+    into generatedFrontend.map { it.dir('static') }
+}
+
+// Expose the generated SPA as a resource directory; processResources packages it into the WAR.
+sourceSets.main.resources.srcDir(generatedFrontend)
+tasks.named('processResources') { dependsOn 'copyFrontend' }

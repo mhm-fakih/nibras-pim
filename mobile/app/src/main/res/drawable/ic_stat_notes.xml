@@ -1,0 +1,30 @@
+<!-- Status-bar / notification icon: the half-calendar/half-notebook mark as a white outline
+     (the system tints it). Matches the launcher, web favicon, and desktop icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <!-- page / calendar body -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5.2,4.5 H18.8 a2.2,2.2 0 0 1 2.2,2.2 V18.3 a2.2,2.2 0 0 1 -2.2,2.2 H5.2 a2.2,2.2 0 0 1 -2.2,-2.2 V6.7 a2.2,2.2 0 0 1 2.2,-2.2 z" />
+    <!-- calendar binding tabs -->
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="1.6" android:strokeLineCap="round" android:pathData="M7.5,3 V6" />
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="1.6" android:strokeLineCap="round" android:pathData="M11.5,3 V6" />
+    <!-- diagonal split -->
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="1.6" android:strokeLineCap="round" android:pathData="M20.3,5.2 L3.7,19.8" />
+    <!-- notebook rule lines -->
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="1.6" android:strokeLineCap="round" android:pathData="M12.5,13 H18.5" />
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="1.6" android:strokeLineCap="round" android:pathData="M10.5,15.6 H18.5" />
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="1.6" android:strokeLineCap="round" android:pathData="M8.6,18.1 H18.5" />
+    <!-- calendar dots -->
+    <path android:fillColor="#FFFFFF" android:pathData="M7,9.6 m-1,0 a1,1 0 1,0 2,0 a1,1 0 1,0 -2,0 z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M10.2,9.6 m-1,0 a1,1 0 1,0 2,0 a1,1 0 1,0 -2,0 z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M7,12.6 m-1,0 a1,1 0 1,0 2,0 a1,1 0 1,0 -2,0 z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M10.2,12.6 m-1,0 a1,1 0 1,0 2,0 a1,1 0 1,0 -2,0 z" />
+</vector>

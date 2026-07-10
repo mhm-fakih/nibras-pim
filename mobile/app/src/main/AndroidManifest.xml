@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Browsing the Nibras server over the LAN. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Detect when the network returns so the calendar outbox can drain automatically. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Keep audio playing in the background with a media-style notification. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Persistent status notification (today's note count) that keeps the process alive. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Full file access so notes can live in any user-chosen directory. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+
+    <!-- Plan reminders: exact alarms that fire on time, re-armed after reboot. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:requestLegacyExternalStorage="true"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Knotes"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.Knotes"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Appear in the share sheet for plain text and save it as a note. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
+            <!-- Appear in "Open with" for audio/video files and play them in the in-app player. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
+        </activity>
+
+        <!-- Foreground media session: keeps audio playing with the screen off / app backgrounded,
+             and exposes transport controls to the lock screen, notification, and Bluetooth devices. -->
+        <service
+            android:name=".player.PlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
+
+        <!-- Persistent status notification (today's note count); keeps the process alive for alarms. -->
+        <service
+            android:name=".status.StatusService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Persistent note-count status and quarter-hour chime timing." />
+        </service>
+
+        <!-- Serves the scrollable row list for the Bookmarked-records widget. -->
+        <service
+            android:name=".reminder.BookmarksWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
+        <!-- Serves the scrollable row list for the Upcoming-plans widget. -->
+        <service
+            android:name=".reminder.PlansWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
+        <!-- Quarter-hour chime alarm receiver. -->
+        <receiver
+            android:name=".status.ChimeReceiver"
+            android:exported="false" />
+
+        <!-- Reminder alarm receiver (also handles the Dismiss action). -->
+        <receiver
+            android:name=".reminder.ReminderReceiver"
+            android:exported="false" />
+
+        <!-- Re-arm alarms after a reboot. -->
+        <receiver
+            android:name=".reminder.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Home-screen widget: upcoming plans. -->
+        <receiver
+            android:name=".reminder.PlansWidget"
+            android:exported="false"
+            android:label="Upcoming plans">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/plans_widget_info" />
+        </receiver>
+
+        <!-- Home-screen widget: bookmarked records (Plans/Goals/Tasks). -->
+        <receiver
+            android:name=".reminder.BookmarksWidget"
+            android:exported="false"
+            android:label="Bookmarked records">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/bookmarks_widget_info" />
+        </receiver>
+
+        <!-- Home-screen widget: KPI summary (notes today/total, tasks new/done today). -->
+        <receiver
+            android:name=".reminder.KpiWidget"
+            android:exported="false"
+            android:label="Nibras Mobile KPIs">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/kpi_widget_info" />
+        </receiver>
+
+        <!-- Home-screen widget: phone status (storage + volume levels). -->
+        <receiver
+            android:name=".reminder.PhoneStatusWidget"
+            android:exported="false"
+            android:label="Phone status">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.media.VOLUME_CHANGED_ACTION" />
+                <action android:name="android.media.RINGER_MODE_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/phone_status_widget_info" />
+        </receiver>
+
+        <!-- Lets other apps open record files we hand off via content:// URIs. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>
