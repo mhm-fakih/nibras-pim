@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=knotes
+GenericName=Note Taker
+Comment=Quick plain-text notes
+Exec=@HERE@/run.sh
+Icon=@HERE@/knotes.svg
+Terminal=false
+Categories=Utility;TextEditor;Office;
+Keywords=notes;note;text;todo;
+# Must match the window's WM_CLASS so Cinnamon groups it under the pinned launcher.
+StartupWMClass=knotes
+StartupNotify=true

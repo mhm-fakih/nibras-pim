@@ -1,0 +1,353 @@
+package com.nibras.pim.service;
+
+import com.nibras.pim.domain.AppModule;
+import com.nibras.pim.domain.BaseEntity;
+import com.nibras.pim.domain.Book;
+import com.nibras.pim.domain.Goal;
+import com.nibras.pim.domain.IndexCard;
+import com.nibras.pim.domain.Journal;
+import com.nibras.pim.domain.Planner;
+import com.nibras.pim.domain.Task;
+import com.nibras.pim.domain.Writing;
+import com.nibras.pim.domain.lookup.Department;
+import com.nibras.pim.repo.AppModuleRepository;
+import com.nibras.pim.repo.DepartmentRepository;
+import com.nibras.pim.web.dto.ImportNoteDto;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
+
+/**
+ * Imports plain-text "knotes" into PIM records. Filenames encode metadata:
+ * {@code YYYY_MM_DD-HHMMSS~<TYPE>~p<PRIORITY>~<DEPT>.md} — e.g.
+ * {@code 2026_06_15-214006~N~p3~Z.md} (type N→module, priority 3, department code Z).
+ * The type code selects the target module via {@code app_module}; the first suitable line
+ * becomes the title, the full text the body, the timestamp the creation date, and the
+ * department code resolves to a {@code department} row. Imported files move to {@code imported/}.
+ */
+@Service
+public class NoteImportService {
+
+    private static final Pattern NAME = Pattern.compile(
+            "^(\\d{4})_(\\d{2})_(\\d{2})-(\\d{2})(\\d{2})(\\d{2})~([A-Za-z])~[pP](\\d+)~([^~.]+)\\.md$");
+    /**
+     * Canonical note-file name — the single rule for *counting* notes, shared with the
+     * desktop/terminal/mobile: {@code <timestamp>~<type>~p<priority>~<subject>.md} (type/subject may
+     * be empty; an optional {@code -N} de-dup suffix is allowed). Only these {@code .md} files are
+     * listed; foreign {@code .md} and legacy files are ignored, and listing is never recursive.
+     */
+    private static final Pattern NOTE_MD = Pattern.compile(
+            "^\\d{4}_\\d{2}_\\d{2}-\\d{6}(-\\d+)?~[^~]*~[pP]\\d+~[^~]*\\.md$");
+    private static final String ARCHIVE = "imported";
+    /** Settings key for the import folder; overridable at runtime from the UI. */
+    static final String DIR_KEY = "import.notes-dir";
+
+    private final SettingService settings;
+    private final AppModuleRepository modules;
+    private final DepartmentRepository departments;
+    private final AttachmentService attachments;
+
+    @PersistenceContext
+    private EntityManager em;
+
+    public NoteImportService(SettingService settings,
+                             AppModuleRepository modules,
+                             DepartmentRepository departments,
+                             AttachmentService attachments) {
+        this.settings = settings;
+        this.modules = modules;
+        this.departments = departments;
+        this.attachments = attachments;
+    }
+
+    /** The configured import folder — from settings, defaulting to {@code $HOME/new/knotes}. */
+    private Path notesDir() {
+        String def = System.getProperty("user.home") + "/new/knotes";
+        return Paths.get(expandHome(settings.get(DIR_KEY, def))).toAbsolutePath().normalize();
+    }
+
+    /** Current import folder as a string (for the UI). */
+    public String currentDir() {
+        return notesDir().toString();
+    }
+
+    /** Persist a new import folder (blank = leave unchanged); returns the resolved path. */
+    public String setDir(String dir) {
+        if (dir != null && !dir.isBlank()) {
+            settings.set(DIR_KEY, dir.trim());
+        }
+        return currentDir();
+    }
+
+    private static String expandHome(String p) {
+        if (p != null && (p.equals("~") || p.startsWith("~/"))) {
+            return System.getProperty("user.home") + p.substring(1);
+        }
+        return p;
+    }
+
+    /** Parse every *.md directly in the notes folder (not the imported/ archive). */
+    @Transactional(readOnly = true)
+    public List<ImportNoteDto> list() {
+        Path notesDir = notesDir();
+        if (!Files.isDirectory(notesDir)) {
+            return List.of();
+        }
+        try (var stream = Files.list(notesDir)) {
+            List<ImportNoteDto> out = new ArrayList<>();
+            stream.filter(p -> Files.isRegularFile(p))
+                    .filter(p -> NOTE_MD.matcher(p.getFileName().toString()).matches())
+                    .forEach(p -> out.add(parse(p)));
+            out.sort(Comparator.comparing(ImportNoteDto::filename));
+            return out;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** Create the record described by a knote, then archive the file. */
+    @Transactional
+    public CreatedRecord importOne(String filename) {
+        Path file = safeFile(filename);
+        if (!Files.isRegularFile(file)) {
+            throw new ResponseStatusException(NOT_FOUND, "Note not found: " + filename);
+        }
+        ImportNoteDto draft = parse(file);
+        if (!draft.parseable() || draft.moduleKey() == null) {
+            throw new ResponseStatusException(BAD_REQUEST,
+                    "Cannot import: filename type code has no matching module.");
+        }
+
+        BaseEntity entity = createEntity(draft);
+        em.persist(entity);
+        em.flush();   // assign id + fire the audit listener before we move the file
+
+        // A companion "<stem>.d/" folder next to the note (the desktop/mobile capture apps put a
+        // note's attachments there) → copy its files into the new record's repo-1 folder, so a
+        // captured note round-trips with its files. Best-effort: never fail the import over files.
+        importCompanionFiles(file, draft.moduleKey(), entity.getId());
+
+        archive(file);
+        return new CreatedRecord(draft.moduleKey(), entity.getId(), entity.feedTitle());
+    }
+
+    /** Copy a note's companion-folder files into the record's repo folder, then archive the folder. */
+    private void importCompanionFiles(Path noteFile, String moduleKey, Long id) {
+        Path companion = companionDir(noteFile);
+        if (!Files.isDirectory(companion)) {
+            return;
+        }
+        try {
+            Path recordDir = attachments.recordDir(moduleKey, id);
+            Files.createDirectories(recordDir);
+            try (var stream = Files.list(companion)) {
+                stream.filter(Files::isRegularFile).forEach(f -> {
+                    try {
+                        Files.copy(f, recordDir.resolve(f.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+                    } catch (IOException ignored) {
+                        // skip a single unreadable file; keep importing the rest
+                    }
+                });
+            }
+            archiveDir(companion);   // move the source folder into imported/ as an audit copy
+        } catch (RuntimeException | IOException ignored) {
+            // any companion problem must not roll back the record that was already created
+        }
+    }
+
+    /** The "<stem>.d" folder sitting next to a note file (may not exist). */
+    private static Path companionDir(Path noteFile) {
+        String name = noteFile.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        String stem = dot > 0 ? name.substring(0, dot) : name;
+        return noteFile.getParent().resolve(stem + ".d");
+    }
+
+    // ---- parsing ---------------------------------------------------------------------
+
+    private ImportNoteDto parse(Path file) {
+        String filename = file.getFileName().toString();
+        String body = readBody(file);
+        String summary = suitableSummary(body);
+
+        Matcher m = NAME.matcher(filename);
+        if (!m.matches()) {
+            return new ImportNoteDto(filename, false, null, null, null, null, null, null, null, null,
+                    summary, body);
+        }
+        LocalDateTime ts = LocalDateTime.of(
+                Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)),
+                Integer.parseInt(m.group(4)), Integer.parseInt(m.group(5)), Integer.parseInt(m.group(6)));
+        String typeCode = m.group(7).toUpperCase();
+        int priority = Integer.parseInt(m.group(8));
+        String deptCode = m.group(9).toUpperCase();
+
+        Optional<AppModule> module = modules.findByCodeIgnoreCase(typeCode);
+        Department dept = departments.findByCodeIgnoreCase(deptCode).stream().findFirst().orElse(null);
+
+        return new ImportNoteDto(filename, true, ts, typeCode,
+                module.map(AppModule::getModuleKey).orElse(null),
+                module.map(AppModule::getLabel).orElse(null),
+                priority, deptCode,
+                dept == null ? null : dept.getId(),
+                dept == null ? null : dept.getName(),
+                summary, body);
+    }
+
+    private static String readBody(Path file) {
+        try {
+            return Files.readString(file).strip();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** First non-empty line, used as the title only when a sensible length (3–120 chars). */
+    private static String suitableSummary(String body) {
+        for (String line : body.split("\\R")) {
+            String t = line.strip();
+            if (!t.isEmpty()) {
+                return t.length() >= 3 && t.length() <= 120 ? t : null;
+            }
+        }
+        return null;
+    }
+
+    // ---- record creation -------------------------------------------------------------
+
+    private BaseEntity createEntity(ImportNoteDto d) {
+        String html = toHtml(d.body());
+        Department dept = d.deptId() == null ? null : em.getReference(Department.class, d.deptId());
+
+        BaseEntity entity = switch (d.moduleKey()) {
+            case "tasks" -> {
+                Task t = new Task();
+                t.setSummary(d.summary());
+                t.setDescription(html);
+                t.setPriority(d.priority());
+                t.setDepartment(dept);
+                yield t;
+            }
+            case "journals" -> {
+                Journal j = new Journal();
+                j.setSummary(d.summary());
+                j.setDescription(html);
+                j.setPriority(d.priority());
+                j.setDepartment(dept);
+                j.setStartDate(d.timestamp());   // NOT NULL in schema
+                yield j;
+            }
+            case "planners" -> {
+                Planner p = new Planner();
+                p.setSummary(d.summary());
+                p.setDescription(html);
+                p.setPriority(d.priority());
+                p.setDepartment(dept);
+                yield p;
+            }
+            case "notes" -> {
+                IndexCard c = new IndexCard();
+                c.setSummary(d.summary());
+                c.setDescription(html);
+                c.setPriority(d.priority());
+                c.setDepartment(dept);
+                yield c;
+            }
+            case "writings" -> {
+                Writing w = new Writing();
+                w.setSummary(d.summary() != null ? d.summary() : "");   // NOT NULL
+                w.setDescription(html);
+                w.setPriority(d.priority());
+                w.setDepartment(dept);
+                yield w;
+            }
+            case "goals" -> {
+                Goal g = new Goal();
+                g.setTitle(d.summary());
+                g.setDescription(html);
+                g.setPriority(d.priority());
+                g.setDepartment(dept);
+                yield g;
+            }
+            case "resources" -> {
+                Book b = new Book();
+                b.setTitle(d.summary());
+                b.setDescription(html);
+                b.setPriority(d.priority());
+                b.setDepartment(dept);
+                yield b;
+            }
+            default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported module: " + d.moduleKey());
+        };
+        entity.setDateCreated(d.timestamp());   // preserved (BaseEntity.onCreate only sets if null)
+        return entity;
+    }
+
+    /** Plain text -> minimal HTML so the richtext view keeps line breaks. */
+    private static String toHtml(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        String escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+        return escaped.replace("\n", "<br>\n");
+    }
+
+    // ---- file handling ---------------------------------------------------------------
+
+    private Path safeFile(String filename) {
+        if (filename == null || filename.contains("/") || filename.contains("\\")
+                || filename.contains("..")) {
+            throw new ResponseStatusException(BAD_REQUEST, "Illegal filename.");
+        }
+        Path notesDir = notesDir();
+        Path file = notesDir.resolve(filename).normalize();
+        if (!file.getParent().equals(notesDir)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Illegal filename.");
+        }
+        return file;
+    }
+
+    private void archive(Path file) {
+        try {
+            Path dir = notesDir().resolve(ARCHIVE);
+            Files.createDirectories(dir);
+            Files.move(file, dir.resolve(file.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** Move a folder into the {@code imported/} archive, de-duplicating the name on collision. */
+    private void archiveDir(Path dir) throws IOException {
+        Path archiveRoot = notesDir().resolve(ARCHIVE);
+        Files.createDirectories(archiveRoot);
+        Path target = archiveRoot.resolve(dir.getFileName());
+        int n = 2;
+        while (Files.exists(target)) {
+            target = archiveRoot.resolve(dir.getFileName().toString() + "-" + n++);
+        }
+        Files.move(dir, target);
+    }
+
+    public record CreatedRecord(String module, Long id, String displayTitle) {
+    }
+}
