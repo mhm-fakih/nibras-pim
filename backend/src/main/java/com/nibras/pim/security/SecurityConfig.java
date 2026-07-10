@@ -40,6 +40,7 @@ public class SecurityConfig {
     private static final String[] MOBILE_PUSH_PATHS = {
             "/sync/mobilePush", "/sync/mobilePushHighlight",
             "/sync/mobilePushComplete", "/sync/mobilePushCalendar",
+            "/sync/mobilePushCreate",
     };
 
     @Bean

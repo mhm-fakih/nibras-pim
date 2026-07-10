@@ -28,6 +28,8 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DriveFolderUpload
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.ExpandLess
@@ -84,6 +86,8 @@ import com.knotes.BuildConfig
 import com.knotes.MainViewModel
 import com.knotes.Note
 import com.knotes.NoteFiles
+import com.knotes.nibras.PushCenter
+import com.knotes.nibras.RecordOutbox
 import kotlinx.coroutines.launch
 import com.knotes.reminder.PlansStore
 import java.text.SimpleDateFormat
@@ -107,6 +111,9 @@ private sealed interface NoteListRow {
     data class Item(val note: Note) : NoteListRow
 }
 
+/** Backend-push status of a note: queued in the outbox, or already created on the server. */
+private enum class PushState { QUEUED, PUSHED }
+
 /** The section a note falls under for the given grouping (tag names resolved from settings). */
 private fun groupLabelOf(note: Note, mode: GroupMode, settings: AppSettings): String = when (mode) {
     GroupMode.TYPE -> note.type?.let { c -> settings.types.firstOrNull { it.code == c }?.name?.ifBlank { c } ?: c } ?: "Untyped"
@@ -124,6 +131,11 @@ fun MainScreen(
 ) {
     val notes by vm.notes.collectAsState()
     val settings by vm.settingsStore.state.collectAsState()
+    // Backend push-outbox state, so each card can show queued/synced and offer "Push to Nibras".
+    val pushContext = LocalContext.current
+    LaunchedEffect(Unit) { RecordOutbox.seed(pushContext) }
+    val outboxPending by RecordOutbox.pending.collectAsState()
+    val outboxPushed by RecordOutbox.pushed.collectAsState()
     // Note counts shown under the app title: total, and how many were touched today.
     val todayCount = remember(notes) {
         val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
@@ -351,6 +363,12 @@ fun MainScreen(
                                     if (editing?.file == note.file) resetInput()
                                     vm.delete(note)
                                 },
+                                pushState = when {
+                                    outboxPending.any { it.key == note.file.name } -> PushState.QUEUED
+                                    note.file.name in outboxPushed -> PushState.PUSHED
+                                    else -> null
+                                },
+                                onPush = { PushCenter.pushNote(pushContext, note) },
                             )
                         }
                     }
@@ -478,6 +496,8 @@ private fun NoteCard(
     isEditing: Boolean,
     onClick: () -> Unit,
     onDelete: () -> Unit,
+    pushState: PushState? = null,
+    onPush: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -516,6 +536,19 @@ private fun NoteCard(
                     Badge(it, MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
                 }
                 Spacer(Modifier.weight(1f))
+                // Backend-push status: outlined up-cloud while queued, filled done-cloud once synced.
+                when (pushState) {
+                    PushState.QUEUED -> Icon(
+                        Icons.Filled.CloudUpload, contentDescription = "Queued for Nibras",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp),
+                    )
+                    PushState.PUSHED -> Icon(
+                        Icons.Filled.CloudDone, contentDescription = "Pushed to Nibras",
+                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp),
+                    )
+                    null -> {}
+                }
+                if (pushState != null) Spacer(Modifier.width(4.dp))
                 Text(
                     text = note.timeText(),
                     style = MaterialTheme.typography.labelSmall,
@@ -526,6 +559,22 @@ private fun NoteCard(
                         Icon(Icons.Filled.MoreVert, contentDescription = "More", modifier = Modifier.size(18.dp))
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    when (pushState) {
+                                        PushState.QUEUED -> "Queued — will sync"
+                                        PushState.PUSHED -> "Push again to Nibras"
+                                        null -> "Push to Nibras"
+                                    },
+                                )
+                            },
+                            enabled = pushState != PushState.QUEUED,
+                            onClick = {
+                                menuOpen = false
+                                onPush()
+                            },
+                        )
                         DropdownMenuItem(
                             text = { Text("Delete") },
                             onClick = {

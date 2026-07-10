@@ -15,6 +15,11 @@ Notes are stored as **plain `.txt` files** in a directory you choose.
 - **Arabic / RTL** note bodies are automatically right-aligned (in both the list
   and the editor).
 - **Search** across note contents and subject tags.
+- **Push to Nibras** — ⋮ on any note → *Push to Nibras* creates it as a record on the
+  backend (`/sync/mobilePushCreate`), typed by the note's filename metadata and saved
+  bookmarked so it syncs back on the next pull. Works offline: pushes wait in a
+  persistent outbox and are sent automatically when the network returns (the same
+  app-level drain also flushes offline-created calendar events).
 - **2–3 line preview** per note (configurable).
 - Tap a note to edit it in place; ⋮ → **Delete** to remove it.
 

@@ -75,6 +75,16 @@ public class SyncController {
         return out;
     }
 
+    /** Create records of any exportable type from the phone (bookmarked=true so they round-trip). */
+    @PostMapping("/sync/mobilePushCreate")
+    public Map<String, Object> mobilePushCreate(@RequestBody Map<String, Object> body) {
+        List<Long> ids = sync.pushCreates(data(body));
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("result", ids.size() + " records saved");
+        out.put("data", ids);
+        return out;
+    }
+
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> data(Map<String, Object> body) {
         Object d = body == null ? null : body.get("data");
