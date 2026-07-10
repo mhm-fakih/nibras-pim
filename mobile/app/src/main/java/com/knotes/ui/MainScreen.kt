@@ -320,10 +320,15 @@ fun MainScreen(
         ) {
             UpcomingPlansPanel()
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            // When the jump-button overlay is shown (long lists), pad the list bottom by the
+            // overlay's height so the LAST card can scroll clear of it — otherwise the overlay
+            // sits exactly on that card's ⋮ menu button and steals its taps.
+            val overlayButtons = if (groupMode != GroupMode.NONE) 3 else 2
+            val listBottomPad = if (rows.size > 8) (10 + overlayButtons * 48).dp else 8.dp
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(8.dp),
+                contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = listBottomPad),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(
