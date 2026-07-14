@@ -3,7 +3,7 @@ package com.nibras.pim.web;
 import com.nibras.pim.service.DashboardService;
 import com.nibras.pim.service.DashboardService.BookmarkItem;
 import com.nibras.pim.service.DashboardService.Kpi;
-import com.nibras.pim.web.dto.KanbanCardDto;
+import com.nibras.pim.web.dto.KanbanDto;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,9 +20,9 @@ public class DashboardController {
         this.service = service;
     }
 
-    /** Bookmarked goals + tasks as kanban cards (grouped client-side by department/type/status). */
+    /** Bookmarked goals + their tasks as full DTOs (grouped client-side by department/goal). */
     @GetMapping("/kanban")
-    public List<KanbanCardDto> kanban() {
+    public KanbanDto kanban() {
         return service.kanban();
     }
 

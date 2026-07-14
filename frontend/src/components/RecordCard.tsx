@@ -16,10 +16,12 @@ export function RecordCard({
   module,
   record,
   sx,
+  onClick,
 }: {
   module: string;
   record: EntityRecord;
   sx?: SxProps<Theme>;
+  onClick?: () => void;
 }) {
   const { modules } = useModules();
   const meta = modules.find((m) => m.moduleKey === module);
@@ -30,7 +32,18 @@ export function RecordCard({
   const course = record.course;
 
   return (
-    <Card variant="outlined" sx={{ display: 'flex', alignItems: 'stretch', p: 1, gap: 1, ...sx }}>
+    <Card
+      variant="outlined"
+      onClick={onClick}
+      sx={{
+        display: 'flex',
+        alignItems: 'stretch',
+        p: 1,
+        gap: 1,
+        ...(onClick ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } } : {}),
+        ...sx,
+      }}
+    >
       <ModuleBar code={meta?.code} color={meta?.color} title={module} />
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: preview ? 0.5 : 0 }}>

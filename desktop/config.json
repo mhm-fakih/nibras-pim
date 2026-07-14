@@ -1,8 +1,9 @@
 {
   "notes_dir": "/home/akil/h/knotes",
   "timestamp_format": "%Y_%m_%d-%H%M%S",
-  "preview_chars": 120,
+  "preview_chars": 220,
   "preview_tail_chars": 0,
+  "card_file_chars": 12,
   "preview_head_words": 2,
   "preview_tail_words": 2,
   "terminal_preview_chars": 60,
@@ -18,6 +19,9 @@
   "minimal_mode": false,
   "sort_by": "datetime",
   "kanban_rows": 2,
+  "backend_url": "",
+  "backend_user": "",
+  "backend_password": "",
   "repositories": [
     [
       "h",
@@ -28,7 +32,7 @@
       "/home/akil/new/knotes"
     ]
   ],
-  "active_repo": "h",
+  "active_repo": "s",
   "types": [
     [
       "N",

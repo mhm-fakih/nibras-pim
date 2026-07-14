@@ -1,5 +1,6 @@
 package com.nibras.pim.service;
 
+import com.nibras.pim.domain.Goal;
 import com.nibras.pim.domain.Task;
 import com.nibras.pim.domain.lookup.Course;
 import com.nibras.pim.domain.lookup.Department;
@@ -49,12 +50,15 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
                 t.getStatus() == null ? null : t.getStatus().getId(),
                 t.getDepartment() == null ? null : t.getDepartment().getId(),
                 t.getCourse() == null ? null : t.getCourse().getId(),
+                t.getGoal() == null ? null : t.getGoal().getId(),
                 t.getTags().stream().map(tag -> tag.getId()).toList(),
                 t.getStatus() == null ? null : lookup(t.getStatus()),
                 t.getDepartment() == null ? null : deptLookup(t.getDepartment()),
                 t.getCourse() == null ? null : courseLookup(t.getCourse()),
+                t.getGoal() == null ? null : goalLookup(t.getGoal()),
                 t.getTags().stream().map(tag -> new TagDto(tag.getId(), tag.getName())).toList(),
                 coverExists(t.getId()),
+                t.getCompletedOn(),
                 t.getDateCreated(),
                 t.getLastUpdated());
     }
@@ -69,7 +73,10 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
     @Override
     protected void apply(TaskDto dto, Task t) {
         t.setSummary(dto.summary());
-        t.setName(dto.name());
+        // Legacy column not on the web form — don't wipe it when the payload omits it.
+        if (dto.name() != null) {
+            t.setName(dto.name());
+        }
         t.setDescription(dto.description());
         t.setNotes(dto.notes());
         t.setPriority(dto.priority());
@@ -81,6 +88,7 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
         t.setStatus(ref(WorkStatus.class, dto.statusId()));
         t.setDepartment(ref(Department.class, dto.departmentId()));
         t.setCourse(ref(Course.class, dto.courseId()));
+        t.setGoal(ref(Goal.class, dto.goalId()));
         t.setTags(resolveTags(dto.tagIds()));
     }
 
@@ -89,6 +97,25 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
         return Map.of(
                 "statuses", options(WorkStatus.class),
                 "departments", departmentOptions(),
+                "goals", bookmarkedGoalOptions(),
                 "tags", tagOptions());
+    }
+
+    /** Goal projection for the task→goal link (goals aren't LookupEntities). */
+    static LookupDto goalLookup(Goal g) {
+        return new LookupDto(g.getId(), g.feedTitle(), g.getCode(), null);
+    }
+
+    /** Bookmarked goals as dropdown options (alphabetical) — the task form only offers active goals. */
+    private List<LookupDto> bookmarkedGoalOptions() {
+        return em.createQuery(
+                        "select g from " + Goal.class.getName() + " g where g.bookmarked = true",
+                        Goal.class)
+                .getResultList().stream()
+                .map(TaskService::goalLookup)
+                // Sort on the display title (feedTitle: title falling back to summary), case-folded.
+                .sorted(java.util.Comparator.comparing(
+                        o -> o.name() == null ? "" : o.name().toLowerCase()))
+                .toList();
     }
 }

@@ -244,6 +244,29 @@ function FieldInput({
         </TextField>
       );
     }
+    case 'goal': {
+      // Bookmarked goals only (the active ones) — searchable so a long list stays usable.
+      const options = lookups?.goals ?? [];
+      const id = (value as number | '') ?? '';
+      // An edited task may point at a goal that's no longer bookmarked; keep it selectable.
+      const current = record?.goal as Lookup | undefined;
+      const all =
+        id && current && !options.some((o) => o.id === id) ? [current, ...options] : options;
+      const selected = all.find((o) => o.id === id) ?? null;
+      return (
+        <Autocomplete
+          options={all}
+          value={selected}
+          getOptionLabel={(o) => (o.code ? `${o.code} — ${o.name}` : o.name ?? '')}
+          isOptionEqualToValue={(a, b) => a.id === b.id}
+          onChange={(_, o) => onChange(o ? o.id : '')}
+          renderInput={(params) => (
+            <TextField {...params} label={field.label} placeholder="Link to a bookmarked goal…" />
+          )}
+          sx={{ maxWidth: 480 }}
+        />
+      );
+    }
     case 'tags': {
       const options = lookups?.tags ?? [];
       const ids = (value as number[]) ?? [];
@@ -360,6 +383,9 @@ function initForm(fields: FieldDef[], record?: EntityRecord): FormState {
       case 'book':
         f[field.name] = record?.bookId ?? '';
         break;
+      case 'goal':
+        f[field.name] = record?.goalId ?? '';
+        break;
       case 'tags':
         f[field.name] = record?.tagIds ?? [];
         break;
@@ -395,6 +421,9 @@ function buildPayload(fields: FieldDef[], form: FormState): Record<string, unkno
         break;
       case 'book':
         body.bookId = v === '' || v == null ? null : v;
+        break;
+      case 'goal':
+        body.goalId = v === '' || v == null ? null : v;
         break;
       case 'tags':
         body.tagIds = (v as number[]) ?? [];

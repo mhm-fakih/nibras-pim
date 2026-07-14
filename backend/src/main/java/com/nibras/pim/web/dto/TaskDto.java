@@ -21,13 +21,16 @@ public record TaskDto(
         Long statusId,
         Long departmentId,
         Long courseId,
+        Long goalId,
         List<Long> tagIds,
         // read-only projections
         LookupDto status,
         LookupDto department,
         LookupDto course,
+        LookupDto goal,
         List<TagDto> tags,
         Boolean hasCover,
+        LocalDateTime completedOn,
         LocalDateTime dateCreated,
         LocalDateTime lastUpdated) {
 }

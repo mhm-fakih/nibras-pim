@@ -169,6 +169,8 @@ export interface EntityRecord {
   department?: Lookup;
   course?: Lookup;
   book?: Lookup;
+  goal?: Lookup;
+  goalId?: number;
   tags?: TagRef[];
   hasCover?: boolean;
   [key: string]: unknown;
@@ -774,6 +776,16 @@ export async function getPendingSync(): Promise<PendingSync[]> {
   return data;
 }
 
+/** Export all bookmarked writings' _record.md and rebuild the master TOC (repo1/W/TOC.md). */
+export interface WritingsTocResult {
+  exported: number;
+  tocPath: string;
+}
+export async function exportWritingsToc(): Promise<WritingsTocResult> {
+  const { data } = await http.post('/fulltext/writings-toc');
+  return data;
+}
+
 // ---- image renamer ----------------------------------------------------------
 
 export interface ImageList {
@@ -827,19 +839,16 @@ export async function reindexSearch(): Promise<number> {
 
 // ---- kanban + admin dashboards ----------------------------------------------
 
-export interface KanbanCard {
-  module: 'goals' | 'tasks';
-  id: number;
-  title: string;
-  priority?: number;
-  departmentId?: number;
-  departmentCode?: string;
-  departmentName?: string;
-  groupId?: number;
-  groupName?: string;
+/**
+ * Kanban board data: bookmarked goals + the tasks shown with them (bookmarked or linked to a
+ * bookmarked goal; open or recently completed). Full records so the board can render RecordCards.
+ */
+export interface KanbanData {
+  goals: EntityRecord[];
+  tasks: EntityRecord[];
 }
 
-export async function getKanban(): Promise<KanbanCard[]> {
+export async function getKanban(): Promise<KanbanData> {
   const { data } = await http.get('/dashboard/kanban');
   return data;
 }

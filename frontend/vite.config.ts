@@ -24,6 +24,9 @@ function buildNumber(command: string): number {
   return n;
 }
 
+// Backend the dev server proxies to; override with BACKEND_PORT when the API runs elsewhere.
+const backend = `http://127.0.0.1:${process.env.BACKEND_PORT ?? 8081}`;
+
 export default defineConfig(({ command }) => ({
   base: './',
   define: {
@@ -34,8 +37,8 @@ export default defineConfig(({ command }) => ({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: 'http://127.0.0.1:8081', changeOrigin: true },
-      '/feeds': { target: 'http://127.0.0.1:8081', changeOrigin: true },
+      '/api': { target: backend, changeOrigin: true },
+      '/feeds': { target: backend, changeOrigin: true },
     },
   },
 }));
