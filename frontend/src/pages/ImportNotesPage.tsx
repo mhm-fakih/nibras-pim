@@ -26,8 +26,12 @@ import { RecordCard } from '../components/RecordCard';
 
 export function ImportNotesPage() {
   const qc = useQueryClient();
-  // filename -> the imported record (+ its module), so we can show a card of it.
-  const [done, setDone] = useState<Record<string, { module: string; record: EntityRecord }>>({});
+  // filename -> the imported record (+ its module and the original note). Keeping the note lets the
+  // card stay in place after the server list refreshes (the file is moved to imported/), so the
+  // saved record shows right under the note it came from.
+  const [done, setDone] = useState<
+    Record<string, { module: string; record: EntityRecord; note: ImportNote }>
+  >({});
 
   const { data, isLoading } = useQuery({ queryKey: ['import-notes'], queryFn: listImportNotes });
 
@@ -47,13 +51,23 @@ export function ImportNotesPage() {
     onSuccess: async (res, n) => {
       // Fetch the full record so we can show a card of what was just created.
       const record = await getEntity(res.module, res.id).catch(() => null);
-      if (record) setDone((d) => ({ ...d, [n.filename]: { module: res.module, record } }));
+      if (record) setDone((d) => ({ ...d, [n.filename]: { module: res.module, record, note: n } }));
       qc.invalidateQueries({ queryKey: ['import-notes'] });
       qc.invalidateQueries({ queryKey: ['list', res.module] });
     },
   });
 
-  const notes = data?.notes ?? [];
+  // Server list (still-pending files) merged with this session's imported notes, which the server
+  // no longer returns (their files moved to imported/). Filenames start with the date, so sorting
+  // by filename keeps everything in chronological order.
+  const notes = (() => {
+    const pending = data?.notes ?? [];
+    const have = new Set(pending.map((n) => n.filename));
+    const imported = Object.values(done)
+      .map((d) => d.note)
+      .filter((n) => !have.has(n.filename));
+    return [...pending, ...imported].sort((a, b) => a.filename.localeCompare(b.filename));
+  })();
 
   return (
     <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
@@ -176,27 +190,19 @@ export function ImportNotesPage() {
                     </Typography>
                   )}
                 </Stack>
+
+                {/* The record this note became, right where it was imported. */}
+                {done[n.filename] && (
+                  <RecordCard
+                    module={done[n.filename].module}
+                    record={done[n.filename].record}
+                    sx={{ mt: 1.5 }}
+                  />
+                )}
               </CardContent>
             </Card>
           ))}
         </Stack>
-
-        {/* Imported this session — persists here even after each note (above) is archived and drops
-            off the list. Newest first. */}
-        {Object.keys(done).length > 0 && (
-          <Box sx={{ mt: 4 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-              Imported this session ({Object.keys(done).length})
-            </Typography>
-            <Stack spacing={1}>
-              {Object.entries(done)
-                .reverse()
-                .map(([filename, { module, record }]) => (
-                  <RecordCard key={filename} module={module} record={record} />
-                ))}
-            </Stack>
-          </Box>
-        )}
       </Box>
     </Box>
   );

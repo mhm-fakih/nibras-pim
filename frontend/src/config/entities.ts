@@ -11,6 +11,7 @@ export type FieldType =
   | 'department'
   | 'course'
   | 'book'
+  | 'goal'
   | 'tags';
 
 export interface FieldDef {
@@ -51,6 +52,7 @@ export const ENTITIES: EntityConfig[] = [
       { name: 'description', label: 'Description', type: 'richtext' },
       { name: 'notes', label: 'Notes', type: 'textarea' },
       { name: 'status', label: 'Status', type: 'status' },
+      { name: 'goal', label: 'Goal', type: 'goal' },
       { name: 'percentCompleted', label: '% complete', type: 'number' },
       { name: 'startDate', label: 'Start', type: 'datetime' },
       { name: 'endDate', label: 'End', type: 'datetime' },
@@ -100,6 +102,7 @@ export const ENTITIES: EntityConfig[] = [
     hasStatus: true,
     hasType: true,
     fields: [
+      { name: 'type', label: 'Type', type: 'type' },
       { name: 'title', label: 'Title', type: 'text' },
       { name: 'author', label: 'Author', type: 'text' },
       { name: 'publisher', label: 'Publisher', type: 'text' },
@@ -113,7 +116,6 @@ export const ENTITIES: EntityConfig[] = [
       { name: 'notes', label: 'Notes', type: 'textarea' },
       { name: 'url', label: 'URL', type: 'text' },
       { name: 'status', label: 'Status', type: 'status' },
-      { name: 'type', label: 'Type', type: 'type' },
       { name: 'resourceYear', label: 'Year', type: 'text' },
       { name: 'pages', label: 'Pages', type: 'text' },
       { name: 'isRead', label: 'Read', type: 'switch' },
@@ -147,7 +149,8 @@ export const ENTITIES: EntityConfig[] = [
     hasStatus: true,
     hasType: true,
     fields: [
-      { name: 'title', label: 'Title', type: 'text' },
+      // Goals also have a legacy `title` column, but like the other main records the form
+      // captures only `summary` (title stays DB-mapped for back-compat; see Goal.feedTitle).
       { name: 'summary', label: 'Summary', type: 'text' },
       { name: 'description', label: 'Description', type: 'richtext' },
       { name: 'notes', label: 'Notes', type: 'textarea' },

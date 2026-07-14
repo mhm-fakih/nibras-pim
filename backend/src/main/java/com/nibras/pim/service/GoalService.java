@@ -60,7 +60,11 @@ public class GoalService extends AbstractCrudService<Goal, GoalDto> {
 
     @Override
     protected void apply(GoalDto dto, Goal g) {
-        g.setTitle(dto.title());
+        // The web form edits only `summary`; `title` is a legacy column kept for back-compat.
+        // A payload without it must not wipe existing titles (feedTitle prefers title).
+        if (dto.title() != null) {
+            g.setTitle(dto.title());
+        }
         g.setSummary(dto.summary());
         g.setDescription(dto.description());
         g.setNotes(dto.notes());

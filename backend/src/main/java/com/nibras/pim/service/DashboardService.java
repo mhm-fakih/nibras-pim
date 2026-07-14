@@ -1,14 +1,15 @@
 package com.nibras.pim.service;
 
 import com.nibras.pim.domain.BaseEntity;
-import com.nibras.pim.domain.Goal;
 import com.nibras.pim.domain.Task;
-import com.nibras.pim.domain.lookup.Department;
-import com.nibras.pim.domain.lookup.GoalType;
-import com.nibras.pim.domain.lookup.WorkStatus;
 import com.nibras.pim.repo.GoalRepository;
 import com.nibras.pim.repo.TaskRepository;
-import com.nibras.pim.web.dto.KanbanCardDto;
+import com.nibras.pim.web.dto.GoalDto;
+import com.nibras.pim.web.dto.KanbanDto;
+import com.nibras.pim.web.dto.TaskDto;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,11 +33,16 @@ public class DashboardService {
     private final GoalRepository goals;
     private final TaskRepository tasks;
     private final EntityCatalog catalog;
+    private final GoalService goalService;
+    private final TaskService taskService;
 
-    public DashboardService(GoalRepository goals, TaskRepository tasks, EntityCatalog catalog) {
+    public DashboardService(GoalRepository goals, TaskRepository tasks, EntityCatalog catalog,
+                            GoalService goalService, TaskService taskService) {
         this.goals = goals;
         this.tasks = tasks;
         this.catalog = catalog;
+        this.goalService = goalService;
+        this.taskService = taskService;
     }
 
     public record BookmarkItem(String module, Long id, String title) {
@@ -55,26 +61,42 @@ public class DashboardService {
         return out;
     }
 
-    public List<KanbanCardDto> kanban() {
-        List<KanbanCardDto> cards = new ArrayList<>();
+    /** How long a completed task keeps showing (struck-out) on the kanban before dropping off. */
+    private static final int KANBAN_DONE_DAYS = 7;
 
-        for (Goal g : goals.findAll(bookmarked())) {
-            Department d = g.getDepartment();
-            GoalType t = g.getType();
-            cards.add(new KanbanCardDto("goals", g.getId(), g.feedTitle(), g.getPriority(),
-                    d == null ? null : d.getId(), d == null ? null : d.getCode(),
-                    d == null ? null : d.getName(),
-                    t == null ? null : t.getId(), t == null ? null : t.getName()));
-        }
-        for (Task k : tasks.findAll(bookmarked())) {
-            Department d = k.getDepartment();
-            WorkStatus s = k.getStatus();
-            cards.add(new KanbanCardDto("tasks", k.getId(), k.feedTitle(), k.getPriority(),
-                    d == null ? null : d.getId(), d == null ? null : d.getCode(),
-                    d == null ? null : d.getName(),
-                    s == null ? null : s.getId(), s == null ? null : s.getName()));
-        }
-        return cards;
+    public KanbanDto kanban() {
+        List<GoalDto> goalDtos = goals.findAll(bookmarked()).stream()
+                .map(goalService::toDto)
+                .toList();
+        List<TaskDto> taskDtos =
+                tasks.findAll(kanbanTasks(), Sort.by(Sort.Direction.DESC, "dateCreated")).stream()
+                        .map(taskService::toDto)
+                        .toList();
+        return new KanbanDto(goalDtos, taskDtos);
+    }
+
+    /**
+     * Tasks shown on the kanban: bookmarked OR linked to a bookmarked goal, and still open
+     * (no completedOn, status not "done") or completed within the last week.
+     */
+    private static Specification<Task> kanbanTasks() {
+        LocalDateTime cutoff = LocalDate.now().minusDays(KANBAN_DONE_DAYS).atStartOfDay();
+        return (root, q, cb) -> {
+            var goal = root.join("goal", JoinType.LEFT);
+            var status = root.join("status", JoinType.LEFT);
+            Predicate visible = cb.or(
+                    cb.isTrue(root.get("bookmarked")),
+                    cb.isTrue(goal.get("bookmarked")));
+            // Null-safe "not done": a missing status (or one without a code) counts as open.
+            Predicate open = cb.and(
+                    cb.isNull(root.get("completedOn")),
+                    cb.or(cb.isNull(status.get("code")), cb.notEqual(status.get("code"), "done")));
+            Predicate recentlyDone = cb.or(
+                    cb.greaterThanOrEqualTo(root.get("completedOn"), cutoff),
+                    cb.and(cb.equal(status.get("code"), "done"),
+                            cb.greaterThanOrEqualTo(root.get("lastUpdated"), cutoff)));
+            return cb.and(visible, cb.or(open, recentlyDone));
+        };
     }
 
     private static <T> Specification<T> bookmarked() {

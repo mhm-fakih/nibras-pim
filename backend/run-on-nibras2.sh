@@ -9,7 +9,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-DST="${DST:-db_nibras2}"
+DST="${DST:-db_nibras2_s}"
 PORT="${PORT:-8081}"
 export SPRING_DATASOURCE_URL="jdbc:mysql://localhost:3306/${DST}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Africa/Cairo"
 

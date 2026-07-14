@@ -21,6 +21,7 @@ import {
   ImportFilesResult,
   PendingSync,
   applyFulltext,
+  exportWritingsToc,
   getPendingSync,
   importFiles,
   previewImportFiles,
@@ -214,12 +215,16 @@ export function ImportFilesPage() {
   );
 }
 
-/** Consolidated list of records whose exported _record.md has unsynced edits, with one-click sync. */
+/** Consolidated list of records whose checkout file (e.g. W18.md) has unsynced edits, with one-click sync. */
 function PendingSyncSection() {
   const qc = useQueryClient();
   const { data, isFetching, refetch } = useQuery({ queryKey: ['pending-sync'], queryFn: getPendingSync });
   const items = data ?? [];
   const [busy, setBusy] = useState<number | 'all' | null>(null);
+
+  // Bookmarked-writings export + master TOC (repo1/W/TOC.md) — the exported files feed the same
+  // pending-sync loop above, which is why the button lives in this section.
+  const toc = useMutation({ mutationFn: exportWritingsToc });
 
   const invalidate = (module: string, id: number) => {
     qc.invalidateQueries({ queryKey: ['record', module, id] });
@@ -259,6 +264,15 @@ function PendingSyncSection() {
         <Button size="small" onClick={() => refetch()} disabled={isFetching}>
           {isFetching ? 'Scanning…' : 'Rescan'}
         </Button>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={toc.isPending ? <CircularProgress size={14} /> : <InsertDriveFileIcon fontSize="small" />}
+          disabled={toc.isPending}
+          onClick={() => toc.mutate()}
+        >
+          Writings TOC
+        </Button>
         {items.length > 0 && (
           <Button
             size="small"
@@ -272,9 +286,23 @@ function PendingSyncSection() {
         )}
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        Records whose <code>_record.md</code> (exported text file in repo 1) differs from the database —
-        sync them here instead of opening each record.
+        Records whose checkout file (<code>W18.md</code>-style, exported to repo 1) differs from the
+        database — sync them here instead of opening each record. <b>Writings TOC</b> exports every
+        bookmarked writing's checkout file and rebuilds the master manuscript index
+        (<code>repo1/W/TOC.md</code>, department → course → writing) for the Zettlr-style editor;
+        edits made there land back in this list.
       </Typography>
+      {toc.isSuccess && (
+        <Alert severity="success" sx={{ py: 0, mb: 1 }}>
+          Exported {toc.data.exported} writing{toc.data.exported === 1 ? '' : 's'} — TOC written to{' '}
+          <code>{toc.data.tocPath}</code>
+        </Alert>
+      )}
+      {toc.isError && (
+        <Alert severity="error" sx={{ py: 0, mb: 1 }}>
+          TOC export failed — check the backend log.
+        </Alert>
+      )}
 
       {!isFetching && items.length === 0 ? (
         <Alert severity="success" sx={{ py: 0 }}>
