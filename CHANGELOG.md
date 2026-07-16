@@ -53,9 +53,11 @@ around the Zettlr-style writer fork (format contract: `nbr-zettlr/docs/MASTER-TO
   a ratio — the tasks-today and top-priority indicators are gone (the latter now lives in the
   Upcoming-plans widget's second-section header, "Top priority list (N)"). The phone-status
   widget is now **"Volumes"**: six streams (Ring, Notification, Alarm, Music, Call, System —
-  accessibility deliberately skipped) in three columns as icon + bar (no numeric levels),
-  coloured green / orange >60% / red >80% (API 31+). All widgets share the bookmarks widget's
-  typography (12dp frame, 14sp bold title, 13sp rows).
+  accessibility deliberately skipped) in a balanced 2+2+2 icon-and-bar grid (no numeric levels),
+  coloured green / orange >60% / red >80% (API 31+). Tapping the widget refreshes the bars AND
+  opens the Volume slider page directly (One UI's SecVolumeSettingsActivity; generic sound
+  settings as fallback). All widgets share the bookmarks widget's typography (12dp frame,
+  14sp bold title, 13sp rows).
 - **dist/build.sh: no more PyInstaller single-binary step** — the desktop app ships as plain
   `.py` sources (`desktop-app/` + `run-desktop.sh`) only.
 - **audio-player joins the repo** (`audio-player/`, GTK/Python — the sixth app, also synced to

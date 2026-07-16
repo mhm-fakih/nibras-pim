@@ -52,6 +52,10 @@ python3 player.py FILE    # open a specific file and play it
   album) in one action (handy for the Untagged page).
 - **Subtitles** — sidecar `.srt` languages appear as chips; the active line shows over the video (or
   over the seek bar for audio).
+- **Transcripts ("lyrics")** — sidecar `.ai.txt` transcriptions (`x.ar.ai.txt` / `x.en.ai.txt`)
+  appear as `Transcript: Off/ar/en` chips; picking a language opens a scrollable side panel with
+  the whole text (no timestamps, unlike subtitles; Arabic right-aligned). A trash button deletes
+  the shown transcription file (with confirmation).
 - **Delete to Trash** — the trash button / `Ctrl+Delete` moves the file (and its `.tmk`) to the
   freedesktop **Trash** (recoverable), after a confirm dialog.
 - **Persistence** — theme (light default), pane sizes, window size, column order, tree root, recents,
@@ -140,11 +144,17 @@ One bracketed timestamp per line, optionally followed by a label — human-reada
 `<base>.<lang>.srt` → language chip (`lecture.en.srt` → **en**); a plain `<base>.srt` → **sub**.
 Parsed tolerantly (BOM, CRLF, inline `<i>`/`<b>` tags stripped).
 
+### `.ai.txt` transcript sidecar
+
+`<base>.<lang>.ai.txt` → transcript chip (`260701_0624.ar.ai.txt` → **ar**); a plain
+`<base>.ai.txt` → **txt**. No timestamps — rendered whole in the side panel, like lyrics.
+
 ### Modules
 
 | File | Responsibility |
 |---|---|
 | `tmk.py` | The `.tmk` reader/writer — the interop contract. Pure Python, self-tested. |
+| `lyrics.py` | Sidecar `.ai.txt` transcript discovery/read/delete. Pure Python, self-tested. |
 | `audio.py` | GStreamer `playbin` engine: play/seek/speed/gain, embeddable video widget. No GUI. |
 | `waveform.py` | Amplitude-envelope extraction for the seek bar spectrum: a background GStreamer `level` decode, cancellable. No GUI. |
 | `library.py` | Folder scan + tag read (`Discoverer`), aggregation, and tag write (`mutagen`). |
