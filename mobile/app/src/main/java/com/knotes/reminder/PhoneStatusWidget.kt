@@ -28,7 +28,15 @@ class PhoneStatusWidget : AppWidgetProvider() {
         when (intent.action) {
             ACTION_REFRESH -> {
                 refresh(context)
-                runCatching {
+                // Straight to the Volume page (One UI's slider screen); generic sound settings
+                // as the fallback on devices without that activity.
+                val volume = Intent()
+                    .setClassName(
+                        "com.android.settings",
+                        "com.android.settings.Settings\$SecVolumeSettingsActivity",
+                    )
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                runCatching { context.startActivity(volume) }.recoverCatching {
                     context.startActivity(
                         Intent(android.provider.Settings.ACTION_SOUND_SETTINGS)
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
