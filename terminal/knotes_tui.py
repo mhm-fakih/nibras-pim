@@ -443,10 +443,10 @@ class KnotesTUI(App):
             return
         auth = {"Authorization": f"Bearer {token}"}
         try:
-            # The backend imports from its configured folder — set it to this repo first.
-            await self.client.put(f"{backend}/api/import/notes/dir", headers=auth, json={"dir": repo_path})
+            # The repo's folder rides along per request — no global import-dir flip (the old
+            # PUT /dir dance failed silently and the import then scanned the wrong folder).
             resp = await self.client.post(f"{backend}/api/import/notes", headers=auth,
-                                          json={"filename": filename})
+                                          json={"filename": filename, "dir": repo_path})
             if resp.status_code == 200:
                 rec = resp.json()
                 self.write(f"[green]✓ pushed[/green] {filename} → "

@@ -27,6 +27,8 @@ data class Note(
     val lastModified: Long,
     /** True when the body contains Arabic (or other RTL) text. */
     val isRtl: Boolean,
+    /** Names of the files in the note's companion folder (attachments), sorted. */
+    val fileNames: List<String> = emptyList(),
 ) {
     fun preview(maxLines: Int): String {
         val text = content.lineSequence().take(maxLines.coerceAtLeast(1)).joinToString("\n").trimEnd()
@@ -35,7 +37,18 @@ data class Note(
 
     fun timeText(): String =
         SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(lastModified))
+
+    /** The `<stem>.d` folder holding the note's attached files, next to the .md (may not exist). */
+    fun companionDir(): File = companionDirOf(file)
 }
+
+/** The `<stem>.d` companion folder of a note file — same convention as the desktop/backend. */
+fun companionDirOf(noteFile: File): File =
+    File(noteFile.parentFile, noteFile.name.substringBeforeLast('.') + ".d")
+
+/** Sorted names of the files inside a note's companion folder (empty when there is none). */
+fun companionFileNames(noteFile: File): List<String> =
+    companionDirOf(noteFile).listFiles()?.filter { it.isFile }?.map { it.name }?.sorted() ?: emptyList()
 
 /**
  * File-name encoding for notes.

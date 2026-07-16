@@ -245,6 +245,16 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.minimal_button.connect("toggled", self._on_minimal_button)
         header.pack_end(self.minimal_button)
 
+        # Auto-open the just-saved note's files folder (the Ctrl+O action) — for capture sessions
+        # where every record gets files dropped in right after it's written.
+        self.auto_folder_button = Gtk.ToggleButton()
+        self.auto_folder_button.add(Gtk.Image.new_from_icon_name("folder-open-symbolic", Gtk.IconSize.BUTTON))
+        self.auto_folder_button.set_tooltip_text(
+            "Auto-open the note's files folder after each save (to drop its files in)")
+        self.auto_folder_button.set_active(self.settings.auto_open_folder)
+        self.auto_folder_button.connect("toggled", self._on_auto_folder_toggled)
+        header.pack_end(self.auto_folder_button)
+
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.add(root)
 
@@ -438,15 +448,22 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.type_row.set_visible(bool(self.repo_cfg.types))
         self.category_row.set_visible(bool(self.repo_cfg.categories))
 
+    def _backend_conn(self) -> tuple[str, str, str]:
+        """(url, user, password) of the ACTIVE folder's backend — each repository can bind its own
+        backend in its .knotes.json; blank fields fall back to the global settings."""
+        url = (self.repo_cfg.backend_url or self.settings.backend_url).strip()
+        user = self.repo_cfg.backend_user or self.settings.backend_user
+        pw = self.repo_cfg.backend_password or self.settings.backend_password
+        return url, user, pw
+
     def _sync_backend_taxonomy(self) -> None:
         """Refresh the capture 'types' from the backend's modules and 'categories' from its bookmarked
-        departments so codes line up with the backend on import. Runs off the UI thread; on any
-        failure (no URL, offline, bad credentials) it silently keeps the current codes — note-taking
-        is never blocked on the network."""
-        url = self.settings.backend_url.strip()
+        departments so codes line up with the backend on import. Uses the active folder's own backend
+        (fallback: global). Runs off the UI thread; on any failure (no URL, offline, bad credentials)
+        it silently keeps the current codes — note-taking is never blocked on the network."""
+        url, user, pw = self._backend_conn()
         if not url:
             return
-        user, pw = self.settings.backend_user, self.settings.backend_password
         repo_path = self.settings.active_repo_path()
 
         def worker():
@@ -999,7 +1016,11 @@ class KnotesWindow(Gtk.ApplicationWindow):
         note = self.selected_note
         if note is None or self._sel is None:
             return
-        folder = companion_dir(note.path)
+        self._reveal_folder(note.path)
+
+    def _reveal_folder(self, note_path: str) -> None:
+        """Create (on demand) a note's companion folder and reveal it in the file manager."""
+        folder = companion_dir(note_path)
         try:
             os.makedirs(folder, exist_ok=True)
         except OSError:
@@ -1256,6 +1277,11 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if not self._suppress_minimal_toggle:
             self._set_minimal_mode(button.get_active())
 
+    def _on_auto_folder_toggled(self, button: Gtk.ToggleButton) -> None:
+        """Toolbar toggle: open the just-saved note's files folder after every save (persisted)."""
+        self.settings.auto_open_folder = button.get_active()
+        self.settings.save()
+
     def _set_minimal_mode(self, enabled: bool) -> None:
         self.minimal_mode = enabled
         self.settings.minimal_mode = enabled
@@ -1332,8 +1358,10 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if not text:
             return
         # Always a new note; the chosen tags stay selected for the next one (sticky).
-        self.repo.save_new(text, self.selected_type, self.priority,
-                           self.selected_category, self.settings.timestamp_format)
+        path = self.repo.save_new(text, self.selected_type, self.priority,
+                                  self.selected_category, self.settings.timestamp_format)
+        if self.settings.auto_open_folder:
+            self._reveal_folder(path)  # toolbar toggle: drop the note's files in right away
         self._reset_input()
         self.reload_notes()
         # Immediate save feedback: scroll the list so the just-saved note (added at the end) is visible.
@@ -1453,6 +1481,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self._board_active = False
         self._refresh_status()
         self.reload_notes()
+        self._sync_backend_taxonomy()  # the new folder may bind its own backend
 
     def _reset_input(self) -> None:
         """Clear the editor; tag selections are kept (sticky) for the next note."""
@@ -1827,7 +1856,7 @@ class SettingsDialog(Gtk.Dialog):
         #     right record on import. Blank URL = fully offline (the codes below/defaults apply).
         backend_hint = Gtk.Label(xalign=0)
         backend_hint.set_markup(
-            "<b>Nibras backend</b>  (optional — refreshes type/category codes; blank = offline)")
+            "<b>Nibras backend — default</b>  (used by folders without their own; blank = offline)")
         grid.attach(backend_hint, 0, row, 2, 1)
         row += 1
 
@@ -1835,7 +1864,8 @@ class SettingsDialog(Gtk.Dialog):
         self.backend_url_entry.set_placeholder_text("http://192.168.0.47:8081   (blank = offline)")
         self.backend_url_entry.set_tooltip_text(
             "Base URL of the nibras backend. Types ← its modules, categories ← its bookmarked "
-            "departments. Codes are cached, so it still works offline after the first sync.")
+            "departments. Codes are cached, so it still works offline after the first sync. "
+            "Each folder can override this below with its own backend.")
         add("Backend URL", self.backend_url_entry)
 
         self.backend_user_entry = Gtk.Entry(text=settings.backend_user)
@@ -1871,6 +1901,22 @@ class SettingsDialog(Gtk.Dialog):
 
         self.categories_view = self._tag_textview(format_tag_block(repo_cfg.categories, repo_cfg.default_category))
         add("Categories (code:name per line; * = default)", self._wrap_scroller(self.categories_view))
+
+        # This folder's own backend — overrides the default backend above (blank = use default).
+        self.repo_backend_url_entry = Gtk.Entry(text=repo_cfg.backend_url)
+        self.repo_backend_url_entry.set_placeholder_text("blank = use the default backend above")
+        self.repo_backend_url_entry.set_tooltip_text(
+            "This folder's OWN nibras backend (e.g. a different Tomcat context per folder). "
+            "Taxonomy sync for this folder talks to it. Blank fields fall back to the default.")
+        add("This folder's backend URL", self.repo_backend_url_entry)
+
+        self.repo_backend_user_entry = Gtk.Entry(text=repo_cfg.backend_user)
+        add("This folder's backend username", self.repo_backend_user_entry)
+
+        self.repo_backend_pass_entry = Gtk.Entry(text=repo_cfg.backend_password)
+        self.repo_backend_pass_entry.set_visibility(False)
+        self.repo_backend_pass_entry.set_input_purpose(Gtk.InputPurpose.PASSWORD)
+        add("This folder's backend password", self.repo_backend_pass_entry)
 
         self.show_all()
 
@@ -1918,6 +1964,9 @@ class SettingsDialog(Gtk.Dialog):
         repo_cfg.priority_default = int(self.default_prio_spin.get_value())
         repo_cfg.types, repo_cfg.default_type = parse_tag_block(self._buffer_text(self.types_view))
         repo_cfg.categories, repo_cfg.default_category = parse_tag_block(self._buffer_text(self.categories_view))
+        repo_cfg.backend_url = self.repo_backend_url_entry.get_text().strip()
+        repo_cfg.backend_user = self.repo_backend_user_entry.get_text().strip()
+        repo_cfg.backend_password = self.repo_backend_pass_entry.get_text()
 
 
 class KnotesApp(Gtk.Application):

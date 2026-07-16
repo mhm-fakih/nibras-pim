@@ -44,6 +44,7 @@ class NoteRepository(private val settings: SettingsStore) {
             content = content,
             lastModified = file.lastModified(),
             isRtl = NoteFiles.isRtl(content),
+            fileNames = companionFileNames(file),
         )
     }
 
