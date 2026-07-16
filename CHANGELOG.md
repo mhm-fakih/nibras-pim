@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-07-16
+
+### Bookmarked-records checkout + master TOC (`repo1/TOC.md`)
+
+The record-checkout feature grew from "export one record's text" into a full editing workflow
+around the Zettlr-style writer fork (format contract: `nbr-zettlr/docs/MASTER-TOC-FORMAT.md`).
+
+- **Per-record checkout file names.** A record's editable text exports to
+  `<CODE><id>.md` (e.g. `W18.md`, `T1795.md`) in its repo-1 folder instead of the shared
+  `_record.md` — editor tabs are finally tellable apart. Legacy `_record.md` checkouts are still
+  read/synced, and are retired (or parked, see below) on the next export.
+- **"Bookmarked TOC" button** (Import files page, pending-sync section →
+  `POST /api/fulltext/bookmarked-toc`): checks out **every bookmarked record across all seven
+  modules** (T, P, G, J, N, W, R) and rebuilds the master index at **`repo1/TOC.md`**:
+  department (`#`, "No dept." last) → course (`##`, when set; course-less records first so their
+  embeds don't nest under a stray course heading) → `### <CODE><id> — <title>` + a structural
+  embed (`![](W/18/W18.md)`, relative to the TOC). Records order within a group: module
+  (T→P→G→J→N→W→R), then priority (desc), then id.
+- **Checkouts never clobber edits.** If a checkout file already exists with content that differs
+  from the fresh DB export (i.e. unsynced editor changes), the old file is parked beside it as
+  `<CODE><id>.<yyyyMMdd-HHmmss>.md` — a name the pending-sync scan deliberately ignores — and
+  the response lists these conflicts; the UI shows them as a warning with the backup file names,
+  for manual comparing/merging.
+- **Round-trip**: editing any embedded checkout in the writer shows up in the fulltext
+  pending-sync list (Import files page) exactly like before; syncing applies the `@@ field @@`
+  blocks back to the record with audit tracking.
+
+### Capture apps
+
+- **Terminal: robust `notes` import.** The TUI shares the desktop app's `notes.py` (there is no
+  `terminal/notes.py` in the repo — see `terminal/README.md`). A local copy now takes precedence
+  (standalone `terminal/` folders work by dropping `desktop/notes.py` beside the script), the
+  repo-layout `../desktop` fallback stays, and a missing module exits with a clear message.
+- **Desktop: kanban hides empty category columns** — the board only spends width on panels that
+  have notes (the "—" uncategorized column already behaved this way).
+- **Mobile player: panel chips span the full width**, bookmarks first and open by default; the
+  bookmark button row is 30% shorter with a 3-line filename cap. (Panels — bookmarks / in this
+  folder / recently played / settings — replaced the old long stacked page.)
+
 ## 2026-07-10
 
 ### Mobile ↔ backend sync (records authored on the phone)

@@ -1,8 +1,8 @@
 package com.nibras.pim.web;
 
 import com.nibras.pim.service.FulltextService;
+import com.nibras.pim.service.FulltextService.BookmarkedTocResult;
 import com.nibras.pim.service.FulltextService.Pending;
-import com.nibras.pim.service.FulltextService.WritingsTocResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,11 +27,12 @@ public class FulltextSyncController {
     }
 
     /**
-     * Export all bookmarked writings' _record.md files and rebuild the master TOC
-     * (repo1/W/TOC.md) — department → course → writing, as manuscript-index embeds.
+     * Check out every bookmarked record's file (all modules) and rebuild the master TOC
+     * (repo1/TOC.md) — department → course → record, as manuscript-index embeds. Existing
+     * checkouts with different content are parked with a timestamp (returned as conflicts).
      */
-    @PostMapping("/writings-toc")
-    public WritingsTocResult writingsToc() {
-        return service.exportWritingsToc();
+    @PostMapping("/bookmarked-toc")
+    public BookmarkedTocResult bookmarkedToc() {
+        return service.exportBookmarkedToc();
     }
 }

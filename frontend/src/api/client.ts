@@ -776,13 +776,21 @@ export async function getPendingSync(): Promise<PendingSync[]> {
   return data;
 }
 
-/** Export all bookmarked writings' _record.md and rebuild the master TOC (repo1/W/TOC.md). */
-export interface WritingsTocResult {
+/** A checkout that already existed with different content — the old copy was kept aside. */
+export interface TocConflict {
+  module: string;
+  id: number;
+  title: string;
+  backupFile: string;
+}
+/** Check out every bookmarked record + rebuild the master TOC (repo1/TOC.md). */
+export interface BookmarkedTocResult {
   exported: number;
   tocPath: string;
+  conflicts: TocConflict[];
 }
-export async function exportWritingsToc(): Promise<WritingsTocResult> {
-  const { data } = await http.post('/fulltext/writings-toc');
+export async function exportBookmarkedToc(): Promise<BookmarkedTocResult> {
+  const { data } = await http.post('/fulltext/bookmarked-toc');
   return data;
 }
 

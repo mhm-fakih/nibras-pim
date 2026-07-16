@@ -587,15 +587,16 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # its own cards); horizontal off too so the columns stretch to fill the width.
         self.board_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.NEVER)
 
-        # One column per *defined* category, always shown (even with no notes), in definition order.
-        # A trailing "—" column collects uncategorized notes only when some exist.
+        # One column per category that HAS notes, in definition order — empty categories are
+        # hidden so the board only spends width on panels with content. A trailing "—" column
+        # collects uncategorized notes only when some exist.
         cat_order = [code for code, _ in self.repo_cfg.categories]
         cat_names = dict(self.repo_cfg.categories)
         by_cat: dict[str, list[Note]] = {}
         for n in notes:
             by_cat.setdefault(n.category if n.category in cat_order else "—", []).append(n)
 
-        columns = list(cat_order)
+        columns = [code for code in cat_order if by_cat.get(code)]
         if "—" in by_cat:
             columns.append("—")
 

@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -172,6 +173,21 @@ public class FulltextService {
      */
     @Transactional(readOnly = true)
     public ExportResult export(String module, long id, Boolean openOverride) {
+        String content = render(module, id);
+        Path file = file(module, id);
+        try {
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, content);
+            Files.deleteIfExists(legacyFile(module, id));   // retire the pre-rename checkout
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        openExported(file, openOverride);
+        return new ExportResult(file.toString(), content);
+    }
+
+    /** The checkout-file content for a record: the '@@ field @@' blocks, straight from the DB. */
+    private String render(String module, long id) {
         List<String> fields = fieldsFor(module);
         BeanWrapper bw = new BeanWrapperImpl(load(module, id));
 
@@ -183,18 +199,60 @@ public class FulltextService {
             sb.append("@@ ").append(f).append(" @@\n");
             sb.append(v == null ? "" : v.toString()).append("\n\n");
         }
-        String content = sb.toString();
+        return sb.toString();
+    }
 
+    /**
+     * Export a record's checkout file WITHOUT losing anyone's edits: when the file already exists
+     * with different content (e.g. unsynced editor changes), the old file is moved aside to
+     * {@code <CODE><id>.<timestamp>.md} (which the pending-sync scan ignores) before the fresh
+     * copy is written — kept for manual comparing/merging. Never opens an editor.
+     * Returns the checkout path plus the backup's file name when one was made.
+     */
+    private SafeExport exportSafe(String module, long id) {
+        String fresh = render(module, id);
         Path file = file(module, id);
+        String backup = null;
         try {
             Files.createDirectories(file.getParent());
-            Files.writeString(file, content);
-            Files.deleteIfExists(legacyFile(module, id));   // retire the pre-rename checkout
+            if (Files.isRegularFile(file) && !fresh.equals(Files.readString(file))) {
+                backup = moveAside(file).getFileName().toString();
+            }
+            // The pre-rename _record.md gets the same care: park it if edited, drop it if stale.
+            Path legacy = legacyFile(module, id);
+            if (Files.isRegularFile(legacy)) {
+                if (fresh.equals(Files.readString(legacy))) {
+                    Files.delete(legacy);
+                } else if (backup == null) {
+                    backup = moveAside(legacy, file).getFileName().toString();
+                } else {
+                    moveAside(legacy, file);
+                }
+            }
+            Files.writeString(file, fresh);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        openExported(file, openOverride);
-        return new ExportResult(file.toString(), content);
+        return new SafeExport(file, backup);
+    }
+
+    private record SafeExport(Path path, String backupName) {
+    }
+
+    /** Move a checkout aside to {@code <stem>.<yyyyMMdd-HHmmss>[.n].md} next to it. */
+    private static Path moveAside(Path file) throws IOException {
+        return moveAside(file, file);
+    }
+
+    private static Path moveAside(Path file, Path nameSource) throws IOException {
+        String stem = nameSource.getFileName().toString().replaceFirst("\\.md$", "");
+        String ts = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        Path target = file.resolveSibling(stem + "." + ts + ".md");
+        int n = 2;
+        while (Files.exists(target)) {
+            target = file.resolveSibling(stem + "." + ts + "." + n++ + ".md");
+        }
+        return Files.move(file, target);
     }
 
     /**
@@ -345,79 +403,103 @@ public class FulltextService {
                 .orElse(module);
     }
 
-    // ---- writings master TOC -----------------------------------------------------------
+    // ---- bookmarked-records master TOC ---------------------------------------------------
 
-    public record WritingsTocResult(int exported, String tocPath) {
+    /** A checkout that already existed with different content — the old copy was kept aside. */
+    public record TocConflict(String module, long id, String title, String backupFile) {
     }
 
+    public record BookmarkedTocResult(int exported, String tocPath, List<TocConflict> conflicts) {
+    }
+
+    /** TOC module order (T, P, G, J, N, W, R) — also the record order within a course group. */
+    private static final List<String> TOC_MODULES = List.of(
+            "tasks", "planners", "goals", "journals", "notes", "writings", "resources");
+
     /**
-     * Export every bookmarked writing's checkout file (without popping editors open) and
-     * rebuild the master TOC at {@code <repo1>/<W>/TOC.md}: department (level-1 heading) →
-     * course (level-2, when set) → the writing's title, followed by a structural embed of its
-     * checkout file (e.g. {@code W18.md}). The format follows the writer fork's manuscript-index
-     * contract (docs/MASTER-TOC-FORMAT.md in nbr-zettlr): embeds alone on a top-level line,
-     * relative paths from the including file, blank lines around each. Editing an embedded file
-     * later shows up in the normal fulltext pending-sync list.
+     * Check out every bookmarked record's file (all modules — T/P/G/J/N/W/R) and rebuild the
+     * master TOC at {@code <repo1>/TOC.md}: department (level-1 heading) → course (level-2, when
+     * set) → the record's code + title, followed by a structural embed of its checkout file
+     * (e.g. {@code W18.md}). The format follows the writer fork's manuscript-index contract
+     * (docs/MASTER-TOC-FORMAT.md in nbr-zettlr): embeds alone on a top-level line, relative
+     * paths from the including file, blank lines around each. Checkouts never clobber edits:
+     * an existing file with different content is parked as {@code <CODE><id>.<timestamp>.md}
+     * first (reported in {@code conflicts} for manual merging); editing an embedded file later
+     * shows up in the normal fulltext pending-sync list.
      */
     @Transactional(readOnly = true)
-    public WritingsTocResult exportWritingsToc() {
-        List<Writing> list = em.createQuery(
-                        "select w from Writing w where w.bookmarked = true", Writing.class)
-                .getResultList();
+    public BookmarkedTocResult exportBookmarkedToc() {
+        record Row(String module, BaseEntity entity, String deptKey, String deptName,
+                   String courseName, int moduleRank, int priority) {
+        }
+        List<Row> rows = new ArrayList<>();
+        for (String module : TOC_MODULES) {
+            Class<? extends BaseEntity> cls = CLASSES.get(module);
+            for (BaseEntity e : em.createQuery(
+                            "select e from " + cls.getName() + " e where e.bookmarked = true", cls)
+                    .getResultList()) {
+                BeanWrapper bw = new BeanWrapperImpl(e);
+                var dept = (com.nibras.pim.domain.lookup.Department) bw.getPropertyValue("department");
+                var course = (com.nibras.pim.domain.lookup.Course) bw.getPropertyValue("course");
+                Integer prio = (Integer) bw.getPropertyValue("priority");
+                rows.add(new Row(
+                        module, e,
+                        // "￿" sorts departmentless records last; "￾" codeless departments next-to-last
+                        dept == null ? "￿" : nz(dept.getCode(), "￾"),
+                        dept == null ? "No dept." : nz(dept.getName(), dept.getCode(), "No dept."),
+                        course == null ? null : nz(course.feedTitle(), null),
+                        TOC_MODULES.indexOf(module),
+                        prio == null ? 0 : prio));
+            }
+        }
         // Group order: departments by code (none last, under "No dept."); within a department the
-        // course-less writings FIRST (an embed after a "##" heading would nest under that course),
-        // then course groups; writings by priority (desc) then id.
-        list.sort(java.util.Comparator
-                // "￿" sorts departmentless writings last; "￾" codeless departments next-to-last
-                .comparing((Writing w) -> w.getDepartment() == null ? "￿"
-                        : nz(w.getDepartment().getCode(), "￾"))
-                .thenComparing(w -> w.getCourse() == null ? "" : nz(w.getCourse().feedTitle(), ""))
-                .thenComparing(w -> w.getPriority() == null ? 0 : -w.getPriority())
-                .thenComparing(Writing::getId));
+        // course-less records FIRST (an embed after a "##" heading would nest under that course),
+        // then course groups; records by module order, then priority (desc), then id.
+        rows.sort(java.util.Comparator
+                .comparing(Row::deptKey)
+                .thenComparing(r -> r.courseName() == null ? "" : r.courseName())
+                .thenComparing(Row::moduleRank)
+                .thenComparing(r -> -r.priority())
+                .thenComparing(r -> r.entity().getId()));
 
-        Path tocDir = writingsDir();
-        StringBuilder sb = new StringBuilder("---\ntitle: Writings — Master TOC\n---\n");
+        Path root = repositories.repoRoot(1);
+        StringBuilder sb = new StringBuilder("---\ntitle: Bookmarked records — Master TOC\n---\n");
+        List<TocConflict> conflicts = new ArrayList<>();
         String dept = null;
         String course = null;
         boolean first = true;
-        for (Writing w : list) {
-            ExportResult exported = export("writings", w.getId(), false);
+        for (Row r : rows) {
+            SafeExport exported = exportSafe(r.module(), r.entity().getId());
+            String title = nz(r.entity().feedTitle(), "#" + r.entity().getId());
+            if (exported.backupName() != null) {
+                conflicts.add(new TocConflict(r.module(), r.entity().getId(), title, exported.backupName()));
+            }
 
-            String d = w.getDepartment() == null ? "No dept."
-                    : nz(w.getDepartment().getName(), w.getDepartment().getCode(), "No dept.");
-            if (first || !d.equals(dept)) {
-                sb.append("\n# ").append(d).append('\n');
-                dept = d;
+            if (first || !r.deptName().equals(dept)) {
+                sb.append("\n# ").append(r.deptName()).append('\n');
+                dept = r.deptName();
                 course = null;
             }
-            String c = w.getCourse() == null ? null : nz(w.getCourse().feedTitle(), null);
-            if (c != null && !c.equals(course)) {
-                sb.append("\n## ").append(c).append('\n');
+            if (r.courseName() != null && !r.courseName().equals(course)) {
+                sb.append("\n## ").append(r.courseName()).append('\n');
             }
-            course = c;
+            course = r.courseName();
 
-            String rel = tocDir.relativize(Path.of(exported.path())).toString();
-            sb.append("\n### ").append(nz(w.feedTitle(), "#" + w.getId())).append("\n\n");
+            String rel = root.relativize(exported.path()).toString();
+            sb.append("\n### ").append(codeFor(r.module())).append(r.entity().getId())
+                    .append(" — ").append(title).append("\n\n");
             sb.append("![](").append(rel.contains(" ") ? "<" + rel + ">" : rel).append(")\n");
             first = false;
         }
 
-        Path toc = tocDir.resolve("TOC.md");
+        Path toc = root.resolve("TOC.md");
         try {
-            Files.createDirectories(tocDir);
+            Files.createDirectories(root);
             Files.writeString(toc, sb.toString());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return new WritingsTocResult(list.size(), toc.toString());
-    }
-
-    /** Repo-1 folder the writings records live under (module code dir, e.g. ~/rps1/W). */
-    private Path writingsDir() {
-        String code = modules.findByModuleKey("writings")
-                .map(m -> m.getCode() != null && !m.getCode().isBlank() ? m.getCode() : "writings")
-                .orElse("writings");
-        return repositories.repoRoot(1).resolve(code);
+        return new BookmarkedTocResult(rows.size(), toc.toString(), conflicts);
     }
 
     /** First non-blank of the given values; falls back to the last value verbatim. */
