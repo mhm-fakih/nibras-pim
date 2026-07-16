@@ -39,12 +39,15 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
@@ -89,6 +92,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
+/** The togglable panels under the main controls — one (or none) shown at a time. */
+private enum class PlayerPanel { FOLDER, BOOKMARKS, RECENTS, SETTINGS }
+
 /** Dark theme shared by the player, whether shown full-screen or as part of the app shell. */
 @Composable
 fun PlayerTheme(content: @Composable () -> Unit) {
@@ -127,7 +133,9 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
     // Double-tap-to-prioritise tracking: the last bookmark placed + when it was tapped.
     var lastBm by remember(currentFile) { mutableStateOf<Bookmark?>(null) }
     var lastTapMs by remember(currentFile) { mutableStateOf(0L) }
-    var showList by remember { mutableStateOf(true) }
+    // Which panel (bookmarks / folder / recents / settings) is open under the controls; bookmarks
+    // start open (the panel used most). Toggled by the chip row (list transport button → FOLDER).
+    var activePanel by remember { mutableStateOf<PlayerPanel?>(PlayerPanel.BOOKMARKS) }
     // Other media in the same folder ("what's next") and the recent-files list, plus any sidecar
     // subtitle tracks for the current file.
     val siblings = remember(currentFile) { controller.siblings() }
@@ -291,20 +299,21 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                 }
             }
 
-            // Title + note field on the left; a tall, high-contrast bookmark button spanning both
-            // rows on the right so it's hard to miss.
+            // Title + note field on the left; a high-contrast bookmark button spanning both rows on
+            // the right so it's hard to miss. Kept compact (30% shorter than the original 156dp,
+            // filename capped at 3 lines) so the controls and panels fit without scrolling.
             Spacer(Modifier.height(12.dp))
             Row(
-                modifier = Modifier.fillMaxWidth().height(156.dp),
+                modifier = Modifier.fillMaxWidth().height(110.dp),
                 verticalAlignment = Alignment.Top,
             ) {
                 Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    // Filename gets the tall, multi-line space.
+                    // Filename region: up to 3 lines.
                     Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopStart) {
                         Text(
                             currentFile.name,
                             style = MaterialTheme.typography.titleMedium,
-                            maxLines = 5,
+                            maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -348,7 +357,7 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                         .clickable { addBookmark() },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Filled.Bookmark, "Add bookmark", tint = Color.White, modifier = Modifier.size(56.dp))
+                    Icon(Icons.Filled.Bookmark, "Add bookmark", tint = Color.White, modifier = Modifier.size(44.dp))
                 }
             }
 
@@ -371,7 +380,9 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SquareButton(Modifier.weight(1f), null, Icons.Filled.SkipNext) { controller.playNext() }
-                SquareButton(Modifier.weight(1f), null, Icons.AutoMirrored.Filled.List) { showList = !showList }
+                SquareButton(Modifier.weight(1f), null, Icons.AutoMirrored.Filled.List) {
+                    activePanel = if (activePanel == PlayerPanel.FOLDER) null else PlayerPanel.FOLDER
+                }
                 // Audio-only toggle: disable the video track (e.g. while driving). Highlighted when on.
                 SquareButton(
                     Modifier.weight(1f),
@@ -401,20 +412,45 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                 }
             }
 
-            // Three browsing lists, each capped to a fixed height and independently scrollable so the
-            // page stays short no matter how many entries any one of them has.
-            if (showList) {
+            // Panel selector: one row of small toggle chips instead of a long page of stacked
+            // sections. Tapping a chip shows its panel below; tapping again hides it. The chips
+            // share the full screen width, bookmarks first (it's also the panel open by default).
+            val recents = controller.recents
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                PanelChip(Icons.Filled.Bookmark, "Bookmarks", "${bookmarks.size}",
+                    selected = activePanel == PlayerPanel.BOOKMARKS, modifier = Modifier.weight(1f)) {
+                    activePanel = if (activePanel == PlayerPanel.BOOKMARKS) null else PlayerPanel.BOOKMARKS
+                }
+                PanelChip(Icons.Filled.Folder, "In this folder", "${siblings.size}",
+                    selected = activePanel == PlayerPanel.FOLDER, enabled = siblings.isNotEmpty(),
+                    modifier = Modifier.weight(1f)) {
+                    activePanel = if (activePanel == PlayerPanel.FOLDER) null else PlayerPanel.FOLDER
+                }
+                PanelChip(Icons.Filled.History, "Recently played", null,
+                    selected = activePanel == PlayerPanel.RECENTS, enabled = recents.isNotEmpty(),
+                    modifier = Modifier.weight(1f)) {
+                    activePanel = if (activePanel == PlayerPanel.RECENTS) null else PlayerPanel.RECENTS
+                }
+                PanelChip(Icons.Filled.Settings, "Player settings", null,
+                    selected = activePanel == PlayerPanel.SETTINGS, modifier = Modifier.weight(1f)) {
+                    activePanel = if (activePanel == PlayerPanel.SETTINGS) null else PlayerPanel.SETTINGS
+                }
+            }
+
+            when (activePanel) {
                 // What's next: other media sitting in the same folder, current one highlighted.
-                if (siblings.size > 1) {
-                    ListSection("In this folder (${siblings.size})") {
-                        siblings.forEach { f ->
-                            MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = true) { controller.open(f) }
-                        }
+                PlayerPanel.FOLDER -> ListSection("In this folder (${siblings.size})", maxHeight = 280.dp) {
+                    siblings.forEach { f ->
+                        MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = true) { controller.open(f) }
                     }
                 }
 
                 // Bookmarks, newest first.
-                ListSection("Bookmarks (${bookmarks.size})") {
+                PlayerPanel.BOOKMARKS -> ListSection("Bookmarks (${bookmarks.size})", maxHeight = 280.dp) {
                     bookmarks.sortedByDescending { it.positionMs }.forEach { b ->
                         Row(
                             modifier = Modifier.fillMaxWidth().clickable { seekTo(b.positionMs) }.padding(vertical = 6.dp),
@@ -428,46 +464,47 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                 }
 
                 // Jump back to anything played recently.
-                val recents = controller.recents
-                if (recents.isNotEmpty()) {
-                    ListSection("Recently played") {
-                        recents.forEach { f ->
-                            MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = true) { controller.open(f) }
+                PlayerPanel.RECENTS -> ListSection("Recently played", maxHeight = 280.dp) {
+                    recents.forEach { f ->
+                        MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = true) { controller.open(f) }
+                    }
+                }
+
+                // Player settings: skip/speed/bookmark sliders, sleep timer, bookmark-on-pause.
+                PlayerPanel.SETTINGS -> Column {
+                    Spacer(Modifier.height(14.dp))
+                    LabeledSlider("Skip ${skipPrimary}s", skipPrimary.toFloat(), 5f, 60f) { controller.skipPrimary = it.toInt() }
+                    LabeledSlider("Speed ${"%.2f".format(controller.speed)}x", controller.speed, 0.75f, 1.25f) { controller.changeSpeed(it) }
+                    LabeledSlider("Bookmark −${controller.bookmarkRewind}s", controller.bookmarkRewind.toFloat(), 0f, 20f) { controller.changeBookmarkRewind(it.toInt()) }
+                    LabeledSlider("2-tap prio ${controller.bookmarkDoubleSecs}s", controller.bookmarkDoubleSecs.toFloat(), 1f, 10f) { controller.changeBookmarkDouble(it.toInt()) }
+                    LabeledSlider("Volume ${"%+.0f".format(controller.gainDb)} dB", controller.gainDb, -20f, 50f) { controller.setGain(it) }
+
+                    Spacer(Modifier.height(16.dp))
+                    SleepTimerRow(controller)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clickable {
+                            controller.changeAutoBookmark(!controller.autoBookmarkOnPause)
+                        },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = controller.autoBookmarkOnPause,
+                            onCheckedChange = { controller.changeAutoBookmark(it) },
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Column {
+                            Text("Bookmark on pause", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "Any pause — on-screen, cable, or Bluetooth — drops a bookmark. Handy during a nap.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFFAAAAAA),
+                            )
                         }
                     }
                 }
-            }
 
-            // Player settings (skip amount + speed + volume) at the bottom.
-            Spacer(Modifier.height(14.dp))
-            LabeledSlider("Skip ${skipPrimary}s", skipPrimary.toFloat(), 5f, 60f) { controller.skipPrimary = it.toInt() }
-            LabeledSlider("Speed ${"%.2f".format(controller.speed)}x", controller.speed, 0.75f, 1.25f) { controller.changeSpeed(it) }
-            LabeledSlider("Bookmark −${controller.bookmarkRewind}s", controller.bookmarkRewind.toFloat(), 0f, 20f) { controller.changeBookmarkRewind(it.toInt()) }
-            LabeledSlider("2-tap prio ${controller.bookmarkDoubleSecs}s", controller.bookmarkDoubleSecs.toFloat(), 1f, 10f) { controller.changeBookmarkDouble(it.toInt()) }
-            LabeledSlider("Volume ${"%+.0f".format(controller.gainDb)} dB", controller.gainDb, -20f, 50f) { controller.setGain(it) }
-
-            Spacer(Modifier.height(16.dp))
-            SleepTimerRow(controller)
-
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clickable {
-                    controller.changeAutoBookmark(!controller.autoBookmarkOnPause)
-                },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = controller.autoBookmarkOnPause,
-                    onCheckedChange = { controller.changeAutoBookmark(it) },
-                )
-                Spacer(Modifier.width(4.dp))
-                Column {
-                    Text("Bookmark on pause", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        "Any pause — on-screen, cable, or Bluetooth — drops a bookmark. Handy during a nap.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFFAAAAAA),
-                    )
-                }
+                null -> {}
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -597,6 +634,44 @@ fun MediaMetaBadge(file: File, modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+/**
+ * A small icon toggle chip for the panel-selector row (icon + optional count). The four chips
+ * share the row's full width (each stretched via weight), their content centered; [label] is the
+ * accessibility description.
+ */
+@Composable
+private fun PanelChip(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    count: String?,
+    selected: Boolean,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    FilterChip(
+        selected = selected,
+        enabled = enabled,
+        onClick = onClick,
+        modifier = modifier,
+        label = {
+            // Icon (+ count) centered inside the stretched chip — the leadingIcon slot would pin
+            // the icon to the start edge and leave the rest of a wide chip empty.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(icon, contentDescription = label, modifier = Modifier.size(16.dp))
+                if (count != null) {
+                    Spacer(Modifier.width(4.dp))
+                    Text(count, style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        },
+    )
 }
 
 /**

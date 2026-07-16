@@ -36,9 +36,19 @@ from textual.widgets import Header, Input, RichLog, Static
 
 import json
 
-# Reuse the desktop app's plain-Python note storage (filename tag scheme).
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "desktop"))
-from notes import NoteRepository, is_rtl  # noqa: E402
+# Note storage (filename tag scheme) — the module is shared with the desktop app. A local
+# ./notes.py wins (script dir is sys.path[0] — lets a copied-out terminal/ run standalone);
+# otherwise fall back to the desktop app's copy next door in the repo layout.
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "desktop"))
+try:
+    from notes import NoteRepository, is_rtl  # noqa: E402
+except ImportError:
+    sys.stderr.write(
+        "knotes_tui: cannot find the 'notes' module.\n"
+        "Run from the repo (needs ../desktop/notes.py), or copy desktop/notes.py next to this "
+        "script for a standalone setup.\n"
+    )
+    raise SystemExit(1)
 
 # Local, non-hidden config file, right next to this program — the terminal app owns it.
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")

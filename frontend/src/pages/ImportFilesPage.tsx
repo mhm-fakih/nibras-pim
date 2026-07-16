@@ -21,7 +21,7 @@ import {
   ImportFilesResult,
   PendingSync,
   applyFulltext,
-  exportWritingsToc,
+  exportBookmarkedToc,
   getPendingSync,
   importFiles,
   previewImportFiles,
@@ -222,9 +222,9 @@ function PendingSyncSection() {
   const items = data ?? [];
   const [busy, setBusy] = useState<number | 'all' | null>(null);
 
-  // Bookmarked-writings export + master TOC (repo1/W/TOC.md) — the exported files feed the same
+  // Bookmarked-records checkout + master TOC (repo1/TOC.md) — the exported files feed the same
   // pending-sync loop above, which is why the button lives in this section.
-  const toc = useMutation({ mutationFn: exportWritingsToc });
+  const toc = useMutation({ mutationFn: exportBookmarkedToc });
 
   const invalidate = (module: string, id: number) => {
     qc.invalidateQueries({ queryKey: ['record', module, id] });
@@ -271,7 +271,7 @@ function PendingSyncSection() {
           disabled={toc.isPending}
           onClick={() => toc.mutate()}
         >
-          Writings TOC
+          Bookmarked TOC
         </Button>
         {items.length > 0 && (
           <Button
@@ -287,15 +287,33 @@ function PendingSyncSection() {
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
         Records whose checkout file (<code>W18.md</code>-style, exported to repo 1) differs from the
-        database — sync them here instead of opening each record. <b>Writings TOC</b> exports every
-        bookmarked writing's checkout file and rebuilds the master manuscript index
-        (<code>repo1/W/TOC.md</code>, department → course → writing) for the Zettlr-style editor;
-        edits made there land back in this list.
+        database — sync them here instead of opening each record. <b>Bookmarked TOC</b> checks out
+        every bookmarked record (tasks, planners, goals, journals, notes, writings, resources) and
+        rebuilds the master index (<code>repo1/TOC.md</code>, department → course → record) for the
+        Zettlr-style editor; edits made there land back in this list. A checkout that already exists
+        with different content is never overwritten — the old file is kept beside it with a
+        timestamp for manual merging.
       </Typography>
       {toc.isSuccess && (
         <Alert severity="success" sx={{ py: 0, mb: 1 }}>
-          Exported {toc.data.exported} writing{toc.data.exported === 1 ? '' : 's'} — TOC written to{' '}
-          <code>{toc.data.tocPath}</code>
+          Checked out {toc.data.exported} bookmarked record{toc.data.exported === 1 ? '' : 's'} — TOC
+          written to <code>{toc.data.tocPath}</code>
+        </Alert>
+      )}
+      {toc.isSuccess && toc.data.conflicts.length > 0 && (
+        <Alert severity="warning" sx={{ py: 0, mb: 1 }}>
+          {toc.data.conflicts.length} checkout file{toc.data.conflicts.length === 1 ? '' : 's'} already
+          existed and differed from the fresh export (unsynced edits?). The old copies were kept for
+          manual comparing/merging:
+          <ul style={{ margin: '4px 0 0', paddingInlineStart: 20 }}>
+            {toc.data.conflicts.map((c) => (
+              <li key={`${c.module}-${c.id}`}>
+                <Typography variant="caption" component="span" dir="auto">
+                  {c.title} — <code>{c.backupFile}</code>
+                </Typography>
+              </li>
+            ))}
+          </ul>
         </Alert>
       )}
       {toc.isError && (

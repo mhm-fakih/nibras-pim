@@ -12,6 +12,19 @@ the same folder works from phone, desktop and terminal).
 NIBRAS_URL=http://host:8081 ./run.sh     # env override for every repo's backend (testing)
 ```
 
+### The `notes` module (shared with the desktop app)
+
+There is deliberately **no `terminal/notes.py` in the repo**: the TUI imports the note-storage
+module (`NoteRepository`, filename tag scheme) from **`../desktop/notes.py`** — one
+implementation, shared by both apps. Two consequences:
+
+- **In the repo layout** (this folder next to `desktop/`) it just works — don't add a copy here.
+  Any manually copied `terminal/notes.py` would also be wiped from the public snapshot repo on
+  every `sync-to-github.sh` run (untracked files don't survive the sync's wholesale re-export).
+- **Standalone** (this folder copied out without `desktop/`): drop `desktop/notes.py` next to
+  `knotes_tui.py` — a local `notes.py` takes precedence, and without either the app exits with a
+  clear message instead of a traceback.
+
 ## Config
 
 A local, **non-hidden `config.json`** (next to the program, created on first run and seeded from the
