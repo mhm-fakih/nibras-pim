@@ -16,6 +16,7 @@ import re
 import subprocess
 import sys
 import threading
+import traceback
 import warnings
 
 import gi
@@ -238,12 +239,36 @@ class KnotesWindow(Gtk.ApplicationWindow):
         header.pack_end(self.theme_button)
         self._refresh_theme_icon()
 
-        # Minimal side-note mode toggle — always available on the toolbar (mirrors Ctrl+L).
+        # View-mode group (kanban / list / minimal) — switched often, so it lives on the toolbar
+        # (not the settings dialog). Behaves like a radio: exactly one is active.
+        mode_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        mode_box.get_style_context().add_class("linked")
+        self.kanban_button = Gtk.ToggleButton()
+        self.kanban_button.add(Gtk.Image.new_from_icon_name("view-grid-symbolic", Gtk.IconSize.BUTTON))
+        self.kanban_button.set_tooltip_text("Kanban (category columns)")
+        self.list_button = Gtk.ToggleButton()
+        self.list_button.add(Gtk.Image.new_from_icon_name("view-list-symbolic", Gtk.IconSize.BUTTON))
+        self.list_button.set_tooltip_text("Simple list")
         self.minimal_button = Gtk.ToggleButton()
         self.minimal_button.add(Gtk.Image.new_from_icon_name("view-restore-symbolic", Gtk.IconSize.BUTTON))
         self.minimal_button.set_tooltip_text("Minimal side-note mode (Ctrl+L)")
-        self.minimal_button.connect("toggled", self._on_minimal_button)
-        header.pack_end(self.minimal_button)
+        for btn, mode in ((self.kanban_button, "kanban"), (self.list_button, "list"),
+                          (self.minimal_button, "minimal")):
+            btn.connect("toggled", lambda b, m=mode: self._on_mode_button(b, m))
+            mode_box.pack_start(btn, False, False, 0)
+        header.pack_end(mode_box)
+
+        # Card ordering — also switched often, so it's a toolbar dropdown.
+        self.sort_selector = Gtk.ComboBoxText()
+        for code, label in (("datetime", "Date"), ("category", "Category"),
+                            ("type", "Type"), ("priority", "Priority")):
+            self.sort_selector.append(code, label)
+        self.sort_selector.set_active_id(
+            self.settings.sort_by
+            if self.settings.sort_by in ("datetime", "category", "type", "priority") else "datetime")
+        self.sort_selector.set_tooltip_text("Sort cards by")
+        self.sort_selector.connect("changed", self._on_sort_selected)
+        header.pack_end(self.sort_selector)
 
         # Auto-open the just-saved note's files folder (the Ctrl+O action) — for capture sessions
         # where every record gets files dropped in right after it's written.
@@ -1274,9 +1299,43 @@ class KnotesWindow(Gtk.ApplicationWindow):
     def _toggle_minimal_mode(self) -> None:
         self._set_minimal_mode(not self.minimal_mode)
 
-    def _on_minimal_button(self, button: Gtk.ToggleButton) -> None:
+    def _on_mode_button(self, _button: Gtk.ToggleButton, mode: str) -> None:
+        """Toolbar mode group: any click (even un-toggling the active one) selects [mode];
+        _sync_mode_buttons then enforces the exactly-one-active radio look."""
         if not self._suppress_minimal_toggle:
-            self._set_minimal_mode(button.get_active())
+            self._set_view_mode(mode)
+
+    def _set_view_mode(self, mode: str) -> None:
+        """'kanban' / 'list' switch the board view (leaving minimal mode if on); 'minimal' enters
+        the minimal side-note mode. Persisted; the board re-renders immediately."""
+        if mode == "minimal":
+            self._set_minimal_mode(True)   # syncs the buttons via _apply_minimal_mode
+            return
+        changed = self.settings.view_mode != mode
+        self.settings.view_mode = mode
+        if self.minimal_mode:
+            self._set_minimal_mode(False)  # saves + reloads + syncs the buttons
+        else:
+            self.settings.save()
+            if changed:
+                self.reload_notes()
+        self._sync_mode_buttons()
+
+    def _sync_mode_buttons(self) -> None:
+        """Reflect (minimal_mode, view_mode) in the toolbar group without re-triggering handlers."""
+        self._suppress_minimal_toggle = True
+        self.minimal_button.set_active(self.minimal_mode)
+        self.kanban_button.set_active(not self.minimal_mode and self.settings.view_mode == "kanban")
+        self.list_button.set_active(not self.minimal_mode and self.settings.view_mode != "kanban")
+        self._suppress_minimal_toggle = False
+
+    def _on_sort_selected(self, combo: Gtk.ComboBoxText) -> None:
+        """Toolbar sort dropdown — persisted; re-sorts the board immediately."""
+        code = combo.get_active_id()
+        if code and code != self.settings.sort_by:
+            self.settings.sort_by = code
+            self.settings.save()
+            self.reload_notes()
 
     def _on_auto_folder_toggled(self, button: Gtk.ToggleButton) -> None:
         """Toolbar toggle: open the just-saved note's files folder after every save (persisted)."""
@@ -1294,10 +1353,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
         """Minimal side-note mode: hide the board and the full tag chip rows; show only the just-added
         card, a compact selected-tags line and the text field. Off = back to the list/kanban view."""
         minimal = self.minimal_mode
-        # Keep the toolbar toggle in sync without re-triggering _on_minimal_button.
-        self._suppress_minimal_toggle = True
-        self.minimal_button.set_active(minimal)
-        self._suppress_minimal_toggle = False
+        # Keep the toolbar mode group in sync without re-triggering _on_mode_button.
+        self._sync_mode_buttons()
         if not minimal and self._minimal_card_selected:
             # leaving minimal mode drops the lone-card selection
             self._minimal_card_selected = False
@@ -1833,20 +1890,8 @@ class SettingsDialog(Gtk.Dialog):
             "On: a plain Enter saves the note. Off: only Ctrl+Enter saves; Enter inserts a newline.")
         add("Saving", self.save_enter_check)
 
-        self.view_combo = Gtk.ComboBoxText()
-        for code, label in (("kanban", "Kanban (category columns)"), ("list", "Simple list")):
-            self.view_combo.append(code, label)
-        self.view_combo.set_active_id(settings.view_mode if settings.view_mode in ("kanban", "list") else "kanban")
-        add("Display", self.view_combo)
-
-        self.sort_combo = Gtk.ComboBoxText()
-        for code, label in (("datetime", "Date / time (newest last)"), ("category", "Category"),
-                            ("type", "Type"), ("priority", "Priority (highest first)")):
-            self.sort_combo.append(code, label)
-        self.sort_combo.set_active_id(
-            settings.sort_by if settings.sort_by in ("datetime", "category", "type", "priority") else "datetime")
-        add("Sort by", self.sort_combo)
-
+        # Display mode (kanban/list/minimal) and sort order moved to the TOOLBAR — they're
+        # switched too often to live behind this dialog.
         self.rows_spin = Gtk.SpinButton.new_with_range(1, 3, 1)
         self.rows_spin.set_value(settings.kanban_rows)
         self.rows_spin.set_tooltip_text("How many rows the kanban columns are spread across (1–3).")
@@ -1953,8 +1998,6 @@ class SettingsDialog(Gtk.Dialog):
         settings.preview_head_words = int(self.head_words_spin.get_value())
         settings.preview_tail_words = int(self.tail_words_spin.get_value())
         settings.save_on_enter = self.save_enter_check.get_active()
-        settings.view_mode = self.view_combo.get_active_id() or settings.view_mode
-        settings.sort_by = self.sort_combo.get_active_id() or settings.sort_by
         settings.kanban_rows = int(self.rows_spin.get_value())
         settings.backend_url = self.backend_url_entry.get_text().strip()
         settings.backend_user = self.backend_user_entry.get_text().strip()
@@ -1990,10 +2033,31 @@ class KnotesApp(Gtk.Application):
 
     def do_activate(self):
         if self.window is None:
-            self.window = KnotesWindow(self)
+            try:
+                self.window = KnotesWindow(self)
+            except Exception:
+                # A failure here (e.g. an unwritable notes directory) is raised inside GTK's
+                # activate vfunc, which would otherwise swallow it and leave a running-but-
+                # windowless process holding the D-Bus name — so the next launch just re-
+                # activates this ghost and shows nothing. Surface it and quit instead.
+                self._show_fatal_error(traceback.format_exc())
+                return
         self.window.show_all()
         self.window.present()
         self.window.textview.grab_focus()
+
+    def _show_fatal_error(self, details: str) -> None:
+        sys.stderr.write(details)
+        dialog = Gtk.MessageDialog(
+            transient_for=None, modal=True, message_type=Gtk.MessageType.ERROR,
+            buttons=Gtk.ButtonsType.CLOSE, text="knotes could not start")
+        dialog.format_secondary_text(
+            "Something went wrong while opening the window. This is often a notes folder "
+            "that doesn't exist or isn't writable — check the paths in config.json.\n\n"
+            + details.strip())
+        dialog.run()
+        dialog.destroy()
+        self.quit()
 
     def _load_css(self) -> None:
         css_path = os.path.join(HERE, "style.css")

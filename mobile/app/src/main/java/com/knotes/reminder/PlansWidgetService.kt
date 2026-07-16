@@ -51,10 +51,11 @@ private class PlansFactory(private val context: Context) : RemoteViewsService.Re
             }
         }
 
-        list.add(HeaderRow("Top priority list"))
         val topNotes = runCatching {
             NoteRepository(SettingsStore(context)).listNotes().filter { it.priority == 4 }
         }.getOrDefault(emptyList())
+        // Header carries the count — this is where the top-priority KPI lives (not the KPI widget).
+        list.add(HeaderRow("Top priority list (${topNotes.size})"))
         if (topNotes.isEmpty()) {
             list.add(ItemRow("", "No priority-4 notes"))
         } else {
