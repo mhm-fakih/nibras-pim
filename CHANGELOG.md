@@ -38,6 +38,31 @@ around the Zettlr-style writer fork (format contract: `nbr-zettlr/docs/MASTER-TO
 - **Mobile player: panel chips span the full width**, bookmarks first and open by default; the
   bookmark button row is 30% shorter with a 3-line filename cap. (Panels — bookmarks / in this
   folder / recently played / settings — replaced the old long stacked page.)
+- **Desktop: view mode + sorting on the toolbar.** The minimal-mode toggle grew into a linked
+  kanban / list / minimal radio group, joined by a sort dropdown (Date / Category / Type /
+  Priority) — both persisted and applied immediately; removed from the Settings dialog.
+- **Desktop: loud launch failure.** A crash while opening the window (classically a nonexistent
+  or unwritable notes folder) used to be swallowed inside GTK's activate vfunc, leaving a
+  windowless ghost process holding the D-Bus name — later launches showed nothing. Now it prints
+  the traceback, shows an error dialog pointing at config.json, and quits.
+- **Terminal: half-created venv recovery** — `run.sh` rebuilds `.venv` when `bin/pip` is missing
+  (an interrupted first run used to break every launch); the command-bar cursor is a solid
+  reverse-video block again instead of the underline.
+- **Mobile widgets rework.** KPI widget: notes today/total · free storage (GB, moved from the
+  volumes widget) · `/knotes` vs `/new` recursive file counts (hidden files/folders ignored) as
+  a ratio — the tasks-today and top-priority indicators are gone (the latter now lives in the
+  Upcoming-plans widget's second-section header, "Top priority list (N)"). The phone-status
+  widget is now **"Volumes"**: six streams (Ring, Notification, Alarm, Music, Call, System —
+  accessibility deliberately skipped) in three columns as icon + bar (no numeric levels),
+  coloured green / orange >60% / red >80% (API 31+). All widgets share the bookmarks widget's
+  typography (12dp frame, 14sp bold title, 13sp rows).
+- **dist/build.sh: no more PyInstaller single-binary step** — the desktop app ships as plain
+  `.py` sources (`desktop-app/` + `run-desktop.sh`) only.
+- **audio-player joins the repo** (`audio-player/`, GTK/Python — the sixth app, also synced to
+  GitHub). New feature: sidecar **`.ai.txt` transcriptions as "lyrics"** — `x.ar.ai.txt` /
+  `x.en.ai.txt` beside `x.mp3` appear as `Transcript: Off/ar/en` chips; picking a language opens
+  a scrollable side panel with the whole text (no timestamps, unlike `.srt` subtitles; Arabic
+  right-aligned), and a trash button deletes the shown transcription file (with confirmation).
 
 ## 2026-07-10
 

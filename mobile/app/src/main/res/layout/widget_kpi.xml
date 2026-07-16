@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- KPI widget: notes today/total · free space · files in "New folder".
+     Fonts/padding match the bookmarks widget: 12dp frame, 14sp bold title, 13sp values. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
@@ -36,7 +38,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#8AB4F8"
-                android:textSize="22sp"
+                android:textSize="13sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -55,17 +57,17 @@
             android:orientation="vertical">
 
             <TextView
-                android:id="@+id/kpi_tasks_new_value"
+                android:id="@+id/kpi_free_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#81C995"
-                android:textSize="22sp"
+                android:textSize="13sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="new / done tasks today"
+                android:text="free space"
                 android:textColor="#AAAAAA"
                 android:textSize="11sp" />
         </LinearLayout>
@@ -78,17 +80,17 @@
             android:orientation="vertical">
 
             <TextView
-                android:id="@+id/kpi_top_value"
+                android:id="@+id/kpi_folders_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#F28B82"
-                android:textSize="22sp"
+                android:textSize="13sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="top priority (p4)"
+                android:text="knotes / new files"
                 android:textColor="#AAAAAA"
                 android:textSize="11sp" />
         </LinearLayout>

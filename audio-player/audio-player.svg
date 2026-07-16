@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="26" fill="#002b36"/>
+  <!-- seek bar -->
+  <rect x="24" y="86" width="80" height="6" rx="3" fill="#073642"/>
+  <rect x="24" y="86" width="44" height="6" rx="3" fill="#268bd2"/>
+  <!-- bookmark ticks -->
+  <rect x="40" y="78" width="3" height="10" rx="1.5" fill="#b58900"/>
+  <rect x="62" y="78" width="3" height="10" rx="1.5" fill="#b58900"/>
+  <rect x="86" y="78" width="3" height="10" rx="1.5" fill="#b58900"/>
+  <!-- play triangle -->
+  <path d="M50 30 L84 50 L50 70 Z" fill="#fdf6e3"/>
+</svg>

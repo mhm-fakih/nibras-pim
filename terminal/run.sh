@@ -6,7 +6,10 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="$HERE/.venv"
 
-if [ ! -d "$VENV" ]; then
+# A venv without pip is a half-created leftover (e.g. an interrupted first run) — rebuild it,
+# rather than trusting the directory's mere existence.
+if [ ! -x "$VENV/bin/pip" ]; then
+    rm -rf "$VENV"
     python3 -m venv "$VENV"
     "$VENV/bin/pip" install --quiet --upgrade pip
     "$VENV/bin/pip" install --quiet -r "$HERE/requirements.txt"

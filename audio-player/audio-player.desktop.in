@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Audio Player
+Comment=Bookmarking audio player (.tmk sidecars, shared with the phone)
+Exec=@RUN@ %f
+Icon=@ICON@
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+MimeType=audio/mpeg;audio/mp4;audio/ogg;audio/opus;audio/flac;audio/x-wav;
+StartupWMClass=audio-player
