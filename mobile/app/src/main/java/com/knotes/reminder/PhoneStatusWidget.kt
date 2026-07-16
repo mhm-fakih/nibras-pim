@@ -20,11 +20,21 @@ class PhoneStatusWidget : AppWidgetProvider() {
         ids.forEach { manager.updateAppWidget(it, build(context)) }
     }
 
-    /** Refresh on tap and on the volume/ringer-mode broadcasts we subscribe to in the manifest. */
+    /** Refresh on tap and on the volume/ringer-mode broadcasts we subscribe to in the manifest.
+     *  A tap ALSO opens the system Sound settings (volume mixer) so the levels can be changed —
+     *  the widget-click grace period allows the activity start from here. */
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         when (intent.action) {
-            ACTION_REFRESH,
+            ACTION_REFRESH -> {
+                refresh(context)
+                runCatching {
+                    context.startActivity(
+                        Intent(android.provider.Settings.ACTION_SOUND_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+            }
             "android.media.VOLUME_CHANGED_ACTION",
             "android.media.RINGER_MODE_CHANGED" -> refresh(context)
         }
@@ -52,7 +62,8 @@ class PhoneStatusWidget : AppWidgetProvider() {
             setVolume(views, am, R.id.ps_bar_call, AudioManager.STREAM_VOICE_CALL)
             setVolume(views, am, R.id.ps_bar_system, AudioManager.STREAM_SYSTEM)
 
-            // Tap anywhere to refresh.
+            // Tap anywhere → refresh the values AND open the volume mixer (via the ACTION_REFRESH
+            // trampoline in onReceive, so both happen on one tap).
             val intent = Intent(context, PhoneStatusWidget::class.java).setAction(ACTION_REFRESH)
             val pi = android.app.PendingIntent.getBroadcast(
                 context, 0, intent,
