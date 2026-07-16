@@ -37,7 +37,9 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VerticalAlignBottom
@@ -90,6 +92,7 @@ import com.knotes.nibras.PushCenter
 import com.knotes.nibras.RecordOutbox
 import kotlinx.coroutines.launch
 import com.knotes.reminder.PlansStore
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -389,6 +392,15 @@ fun MainScreen(
                     ScrollJumpButton(Icons.Filled.VerticalAlignTop, "Go to top") {
                         scope.launch { listState.animateScrollToItem(0) }
                     }
+                    // Refresh everything: re-list the notes (and their counts in the status
+                    // notification / widget) and re-pull the type/department codes from the backend.
+                    val refreshContext = LocalContext.current
+                    ScrollJumpButton(Icons.Filled.Refresh, "Refresh notes + backend codes") {
+                        vm.refresh()
+                        vm.syncTaxonomy()
+                        com.knotes.status.StatusService.refresh(refreshContext)
+                        com.knotes.reminder.KpiWidget.refresh(refreshContext)
+                    }
                     // Collapse/expand all group panels (only while grouped), between the jump buttons.
                     if (groupMode != GroupMode.NONE) {
                         val headerLabels = rows.filterIsInstance<NoteListRow.Header>().map { it.label }
@@ -526,6 +538,46 @@ private fun NoteCard(
                 textAlign = if (note.isRtl) TextAlign.Right else TextAlign.Start,
                 modifier = Modifier.fillMaxWidth(),
             )
+            // Attached files (companion .d folder) — same overview as the desktop cards: up to 5
+            // names, tap one to open it; the "+N more" row (and the ⋮ menu) opens the whole folder.
+            if (note.fileNames.isNotEmpty()) {
+                val context = LocalContext.current
+                Spacer(Modifier.size(2.dp))
+                note.fileNames.take(5).forEach { name ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { openLocalFile(context, File(note.companionDir(), name)) }
+                            .padding(vertical = 1.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.AttachFile,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(12.dp),
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = name,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (note.fileNames.size > 5) {
+                    Text(
+                        text = "… +${note.fileNames.size - 5} more (${note.fileNames.size} files)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clickable { openFolder(context, note.companionDir()) }
+                            .padding(vertical = 1.dp),
+                    )
+                }
+            }
             Spacer(Modifier.size(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // type / priority / category, matching the file-name order.
@@ -580,6 +632,16 @@ private fun NoteCard(
                                 onPush()
                             },
                         )
+                        if (note.fileNames.isNotEmpty()) {
+                            val context = LocalContext.current
+                            DropdownMenuItem(
+                                text = { Text("Open files folder (${note.fileNames.size})") },
+                                onClick = {
+                                    menuOpen = false
+                                    openFolder(context, note.companionDir())
+                                },
+                            )
+                        }
                         DropdownMenuItem(
                             text = { Text("Delete") },
                             onClick = {

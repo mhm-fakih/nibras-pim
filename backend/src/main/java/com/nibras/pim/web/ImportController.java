@@ -36,15 +36,20 @@ public class ImportController {
         return Map.of("dir", service.setDir(request.dir()));
     }
 
+    /**
+     * Import one note. {@code dir} (optional) imports from that folder for this request only —
+     * the terminal app pushes each repository from its own folder without touching the
+     * persisted import-folder setting.
+     */
     @PostMapping
     public CreatedRecord importOne(@RequestBody ImportRequest request) {
-        return service.importOne(request.filename());
+        return service.importOne(request.filename(), request.dir());
     }
 
     public record ImportListDto(String dir, List<ImportNoteDto> notes) {
     }
 
-    public record ImportRequest(String filename) {
+    public record ImportRequest(String filename, String dir) {
     }
 
     public record DirRequest(String dir) {

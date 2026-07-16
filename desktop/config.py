@@ -97,8 +97,13 @@ class Settings:
     sort_by: str = "datetime"
     # Number of rows the kanban category columns are spread across (1–3); the columns fill each row.
     kanban_rows: int = 2
-    # Optional nibras backend, used ONLY to refresh the type/category codes so captures map exactly
-    # to backend modules/departments on import. Purely additive: blank URL → fully offline, defaults
+    # After saving a note, automatically open its companion files folder in the file manager
+    # (the Ctrl+O action) so attachments can be dropped in right away. Toolbar-toggleable.
+    auto_open_folder: bool = False
+    # DEFAULT nibras backend, used ONLY to refresh the type/category codes so captures map exactly
+    # to backend modules/departments on import. Each note folder can override it with its own
+    # backend in .knotes.json (RepoConfig.backend_*) — these globals are the fallback.
+    # Purely additive: blank URL → fully offline, defaults
     # apply, and note-taking never depends on the network. Mirrors the mobile app's config.
     backend_url: str = ""          # e.g. http://192.168.0.47:8081 (or a Tomcat context path)
     backend_user: str = ""
@@ -170,6 +175,7 @@ class Settings:
         s.minimal_mode = bool(raw.get("minimal_mode", s.minimal_mode))
         s.sort_by = raw.get("sort_by", s.sort_by)
         s.kanban_rows = int(raw.get("kanban_rows", s.kanban_rows))
+        s.auto_open_folder = bool(raw.get("auto_open_folder", s.auto_open_folder))
         s.backend_url = str(raw.get("backend_url", s.backend_url)).strip()
         s.backend_user = raw.get("backend_user", s.backend_user)
         s.backend_password = raw.get("backend_password", s.backend_password)
@@ -210,6 +216,11 @@ class RepoConfig:
         default_factory=lambda: [("N", "Note"), ("W", "Work"), ("H", "Home"), ("I", "Ideas"), ("T", "Todo")])
     categories: list[tuple[str, str]] = field(
         default_factory=lambda: [("F", "Family"), ("P", "Personal"), ("W", "Work"), ("M", "Misc")])
+    # This folder's OWN nibras backend (each repository can talk to a different server/context).
+    # Blank = fall back to the global Settings.backend_* values.
+    backend_url: str = ""
+    backend_user: str = ""
+    backend_password: str = ""
 
     def priorities(self) -> range:
         return range(self.priority_min, max(self.priority_max, self.priority_min) + 1)
@@ -246,6 +257,9 @@ class RepoConfig:
         cfg.default_category = str(raw.get("default_category", cfg.default_category)).replace("*", "").strip()
         cfg.types = _clean_tags(raw.get("types", cfg.types))
         cfg.categories = _clean_tags(raw.get("categories", cfg.categories))
+        cfg.backend_url = str(raw.get("backend_url", cfg.backend_url)).strip()
+        cfg.backend_user = raw.get("backend_user", cfg.backend_user)
+        cfg.backend_password = raw.get("backend_password", cfg.backend_password)
         return cfg
 
     def save(self, repo_path: str) -> None:
@@ -257,6 +271,9 @@ class RepoConfig:
             "default_category": self.default_category,
             "types": [list(t) for t in self.types],
             "categories": [list(c) for c in self.categories],
+            "backend_url": self.backend_url,
+            "backend_user": self.backend_user,
+            "backend_password": self.backend_password,
         }
         try:
             os.makedirs(os.path.expanduser(repo_path), exist_ok=True)

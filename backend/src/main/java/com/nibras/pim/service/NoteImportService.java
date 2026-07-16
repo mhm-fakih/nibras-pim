@@ -124,10 +124,22 @@ public class NoteImportService {
         }
     }
 
-    /** Create the record described by a knote, then archive the file. */
+    /** Create the record described by a knote (from the configured folder), then archive the file. */
     @Transactional
     public CreatedRecord importOne(String filename) {
-        Path file = safeFile(filename);
+        return importOne(filename, null);
+    }
+
+    /**
+     * Create the record described by a knote, then archive the file. {@code dir} (optional)
+     * imports from that folder for THIS request only — used by the terminal app, whose
+     * repositories each push from their own folder; flipping the persisted import folder per
+     * push (the old PUT /dir dance) raced and silently targeted the wrong directory.
+     */
+    @Transactional
+    public CreatedRecord importOne(String filename, String dir) {
+        Path base = dirOrDefault(dir);
+        Path file = safeFile(filename, base);
         if (!Files.isRegularFile(file)) {
             throw new ResponseStatusException(NOT_FOUND, "Note not found: " + filename);
         }
@@ -313,22 +325,30 @@ public class NoteImportService {
 
     // ---- file handling ---------------------------------------------------------------
 
-    private Path safeFile(String filename) {
+    /** The folder to import from: the caller's override when given, else the configured one. */
+    private Path dirOrDefault(String dir) {
+        if (dir == null || dir.isBlank()) {
+            return notesDir();
+        }
+        return Paths.get(expandHome(dir.trim())).toAbsolutePath().normalize();
+    }
+
+    private Path safeFile(String filename, Path base) {
         if (filename == null || filename.contains("/") || filename.contains("\\")
                 || filename.contains("..")) {
             throw new ResponseStatusException(BAD_REQUEST, "Illegal filename.");
         }
-        Path notesDir = notesDir();
-        Path file = notesDir.resolve(filename).normalize();
-        if (!file.getParent().equals(notesDir)) {
+        Path file = base.resolve(filename).normalize();
+        if (!file.getParent().equals(base)) {
             throw new ResponseStatusException(BAD_REQUEST, "Illegal filename.");
         }
         return file;
     }
 
+    /** Archive next to the source (its folder's {@code imported/}) — correct for any import dir. */
     private void archive(Path file) {
         try {
-            Path dir = notesDir().resolve(ARCHIVE);
+            Path dir = file.getParent().resolve(ARCHIVE);
             Files.createDirectories(dir);
             Files.move(file, dir.resolve(file.getFileName()), StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
@@ -336,9 +356,9 @@ public class NoteImportService {
         }
     }
 
-    /** Move a folder into the {@code imported/} archive, de-duplicating the name on collision. */
+    /** Move a folder into its folder's {@code imported/} archive, de-duplicating on collision. */
     private void archiveDir(Path dir) throws IOException {
-        Path archiveRoot = notesDir().resolve(ARCHIVE);
+        Path archiveRoot = dir.getParent().resolve(ARCHIVE);
         Files.createDirectories(archiveRoot);
         Path target = archiveRoot.resolve(dir.getFileName());
         int n = 2;
