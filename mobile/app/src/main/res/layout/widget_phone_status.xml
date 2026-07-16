@@ -24,7 +24,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal">
 
-        <!-- Column 1: Ring / Notif / Alarm -->
+        <!-- Column 1: Ring / Notif -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -73,6 +73,16 @@
                     android:layout_weight="1"
                     android:progressTint="#81C784" />
             </LinearLayout>
+        </LinearLayout>
+
+        <!-- Column 2: Alarm / Music -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:orientation="vertical">
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -94,16 +104,6 @@
                     android:layout_weight="1"
                     android:progressTint="#81C784" />
             </LinearLayout>
-        </LinearLayout>
-
-        <!-- Column 2: Music / Call -->
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="12dp"
-            android:orientation="vertical">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -125,6 +125,16 @@
                     android:layout_weight="1"
                     android:progressTint="#81C784" />
             </LinearLayout>
+        </LinearLayout>
+
+        <!-- Column 3: Call / System -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:orientation="vertical">
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -146,16 +156,6 @@
                     android:layout_weight="1"
                     android:progressTint="#81C784" />
             </LinearLayout>
-        </LinearLayout>
-
-        <!-- Column 3: System -->
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="12dp"
-            android:orientation="vertical">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
