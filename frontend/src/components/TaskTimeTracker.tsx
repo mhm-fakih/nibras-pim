@@ -39,6 +39,13 @@ export function TaskTimeTracker({ taskId }: { taskId: number }) {
 
   const [now, setNow] = useState(() => Date.now());
 
+  // Re-flag an already-running session on mount (it may predate a reload or an app update —
+  // the server-side probe flag is best-effort and would have missed the original start).
+  useEffect(() => {
+    if (startMs != null) reportTimerStart(taskId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const save = useMutation({
     mutationFn: async ({ start, end, note }: { start: Date; end: Date; note: string }) => {
       const j = (await createEntity('journals', {
