@@ -182,9 +182,11 @@ class KnotesTUI(App):
     #cmd:focus { background: transparent; }
     #cmd.-rtl { text-align: right; }
     /* Solid block cursor with EXPLICIT colours — `text-style: reverse` swaps fg/bg, but this
-       field's background is transparent, so the swap rendered an invisible cursor. (A real
-       terminal beam isn't possible: forcing it via escapes raced with Textual's I/O.) */
-    #cmd > .input--cursor { background: $text; color: $background; text-style: none; }
+       field's background is transparent, so the swap rendered an invisible cursor. NOTE:
+       $text resolves to the special 'auto' value, which is illegal for background — use the
+       concrete $foreground/$background theme colours. (A real terminal beam isn't possible:
+       forcing it via escapes raced with Textual's I/O.) */
+    #cmd > .input--cursor { background: $foreground; color: $background; text-style: none; }
     /* status bar under the box (backend, repo+triple, uptime, session count) with a little space below. */
     #statusbar { height: auto; color: $text-muted; padding: 0 1 1 1; }
     """
@@ -235,7 +237,7 @@ class KnotesTUI(App):
             with Horizontal(id="promptrow"):
                 yield Static("›", id="prompt")
                 yield Input(
-                    placeholder="note text + Enter to save · '/' for a command (→ accepts a suggestion)",
+                    placeholder="note text + Enter to save · '/' for a command (Tab/→ completes)",
                     id="cmd",
                     # Don't select-all on (re)focus — that's what made a keyboard-layout switch (a brief
                     # blur→refocus) select the text so the next key wiped it.
@@ -340,6 +342,16 @@ class KnotesTUI(App):
 
     def on_key(self, event) -> None:
         """Up/Down recall previously submitted lines (shell-style history)."""
+        # Tab accepts the ghost suggestion (same as → / End) — the natural completion key.
+        if event.key == "tab" and self.query_one("#cmd", Input).has_focus:
+            cmd = self.query_one("#cmd", Input)
+            suggestion = getattr(cmd, "_suggestion", "") or ""
+            if len(suggestion) > len(cmd.value):
+                cmd.value = suggestion
+                cmd.cursor_position = len(suggestion)
+                event.prevent_default()
+                event.stop()
+            return
         if event.key not in ("up", "down") or not self.query_one("#cmd", Input).has_focus:
             return
         if not self._history:

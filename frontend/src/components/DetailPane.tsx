@@ -114,6 +114,9 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
       </Stack>
 
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+        {/* The record's id — matches its repo folder name and the <CODE><id>.md checkout.
+            "ID:" not "#": the hash means 'type' in the nibras command syntax. */}
+        <Chip size="small" variant="outlined" label={`ID: ${record.id}`} sx={{ fontFamily: 'monospace' }} />
         {record.status && (
           <Chip size="small" label={record.status.name} sx={lookupStyle(record.status)} />
         )}
