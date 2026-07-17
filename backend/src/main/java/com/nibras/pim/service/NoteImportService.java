@@ -127,7 +127,7 @@ public class NoteImportService {
     /** Create the record described by a knote (from the configured folder), then archive the file. */
     @Transactional
     public CreatedRecord importOne(String filename) {
-        return importOne(filename, null);
+        return importOne(filename, null, null);
     }
 
     /**
@@ -135,9 +135,11 @@ public class NoteImportService {
      * imports from that folder for THIS request only — used by the terminal app, whose
      * repositories each push from their own folder; flipping the persisted import folder per
      * push (the old PUT /dir dance) raced and silently targeted the wrong directory.
+     * {@code resourceTypeId} (optional) sets the resource type on 'R' notes — it must be known
+     * at import time because the record's repo folder is type-bucketed (R/&lt;type&gt;/…).
      */
     @Transactional
-    public CreatedRecord importOne(String filename, String dir) {
+    public CreatedRecord importOne(String filename, String dir, Long resourceTypeId) {
         Path base = dirOrDefault(dir);
         Path file = safeFile(filename, base);
         if (!Files.isRegularFile(file)) {
@@ -149,7 +151,7 @@ public class NoteImportService {
                     "Cannot import: filename type code has no matching module.");
         }
 
-        BaseEntity entity = createEntity(draft);
+        BaseEntity entity = createEntity(draft, resourceTypeId);
         em.persist(entity);
         em.flush();   // assign id + fire the audit listener before we move the file
 
@@ -246,7 +248,7 @@ public class NoteImportService {
 
     // ---- record creation -------------------------------------------------------------
 
-    private BaseEntity createEntity(ImportNoteDto d) {
+    private BaseEntity createEntity(ImportNoteDto d, Long resourceTypeId) {
         String html = toHtml(d.body());
         Department dept = d.deptId() == null ? null : em.getReference(Department.class, d.deptId());
 
@@ -306,6 +308,11 @@ public class NoteImportService {
                 b.setDescription(html);
                 b.setPriority(d.priority());
                 b.setDepartment(dept);
+                if (resourceTypeId != null) {
+                    // The resource type places the record's repo folder (R/<type>/…), so the
+                    // import UI asks for it up front.
+                    b.setType(em.getReference(com.nibras.pim.domain.lookup.ResourceType.class, resourceTypeId));
+                }
                 yield b;
             }
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported module: " + d.moduleKey());

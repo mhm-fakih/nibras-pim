@@ -52,44 +52,56 @@ fun openLocalFile(context: Context, file: File) {
         return
     }
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-    val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase()) ?: "*/*"
-    val intent = Intent(Intent.ACTION_VIEW).apply {
+    // Extension → MIME, with a text/plain net for the common unmapped text suffixes (.md etc.) —
+    // an unmapped type used to become "*/*", which nothing resolves directly.
+    val ext = file.extension.lowercase()
+    val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
+        ?: when (ext) {
+            "md", "txt", "log", "srt", "json", "csv" -> "text/plain"
+            else -> "*/*"
+        }
+    // ALWAYS via the app chooser: knotes itself is a registered handler for audio (its own
+    // player), so a plain ACTION_VIEW on an mp3 silently resolved back into knotes and looked
+    // like a no-op. The chooser always asks — pick any app, including knotes deliberately.
+    val view = Intent(Intent.ACTION_VIEW).apply {
         setDataAndType(uri, mime)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    runCatching { context.startActivity(intent) }
-        .onFailure { Toast.makeText(context, "No app to open ${file.name}", Toast.LENGTH_LONG).show() }
+    runCatching { context.startActivity(Intent.createChooser(view, file.name)) }
+        .onFailure { e ->
+            Toast.makeText(context, "Cannot open ${file.name}: ${e.message}", Toast.LENGTH_LONG).show()
+        }
 }
 
 /**
  * Opens a folder in the device's file manager. Folder-opening has no standard Android intent, so
- * this tries, in order: the documents-UI directory URI (AOSP/Google Files and most stock managers),
- * then a FileProvider URI with the quasi-standard "resource/folder" type (third-party managers).
+ * this tries, in order: the documents-UI directory URI (resolves to My Files / Files on this
+ * device), then a FileProvider URI with the quasi-standard "resource/folder" type.
  */
 fun openFolder(context: Context, dir: File) {
     if (!dir.isDirectory) {
         Toast.makeText(context, "No folder: ${dir.absolutePath}", Toast.LENGTH_LONG).show()
         return
     }
+    // Canonicalise BOTH sides so a /sdcard-configured notes dir still matches the storage root.
+    val canonical = runCatching { dir.canonicalFile }.getOrDefault(dir)
+    val root = runCatching { Environment.getExternalStorageDirectory().canonicalFile }.getOrNull()
     val intents = buildList {
-        val ext = Environment.getExternalStorageDirectory().absolutePath
-        if (dir.absolutePath.startsWith(ext)) {
-            val rel = dir.absolutePath.removePrefix(ext).trimStart('/')
+        if (root != null && canonical.path.startsWith(root.path)) {
+            val rel = canonical.path.removePrefix(root.path).trimStart('/')
             val docUri = DocumentsContract.buildDocumentUri(
                 "com.android.externalstorage.documents", "primary:$rel",
             )
-            add(
-                Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(docUri, DocumentsContract.Document.MIME_TYPE_DIR)
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                },
-            )
+            // NO grant flag here: that provider isn't ours, and granting permissions on a URI we
+            // don't own throws SecurityException — which is exactly what silently killed this
+            // intent before. The file manager reads the directory with its own access.
+            add(Intent(Intent.ACTION_VIEW).setDataAndType(docUri, DocumentsContract.Document.MIME_TYPE_DIR))
         }
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", dir)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", canonical)
         add(
             Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "resource/folder")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)   // ours — granting is legal
             },
         )
     }

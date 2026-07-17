@@ -70,7 +70,15 @@ export function BatchEntryPage() {
           <SyntaxChip token="p3" label="priority" />
           <SyntaxChip token="=code" label="code" />
           <SyntaxChip token="*" label="bookmark" />
+          <SyntaxChip token="(DATE" label="start date" />
+          <SyntaxChip token=")DATE" label="end date" />
         </Stack>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -1.5, mb: 2 }}>
+          DATE: <code>2026-07-17</code> · <code>2026-07-17_1600</code> · ISO week+day{' '}
+          <code>295</code> (wk 29, Fri; 1=Mon…7=Sun) · <code>295_25</code> (year 2025) ·{' '}
+          <code>295_1600</code> · days from today <code>-1</code>, <code>+3</code>,{' '}
+          <code>-1_1600</code> (time defaults to 00:00)
+        </Typography>
 
         <TextField
           select

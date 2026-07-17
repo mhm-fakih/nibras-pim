@@ -72,6 +72,18 @@ Everything is reachable from the keyboard (press **F1** in the app for this list
 
 ## Notes on behaviour
 
+- **View mode + sorting on the toolbar.** A linked kanban / list / minimal button group and a
+  sort dropdown (Date / Category / Type / Priority) live in the header bar — they're switched
+  too often for the Settings dialog. Radio-style (exactly one mode active), persisted, applied
+  immediately; `Ctrl+L` still toggles minimal mode and keeps the group in sync. The kanban only
+  shows category columns that have notes.
+- **Auto-open the files folder after save.** A toolbar toggle (folder icon): every saved note
+  immediately opens its companion `.d/` folder in the file manager (the `Ctrl+O` action) —
+  for capture sessions where each note gets files dropped in right after writing. Persisted.
+- **Per-folder backend.** Each note folder can bind its OWN nibras backend (URL/user/password in
+  its `.knotes.json`, editable in the Settings dialog's per-folder section; blank falls back to
+  the global "default backend" fields). Taxonomy sync talks to the active folder's backend and
+  re-syncs on every folder switch — so different folders can feed different servers/contexts.
 - **Per-folder tag options.** Types, categories and priorities are **per note folder**, not global.
   Each folder keeps its own options in a `.knotes.json` file inside it; switching folders (the picker
   next to the add button, or `Ctrl+1…9`) reloads that folder's options and its default selection.

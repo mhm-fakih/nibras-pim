@@ -725,8 +725,9 @@ export async function setImportDir(dir: string): Promise<string> {
   return data.dir as string;
 }
 
-export async function importNote(filename: string): Promise<ImportResult> {
-  const { data } = await http.post('/import/notes', { filename });
+/** {@code resourceTypeId} applies to 'R' notes only — the type places the record's repo folder. */
+export async function importNote(filename: string, resourceTypeId?: number): Promise<ImportResult> {
+  const { data } = await http.post('/import/notes', { filename, resourceTypeId });
   return data;
 }
 
@@ -843,6 +844,17 @@ export async function searchAll(q: string, limit = 100): Promise<SearchHit[]> {
 export async function reindexSearch(): Promise<number> {
   const { data } = await http.post('/search/reindex');
   return data.indexed as number;
+}
+
+// ---- task timer (server-side state for external probes) ---------------------
+
+/** Report a tracking session start/stop to the backend — external probes (status bar) read it.
+ * Best-effort: the localStorage flow in TaskTimeTracker stays the source of the journal stamps. */
+export function reportTimerStart(taskId: number): void {
+  http.post('/timer/start', { taskId }).catch(() => {});
+}
+export function reportTimerStop(): void {
+  http.post('/timer/stop').catch(() => {});
 }
 
 // ---- kanban + admin dashboards ----------------------------------------------

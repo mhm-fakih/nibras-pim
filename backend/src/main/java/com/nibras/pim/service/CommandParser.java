@@ -10,9 +10,17 @@ import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.DateTimeException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.temporal.ChronoField;
+import java.time.temporal.IsoFields;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -24,8 +32,18 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
  *   #code   type            ?code   status          @code   context (work_location)
  *   p3      priority = 3     =code   set the code    *       bookmark    *-   un-bookmark
  *   cCODE   course           dCODE   department      (cCODE/dCODE only in edit mode)
+ *   (DATE   startDate        )DATE   endDate
  * </pre>
- * In {@code freeText} mode (batch entry) any word that isn't a token is collected as the title;
+ * DATE accepts (time defaults to 00:00, year to the current one):
+ * <pre>
+ *   2026-07-17          full date               2026-07-17_1600     full date + hhmm
+ *   295                 ISO week 29, day 5      295_25              same, year 2025
+ *   (Fri; 1=Mon..7=Sun) 295_1600  / 295_25_1600 with a time
+ *   -1  +3  0           days relative to today  -1_1600             yesterday 16:00
+ *   (a bare unsigned offset may have 1-2 digits — three digits always read as week+day)
+ * </pre>
+ * In {@code freeText} mode (batch entry) any word that isn't a token is collected as the title
+ * (a malformed date after {@code (}/{@code )} falls back to a title word);
  * otherwise (batch edit) an unrecognized token is an error.
  */
 @Service
@@ -91,6 +109,17 @@ public class CommandParser {
             } else if (tok.matches("[pP]\\d+")) {
                 requireProp(proto, "priority", tok);
                 ops.add(new Assignment("priority", Integer.parseInt(tok.substring(1)), false));
+            } else if ((tok.startsWith("(") || tok.startsWith(")")) && tok.length() > 1) {
+                String field = tok.startsWith("(") ? "startDate" : "endDate";
+                LocalDateTime when = tryParseDate(tok.substring(1));
+                if (when != null) {
+                    requireProp(proto, field, tok);
+                    ops.add(new Assignment(field, when, false));
+                } else if (freeText) {
+                    words.add(tok);   // "(prose" in a title stays prose
+                } else {
+                    throw new ResponseStatusException(BAD_REQUEST, "Bad date in token: " + tok);
+                }
             } else if (tok.length() > 1 && (tok.charAt(0) == 'c' || tok.charAt(0) == 'C')
                     && (!freeText || proto.isWritableProperty("course"))) {
                 // Edit mode: strict (must resolve). Entry mode: a c<code> that doesn't match a real
@@ -230,6 +259,55 @@ public class CommandParser {
         return departments.findByCodeIgnoreCase(code).stream().findFirst()
                 .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST,
                         "No department with code '" + code + "'.")).getId();
+    }
+
+    // ---- date tokens ( (startDate / )endDate ) -----------------------------------------
+
+    private static final Pattern DATE_FULL =
+            Pattern.compile("^(\\d{4})-(\\d{2})-(\\d{2})(?:_(\\d{2})(\\d{2}))?$");
+    /** WWD — 2-digit ISO week + day 1..7 — with optional _YY (year 20YY) and/or _HHMM. */
+    private static final Pattern DATE_WEEK =
+            Pattern.compile("^(\\d{2})([1-7])(?:_(\\d{2}))?(?:_(\\d{2})(\\d{2}))?$");
+    /** Day offset from today: any signed integer, or 1-2 unsigned digits (3 digits = week form). */
+    private static final Pattern DATE_OFFSET =
+            Pattern.compile("^([+-]\\d+|\\d{1,2})(?:_(\\d{2})(\\d{2}))?$");
+
+    /** Parse the grammar's DATE forms (see the class doc); null when the text matches none. */
+    static LocalDateTime tryParseDate(String s) {
+        try {
+            Matcher m = DATE_FULL.matcher(s);
+            if (m.matches()) {
+                LocalDate d = LocalDate.of(Integer.parseInt(m.group(1)),
+                        Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)));
+                return d.atTime(time(m.group(4), m.group(5)));
+            }
+            m = DATE_WEEK.matcher(s);
+            if (m.matches()) {
+                int week = Integer.parseInt(m.group(1));
+                int dow = Integer.parseInt(m.group(2));
+                int year = m.group(3) != null
+                        ? 2000 + Integer.parseInt(m.group(3))
+                        : LocalDate.now().get(IsoFields.WEEK_BASED_YEAR);
+                // Jan 4 is always inside ISO week 1 — a safe anchor to set week + weekday on.
+                LocalDate d = LocalDate.of(year, 1, 4)
+                        .with(IsoFields.WEEK_OF_WEEK_BASED_YEAR, week)
+                        .with(ChronoField.DAY_OF_WEEK, dow);
+                return d.atTime(time(m.group(4), m.group(5)));
+            }
+            m = DATE_OFFSET.matcher(s);
+            if (m.matches()) {
+                LocalDate d = LocalDate.now().plusDays(Long.parseLong(m.group(1)));
+                return d.atTime(time(m.group(2), m.group(3)));
+            }
+        } catch (DateTimeException | NumberFormatException invalid) {
+            return null;   // matched a shape but the values are out of range (month 13, 25:00, …)
+        }
+        return null;
+    }
+
+    private static LocalTime time(String hh, String mm) {
+        return hh == null ? LocalTime.MIDNIGHT
+                : LocalTime.of(Integer.parseInt(hh), Integer.parseInt(mm));
     }
 
     private static void requireProp(BeanWrapper proto, String name, String token) {
