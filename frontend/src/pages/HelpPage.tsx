@@ -98,6 +98,69 @@ export function HelpPage() {
           )}
         </Paper>
 
+        {/* Feature guides — the workflows that aren't obvious from the screens alone. */}
+        <Typography variant="h6" sx={{ mb: 1 }}>
+          Feature guides
+        </Typography>
+        <Stack spacing={1.5} sx={{ mb: 4 }}>
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              Goals on the kanban
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Link a task to a bookmarked goal from the task form's <b>Goal</b> picker. The kanban
+              nests each goal's open tasks under its card (tasks completed in the last 7 days show
+              struck-out before dropping off); the separate tasks section lists only tasks with no
+              goal — the point is to keep tasks attached to goals.
+            </Typography>
+          </Paper>
+
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              Task time tracking
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              <b>Track</b> on a task's detail pane starts a session; <b>Stop</b> (or the auto-stop
+              after the configured max slot) creates a Journal entry linked to the task, with an
+              optional summary. The running session is also flagged on the server
+              (<code>GET /api/timer</code>) — the repo's <code>timer-status.sh</code> turns that
+              into a status-bar indicator: 🟢 + task name while tracking, 🔴 when idle, so an
+              untracked work session stares back at you.
+            </Typography>
+          </Paper>
+
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              Import notes — resource types
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Knotes files (<code>date~TYPE~pN~DEPT.md</code>) import with type, priority and
+              department taken from the filename. <b>'R' notes additionally need a resource
+              type</b> before import, because the type places the record's repo folder
+              (<code>R/&lt;type&gt;/…</code>): pick a session-wide default at the top of the
+              Import notes page, and override it per note with the chips on the note's card
+              (clicking the override again reverts to the default). The saved record's card
+              appears right under its note.
+            </Typography>
+          </Paper>
+
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              Checkout files, pending sync &amp; the bookmarked TOC
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Every record's long text can be exported to a per-record <b>checkout file</b>
+              (<code>W18.md</code>-style, in its repo-1 folder) and edited in any editor — edits
+              show up under <b>Import files → Pending sync</b> for one-click apply (audit-tracked).
+              The <b>Bookmarked TOC</b> button checks out every bookmarked record across all
+              modules and rebuilds <code>repo1/TOC.md</code> (department → course → record, with
+              manuscript-index embeds for the Zettlr-style writer). A checkout that already exists
+              with different content is never overwritten: the old file is parked beside it with a
+              timestamp and listed as a conflict for manual merging.
+            </Typography>
+          </Paper>
+        </Stack>
+
         {/* Keyboard shortcuts */}
         <Typography variant="h6" sx={{ mb: 1 }}>
           Keyboard shortcuts

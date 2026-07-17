@@ -7,6 +7,7 @@ import {
   Card,
   CardContent,
   Chip,
+  MenuItem,
   Stack,
   TextField,
   Typography,
@@ -17,6 +18,7 @@ import {
   EntityRecord,
   ImportNote,
   getEntity,
+  getLookups,
   importNote,
   listImportNotes,
   setImportDir,
@@ -35,6 +37,18 @@ export function ImportNotesPage() {
 
   const { data, isLoading } = useQuery({ queryKey: ['import-notes'], queryFn: listImportNotes });
 
+  // Resource types — an 'R' note's type must be chosen BEFORE import, because it places the
+  // record's repo folder (R/<type>/…). A page-level default + a per-note override.
+  const { data: resourceLookups } = useQuery({
+    queryKey: ['lookups', 'resources'],
+    queryFn: () => getLookups('resources'),
+  });
+  const resourceTypes = resourceLookups?.types ?? [];
+  const [defaultTypeId, setDefaultTypeId] = useState<number | ''>('');
+  const [typeOverrides, setTypeOverrides] = useState<Record<string, number>>({});
+  const effectiveTypeId = (n: ImportNote): number | undefined =>
+    typeOverrides[n.filename] ?? (defaultTypeId === '' ? undefined : defaultTypeId);
+
   const [dir, setDir] = useState('');
   // Keep the editable path in sync when the server tells us the current one.
   useEffect(() => {
@@ -47,7 +61,8 @@ export function ImportNotesPage() {
   });
 
   const doImport = useMutation({
-    mutationFn: (n: ImportNote) => importNote(n.filename),
+    mutationFn: (n: ImportNote) =>
+      importNote(n.filename, n.moduleKey === 'resources' ? effectiveTypeId(n) : undefined),
     onSuccess: async (res, n) => {
       // Fetch the full record so we can show a card of what was just created.
       const record = await getEntity(res.module, res.id).catch(() => null);
@@ -103,6 +118,33 @@ export function ImportNotesPage() {
           </Button>
         </Stack>
 
+        {/* Default resource type for this session's 'R' imports — the type must be chosen before
+            import because it places the record's repo folder (R/<type>/…). Each R note below can
+            override it individually. */}
+        {notes.some((n) => n.moduleKey === 'resources') && (
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 3 }}>
+            <TextField
+              select
+              size="small"
+              label="Default resource type (for R notes)"
+              value={defaultTypeId}
+              onChange={(e) =>
+                setDefaultTypeId(e.target.value === '' ? '' : Number(e.target.value))
+              }
+              sx={{ minWidth: 320 }}
+            >
+              <MenuItem value="">
+                <em>None — pick per note</em>
+              </MenuItem>
+              {resourceTypes.map((t) => (
+                <MenuItem key={t.id} value={t.id}>
+                  {t.code && t.name ? `${t.code} — ${t.name}` : t.name ?? t.code ?? ''}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Stack>
+        )}
+
         {!isLoading && notes.length === 0 && (
           <Alert severity="info">No notes to import. The folder is empty.</Alert>
         )}
@@ -150,14 +192,50 @@ export function ImportNotesPage() {
                   {n.body}
                 </Typography>
 
+                {/* Resource type for this R note — the default (top of the page) highlighted;
+                    click a chip to override it for this note only. */}
+                {n.moduleKey === 'resources' && !done[n.filename] && (
+                  <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
+                      Resource type:
+                    </Typography>
+                    {resourceTypes.map((t) => {
+                      const selected = effectiveTypeId(n) === t.id;
+                      const isOverride = typeOverrides[n.filename] === t.id;
+                      return (
+                        <Chip
+                          key={t.id}
+                          size="small"
+                          label={t.code || t.name}
+                          title={t.name}
+                          color={selected ? 'primary' : 'default'}
+                          variant={selected && !isOverride ? 'outlined' : selected ? 'filled' : 'outlined'}
+                          onClick={() =>
+                            setTypeOverrides((o) => {
+                              const next = { ...o };
+                              // Clicking the current override clears it (back to the default).
+                              if (next[n.filename] === t.id) delete next[n.filename];
+                              else next[n.filename] = t.id;
+                              return next;
+                            })
+                          }
+                          sx={{ height: 22 }}
+                        />
+                      );
+                    })}
+                  </Stack>
+                )}
+
                 <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 2 }}>
                   {(() => {
                     // Require type, priority AND department before importing — a note missing any of
-                    // them can't produce a complete record.
+                    // them can't produce a complete record. R notes also need a resource type (it
+                    // places the type-bucketed repo folder).
                     const missing = [
                       !n.typeCode && 'type',
                       n.priority == null && 'priority',
                       !n.deptCode && 'department',
+                      n.moduleKey === 'resources' && effectiveTypeId(n) == null && 'resource type',
                     ].filter(Boolean) as string[];
                     const blocked = !n.parseable || !n.moduleKey || missing.length > 0;
                     return (

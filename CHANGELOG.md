@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-07-17
+
+- **Import notes: resource type chosen up front for 'R' notes.** The type places the record's
+  repo folder (`R/<type>/…`), so the page now has a session-wide "Default resource type" select
+  at the top plus per-note override chips on each R note card (default highlighted; clicking the
+  override again reverts to the default). Import is blocked until an R note has an effective
+  type; `POST /api/import/notes` accepts the new optional `resourceTypeId`.
+- **Task-timer probe for the status bar.** The web tracker now reports start/stop to the server
+  (`/api/timer`: GET status, POST start/stop — state in the settings store, one active timer),
+  and a new root-level `timer-status.sh` prints `🟢 <task, 20 chars>` while tracking, `🔴` when
+  idle, `🔴 offline` when unreachable — creds via `~/.config/nibras/timer-probe.conf`, JWT cached.
+  Character-safe truncation (Arabic titles don't get mangled).
+- **Mobile: attachment opening fixed.** Files now always open via the app chooser — knotes is
+  itself a registered audio handler, so a plain VIEW on an mp3 silently resolved back into
+  knotes; unmapped text extensions (.md, …) get text/plain instead of unresolvable `*/*`.
+  "Open files folder" works: the DocumentsUI intent no longer carries an illegal grant flag on a
+  foreign provider (it threw SecurityException and fell through), and paths are canonicalised.
+- **Terminal: block cursor actually visible** — explicit fg/bg colours; `text-style: reverse`
+  swapped in the field's transparent background, rendering the cursor invisible.
+- **Command grammar: date tokens.** `(DATE` sets startDate, `)DATE` sets endDate (batch entry +
+  batch edit). DATE forms: `2026-07-17`, `2026-07-17_1600`, ISO week+day `295` (wk 29, day 5 =
+  Fri; 1=Mon…7=Sun, current week-based year), `295_25` (year 2025), `295_1600`, `295_25_1600`,
+  and day offsets `-1` / `+3` / `0` with optional `_HHMM` (`-1_1600` = yesterday 16:00). Time
+  defaults to 00:00. In batch entry a malformed date falls back to a title word; batch edit
+  rejects it. Example: `j p2 (2026-07-17 quarterly review`. The Batch-entry page lists the
+  syntax under the token chips.
+- **In-app Help: "Feature guides" section** (kanban goals, time tracking + probe, import
+  resource types, checkout files / pending sync / bookmarked TOC); README's features list
+  updated to match (checkout naming, TOC, timer probe, R-note types).
+
 ## 2026-07-16
 
 ### Bookmarked-records checkout + master TOC (`repo1/TOC.md`)

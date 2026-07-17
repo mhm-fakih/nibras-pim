@@ -43,13 +43,14 @@ public class ImportController {
      */
     @PostMapping
     public CreatedRecord importOne(@RequestBody ImportRequest request) {
-        return service.importOne(request.filename(), request.dir());
+        return service.importOne(request.filename(), request.dir(), request.resourceTypeId());
     }
 
     public record ImportListDto(String dir, List<ImportNoteDto> notes) {
     }
 
-    public record ImportRequest(String filename, String dir) {
+    /** {@code resourceTypeId} applies to 'R' notes only (type-bucketed repo folder). */
+    public record ImportRequest(String filename, String dir, Long resourceTypeId) {
     }
 
     public record DirRequest(String dir) {

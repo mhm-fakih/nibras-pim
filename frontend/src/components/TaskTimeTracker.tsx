@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Box, Button, TextField, Tooltip, Typography } from '@mui/material';
 import PlayArrow from '@mui/icons-material/PlayArrow';
 import Stop from '@mui/icons-material/Stop';
-import { createEntity, linkRecord, EntityRecord } from '../api/client';
+import { createEntity, linkRecord, reportTimerStart, reportTimerStop, EntityRecord } from '../api/client';
 import { useTimerPrefs } from '../hooks/useTimerPrefs';
 
 /** Local-time ISO (no timezone) matching the backend LocalDateTime — same shape EntityForm uses. */
@@ -60,6 +60,7 @@ export function TaskTimeTracker({ taskId }: { taskId: number }) {
     localStorage.setItem(storageKey(taskId), String(ms));
     setStartMs(ms);
     setNow(ms);
+    reportTimerStart(taskId); // server-side flag for external probes (status bar)
   };
 
   const stop = () => {
@@ -70,6 +71,7 @@ export function TaskTimeTracker({ taskId }: { taskId: number }) {
     setStartMs(null);
     save.mutate({ start: startDate, end: endDate, note: summaryRef.current });
     setSummary('');
+    reportTimerStop();
   };
 
   // Tick once a second while running (drives the elapsed display).

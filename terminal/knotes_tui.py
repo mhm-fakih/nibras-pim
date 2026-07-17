@@ -181,10 +181,10 @@ class KnotesTUI(App):
     #cmd { border: none; height: 1; padding: 0 1; background: transparent; }
     #cmd:focus { background: transparent; }
     #cmd.-rtl { text-align: right; }
-    /* Solid block cursor (Textual's reverse-video default). A real terminal beam isn't possible —
-       forcing it via escapes raced with Textual's I/O and ate keystrokes — and the underline
-       variant proved too easy to lose; the block it is. */
-    #cmd > .input--cursor { text-style: reverse; }
+    /* Solid block cursor with EXPLICIT colours — `text-style: reverse` swaps fg/bg, but this
+       field's background is transparent, so the swap rendered an invisible cursor. (A real
+       terminal beam isn't possible: forcing it via escapes raced with Textual's I/O.) */
+    #cmd > .input--cursor { background: $text; color: $background; text-style: none; }
     /* status bar under the box (backend, repo+triple, uptime, session count) with a little space below. */
     #statusbar { height: auto; color: $text-muted; padding: 0 1 1 1; }
     """
