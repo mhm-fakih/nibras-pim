@@ -59,7 +59,7 @@ public class IndicatorMonitorService {
     public record Proposal(Long id, Double value, String error) {
     }
 
-    public record SeriesPoint(LocalDateTime date, Double value) {
+    public record SeriesPoint(LocalDateTime date, Double value, String notes) {
     }
 
     /** Bookmarked indicators with no data point in the current period (with proposals). */
@@ -105,8 +105,36 @@ public class IndicatorMonitorService {
     @Transactional(readOnly = true)
     public List<SeriesPoint> series(Long id) {
         return data.findByIndicatorIdOrderByDateAsc(id).stream()
-                .map(d -> new SeriesPoint(d.getDate(), d.getValue()))
+                .map(d -> new SeriesPoint(d.getDate(), d.getValue(), d.getNotes()))
                 .toList();
+    }
+
+    /**
+     * Auto-collect every {@code autoCollect}-flagged indicator that's due for its current period,
+     * saving the computed value directly (no manual confirmation) — called by
+     * {@code IndicatorAutoCollectScheduler} once a day at the configured time. MANUAL-kind
+     * indicators have nothing to compute and are skipped; a failed computation (bad script/query/
+     * path) is skipped too rather than saved, so it stays "due" and is retried on the next run.
+     */
+    @Transactional
+    public int autoCollectDue() {
+        LocalDate today = LocalDate.now();
+        int collected = 0;
+        for (Indicator i : indicators.findByAutoCollectTrue()) {
+            if (kindOf(i) == Kind.MANUAL) {
+                continue;
+            }
+            LocalDateTime[] p = period(i.getFrequency(), today);
+            if (data.existsByIndicatorIdAndDateBetween(i.getId(), p[0], p[1])) {
+                continue;
+            }
+            Proposal proposal = computeProposal(i);
+            if (proposal.value() != null) {
+                saveData(i.getId(), proposal.value(), LocalDateTime.now(), "Auto-collected");
+                collected++;
+            }
+        }
+        return collected;
     }
 
     // ---- proposal computation --------------------------------------------------------

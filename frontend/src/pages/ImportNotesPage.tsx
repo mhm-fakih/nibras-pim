@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -7,27 +8,40 @@ import {
   Card,
   CardContent,
   Chip,
+  Divider,
   MenuItem,
+  Paper,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
 import FileDownload from '@mui/icons-material/FileDownload';
 import Save from '@mui/icons-material/Save';
+import CallMerge from '@mui/icons-material/CallMerge';
+import Search from '@mui/icons-material/Search';
 import {
+  DuplicatePair,
   EntityRecord,
   ImportNote,
+  SearchHit,
+  findDuplicatePairs,
+  findSemanticDuplicates,
   getEntity,
   getLookups,
+  getSemanticDedupStatus,
   importNote,
   listImportNotes,
+  searchAll,
   setImportDir,
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { RecordCard } from '../components/RecordCard';
+import { MergeDialog, MergeDraft } from '../components/MergeDialog';
+import { ENTITIES, MERGEABLE_MODULES } from '../config/entities';
 
 export function ImportNotesPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   // filename -> the imported record (+ its module and the original note). Keeping the note lets the
   // card stay in place after the server list refreshes (the file is moved to imported/), so the
   // saved record shows right under the note it came from.
@@ -36,6 +50,32 @@ export function ImportNotesPage() {
   >({});
 
   const { data, isLoading } = useQuery({ queryKey: ['import-notes'], queryFn: listImportNotes });
+
+  // Find-duplicates-in-the-database scan (separate from the per-note "similar records" column
+  // below, which compares a not-yet-imported file against the database — this compares the
+  // database against itself, module by module).
+  const mergeableEntities = ENTITIES.filter((e) => MERGEABLE_MODULES.has(e.key));
+  const [dedupModule, setDedupModule] = useState(mergeableEntities[0]?.key ?? '');
+  const [dedupMode, setDedupMode] = useState<'fast' | 'embedding' | 'llm'>('fast');
+  const [dedupPairs, setDedupPairs] = useState<DuplicatePair[] | null>(null);
+  const [mergeDraft, setMergeDraft] = useState<MergeDraft | null>(null);
+  const dedupLabel = mergeableEntities.find((e) => e.key === dedupModule)?.label ?? dedupModule;
+
+  // Local Ollama status, so the AI modes can be disabled with an explanation if it's not set up.
+  const { data: ollamaStatus } = useQuery({
+    queryKey: ['semantic-dedup-status'],
+    queryFn: getSemanticDedupStatus,
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const scanDuplicates = useMutation({
+    mutationFn: () =>
+      dedupMode === 'fast'
+        ? findDuplicatePairs(dedupModule, 50)
+        : findSemanticDuplicates(dedupModule, dedupMode, dedupMode === 'llm' ? 20 : 30),
+    onSuccess: (pairs) => setDedupPairs(pairs),
+  });
 
   // Resource types — an 'R' note's type must be chosen BEFORE import, because it places the
   // record's repo folder (R/<type>/…). A page-level default + a per-note override.
@@ -87,7 +127,7 @@ export function ImportNotesPage() {
   return (
     <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <SideNav />
-      <Box sx={{ flex: 1, overflow: 'auto', p: 4, maxWidth: 1000 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', p: 4, maxWidth: 1300 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
           Import notes
         </Typography>
@@ -105,6 +145,11 @@ export function ImportNotesPage() {
             size="small"
             value={dir}
             onChange={(e) => setDir(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !saveDir.isPending && dir.trim() && dir !== data?.dir) {
+                saveDir.mutate(dir.trim());
+              }
+            }}
             fullWidth
             InputProps={{ sx: { fontFamily: 'monospace' } }}
           />
@@ -145,13 +190,141 @@ export function ImportNotesPage() {
           </Stack>
         )}
 
+        <Divider sx={{ mb: 3 }} />
+
+        {/* Find-duplicates-in-the-database: a one-off fuzzy scan within a module (title similarity),
+            independent of the not-yet-imported files below — for cleaning up records already entered
+            twice. Reuses the same merge feature as dragging one record onto another in the list pane. */}
+        <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+            Find duplicates already in the database
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            One-off scan for near-identical titles within a module, so records entered twice can be
+            merged instead of left as clutter.
+          </Typography>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }} flexWrap="wrap" useFlexGap>
+            <TextField
+              select
+              size="small"
+              label="Module"
+              value={dedupModule}
+              onChange={(e) => {
+                setDedupModule(e.target.value);
+                setDedupPairs(null);
+              }}
+              sx={{ minWidth: 200 }}
+            >
+              {mergeableEntities.map((e) => (
+                <MenuItem key={e.key} value={e.key}>
+                  {e.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              size="small"
+              label="Method"
+              value={dedupMode}
+              onChange={(e) => {
+                setDedupMode(e.target.value as typeof dedupMode);
+                setDedupPairs(null);
+              }}
+              sx={{ minWidth: 280 }}
+            >
+              <MenuItem value="fast">Fast — title match (instant)</MenuItem>
+              <MenuItem value="embedding" disabled={!ollamaStatus?.hasEmbedModel}>
+                Cheap AI — embeddings, same language (~30-60s)
+              </MenuItem>
+              <MenuItem value="llm" disabled={!ollamaStatus?.hasJudgeModel}>
+                Smart AI — aya-expanse, any language (slow, a few minutes)
+              </MenuItem>
+            </TextField>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<Search />}
+              disabled={!dedupModule || scanDuplicates.isPending}
+              onClick={() => scanDuplicates.mutate()}
+            >
+              Scan
+            </Button>
+          </Stack>
+          {ollamaStatus && !ollamaStatus.reachable && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+              AI modes need a local Ollama running on this machine (not reachable right now).
+            </Typography>
+          )}
+          {dedupMode === 'llm' && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+              Checks up to 20 candidate pairs with AI judgment — can take a few minutes. Catches
+              same-meaning duplicates across languages that title matching or embeddings alone would miss.
+            </Typography>
+          )}
+
+          {scanDuplicates.isPending && (
+            <Typography variant="body2" color="text.secondary">
+              {dedupMode === 'llm' ? 'Scanning with AI — this may take a few minutes…' : 'Scanning…'}
+            </Typography>
+          )}
+          {scanDuplicates.isError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Scan failed. {dedupMode !== 'fast' ? 'Is Ollama running with the right models pulled?' : ''}
+            </Alert>
+          )}
+          {dedupPairs && dedupPairs.length === 0 && (
+            <Alert severity="success">No close duplicates found in {dedupLabel.toLowerCase()}.</Alert>
+          )}
+          {dedupPairs && dedupPairs.length > 0 && (
+            <Stack spacing={1}>
+              {dedupPairs.map((p) => (
+                <Stack
+                  key={`${p.id1}-${p.id2}`}
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                  sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}
+                >
+                  <Chip size="small" label={`${Math.round(p.score * 100)}%`} color={p.score >= 0.5 ? 'warning' : 'default'} />
+                  <Typography variant="body2" sx={{ flex: 1 }} noWrap>
+                    #{p.id1} {p.title1}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    vs
+                  </Typography>
+                  <Typography variant="body2" sx={{ flex: 1 }} noWrap>
+                    #{p.id2} {p.title2}
+                  </Typography>
+                  <Button
+                    size="small"
+                    startIcon={<CallMerge />}
+                    onClick={() =>
+                      setMergeDraft({
+                        module: p.module,
+                        moduleLabel: dedupLabel,
+                        primaryId: p.id1,
+                        primaryTitle: p.title1,
+                        secondaryId: p.id2,
+                        secondaryTitle: p.title2,
+                      })
+                    }
+                  >
+                    Merge
+                  </Button>
+                </Stack>
+              ))}
+            </Stack>
+          )}
+        </Paper>
+
         {!isLoading && notes.length === 0 && (
           <Alert severity="info">No notes to import. The folder is empty.</Alert>
         )}
 
         <Stack spacing={2}>
           {notes.map((n) => (
-            <Card key={n.filename} variant="outlined">
+            <Stack key={n.filename} direction="row" spacing={2} alignItems="flex-start">
+            <Card variant="outlined" sx={{ flex: 1, minWidth: 0 }}>
               <CardContent>
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }} flexWrap="wrap" useFlexGap>
                   <Typography variant="subtitle2" sx={{ fontFamily: 'monospace', flex: 1 }}>
@@ -279,9 +452,91 @@ export function ImportNotesPage() {
                 )}
               </CardContent>
             </Card>
+            <SimilarRecordsColumn summary={n.summary} onOpen={(hit) => navigate(`/${hit.module}?select=${hit.id}`)} />
+            </Stack>
           ))}
         </Stack>
       </Box>
+
+      <MergeDialog
+        draft={mergeDraft}
+        onSwap={() =>
+          setMergeDraft((d) =>
+            d
+              ? {
+                  ...d,
+                  primaryId: d.secondaryId,
+                  primaryTitle: d.secondaryTitle,
+                  secondaryId: d.primaryId,
+                  secondaryTitle: d.primaryTitle,
+                }
+              : d,
+          )
+        }
+        onCancel={() => setMergeDraft(null)}
+        onMerged={() => {
+          setDedupPairs((pairs) =>
+            pairs?.filter((p) => p.id1 !== mergeDraft?.secondaryId && p.id2 !== mergeDraft?.secondaryId) ?? null,
+          );
+          setMergeDraft(null);
+        }}
+      />
+    </Box>
+  );
+}
+
+/** Existing records whose title is a close fuzzy match for this note's summary (line 1) — a
+ * quick way to notice "this was probably already entered" before importing a duplicate. Uses the
+ * search API's `~` fuzzy-duplicate mode (character-trigram similarity); same-language matches
+ * only for now. */
+function SimilarRecordsColumn({
+  summary,
+  onOpen,
+}: {
+  summary?: string;
+  onOpen: (hit: SearchHit) => void;
+}) {
+  const q = summary?.trim();
+  const { data, isFetching } = useQuery({
+    queryKey: ['similar-records', q],
+    queryFn: () => searchAll(`~${q}`, 5),
+    enabled: Boolean(q),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (!q) {
+    return <Box sx={{ width: 260, flexShrink: 0 }} />;
+  }
+
+  const hits = data ?? [];
+  return (
+    <Box sx={{ width: 260, flexShrink: 0, pt: 1 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+        Similar existing records
+      </Typography>
+      {isFetching && (
+        <Typography variant="caption" color="text.secondary">
+          Checking…
+        </Typography>
+      )}
+      {!isFetching && hits.length === 0 && (
+        <Typography variant="caption" color="text.secondary">
+          No close matches.
+        </Typography>
+      )}
+      <Stack spacing={0.5} alignItems="flex-start">
+        {hits.map((h) => (
+          <Chip
+            key={`${h.module}-${h.id}`}
+            size="small"
+            variant="outlined"
+            color={h.score >= 0.5 ? 'warning' : 'default'}
+            label={`${h.title} · ${Math.round(h.score * 100)}%`}
+            onClick={() => onOpen(h)}
+            sx={{ maxWidth: '100%', justifyContent: 'flex-start' }}
+          />
+        ))}
+      </Stack>
     </Box>
   );
 }

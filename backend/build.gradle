@@ -1,17 +1,44 @@
 plugins {
     id 'java'
     id 'war'
-    id 'org.springframework.boot' version '3.5.3'
+    id 'org.springframework.boot' version '4.1.0'
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
 group = 'com.nibras'
-version = '0.1.0'
+version = '1.2.32'
+
+// io.spring.dependency-management's default Maven-exclusion-honoring pass misfires against Boot
+// 4.1's BOM: it globally excludes org.springframework:spring-web (and com.google.protobuf:
+// protobuf-java) from every configuration, even direct dependencies, breaking the war plugin's
+// merged runtime classpath (spring-webmvc needs spring-web at runtime). Known plugin regression
+// class — see https://github.com/spring-gradle-plugins/dependency-management-plugin/issues/368.
+dependencyManagement {
+    applyMavenExclusions = false
+}
+
+// Auto-incrementing build number, persisted in build-number.properties (gitignored). Bumps on every
+// Gradle configuration (i.e. every build) — same convention as the frontend's build-number.json and
+// mobile's version.properties/BuildConfig.BUILD_NUMBER. Surfaced via BuildProperties as
+// `buildNumber`, alongside `codename`.
+def buildNumberFile = file('build-number.properties')
+def buildNumberProps = new Properties()
+if (buildNumberFile.exists()) {
+    buildNumberFile.withInputStream { buildNumberProps.load(it) }
+}
+def buildNumber = (buildNumberProps.getProperty('buildNumber', '0') as Integer) + 1
+buildNumberProps.setProperty('buildNumber', buildNumber as String)
+buildNumberFile.withOutputStream { buildNumberProps.store(it, 'Auto-incremented build number') }
 
 // Generate META-INF/build-info.properties so BuildProperties exposes the version/build time
-// to InfoController (single source of truth = the gradle `version` above).
+// to InfoController (single source of truth = the gradle `version` above). `codename` is this
+// release's Mint-style nickname, surfaced alongside the version in the UI.
 springBoot {
-    buildInfo()
+    buildInfo {
+        properties {
+            additional = [codename: 'Dastgheib', buildNumber: "$buildNumber"]
+        }
+    }
 }
 
 java {
@@ -35,8 +62,15 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
+    // Jackson 3 is Boot 4's default; this app still uses Jackson 2 directly in a couple of places
+    // (SecurityConfig, InfoController) and the whole spring.jackson.* date/time serialization
+    // config was tuned for Jackson 2 behavior. Opt into the compatibility module so this upgrade
+    // is scoped to "make the framework/Security/Hibernate baseline work," not also a JSON-library
+    // migration in the same step — that's deferred to its own later, deliberate piece of work.
+    implementation 'org.springframework.boot:spring-boot-jackson2'
+
     implementation 'com.rometools:rome:2.1.0'
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
 
     // Server-side Markdown -> HTML for the static-site generator (GFM tables/strikethrough/autolinks).
     implementation 'org.commonmark:commonmark:0.22.0'
@@ -45,16 +79,35 @@ dependencies {
     implementation 'org.commonmark:commonmark-ext-autolink:0.22.0'
     runtimeOnly 'com.mysql:mysql-connector-j'
 
+    // Schema migrations applied at startup (see db/migration). Replaces hand-running
+    // db/extra-schema.sql on every machine; ddl-auto stays 'none' so Hibernate never guesses.
+    // spring-boot-flyway is required as well: Boot 4 moved each integration's auto-configuration
+    // out of spring-boot-autoconfigure into its own module, so flyway-core alone sits on the
+    // classpath and is never wired up — the app starts clean and silently skips every migration.
+    implementation 'org.springframework.boot:spring-boot-flyway'
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-mysql'
+
     // Hot-reload: restarts the app when classes on the classpath change (excluded from the WAR).
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
-    // Required so the executable WAR can also run standalone (java -jar app.war).
-    providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
+    // Container-supplied at deploy time. Do NOT use spring-boot-starter-tomcat here: on Boot 4 it
+    // transitively pulls spring-boot/spring-core/spring-web, and the war plugin subtracts all of
+    // providedRuntime from WEB-INF/lib — the deployed WAR then has no Spring at all, no
+    // ServletContainerInitializer is found, and every context silently 404s. These four still land
+    // in WEB-INF/lib-provided, which WarLauncher reads, so `java -jar app.war` keeps working.
+    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-core'
+    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-el'
+    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-websocket'
+    providedRuntime 'jakarta.annotation:jakarta.annotation-api'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    // Boot 4's modularization split MockMvc test support (@AutoConfigureMockMvc) out of
+    // spring-boot-starter-test into its own artifact.
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 }
 
 tasks.named('test') {
@@ -100,3 +153,22 @@ tasks.register('copyFrontend', Sync) {
 // Expose the generated SPA as a resource directory; processResources packages it into the WAR.
 sourceSets.main.resources.srcDir(generatedFrontend)
 tasks.named('processResources') { dependsOn 'copyFrontend' }
+
+// Guard against the silent-404 packaging regression: Gradle's war plugin writes
+// runtimeClasspath-minus-providedRuntime into WEB-INF/lib and the remainder into
+// WEB-INF/lib-provided. Tomcat only reads WEB-INF/lib, so if spring-web lands in lib-provided the
+// deployed WAR has no ServletContainerInitializer, Spring never boots, and every URL 404s with a
+// clean log (java -jar still works, which is what makes it so easy to miss). See war-fix.md.
+tasks.named('bootWar') {
+    doLast {
+        def war = archiveFile.get().asFile
+        def names = new java.util.zip.ZipFile(war).withCloseable { zip ->
+            zip.entries().collect { it.name }
+        }
+        if (!names.any { it ==~ /WEB-INF\/lib\/spring-web-[0-9].*\.jar/ }) {
+            throw new GradleException(
+                    "WAR has spring-web outside WEB-INF/lib — a Tomcat deploy would silently 404. " +
+                    "Check the providedRuntime declarations in build.gradle (see war-fix.md).")
+        }
+    }
+}

@@ -15,6 +15,7 @@ import { DetailPane } from './DetailPane';
 import { EntityForm } from './EntityForm';
 import { RecordCard } from './RecordCard';
 import { QuickEditDialog, QuickKind } from './QuickEditDialog';
+import { QuickNoteBar } from './QuickNoteBar';
 import { useAuth } from '../hooks/useAuth';
 
 export type PaneMode = 'view' | 'edit' | 'create';
@@ -66,14 +67,17 @@ export function AppShell() {
     };
   }, [shortcuts, mode, selectedId]);
 
-  // Preselect a record passed via ?select=<id> (e.g. after creating a day's journal from the calendar).
+  // Preselect a record passed via ?select=<id> (e.g. after creating a day's journal from the
+  // calendar). `&edit=1` additionally opens it straight in the form — that's how the standalone
+  // reading page hands a record back here to be edited, since editing lives only in this shell.
   const selectParam = searchParams.get('select');
+  const editParam = searchParams.get('edit');
   useEffect(() => {
     if (selectParam) {
       setSelectedId(Number(selectParam));
-      setMode('view');
+      setMode(editParam === '1' && canWriteContent ? 'edit' : 'view');
     }
-  }, [selectParam]);
+  }, [selectParam, editParam, canWriteContent]);
 
   // Keyboard: list (j/k/n/o) + record (e, f→1/2/3) shortcuts; Esc backs out. Skipped while typing.
   useEffect(() => {
@@ -179,6 +183,25 @@ export function AppShell() {
     window.addEventListener('mouseup', onUp);
   };
 
+  // Shared by the one-line date field and the full mini-calendar in its popover (SideNav), so
+  // picking a day does the same thing (open/create that day's journal) either way.
+  const handleDateSelect = (d: Date) => {
+    setSelectedDate(d);
+    const day = formatLocalDate(d);
+    createJournalDay(day)
+      .then(async (j) => {
+        // A brand-new day journal: export its _record.md to repo 1 right away. Whether the file is
+        // opened afterwards is controlled by its own setting (calendar.journalDay.open), independent
+        // of the manual-export 'export.open'.
+        if (j.created) {
+          const open = (await getSetting('calendar.journalDay.open', 'false')) === 'true';
+          exportFulltext(j.module, j.id, open).catch(() => {});
+        }
+        navigate(`/journals?select=${j.id}&onDay=${day}`);
+      })
+      .catch(() => {});
+  };
+
   return (
     <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <SideNav
@@ -189,28 +212,7 @@ export function AppShell() {
           setMode('view');
         }}
         calendar={
-          <MiniCalendar
-            entity={config.key}
-            selectedDate={selectedDate}
-            onSelect={(d) => {
-              // Clicking a day opens that day's journal AND filters the journals list to that day
-              // (date-aware: journals filter by their date, so the day's journal shows in the list).
-              setSelectedDate(d);
-              const day = formatLocalDate(d);
-              createJournalDay(day)
-                .then(async (j) => {
-                  // A brand-new day journal: export its _record.md to repo 1 right away.
-                  // Whether the file is opened afterwards is controlled by its own setting
-                  // (calendar.journalDay.open), independent of the manual-export 'export.open'.
-                  if (j.created) {
-                    const open = (await getSetting('calendar.journalDay.open', 'false')) === 'true';
-                    exportFulltext(j.module, j.id, open).catch(() => {});
-                  }
-                  navigate(`/journals?select=${j.id}&onDay=${day}`);
-                })
-                .catch(() => {});
-            }}
-          />
+          <MiniCalendar entity={config.key} selectedDate={selectedDate} onSelect={handleDateSelect} />
         }
       />
 
@@ -345,6 +347,7 @@ export function AppShell() {
           </Box>
         )}
         </Box>
+        <QuickNoteBar onSaved={(msg) => setToast(msg)} />
       </Box>
       )}
         </Box>

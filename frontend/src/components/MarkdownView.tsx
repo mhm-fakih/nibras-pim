@@ -7,6 +7,18 @@ import markdownItMark from 'markdown-it-mark';
 // plain newlines into line breaks; markdown-it-mark renders ==text== as <mark>.
 const md = new MarkdownIt({ html: true, linkify: true, breaks: true }).use(markdownItMark);
 
+// Every link — explicit [text](url) markdown or a bare URL auto-linkified by linkify:true — opens
+// in a new tab, same as the dedicated "url"-type field in DetailPane. noopener/noreferrer since
+// the opened page would otherwise get a handle back to this window via window.opener.
+const defaultLinkOpen =
+  md.renderer.rules.link_open ??
+  ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
+md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
+  tokens[idx].attrSet('target', '_blank');
+  tokens[idx].attrSet('rel', 'noopener noreferrer');
+  return defaultLinkOpen(tokens, idx, options, env, self);
+};
+
 /** Renders a text field as Markdown (with ==highlight== support). */
 export function MarkdownView({ value }: { value: string }) {
   const html = useMemo(() => md.render(value ?? ''), [value]);

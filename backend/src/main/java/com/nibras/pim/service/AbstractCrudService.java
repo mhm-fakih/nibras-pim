@@ -9,6 +9,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.Predicate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -30,6 +32,8 @@ import java.util.Set;
  */
 @Transactional
 public abstract class AbstractCrudService<E extends BaseEntity, D> {
+
+    private static final Logger log = LoggerFactory.getLogger(AbstractCrudService.class);
 
     protected final BaseRepository<E> repo;
 
@@ -54,6 +58,12 @@ public abstract class AbstractCrudService<E extends BaseEntity, D> {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private RepositoryService repositories;
+
+    // @Lazy for the same reason as AttachmentService: FulltextService depends on it (via
+    // EntityCatalog) transitively, so an eager injection here would be a bean cycle.
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private FulltextService fulltext;
 
     protected AbstractCrudService(BaseRepository<E> repo) {
         this.repo = repo;
@@ -95,14 +105,17 @@ public abstract class AbstractCrudService<E extends BaseEntity, D> {
         }
         entity = repo.saveAndFlush(entity);
         reindex(entity);
+        syncCheckoutLink(entity, false);   // a brand-new record was never bookmarked before now
         return toDto(entity);
     }
 
     public D update(Long id, D dto) {
         E entity = load(id);
+        boolean wasBookmarked = isBookmarked(entity);
         apply(dto, entity);
         entity = repo.saveAndFlush(entity);
         reindex(entity);
+        syncCheckoutLink(entity, wasBookmarked);
         return toDto(entity);
     }
 
@@ -129,11 +142,21 @@ public abstract class AbstractCrudService<E extends BaseEntity, D> {
     /** Soft delete: stamp {@code deleted_on}; the @SQLRestriction hides it thereafter. */
     public void delete(Long id) {
         E entity = load(id);
+        boolean wasBookmarked = isBookmarked(entity);
         entity.setDeletedOn(LocalDateTime.now());
         repo.save(entity);
         if (searchIndex != null) {
             searchIndex.delete(name(), id);   // drop soft-deleted rows from search
         }
+        if (wasBookmarked && repositories != null) {
+            repositories.unlinkCheckout(name(), id, typeCodeOf(entity));
+        }
+    }
+
+    /** Refresh this record's search-index entry after it was changed by other means (e.g. a merge). */
+    @Transactional
+    public void reindexRecord(Long id) {
+        reindex(load(id));
     }
 
     /** Keep the full-text index in sync after a create/update. */
@@ -175,6 +198,12 @@ public abstract class AbstractCrudService<E extends BaseEntity, D> {
     @Transactional(readOnly = true)
     public List<Object[]> creationCounts(LocalDateTime from, LocalDateTime to) {
         return repo.countByCreationDay(from, to);
+    }
+
+    /** Per-day last-updated counts — the Insights page's "updated" histogram. */
+    @Transactional(readOnly = true)
+    public List<Object[]> updateCounts(LocalDateTime from, LocalDateTime to) {
+        return repo.countByUpdateDay(from, to);
     }
 
     /** Records created in [from, to) — for dashboard KPIs. */
@@ -261,6 +290,43 @@ public abstract class AbstractCrudService<E extends BaseEntity, D> {
         return e == null ? null : typeCodeOf(e);
     }
 
+    /** Whether {@code entity} has a (readable) {@code bookmarked} property currently set true. */
+    private boolean isBookmarked(E entity) {
+        org.springframework.beans.BeanWrapper bw = new org.springframework.beans.BeanWrapperImpl(entity);
+        return bw.isReadableProperty("bookmarked")
+                && Boolean.TRUE.equals(bw.getPropertyValue("bookmarked"));
+    }
+
+    /**
+     * Keep the "checkout folder" symlink (repo-1 folder, one per bookmarked record) in sync with
+     * a bookmark toggle: create it on false -> true, remove it on true -> false. No-op for
+     * entities without a {@code bookmarked} column.
+     */
+    private void syncCheckoutLink(E entity, boolean wasBookmarked) {
+        if (repositories == null) {
+            return;
+        }
+        boolean nowBookmarked = isBookmarked(entity);
+        if (nowBookmarked == wasBookmarked) {
+            return;
+        }
+        if (nowBookmarked) {
+            repositories.linkCheckout(name(), entity.getId(), typeCodeOf(entity));
+            // Without this, the checkout symlink points at an empty folder until someone thinks to
+            // hit "Export" — write the record's checkout .md right away so there's actually
+            // something to look at.
+            if (fulltext != null && fulltext.supports(name())) {
+                try {
+                    fulltext.export(name(), entity.getId());
+                } catch (RuntimeException e) {
+                    log.warn("Could not write checkout export for {} {}: {}", name(), entity.getId(), e.toString());
+                }
+            }
+        } else {
+            repositories.unlinkCheckout(name(), entity.getId(), typeCodeOf(entity));
+        }
+    }
+
     // ---- mapping helpers --------------------------------------------------------------
 
     /** Lazily attaches a managed reference for a ManyToOne lookup by id (null clears it). */
@@ -322,6 +388,25 @@ public abstract class AbstractCrudService<E extends BaseEntity, D> {
                 .toList();
     }
 
+    /** Goal projection for a "link to goal" field (goals aren't LookupEntities). */
+    protected static LookupDto goalLookup(com.nibras.pim.domain.Goal g) {
+        return new LookupDto(g.getId(), g.feedTitle(), g.getCode(), null);
+    }
+
+    /** Bookmarked goals as dropdown options (alphabetical) — a "link to goal" field only offers active goals. */
+    protected List<LookupDto> bookmarkedGoalOptions() {
+        return em.createQuery(
+                        "select g from " + com.nibras.pim.domain.Goal.class.getName()
+                                + " g where g.bookmarked = true",
+                        com.nibras.pim.domain.Goal.class)
+                .getResultList().stream()
+                .map(AbstractCrudService::goalLookup)
+                // Sort on the display title (feedTitle: title falling back to summary), case-folded.
+                .sorted(java.util.Comparator.comparing(
+                        o -> o.name() == null ? "" : o.name().toLowerCase()))
+                .toList();
+    }
+
     // ---- generic specification --------------------------------------------------------
 
     protected Specification<E> spec(FilterParams f) {
@@ -329,15 +414,24 @@ public abstract class AbstractCrudService<E extends BaseEntity, D> {
             List<Predicate> ps = new ArrayList<>();
 
             if (f.q() != null && !f.q().isBlank()) {
-                String like = "%" + f.q().toLowerCase() + "%";
-                List<Predicate> or = new ArrayList<>();
-                for (String field : searchFields()) {
-                    if (has(root, field)) {
-                        or.add(cb.like(cb.lower(root.get(field).as(String.class)), like));
+                String q = f.q().trim();
+                // A purely numeric query means "find the record with this id", not "find this
+                // number inside the text fields" — e.g. typing "482" jumps straight to record #482
+                // instead of a LIKE scan that would rarely match anything.
+                Long asId = q.matches("\\d+") ? tryParseId(q) : null;
+                if (asId != null) {
+                    ps.add(cb.equal(root.get("id"), asId));
+                } else {
+                    String like = "%" + q.toLowerCase() + "%";
+                    List<Predicate> or = new ArrayList<>();
+                    for (String field : searchFields()) {
+                        if (has(root, field)) {
+                            or.add(cb.like(cb.lower(root.get(field).as(String.class)), like));
+                        }
                     }
-                }
-                if (!or.isEmpty()) {
-                    ps.add(cb.or(or.toArray(Predicate[]::new)));
+                    if (!or.isEmpty()) {
+                        ps.add(cb.or(or.toArray(Predicate[]::new)));
+                    }
                 }
             }
             if (f.createdOn() != null) {
@@ -357,6 +451,12 @@ public abstract class AbstractCrudService<E extends BaseEntity, D> {
             if (f.bookmarked() != null && has(root, "bookmarked")) {
                 ps.add(cb.equal(root.get("bookmarked"), f.bookmarked()));
             }
+            if (f.urgent() != null && has(root, "urgent")) {
+                ps.add(cb.equal(root.get("urgent"), f.urgent()));
+            }
+            if (f.dashboard() != null && has(root, "dashboard")) {
+                ps.add(cb.equal(root.get("dashboard"), f.dashboard()));
+            }
             if (f.statusId() != null && has(root, "status")) {
                 ps.add(cb.equal(root.get("status").get("id"), f.statusId()));
             }
@@ -366,6 +466,12 @@ public abstract class AbstractCrudService<E extends BaseEntity, D> {
             if (f.tagId() != null && has(root, "tags")) {
                 query.distinct(true);
                 ps.add(cb.equal(root.join("tags").get("id"), f.tagId()));
+            }
+            if (f.goalId() != null && has(root, "goal")) {
+                ps.add(cb.equal(root.get("goal").get("id"), f.goalId()));
+            }
+            if (f.writingId() != null && has(root, "writing")) {
+                ps.add(cb.equal(root.get("writing").get("id"), f.writingId()));
             }
 
             // ---- report presets ----
@@ -406,6 +512,15 @@ public abstract class AbstractCrudService<E extends BaseEntity, D> {
 
     private static boolean isTrue(Boolean b) {
         return Boolean.TRUE.equals(b);
+    }
+
+    /** Null (not zero) on overflow, so an absurdly long digit string just falls back to text search. */
+    private static Long tryParseId(String digits) {
+        try {
+            return Long.parseLong(digits);
+        } catch (NumberFormatException overflow) {
+            return null;
+        }
     }
 
     private static boolean has(jakarta.persistence.criteria.Root<?> root, String attr) {

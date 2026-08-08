@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
@@ -18,23 +19,25 @@ import {
 } from '@mui/material';
 import {
   AppModule,
-  LookupValue,
   RepoSettings,
-  fillLookupColors,
-  getLookupGroups,
   getRepoSettings,
   getSetting,
   getSettingsMulti,
-  setLookupDefault,
-  setLookupStyle,
   setSetting,
   updateModule,
   updateRepoSettings,
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { useModules } from '../hooks/useModules';
-import { lookupStyle } from '../components/statusStyle';
-import { PAGE_SETTING_KEYS, TOGGLEABLE_PAGES, pageSettingKey } from '../config/pages';
+import {
+  FEATURE_SETTING_KEYS,
+  PAGE_SETTING_KEYS,
+  TOGGLEABLE_FEATURES,
+  TOGGLEABLE_PAGES,
+  featureSettingKey,
+  pageSettingKey,
+} from '../config/pages';
+import { useNotificationPrefs } from '../hooks/useNotificationPrefs';
 
 export function SettingsPage() {
   const { modules } = useModules();
@@ -48,6 +51,10 @@ export function SettingsPage() {
 
         <AppSettingsSection />
         <PagesSection />
+        <FeaturesSection />
+        <NotificationsSection />
+        <IndicatorAutoCollectSection />
+        <DescriptionAppendSection />
 
         <Typography variant="subtitle1" sx={{ mb: 3 }}>
           Modules
@@ -65,6 +72,7 @@ export function SettingsPage() {
                 <TableCell width={90}>Code</TableCell>
                 <TableCell width={70}>Color</TableCell>
                 <TableCell width={90}>Order</TableCell>
+                <TableCell width={90}>Sync order</TableCell>
                 <TableCell width={90}>Enabled</TableCell>
                 <TableCell width={90}>Bucket /100</TableCell>
                 <TableCell width={90}>Bucket by type</TableCell>
@@ -79,7 +87,12 @@ export function SettingsPage() {
           </Table>
         </Paper>
 
-        <LookupColorsSection />
+        {/* The parameter editors used to live here; they moved to their own page so the
+            PARAMETERS_DATA_ENTRY role can reach them without tools.settings. */}
+        <Alert severity="info" variant="outlined" sx={{ mt: 5, py: 0.5 }}>
+          Status / type / context values, their colours and defaults now live on the{' '}
+          <Link to="/parameters">Parameters</Link> page.
+        </Alert>
 
         <RepositoriesSection />
 
@@ -113,8 +126,60 @@ function AppSettingsSection() {
           label="App name"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && !save.isPending && save.mutate()}
           sx={{ width: 260 }}
         />
+        <Button variant="contained" size="small" disabled={save.isPending} onClick={() => save.mutate()}>
+          Save
+        </Button>
+      </Stack>
+    </Box>
+  );
+}
+
+/**
+ * Prefix/suffix wrapped around whatever is typed into the always-visible "append to description"
+ * field in a record's detail pane (DetailPane.tsx). Stored as the literal two characters "\n" (not
+ * an actual newline) so it stays editable in a plain text field; DetailPane interprets it.
+ */
+function DescriptionAppendSection() {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ['setting', 'description.append'],
+    queryFn: async () => ({
+      prefix: await getSetting('description.append.prefix', '\\n\\n'),
+      suffix: await getSetting('description.append.suffix', ''),
+    }),
+  });
+  const [prefix, setPrefix] = useState('');
+  const [suffix, setSuffix] = useState('');
+  useEffect(() => {
+    if (data) {
+      setPrefix(data.prefix);
+      setSuffix(data.suffix);
+    }
+  }, [data]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      await setSetting('description.append.prefix', prefix);
+      await setSetting('description.append.suffix', suffix);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setting', 'description.append'] }),
+  });
+
+  return (
+    <Box sx={{ mb: 4 }}>
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        Append to description
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        Wrapped around whatever's typed into the always-visible "append" field under a record's
+        description. Use <code>\n</code> for a newline — the default starts a new paragraph.
+      </Typography>
+      <Stack direction="row" spacing={2} alignItems="center">
+        <TextField size="small" label="Prefix" value={prefix} onChange={(e) => setPrefix(e.target.value)} sx={{ width: 220 }} />
+        <TextField size="small" label="Suffix" value={suffix} onChange={(e) => setSuffix(e.target.value)} sx={{ width: 220 }} />
         <Button variant="contained" size="small" disabled={save.isPending} onClick={() => save.mutate()}>
           Save
         </Button>
@@ -159,6 +224,189 @@ function PagesSection() {
           />
         ))}
       </Box>
+    </Box>
+  );
+}
+
+/**
+ * Show/hide the features that aren't whole pages — sidebar sections rather than routes, so they
+ * can't be expressed as a [TOGGLEABLE_PAGES] entry.
+ */
+function FeaturesSection() {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ['feature-settings-admin'],
+    queryFn: () => getSettingsMulti(FEATURE_SETTING_KEYS),
+  });
+  const save = useMutation({
+    mutationFn: ({ key, enabled }: { key: string; enabled: boolean }) =>
+      setSetting(featureSettingKey(key), enabled ? 'true' : 'false'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['feature-settings-admin'] });
+      qc.invalidateQueries({ queryKey: ['feature-settings'] });
+    },
+  });
+
+  return (
+    <Box sx={{ mb: 4 }}>
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        Features
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        Parts of the interface that aren&apos;t pages of their own.
+      </Typography>
+      <Stack>
+        {TOGGLEABLE_FEATURES.map((f) => (
+          <FormControlLabel
+            key={f.key}
+            control={
+              <Switch
+                size="small"
+                checked={(data?.[featureSettingKey(f.key)] ?? '') !== 'false'}
+                onChange={(e) => save.mutate({ key: f.key, enabled: e.target.checked })}
+              />
+            }
+            label={
+              <Box>
+                <Typography variant="body2">{f.label}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {f.description}
+                </Typography>
+              </Box>
+            }
+            sx={{ alignItems: 'flex-start', mb: 1 }}
+          />
+        ))}
+      </Stack>
+    </Box>
+  );
+}
+
+/**
+ * Desktop notifications: overdue/due-soon tasks & planners, and a daily "no journal entry yet"
+ * reminder. The reminder hour is a server setting (same for every device); whether notifications
+ * are on, and the browser permission itself, are inherently per-browser.
+ */
+function NotificationsSection() {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ['setting', 'journal.reminder-hour'],
+    queryFn: () => getSetting('journal.reminder-hour', '17'),
+  });
+  const [hour, setHour] = useState('');
+  useEffect(() => {
+    if (data != null) setHour(data);
+  }, [data]);
+  const save = useMutation({
+    mutationFn: () => {
+      const n = Math.min(23, Math.max(0, Number(hour) || 17));
+      return setSetting('journal.reminder-hour', String(n));
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setting', 'journal.reminder-hour'] }),
+  });
+
+  const { prefs, update } = useNotificationPrefs();
+  const supported = typeof Notification !== 'undefined';
+  const [permission, setPermission] = useState(supported ? Notification.permission : 'denied');
+
+  const requestPermission = () => {
+    if (!supported) return;
+    Notification.requestPermission().then(setPermission);
+  };
+
+  return (
+    <Box sx={{ mb: 4 }}>
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        Notifications
+      </Typography>
+      <Stack spacing={1.5} sx={{ maxWidth: 480 }}>
+        {!supported && (
+          <Alert severity="warning" sx={{ py: 0 }}>
+            This browser doesn't support desktop notifications.
+          </Alert>
+        )}
+        {supported && permission === 'denied' && (
+          <Alert severity="warning" sx={{ py: 0 }}>
+            Notifications are blocked for this site — allow them in the browser's site settings.
+          </Alert>
+        )}
+        <Stack direction="row" spacing={2} alignItems="center">
+          <FormControlLabel
+            control={
+              <Switch
+                checked={prefs.enabled && permission === 'granted'}
+                disabled={!supported}
+                onChange={(e) => {
+                  update({ enabled: e.target.checked });
+                  if (e.target.checked && permission === 'default') requestPermission();
+                }}
+              />
+            }
+            label="Enable desktop notifications (overdue tasks/planners, missing journal entry)"
+          />
+        </Stack>
+        <Stack direction="row" spacing={2} alignItems="center">
+          <TextField
+            size="small"
+            type="number"
+            label="Journal reminder hour"
+            value={hour}
+            onChange={(e) => setHour(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !save.isPending && save.mutate()}
+            helperText="24h, e.g. 17 = 5pm"
+            inputProps={{ min: 0, max: 23 }}
+            sx={{ width: 220 }}
+          />
+          <Button variant="contained" size="small" disabled={save.isPending} onClick={() => save.mutate()}>
+            Save
+          </Button>
+        </Stack>
+      </Stack>
+    </Box>
+  );
+}
+
+/** When "autoCollect"-flagged indicators are computed and saved automatically each day. */
+function IndicatorAutoCollectSection() {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ['setting', 'indicator.autoCollect.time'],
+    queryFn: () => getSetting('indicator.autoCollect.time', '23:50'),
+  });
+  const [time, setTime] = useState('');
+  useEffect(() => {
+    if (data != null) setTime(data);
+  }, [data]);
+  const save = useMutation({
+    mutationFn: () => setSetting('indicator.autoCollect.time', time || '23:50'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setting', 'indicator.autoCollect.time'] }),
+  });
+
+  return (
+    <Box sx={{ mb: 4 }}>
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        Indicator auto-collection
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, maxWidth: 480 }}>
+        Indicators with "Auto-collect" enabled (query/file-count/script) have their value computed
+        and saved automatically, once a day, at this time — instead of waiting for manual
+        confirmation on the Indicators page.
+      </Typography>
+      <Stack direction="row" spacing={2} alignItems="center">
+        <TextField
+          size="small"
+          type="time"
+          label="Run time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && !save.isPending && save.mutate()}
+          InputLabelProps={{ shrink: true }}
+          sx={{ width: 220 }}
+        />
+        <Button variant="contained" size="small" disabled={save.isPending} onClick={() => save.mutate()}>
+          Save
+        </Button>
+      </Stack>
     </Box>
   );
 }
@@ -209,138 +457,17 @@ function ExportSection() {
   );
 }
 
-/** Edit the chip colour of each parametric lookup value (status / type / department / context). */
-function LookupColorsSection() {
-  const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ['lookup-groups'], queryFn: getLookupGroups });
-  const groups = data ?? [];
-
-  const fill = useMutation({
-    mutationFn: fillLookupColors,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['lookup-groups'] }),
-  });
-
-  return (
-    <Box sx={{ mt: 5 }}>
-      <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1 }}>
-        <Typography variant="subtitle1" sx={{ flex: 1 }}>
-          Parameter colours
-        </Typography>
-        <Button
-          variant="outlined"
-          size="small"
-          disabled={fill.isPending}
-          onClick={() => fill.mutate()}
-        >
-          Fill empty colours
-        </Button>
-      </Stack>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        The chip colour shown for each status / type / department / context on record cards. Edit
-        a colour below, or “Fill empty colours” to give every uncoloured value a default — the same
-        fill can be re-run on a fresh database. Click the ★ to make a value the parameter’s
-        <strong> default</strong> (marked ★): new records left blank get it, even when the column is
-        required.
-      </Typography>
-      {fill.isSuccess && (
-        <Alert severity="success" sx={{ mb: 2, py: 0 }}>
-          Filled {fill.data} value(s).
-        </Alert>
-      )}
-
-      <Stack spacing={2}>
-        {groups.map((g) => (
-          <Box key={g.table}>
-            <Typography variant="overline" color="text.secondary">
-              {g.label}
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
-              {g.values.map((v) => (
-                <LookupChip
-                  key={v.id}
-                  table={g.table}
-                  value={v}
-                  isDefault={g.defaultId === v.id}
-                />
-              ))}
-              {g.values.length === 0 && (
-                <Typography variant="caption" color="text.secondary">
-                  (none)
-                </Typography>
-              )}
-            </Stack>
-          </Box>
-        ))}
-      </Stack>
-    </Box>
-  );
-}
-
-/** A lookup value shown as its coloured chip with an inline colour picker + default (★) toggle. */
-function LookupChip({
-  table,
-  value,
-  isDefault,
-}: {
-  table: string;
-  value: LookupValue;
-  isDefault: boolean;
-}) {
-  const qc = useQueryClient();
-  const style = lookupStyle(value);
-  const save = useMutation({
-    mutationFn: (hex: string) => setLookupStyle(table, value.id, `background-color:${hex}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['lookup-groups'] }),
-  });
-  const setDefault = useMutation({
-    // Toggle: starring the current default clears it; starring another moves the default.
-    mutationFn: () => setLookupDefault(table, isDefault ? null : value.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['lookup-groups'] }),
-  });
-
-  return (
-    <Box
-      component="label"
-      sx={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 0.5,
-        px: 1,
-        py: 0.25,
-        borderRadius: 4,
-        cursor: 'pointer',
-        fontSize: 13,
-        ...style,
-      }}
-      title="Click the colour swatch to recolour; ★ to set as default"
-    >
-      <Box
-        component="span"
-        onClick={(e) => {
-          e.preventDefault();
-          setDefault.mutate();
-        }}
-        title={isDefault ? 'Default — click to clear' : 'Set as default for blank records'}
-        sx={{ cursor: 'pointer', opacity: isDefault ? 1 : 0.4, lineHeight: 1 }}
-      >
-        {isDefault ? '★' : '☆'}
-      </Box>
-      {value.name}
-      <input
-        type="color"
-        value={style.backgroundColor && /^#/.test(style.backgroundColor) ? style.backgroundColor : '#cccccc'}
-        onChange={(e) => save.mutate(e.target.value)}
-        style={{ width: 18, height: 18, border: 'none', background: 'none', padding: 0, cursor: 'pointer' }}
-      />
-    </Box>
-  );
-}
-
 /** Edit the three repository root paths (1=sandbox, 2=main, 3=dismissed) + the file-explorer command. */
 function RepositoriesSection() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['repo-settings'], queryFn: getRepoSettings });
-  const [form, setForm] = useState<RepoSettings>({ repo1: '', repo2: '', repo3: '', explorer: '' });
+  const [form, setForm] = useState<RepoSettings>({
+    repo1: '',
+    repo2: '',
+    repo3: '',
+    checkout: '',
+    explorer: '',
+  });
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -367,6 +494,7 @@ function RepositoriesSection() {
         setForm((f) => ({ ...f, [key]: e.target.value }));
         setSaved(false);
       }}
+      onKeyDown={(e) => e.key === 'Enter' && !save.isPending && save.mutate()}
       inputProps={{ style: { fontFamily: 'monospace' } }}
     />
   );
@@ -379,13 +507,17 @@ function RepositoriesSection() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         Root folders for record files. Each repo shares the layout{' '}
         <code>&lt;repo&gt;/&lt;code&gt;/[type]/[id÷100]/&lt;id&gt;</code> (the per-module “Bucket” toggles
-        above). Used by the “Open folder” actions and the daily-journal links.
+        above). Used by the “Open folder” actions and the daily-journal links. The checkout folder
+        holds a symlink per bookmarked record (named <code>&lt;code&gt;&lt;id&gt;</code>, e.g.{' '}
+        <code>W18</code>) pointing at its Repo 1 folder — added when a record is bookmarked, removed
+        when it's unbookmarked or deleted.
       </Typography>
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Stack spacing={2} sx={{ maxWidth: 560 }}>
           {field('repo1', 'Repo 1 — sandbox / portable', 'e.g. /home/akil/rps1')}
           {field('repo2', 'Repo 2 — main')}
           {field('repo3', 'Repo 3 — dismissed')}
+          {field('checkout', 'Checkout folder — bookmark symlinks', 'e.g. /home/akil/checkout')}
           {field('explorer', 'File-explorer command', 'e.g. xdg-open or "nemo --existing-window"')}
           <Stack direction="row" spacing={2} alignItems="center">
             <Button variant="contained" onClick={() => save.mutate()} disabled={save.isPending}>
@@ -409,6 +541,7 @@ function ModuleRow({ module }: { module: AppModule }) {
   const [code, setCode] = useState(module.code ?? '');
   const [color, setColor] = useState(module.color ?? '#9e9e9e');
   const [order, setOrder] = useState(module.sortOrder);
+  const [syncOrder, setSyncOrder] = useState(module.syncOrder ?? 0);
   const [error, setError] = useState<string | null>(null);
 
   const save = useMutation({
@@ -425,7 +558,12 @@ function ModuleRow({ module }: { module: AppModule }) {
     },
   });
 
-  const dirty = label !== module.label || (code || '') !== (module.code ?? '') || order !== module.sortOrder;
+  const dirty =
+    label !== module.label ||
+    (code || '') !== (module.code ?? '') ||
+    order !== module.sortOrder ||
+    syncOrder !== (module.syncOrder ?? 0);
+  const saveRow = () => dirty && !save.isPending && save.mutate({ label, code, sortOrder: order, syncOrder });
 
   return (
     <TableRow>
@@ -438,6 +576,7 @@ function ModuleRow({ module }: { module: AppModule }) {
           variant="standard"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && saveRow()}
         />
       </TableCell>
       <TableCell>
@@ -446,6 +585,7 @@ function ModuleRow({ module }: { module: AppModule }) {
           variant="standard"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 4))}
+          onKeyDown={(e) => e.key === 'Enter' && saveRow()}
           inputProps={{ style: { fontFamily: 'monospace', textAlign: 'center' } }}
         />
         {error && (
@@ -478,6 +618,18 @@ function ModuleRow({ module }: { module: AppModule }) {
           type="number"
           value={order}
           onChange={(e) => setOrder(Number(e.target.value))}
+          onKeyDown={(e) => e.key === 'Enter' && saveRow()}
+          sx={{ width: 60 }}
+        />
+      </TableCell>
+      <TableCell>
+        <TextField
+          size="small"
+          variant="standard"
+          type="number"
+          value={syncOrder}
+          onChange={(e) => setSyncOrder(Number(e.target.value))}
+          onKeyDown={(e) => e.key === 'Enter' && saveRow()}
           sx={{ width: 60 }}
         />
       </TableCell>
@@ -503,7 +655,7 @@ function ModuleRow({ module }: { module: AppModule }) {
         <Button
           size="small"
           disabled={!dirty || save.isPending}
-          onClick={() => save.mutate({ label, code, sortOrder: order })}
+          onClick={() => save.mutate({ label, code, sortOrder: order, syncOrder })}
         >
           Save
         </Button>

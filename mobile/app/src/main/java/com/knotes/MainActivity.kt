@@ -248,7 +248,7 @@ private fun AppRoot(
 
     // Persistent status notification + quarter-hour chime; re-applied when their settings change.
     LaunchedEffect(
-        settings.statusNotificationEnabled, settings.chimeEnabled,
+        settings.statusNotificationEnabled, settings.syncEnabled, settings.chimeEnabled,
         settings.chimeStartHour, settings.chimeEndHour,
     ) {
         com.knotes.status.StatusService.sync(context)
@@ -344,7 +344,7 @@ private fun AppShell(
                         )
                         SETTINGS_DEST -> SettingsScreen(vm.settingsStore, onBack = { onDest(HOME_DEST) })
                         AUDIOBOOKS_DEST -> AudiobookScreen(
-                            rootDir = settings.audiobookDir,
+                            roots = settings.audioLibraryRoots,
                             lastPlayedPath = player.currentFile?.absolutePath,
                             onPlayMedia = onPlayMedia,
                         )

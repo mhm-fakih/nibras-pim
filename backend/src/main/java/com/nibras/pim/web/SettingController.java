@@ -13,7 +13,8 @@ import java.util.Map;
 
 /**
  * App-level settings the user edits at runtime. Currently the three repository roots (1 = sandbox,
- * 2 = main, 3 = dismissed) and the file-explorer command, used to locate/open a record's folder.
+ * 2 = main, 3 = dismissed), the "checkout folder" root (bookmark symlinks, repo-1 targets), and the
+ * file-explorer command, used to locate/open a record's folder.
  */
 @RestController
 @RequestMapping("/api/settings")
@@ -27,16 +28,17 @@ public class SettingController {
         this.repos = repos;
     }
 
-    public record RepoSettings(String repo1, String repo2, String repo3, String explorer) {
+    public record RepoSettings(String repo1, String repo2, String repo3, String checkout, String explorer) {
     }
 
-    /** Current repo roots + explorer command (resolved defaults shown when unset). */
+    /** Current repo roots + checkout folder + explorer command (resolved defaults shown when unset). */
     @GetMapping("/repos")
     public RepoSettings getRepos() {
         return new RepoSettings(
                 repos.repoRoot(1).toString(),
                 repos.repoRoot(2).toString(),
                 repos.repoRoot(3).toString(),
+                repos.checkoutRoot().toString(),
                 settings.get("explorer.cmd", "xdg-open"));
     }
 
@@ -79,6 +81,9 @@ public class SettingController {
         }
         if (in.repo3() != null) {
             settings.set("repo3.path", in.repo3().trim());
+        }
+        if (in.checkout() != null) {
+            settings.set("checkout.path", in.checkout().trim());
         }
         if (in.explorer() != null) {
             settings.set("explorer.cmd", in.explorer().trim());

@@ -27,10 +27,14 @@ function buildNumber(command: string): number {
 // Backend the dev server proxies to; override with BACKEND_PORT when the API runs elsewhere.
 const backend = `http://127.0.0.1:${process.env.BACKEND_PORT ?? 8081}`;
 
+// This release's Mint-style nickname (bump alongside the version in package.json).
+const APP_CODENAME = 'Dastgheib';
+
 export default defineConfig(({ command }) => ({
   base: './',
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_CODENAME__: JSON.stringify(APP_CODENAME),
     __BUILD_NUMBER__: JSON.stringify(buildNumber(command)),
   },
   plugins: [react()],

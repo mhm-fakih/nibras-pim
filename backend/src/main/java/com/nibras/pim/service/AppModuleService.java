@@ -55,6 +55,9 @@ public class AppModuleService {
         if (dto.enabled() != null) {
             m.setEnabled(dto.enabled());
         }
+        if (dto.syncOrder() != null) {
+            m.setSyncOrder(dto.syncOrder());
+        }
         if (dto.sortOrder() != null) {
             m.setSortOrder(dto.sortOrder());
         }

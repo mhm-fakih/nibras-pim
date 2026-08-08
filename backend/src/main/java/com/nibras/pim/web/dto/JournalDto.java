@@ -9,6 +9,7 @@ public record JournalDto(
         String displayTitle,
         String summary,
         String description,
+        String mainHighlights,
         String notes,
         LocalDateTime startDate,
         LocalDateTime endDate,

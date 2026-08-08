@@ -37,7 +37,8 @@ from config import Settings  # noqa: E402
 from audio import AudioPlayer, MIN_RATE, MAX_RATE  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-VERSION = "0.2"
+VERSION = "1.2.32"
+CODENAME = "Dastgheib"
 
 # Playlist track-store layout: 6 visible columns (#, Title, Artist, Album, Length, Bkm) then two
 # hidden data columns — the file path and the Pango font weight used to bold the playing row.
@@ -188,7 +189,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
     # ================================================================== UI shell
 
     def _build_ui(self) -> None:
-        header = Gtk.HeaderBar(show_close_button=True, title=f"audio player v{VERSION}")
+        header = Gtk.HeaderBar(show_close_button=True, title=f'audio player v{VERSION} "{CODENAME}"')
         self.set_titlebar(header)
 
         open_btn = Gtk.Button()

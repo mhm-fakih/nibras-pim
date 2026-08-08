@@ -41,7 +41,7 @@ public class JournalService extends AbstractCrudService<Journal, JournalDto> {
     protected JournalDto toDto(Journal j) {
         return new JournalDto(
                 j.getId(), j.getVersion(), j.feedTitle(),
-                j.getSummary(), j.getDescription(), j.getNotes(),
+                j.getSummary(), j.getDescription(), j.getMainHighlights(), j.getNotes(),
                 j.getStartDate(), j.getEndDate(), j.getEnergyLevel(),
                 j.getPriority(), j.getBookmarked(), j.getIsPrivate(),
                 j.getType() == null ? null : j.getType().getId(),
@@ -66,6 +66,11 @@ public class JournalService extends AbstractCrudService<Journal, JournalDto> {
     protected void apply(JournalDto dto, Journal j) {
         j.setSummary(dto.summary());
         j.setDescription(dto.description());
+        // Only overwrite when the payload actually carries it: the record form sends an explicit
+        // field allowlist, so a normal edit omits mainHighlights and a blind set would erase it.
+        if (dto.mainHighlights() != null) {
+            j.setMainHighlights(dto.mainHighlights());
+        }
         j.setNotes(dto.notes());
         // start_date is NOT NULL in the schema.
         j.setStartDate(dto.startDate() != null ? dto.startDate() : LocalDateTime.now());

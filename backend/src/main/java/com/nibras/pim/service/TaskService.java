@@ -9,7 +9,10 @@ import com.nibras.pim.repo.TaskRepository;
 import com.nibras.pim.web.dto.LookupDto;
 import com.nibras.pim.web.dto.TagDto;
 import com.nibras.pim.web.dto.TaskDto;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -17,8 +20,73 @@ import java.util.Map;
 @Service
 public class TaskService extends AbstractCrudService<Task, TaskDto> {
 
-    public TaskService(TaskRepository repo) {
+    private final TaskRecurrenceService recurrence;
+
+    public TaskService(TaskRepository repo, TaskRecurrenceService recurrence) {
         super(repo);
+        this.recurrence = recurrence;
+    }
+
+    /**
+     * Detects a not-done → done transition on a completion-triggered recurring task (`recurring`
+     * true, `fixedSchedule` not set) and spawns its next occurrence. Fixed-schedule tasks are left
+     * alone here — those are handled by {@link com.nibras.pim.scheduling.RecurrenceScheduler}.
+     */
+    @Override
+    @Transactional
+    public TaskDto update(Long id, TaskDto dto) {
+        WorkStatus before = load(id).getStatus();
+        boolean wasDone = before != null && "done".equalsIgnoreCase(before.getCode());
+        super.update(id, dto);
+        if (!wasDone && Boolean.TRUE.equals(dto.recurring()) && !Boolean.TRUE.equals(dto.fixedSchedule())) {
+            Task saved = load(id);
+            if (saved.getStatus() != null && "done".equalsIgnoreCase(saved.getStatus().getCode())) {
+                recurrence.spawnNext(saved);
+            }
+        }
+        // Re-fetch rather than reuse super.update()'s DTO: spawnNext() (above) clears `recurring`
+        // on this same task as a side effect, and the response must reflect that, not a snapshot
+        // taken before it ran (a bug the new golden-path test caught: the API returned recurring
+        // = true on the very call that was supposed to have just cleared it).
+        return toDto(load(id));
+    }
+
+    /**
+     * "+ Subtask": only valid on a task that already has a Goal. Backfills the parent's
+     * `orderNumber` to 1 if it's unset, then creates a new task on the same Goal at
+     * `parent.orderNumber + 1`, inheriting department/course/priority/context. Goes through the
+     * normal {@link #create} path (not a hand-rolled save) so it gets the same admin-default
+     * fill-in, audit trail, and search-index update as every other task creation.
+     */
+    @Transactional
+    public TaskDto createSubtask(Long parentId, String summary) {
+        Task parent = load(parentId);
+        if (parent.getGoal() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Task " + parentId + " has no goal — subtasks require a linked goal");
+        }
+        if (parent.getOrderNumber() == null) {
+            parent.setOrderNumber(1);
+            repo.saveAndFlush(parent);
+        }
+
+        TaskDto draft = new TaskDto(
+                null, null, null,
+                // summary, name, description, mainHighlights, notes
+                summary, null, null, null, null,
+                parent.getPriority(), null, null, null, null, null,
+                null,
+                parent.getDepartment() == null ? null : parent.getDepartment().getId(),
+                parent.getCourse() == null ? null : parent.getCourse().getId(),
+                parent.getGoal().getId(),
+                null,
+                null, parent.getOrderNumber() + 1, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null);
+        TaskDto created = create(draft);
+        if (parent.getContext() != null) {
+            created = setReference(created.id(), "context", parent.getContext().getId());
+        }
+        return created;
     }
 
     @Override
@@ -40,6 +108,7 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
                 t.getSummary(),
                 t.getName(),
                 t.getDescription(),
+                t.getMainHighlights(),
                 t.getNotes(),
                 t.getPriority(),
                 t.getBookmarked(),
@@ -52,6 +121,13 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
                 t.getCourse() == null ? null : t.getCourse().getId(),
                 t.getGoal() == null ? null : t.getGoal().getId(),
                 t.getTags().stream().map(tag -> tag.getId()).toList(),
+                t.getUrgent(),
+                t.getOrderNumber(),
+                t.getRecurring(),
+                t.getRecurrencePreset(),
+                t.getRecurrenceInterval(),
+                t.getRecurrenceCron(),
+                t.getFixedSchedule(),
                 t.getStatus() == null ? null : lookup(t.getStatus()),
                 t.getDepartment() == null ? null : deptLookup(t.getDepartment()),
                 t.getCourse() == null ? null : courseLookup(t.getCourse()),
@@ -78,6 +154,11 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
             t.setName(dto.name());
         }
         t.setDescription(dto.description());
+        // Only overwrite when the payload actually carries it: the record form sends an explicit
+        // field allowlist, so a normal edit omits mainHighlights and a blind set would erase it.
+        if (dto.mainHighlights() != null) {
+            t.setMainHighlights(dto.mainHighlights());
+        }
         t.setNotes(dto.notes());
         t.setPriority(dto.priority());
         t.setBookmarked(dto.bookmarked());
@@ -85,11 +166,19 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
         t.setPercentCompleted(dto.percentCompleted());
         t.setStartDate(dto.startDate());
         t.setEndDate(dto.endDate());
+        t.setCompletedOn(dto.completedOn());
         t.setStatus(ref(WorkStatus.class, dto.statusId()));
         t.setDepartment(ref(Department.class, dto.departmentId()));
         t.setCourse(ref(Course.class, dto.courseId()));
         t.setGoal(ref(Goal.class, dto.goalId()));
         t.setTags(resolveTags(dto.tagIds()));
+        t.setUrgent(dto.urgent());
+        t.setOrderNumber(dto.orderNumber());
+        t.setRecurring(dto.recurring());
+        t.setRecurrencePreset(dto.recurrencePreset());
+        t.setRecurrenceInterval(dto.recurrenceInterval());
+        t.setRecurrenceCron(dto.recurrenceCron());
+        t.setFixedSchedule(dto.fixedSchedule());
     }
 
     @Override
@@ -99,23 +188,5 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
                 "departments", departmentOptions(),
                 "goals", bookmarkedGoalOptions(),
                 "tags", tagOptions());
-    }
-
-    /** Goal projection for the task→goal link (goals aren't LookupEntities). */
-    static LookupDto goalLookup(Goal g) {
-        return new LookupDto(g.getId(), g.feedTitle(), g.getCode(), null);
-    }
-
-    /** Bookmarked goals as dropdown options (alphabetical) — the task form only offers active goals. */
-    private List<LookupDto> bookmarkedGoalOptions() {
-        return em.createQuery(
-                        "select g from " + Goal.class.getName() + " g where g.bookmarked = true",
-                        Goal.class)
-                .getResultList().stream()
-                .map(TaskService::goalLookup)
-                // Sort on the display title (feedTitle: title falling back to summary), case-folded.
-                .sorted(java.util.Comparator.comparing(
-                        o -> o.name() == null ? "" : o.name().toLowerCase()))
-                .toList();
     }
 }

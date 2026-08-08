@@ -18,20 +18,24 @@ import sys
 import threading
 import traceback
 import warnings
+from datetime import datetime
 
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, Gdk, GLib, Pango  # noqa: E402
+from gi.repository import Gtk, Gdk, GLib, Pango, Gio  # noqa: E402
 
 from config import Settings, RepoConfig, parse_tag_block, format_tag_block  # noqa: E402
-from notes import NoteRepository, Note, is_rtl, companion_dir  # noqa: E402
+from notes import NoteRepository, Note, is_rtl, companion_dir, parse_created  # noqa: E402
 from backend import fetch_taxonomy  # noqa: E402
+from filters import FilterState, Taxonomy  # noqa: E402
+from sidebar import FilterSidebar  # noqa: E402
 
 APP_ID = "org.knotes.desktop"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-VERSION = "1.0"
+VERSION = "1.2.32"
+CODENAME = "Dastgheib"
 
 
 def _data_dir() -> str:
@@ -84,9 +88,24 @@ def _hashtags(text: str) -> list[str]:
     return out
 
 
+# Gap (px) between the cards of the "columns" view, in both directions. It's part of the width a
+# column occupies, so _column_count has to account for it or the last column won't fit. BOARD_BORDER
+# is the board's own inset, which _column_count subtracts for the same reason.
+COLUMN_GAP = 8
+BOARD_BORDER = 8
+# Width held back for the board's vertical scrollbar when working out how many columns fit. A
+# constant, not the scrollbar's measured width: the scrollbar only exists once the content
+# overflows, which depends on the very column count being computed.
+SCROLLBAR_ALLOWANCE = 16
+
 # The note editor grows with its content between these heights (px), then scrolls vertically.
 EDITOR_MIN_HEIGHT = 36
 EDITOR_MAX_HEIGHT = 180
+
+# How long (ms) a restored scroll offset is held against the layout that follows a board rebuild
+# (see _pin_scroll). Long enough to outlast measuring + the focus scroll, short enough that it can
+# never fight the user's own next scroll.
+SCROLL_PIN_MS = 350
 
 
 def _tag_span(text: str, color: str) -> str:
@@ -186,6 +205,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self._sel_path: str | None = None                   # path of the selected note (survives reload)
         self._selected_widget: Gtk.Widget | None = None
         self._board_active = False                          # True while navigating cards (not typing)
+        self._scroll_pin: list[tuple[object, int]] = []     # (object, handler_id) held by _pin_scroll
+        self._scroll_pin_timeout: int | None = None         # its release timer
         self.minimal_mode = self.settings.minimal_mode      # side-note mode (Ctrl+L), overlays view_mode
         self._pre_minimal_size: tuple[int, int] | None = None   # window size to restore on exit
         self._suppress_minimal_toggle = False                   # guards the header toggle button
@@ -193,10 +214,21 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self._last_note: Note | None = None                     # the "just added" note (minimal card)
         self._last_note_card: Gtk.Widget | None = None          # its card widget
         self._merge_marks: list[str] = []                       # paths marked to merge, in mark order
+        self._unrecognized_paths: set[str] = set()               # non-conforming items, "needs metadata"
         self._append_entry: Gtk.Entry | None = None             # inline "quick append" field (Space)
         self._append_note: Note | None = None                   # note the append field is editing
 
+        # Left filter sidebar (Ctrl+B). The state lives here because reload_notes filters with it;
+        # the sidebar widget only drives it. Which options are picked is per-session (see
+        # Settings.sidebar_visible for what IS persisted) — only the heat-map metric is restored.
+        self.filters = FilterState(date_field=self.settings.heatmap_metric)
+        self.tax = Taxonomy()                    # the active folder's options, see _refresh_taxonomy
+        # "columns" view: how many columns the last render laid out, so a resize can re-flow.
+        self._columns_ncols = 0
+        self._reflow_pending = False
+
         self._build_ui()
+        self._refresh_taxonomy()
         self.connect("key-press-event", self._on_key_press)
         # When the window gains focus, drop the cursor into the add field so a paste is ready.
         self.connect("focus-in-event", self._on_focus_in)
@@ -206,37 +238,51 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self._apply_defaults()
         self._apply_minimal_mode()
         self._setup_layout_watch()
+        self._setup_note_dir_watch()
         self._sync_backend_taxonomy()  # best-effort; offline/misconfigured → keeps current codes
 
     # ------------------------------------------------------------------ UI
 
     def _build_ui(self) -> None:
-        self.header = Gtk.HeaderBar(title=f"knotes v{VERSION} · build {BUILD_NUMBER}", show_close_button=True)
+        # Row 1 — the native title bar: app name + build + live stats (note count / merge hint)
+        # only. All the actual controls live in their own toolbar row below it (see `self.toolbar`)
+        # instead of crowding into the title bar, so each row has one job.
+        self.header = Gtk.HeaderBar(
+            title=f'knotes v{VERSION}.b{BUILD_NUMBER} "{CODENAME}"', show_close_button=True)
         self.set_titlebar(self.header)
-        header = self.header
+
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.add(root)
+
+        # Row 2 — the toolbar: every view/action control, left-to-right in the same order they used
+        # to appear (right-to-left) packed into the title bar.
+        self.toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.toolbar.set_border_width(6)
+        self.toolbar.get_style_context().add_class("toolbar")
+        root.pack_start(self.toolbar, False, False, 0)
 
         self.search_button = Gtk.ToggleButton()
         self.search_button.add(Gtk.Image.new_from_icon_name("system-search-symbolic", Gtk.IconSize.BUTTON))
         self.search_button.set_tooltip_text("Search notes (Ctrl+F)")
         self.search_button.connect("toggled", lambda b: self._set_search(b.get_active()))
-        header.pack_end(self.search_button)
+        self.toolbar.pack_start(self.search_button, False, False, 0)
 
         settings_button = Gtk.Button()
         settings_button.add(Gtk.Image.new_from_icon_name("emblem-system-symbolic", Gtk.IconSize.BUTTON))
         settings_button.set_tooltip_text("Settings (Ctrl+,)")
         settings_button.connect("clicked", lambda b: self._open_settings())
-        header.pack_end(settings_button)
+        self.toolbar.pack_start(settings_button, False, False, 0)
 
         help_button = Gtk.Button()
         help_button.add(Gtk.Image.new_from_icon_name("help-about-symbolic", Gtk.IconSize.BUTTON))
         help_button.set_tooltip_text("Keyboard shortcuts (F1)")
         help_button.connect("clicked", lambda b: self._show_help())
-        header.pack_end(help_button)
+        self.toolbar.pack_start(help_button, False, False, 0)
 
         self.theme_button = Gtk.Button()
         self.theme_button.set_tooltip_text("Toggle light / dark theme (Ctrl+T)")
         self.theme_button.connect("clicked", lambda b: self._toggle_theme())
-        header.pack_end(self.theme_button)
+        self.toolbar.pack_start(self.theme_button, False, False, 0)
         self._refresh_theme_icon()
 
         # View-mode group (kanban / list / minimal) — switched often, so it lives on the toolbar
@@ -249,26 +295,43 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.list_button = Gtk.ToggleButton()
         self.list_button.add(Gtk.Image.new_from_icon_name("view-list-symbolic", Gtk.IconSize.BUTTON))
         self.list_button.set_tooltip_text("Simple list")
+        self.columns_button = Gtk.ToggleButton()
+        self.columns_button.add(
+            Gtk.Image.new_from_icon_name("view-app-grid-symbolic", Gtk.IconSize.BUTTON))
+        self.columns_button.set_tooltip_text(
+            "Columns — the same flat list with no headings, wrapped into as many columns as fit "
+            "(card width in Settings)")
         self.minimal_button = Gtk.ToggleButton()
         self.minimal_button.add(Gtk.Image.new_from_icon_name("view-restore-symbolic", Gtk.IconSize.BUTTON))
         self.minimal_button.set_tooltip_text("Minimal side-note mode (Ctrl+L)")
         for btn, mode in ((self.kanban_button, "kanban"), (self.list_button, "list"),
-                          (self.minimal_button, "minimal")):
+                          (self.columns_button, "columns"), (self.minimal_button, "minimal")):
             btn.connect("toggled", lambda b, m=mode: self._on_mode_button(b, m))
             mode_box.pack_start(btn, False, False, 0)
-        header.pack_end(mode_box)
+        self.toolbar.pack_start(mode_box, False, False, 0)
 
-        # Card ordering — also switched often, so it's a toolbar dropdown.
+        # Manual refresh — re-reads the folder from disk, for changes another machine wrote via
+        # Syncthing (also auto-detected; see _setup_note_dir_watch). A spinning-icon click target
+        # rather than text keeps the toolbar compact.
+        self.refresh_button = Gtk.Button()
+        self.refresh_button.add(Gtk.Image.new_from_icon_name("view-refresh-symbolic", Gtk.IconSize.BUTTON))
+        self.refresh_button.set_tooltip_text("Refresh from disk (Ctrl+R) — pick up notes synced from another machine")
+        self.refresh_button.connect("clicked", lambda b: self.reload_notes())
+        self.toolbar.pack_start(self.refresh_button, False, False, 0)
+
+        # Card ordering — also switched often, so it's a toolbar dropdown. "Date created" is stable
+        # across metadata-only edits (its sort key never changes), unlike "Last updated" — pick it
+        # for a mass-tagging pass so cards don't relocate as you go.
         self.sort_selector = Gtk.ComboBoxText()
-        for code, label in (("datetime", "Date"), ("category", "Category"),
-                            ("type", "Type"), ("priority", "Priority")):
+        for code, label in (("datetime", "Last updated"), ("created", "Date created"),
+                            ("category", "Category"), ("type", "Type"), ("priority", "Priority")):
             self.sort_selector.append(code, label)
+        SORT_CODES = ("datetime", "created", "category", "type", "priority")
         self.sort_selector.set_active_id(
-            self.settings.sort_by
-            if self.settings.sort_by in ("datetime", "category", "type", "priority") else "datetime")
+            self.settings.sort_by if self.settings.sort_by in SORT_CODES else "datetime")
         self.sort_selector.set_tooltip_text("Sort cards by")
         self.sort_selector.connect("changed", self._on_sort_selected)
-        header.pack_end(self.sort_selector)
+        self.toolbar.pack_start(self.sort_selector, False, False, 0)
 
         # Auto-open the just-saved note's files folder (the Ctrl+O action) — for capture sessions
         # where every record gets files dropped in right after it's written.
@@ -278,10 +341,19 @@ class KnotesWindow(Gtk.ApplicationWindow):
             "Auto-open the note's files folder after each save (to drop its files in)")
         self.auto_folder_button.set_active(self.settings.auto_open_folder)
         self.auto_folder_button.connect("toggled", self._on_auto_folder_toggled)
-        header.pack_end(self.auto_folder_button)
+        self.toolbar.pack_start(self.auto_folder_button, False, False, 0)
 
-        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.add(root)
+        # The main split, and the only part of `root` that expands. The filter sidebar runs the full
+        # height of it on the left; everything that acts on notes — search, board, "just added", the
+        # add form — is stacked in the right pane, so the sidebar sits beside the form rather than
+        # stopping above it. Only the toolbar (global actions) and the status bar (which folder
+        # you're in) stay full-width, above and below.
+        content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.sidebar = FilterSidebar(self.filters, self.settings, self._on_filters_changed)
+        content.pack_start(self.sidebar, False, False, 0)
+        right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        content.pack_start(right, True, True, 0)
+        root.pack_start(content, True, True, 0)
 
         # Search bar (hidden until toggled).
         self.search_bar = Gtk.SearchBar()
@@ -290,24 +362,28 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.search_entry.connect("search-changed", self._on_search_changed)
         self.search_bar.add(self.search_entry)
         self.search_bar.connect_entry(self.search_entry)
-        root.pack_start(self.search_bar, False, False, 0)
+        right.pack_start(self.search_bar, False, False, 0)
 
         # Display area. In kanban mode it holds category columns spread across a configurable number
         # of equal-height rows, the columns stretching to fill each row (so they're screen-size
-        # sensitive); in list mode it holds a single, vertically scrolling list. The rows and the
-        # scroll policy are (re)built per reload by _render_kanban / _render_list.
+        # sensitive); in list mode it holds a single, vertically scrolling list; in columns mode a
+        # heading-free grid of width-capped cards. The rows and the scroll policy are (re)built per
+        # reload by _render_kanban / _render_list / _render_columns.
         self.board_scroller = Gtk.ScrolledWindow()
         self.board = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        self.board.set_border_width(8)
+        self.board.set_border_width(BOARD_BORDER)
         self.board_scroller.add(self.board)
-        root.pack_start(self.board_scroller, True, True, 0)
+        # The columns view fits whole cards to the available width, so it has to re-flow when that
+        # width changes; the handler is a no-op in every other mode.
+        self.board_scroller.connect("size-allocate", self._on_board_allocate)
+        right.pack_start(self.board_scroller, True, True, 0)
 
         # "Just added" strip: the most recently entered note, sitting right above the add form.
         self.last_note_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.last_note_bar.set_border_width(10)
-        root.pack_start(self.last_note_bar, False, False, 0)
+        right.pack_start(self.last_note_bar, False, False, 0)
 
-        root.pack_start(self._build_input_bar(), False, False, 0)
+        right.pack_start(self._build_input_bar(), False, False, 0)
 
         # Status bar: the full path of the active note folder (left) and the current save key (right).
         self.statusbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -510,6 +586,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self.repo_cfg.categories = [tuple(c) for c in categories]
         self.repo_cfg.save(repo_path)  # cache: next launch uses these even if the backend is down
         self._build_chips()
+        self._refresh_taxonomy()
         self._apply_defaults()
         self.reload_notes()  # card tag colours reflect the refreshed codes
         return False
@@ -568,15 +645,27 @@ class KnotesWindow(Gtk.ApplicationWindow):
     # --------------------------------------------------------- note list
 
     def reload_notes(self) -> None:
+        self._unpin_scroll()  # a pin from an earlier rebuild must not hold this one's layout
         for child in self.board.get_children():
             self.board.remove(child)
 
-        all_notes = self.repo.list_notes()  # root-level notes only (os.listdir, no recursion)
+        # Root-level notes plus non-conforming files/folders shown as "needs metadata" placeholders
+        # (merge-sorted by mtime, not concatenated, so the "just added" card below still picks the
+        # actual newest item regardless of which list it came from).
+        unrecognized = self.repo.list_unrecognized()
+        self._unrecognized_paths = {n.path for n in unrecognized}
+        all_notes = sorted(self.repo.list_notes() + unrecognized, key=lambda n: n.mtime)
         query = self.search_entry.get_text().strip().lower()
-        notes = [n for n in all_notes if not query or self._matches(n, query)]
+        searched = [n for n in all_notes if not query or self._matches(n, query)]
+        # Two stages, in this order on purpose: the search box narrows the folder, then the sidebar
+        # counts every filter option against what's left (so its numbers track the search), and only
+        # then do the filters themselves decide what reaches the board.
+        self.sidebar.refresh(searched)
+        notes = [n for n in searched if self.filters.matches(n, self.tax)]
         # Folder note count next to the app name (no subtitle, so the header bar stays one line tall).
-        count = f"{len(notes)} / {len(all_notes)} notes" if query else f"{len(all_notes)} notes"
-        self._base_title = f"knotes v{VERSION} · build {BUILD_NUMBER} · {count}"
+        narrowed = bool(query) or self.filters.active()
+        count = f"{len(notes)} / {len(all_notes)} notes" if narrowed else f"{len(all_notes)} notes"
+        self._base_title = f'knotes v{VERSION}.b{BUILD_NUMBER} "{CODENAME}" · {count}'
         self._apply_header_title()
         self._update_tags_summary(all_notes)
 
@@ -587,14 +676,30 @@ class KnotesWindow(Gtk.ApplicationWindow):
             return   # side-note mode: the board is hidden, only the just-added card is shown
         if self.settings.view_mode == "list":
             self._render_list(notes)
+        elif self.settings.view_mode == "columns":
+            self._render_columns(notes)
         else:
             self._render_kanban(notes)
         self.board.show_all()
         self._restore_selection()
 
+    def _refresh_taxonomy(self) -> None:
+        """Re-snapshot the ACTIVE folder's tag options for the filters. They're per-folder and the
+        backend sync can replace them mid-session, so this runs anywhere repo_cfg changes — the
+        sidebar's "is this code one we define?" answer must never lag the folder on screen."""
+        self.tax = Taxonomy.from_repo_config(self.repo_cfg, self.settings.timestamp_format)
+        self.sidebar.set_taxonomy(self.tax, self.repo_cfg.types, self.repo_cfg.categories)
+
+    def _on_filters_changed(self) -> bool:
+        """A sidebar click landed — re-render the board. The sidebar persists its own layout, so
+        there's nothing to save here."""
+        self.reload_notes()
+        return False   # called via GLib.idle_add; don't repeat
+
     def _sorted(self, notes: list[Note]) -> list[Note]:
         """Order notes by the configured ``sort_by``: priority/category/type by their defined order,
-        anything else by modification time (newest first)."""
+        "created" by the note's original filename timestamp (stable across metadata edits — see
+        parse_created), "datetime" (default) by the file's own last-modified time."""
         by = self.settings.sort_by
         if by == "priority":
             return sorted(notes, key=lambda n: (n.priority if n.priority is not None else -1, n.mtime),
@@ -605,6 +710,12 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if by == "category":
             order = {c: i for i, (c, _) in enumerate(self.repo_cfg.categories)}
             return sorted(notes, key=lambda n: (order.get(n.category, len(order)), -n.mtime))
+        if by == "created":
+            # Ascending — newest last, same convention as "datetime" — but keyed on the note's
+            # ORIGINAL creation token, which a metadata-only edit never changes, so retagging a
+            # note during a mass-editing pass doesn't relocate it in the list.
+            fmt = self.settings.timestamp_format
+            return sorted(notes, key=lambda n: parse_created(n.timestamp, fmt, n.mtime))
         return sorted(notes, key=lambda n: n.mtime)  # datetime ascending — newest last (by the add form)
 
     def _render_kanban(self, notes: list[Note]) -> None:
@@ -662,9 +773,83 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.board.pack_start(container, True, True, 0)
         self._grid = [[col_cards]]  # one row, one column — ↑/↓ navigation works unchanged
 
+    def _column_count(self) -> int:
+        """How many whole cards of the configured max width fit across the board right now.
+
+        Measured on the SCROLLER, never on the board inside it: the board only ever gets as wide as
+        the grid it holds, so reading it would feed this calculation its own last answer and pin the
+        view at one column forever. The scroller's allocation is the window's, independent of the
+        content — hence the constant reserves below rather than measured ones.
+        """
+        width = self.board_scroller.get_allocated_width()
+        if width <= 1:                      # not laid out yet (the very first render);
+            width = self.get_size()[0]      # _on_board_allocate re-flows once GTK has measured it
+        usable = width - 2 * BOARD_BORDER - SCROLLBAR_ALLOWANCE
+        return max(1, usable // (max(80, self.settings.card_max_width) + COLUMN_GAP))
+
+    def _render_columns(self, notes: list[Note]) -> None:
+        """The list view, wrapped: no headings and no grouping — just every note in the chosen sort
+        order, read left→right and then down, in as many columns as the window fits.
+
+        Cards are pinned to `card_max_width` rather than sharing the width out, so they stay
+        readable on a wide screen instead of stretching into unreadably long lines; the column
+        count follows from that width, which is why widening the window adds a column instead of
+        fattening the cards.
+        """
+        self.board_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.board.set_homogeneous(False)
+        ncols = self._column_count()
+        grid = Gtk.Grid(column_spacing=COLUMN_GAP, row_spacing=COLUMN_GAP, column_homogeneous=True)
+        grid.set_border_width(4)
+        # START, not FILL: a filling grid would stretch its columns past card_max_width whenever the
+        # leftover width isn't enough for one more card.
+        grid.set_halign(Gtk.Align.START)
+
+        columns: list[list[tuple[Note, Gtk.Widget]]] = [[] for _ in range(ncols)]
+        for i, note in enumerate(self._sorted(notes)):
+            card = self._build_card(note)
+            card.set_size_request(self.settings.card_max_width, -1)
+            row, col = divmod(i, ncols)     # row-major: the reading order is left→right, then down
+            grid.attach(card, col, row, 1, 1)
+            columns[col].append((note, card))
+        self.board.pack_start(grid, False, False, 0)
+        # One grid row of ncols columns, each holding its cards top-to-bottom — so ↑/↓ walks a
+        # column and ←/→ steps across, exactly as in the kanban.
+        self._grid = [columns]
+        self._columns_ncols = ncols
+
+    def _on_board_allocate(self, _widget, _allocation) -> None:
+        """Re-flow the columns view when a resize changes how many cards fit across. Only when the
+        count actually changes — otherwise every pixel of a drag would rebuild the board."""
+        if (self.minimal_mode or self.settings.view_mode != "columns"
+                or self._reflow_pending or self._column_count() == self._columns_ncols):
+            return
+        self._reflow_pending = True
+        GLib.idle_add(self._reflow_columns)   # never rebuild from inside a size-allocate
+
+    def _reflow_columns(self) -> bool:
+        self._reflow_pending = False
+        if not self.minimal_mode and self.settings.view_mode == "columns" \
+                and self._column_count() != self._columns_ncols:
+            self.reload_notes()
+        return False
+
     def _update_tags_summary(self, notes: list[Note]) -> None:
-        """Refresh the one-line #hashtag index under the add field: each tag with the number of
-        notes that use it, most-used first."""
+        """Refresh the one-line #hashtag strip under the add field. With "show tags under add
+        form" on: each tag + the number of notes that use it, most-used first. Off: a single
+        compact count of total #hashtag occurrences, in place of listing the tags themselves
+        (still shown — never fully hidden — just without spelling out every tag)."""
+        occurrences = sum(len(_HASHTAG_RE.findall(n.content)) for n in notes)
+        if occurrences == 0:
+            self.tags_summary.hide()
+            return
+        if not self.settings.show_tags_summary:
+            self.tags_summary.set_markup(
+                f'<span alpha="70%">{occurrences} #tag use{"s" if occurrences != 1 else ""}</span>')
+            self.tags_summary.set_tooltip_text(
+                "Turn on \"Show #hashtag index under the add field\" in Settings to list them.")
+            self.tags_summary.show()
+            return
         counts: dict[str, int] = {}
         label: dict[str, str] = {}
         for n in notes:
@@ -672,9 +857,6 @@ class KnotesWindow(Gtk.ApplicationWindow):
                 key = tag.lower()
                 counts[key] = counts.get(key, 0) + 1
                 label.setdefault(key, tag)
-        if not counts:
-            self.tags_summary.hide()
-            return
         items = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
         self.tags_summary.set_markup("   ".join(
             f'{_tag_span("#" + label[k], TAG_COLOR_HASH)}<span alpha="55%"> {c}</span>'
@@ -718,13 +900,16 @@ class KnotesWindow(Gtk.ApplicationWindow):
         for n in notes:
             by_type.setdefault(n.type if n.type in type_order else "—", []).append(n)
 
-        # Every defined type gets a subgroup (even with 0 notes); "Untyped" only when it's used.
+        # Every defined type gets a subgroup, but only when it actually has notes — an empty
+        # subgroup is just a header taking up space with nothing to show or collapse.
         groups = list(type_order)
         if "—" in by_type:
             groups.append("—")
         for t in groups:
-            tname = "Untyped" if t == "—" else (type_names.get(t) or t)
             recs = self._sorted(by_type.get(t, []))
+            if not recs:
+                continue
+            tname = "Untyped" if t == "—" else (type_names.get(t) or t)
             inner.pack_start(self._build_subgroup(cat_code, t, tname, recs, col_cards), False, False, 0)
 
         return column
@@ -770,6 +955,13 @@ class KnotesWindow(Gtk.ApplicationWindow):
             card.get_style_context().add_class("merge-mark")
             if note.path == self._merge_marks[0]:
                 card.get_style_context().add_class("merge-anchor")
+        # A non-conforming file/folder (see NoteRepository.list_unrecognized): flag it and explain
+        # the fix — the same Ctrl+Shift+<key> shortcut used to retag any note promotes it.
+        if note.path in self._unrecognized_paths:
+            card.get_style_context().add_class("needs-metadata")
+            card.set_tooltip_text(
+                "Needs metadata — select it and press Ctrl+Shift+<type/category letter> or "
+                "Ctrl+Shift+<priority digit> to set it and file it in.")
         # Focusable so the ScrolledWindow auto-scrolls the selected card into view; clicking selects.
         card.set_can_focus(True)
         card.connect("button-press-event", lambda w, e, n=note: self._on_card_click(n, e))
@@ -779,37 +971,58 @@ class KnotesWindow(Gtk.ApplicationWindow):
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         outer.set_border_width(12)
 
-        # The tags are rendered inline (Pango spans) at the start of the text rather than as separate
-        # widgets beside it, so when the note wraps, the 2nd line starts at the card's left edge
-        # (under the tags) instead of leaving the area under the tags empty.
         tags = []
         if note.type:
             tags.append(_tag_span(note.type, TAG_COLOR_TYPE))
         tags.append(_tag_span(f"P{note.priority}" if note.priority is not None else "P·", TAG_COLOR_PRIO))
         if note.category:
             tags.append(_tag_span(note.category, TAG_COLOR_CAT))
-        # Order type · priority · category, and wrap the cluster in an LTR isolate (U+2066…U+2069) so
-        # it always reads left-to-right (e.g. "T P3 Z") even on RTL/Arabic notes, where the bidi
-        # algorithm would otherwise flip the tag order.
-        tag_str = "⁦" + " ".join(tags) + "⁩"
-        body = GLib.markup_escape_text(
-            note.title(self.settings.preview_chars, self.settings.preview_tail_chars))
+        # The three meta tags get their OWN label in a fixed left gutter, never inlined into the
+        # body text. An RTL note right-aligns its body (below), which — with the tags inline — swept
+        # them over to the right edge, so the type/priority/category landed in a different place on
+        # an Arabic card than on an English one. In a gutter the eye runs straight down one column
+        # whatever the note's language. (The trade: a wrapped body's later lines start after the
+        # gutter rather than under it.)
+        # Order is type · priority · category, and the cluster sits in an LTR isolate (U+2066…U+2069)
+        # so it reads left-to-right ("T P3 Z") even when the tag text itself neighbours RTL content.
+        tag_label = Gtk.Label(xalign=0)
+        tag_label.set_markup("⁦" + " ".join(tags) + "⁩")
+        tag_label.set_valign(Gtk.Align.START)
+        tag_label.set_direction(Gtk.TextDirection.LTR)
+
+        # A "needs metadata" placeholder: show its actual file/folder name (note.title() would show
+        # its raw content, or "(empty)" for a folder — neither identifies which item this is).
+        if note.path in self._unrecognized_paths:
+            body = GLib.markup_escape_text(os.path.basename(note.path.rstrip(os.sep)))
+        else:
+            body = GLib.markup_escape_text(
+                note.title(self.settings.preview_chars, self.settings.preview_tail_chars))
         wc = note.word_count()
-        count = f'  <span alpha="55%">({wc} word{"" if wc == 1 else "s"})</span>'
-        markup = tag_str + "  " + body + count
+        # The count sits in its own LTR isolate: with the tags gone from this label, an Arabic note
+        # makes the paragraph RTL, and the bidi algorithm would render "(4 words)" as "(words 4)".
+        # The isolate fixes the run's internal order while still letting it fall at the text's end.
+        count = f'  <span alpha="55%">⁦({wc} word{"" if wc == 1 else "s"})⁩</span>'
 
         title = Gtk.Label(xalign=0)
-        title.set_markup(markup)
+        title.set_markup(body + count)
         title.set_line_wrap(True)
         title.set_lines(4)
         title.set_ellipsize(3)  # END — ellipsize after the wrap cap
         title.set_valign(Gtk.Align.START)
-        # Arabic (and other RTL) content reads from the right.
+        # Arabic (and other RTL) content reads from the right — of its own column, not of the card,
+        # so the gutter to its left stays put.
         if note.is_rtl:
             title.set_xalign(1.0)
             title.set_justify(Gtk.Justification.RIGHT)
         title.get_style_context().add_class("title")
-        outer.pack_start(title, False, False, 0)
+
+        # LTR on the row too: widget direction comes from the locale, and under an RTL one
+        # pack_start would fill from the right and put the gutter on the wrong side of every card.
+        title_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        title_row.set_direction(Gtk.TextDirection.LTR)
+        title_row.pack_start(tag_label, False, False, 0)
+        title_row.pack_start(title, True, True, 0)
+        outer.pack_start(title_row, False, False, 0)
 
         # #hashtags extracted from the body, shown as chips at the end so they're always visible even
         # when the content above is truncated.
@@ -888,6 +1101,11 @@ class KnotesWindow(Gtk.ApplicationWindow):
             card.grab_focus()  # focusing scrolls it into view in both scrollers
 
     def _select(self, gr: int, gc: int, idx: int) -> None:
+        # A user-initiated move (arrow keys, click) releases any scroll pin from a preceding rebuild:
+        # grab_focus below should scroll the newly selected card into view unopposed. The pin only
+        # needs to survive the rebuild itself, not the next thing the user does — otherwise, during
+        # a fast retag/Down mass-editing run, it freezes the view while the selection walks off it.
+        self._unpin_scroll()
         self._board_active = True
         self._apply_select(gr, gc, idx, grab=True)
 
@@ -984,7 +1202,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
             return
         dialog = Gtk.MessageDialog(
             transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.YES_NO, text="Move this note to the Deleted folder?")
+            buttons=Gtk.ButtonsType.YES_NO, text="Move this note to the .deleted folder?")
         dialog.format_secondary_text(self._delete_summary(note))
         # Focus/highlight "Yes" (not "No") so a confirming Enter/click is the default action.
         dialog.set_default_response(Gtk.ResponseType.YES)
@@ -1038,21 +1256,57 @@ class KnotesWindow(Gtk.ApplicationWindow):
         """Ctrl+O on a selected card: create the note's companion folder *on demand* and reveal it in
         the file manager (Nemo), so files can be dropped straight in. Nothing is created until you ask
         for it here — plain notes never get an empty folder. The 📎 count refreshes on the next
-        reload (e.g. saving a note or switching folders)."""
+        reload (e.g. saving a note or switching folders).
+
+        A "needs metadata" placeholder has no companion folder of its own — note.path *is* the raw
+        file/folder itself, so companion_dir(note.path) would compute a bogus sibling (e.g. a
+        placeholder folder "Photos" would get a spurious "Photos.d" next to it). Ignored until the
+        item is promoted (Ctrl+Shift+<tag>) into a real note."""
         note = self.selected_note
         if note is None or self._sel is None:
             return
+        if note.path in self._unrecognized_paths:
+            return
         self._reveal_folder(note.path)
 
+    # Cached answer to "does the installed Nemo understand --tabs?" — see _nemo_supports_tabs.
+    _nemo_tabs: bool | None = None
+
+    @classmethod
+    def _nemo_supports_tabs(cls) -> bool:
+        """Whether ``nemo --tabs`` is understood, probed once per session and cached.
+
+        Worth the probe because Popen can't tell us: it only raises when the *binary* is missing, so
+        a Nemo too old for the flag would parse-error, exit, open nothing — and the fallback chain in
+        _reveal_folder would never fire, leaving Ctrl+O silently doing nothing. ``--help`` parses
+        locally and returns in milliseconds; the timeout is only a guard.
+        """
+        if cls._nemo_tabs is None:
+            try:
+                done = subprocess.run(["nemo", "--help"], capture_output=True, text=True, timeout=3)
+                cls._nemo_tabs = "--tabs" in (done.stdout + done.stderr)
+            except (OSError, subprocess.SubprocessError):
+                cls._nemo_tabs = False   # no Nemo, or it didn't answer — the fallbacks cover it
+        return cls._nemo_tabs
+
     def _reveal_folder(self, note_path: str) -> None:
-        """Create (on demand) a note's companion folder and reveal it in the file manager."""
+        """Create (on demand) a note's companion folder and reveal it in the file manager.
+
+        Opened as a new TAB in the Nemo window that's already up rather than yet another window:
+        with auto-open-folder on, a capture session fires this on every save, and a window per note
+        buries the desktop within minutes. ``--tabs`` still opens a window when none exists, so the
+        first call behaves as before.
+        """
         folder = companion_dir(note_path)
         try:
             os.makedirs(folder, exist_ok=True)
         except OSError:
             return
-        # Prefer Nemo (the user's file manager); fall back to the freedesktop default.
-        for cmd in (["nemo", folder], ["xdg-open", folder]):
+        # Most specific first: Nemo in a tab, plain Nemo, then the freedesktop default.
+        commands = [["nemo", folder], ["xdg-open", folder]]
+        if self._nemo_supports_tabs():
+            commands.insert(0, ["nemo", "--tabs", folder])
+        for cmd in commands:
             try:
                 subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 return
@@ -1092,7 +1346,13 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if not text or note is None:
             self._focus_board()
             return
-        new_content = note.content.rstrip() + "\n" + text + "\n"
+        # append_template's "$date" is substituted with now, formatted per append_date_format —
+        # e.g. template "\n---$date:\n" + format "%Y-%m-%d %H:%M" -> "\n---2026-07-22 10:30:\n".
+        # The template is edited as plain single-line text (see SettingsDialog), so a literal
+        # "\n" (backslash + n) stands for a newline and is unescaped here, after substitution.
+        stamp = datetime.now().strftime(self.settings.append_date_format)
+        separator = self.settings.append_template.replace("$date", stamp).replace("\\n", "\n")
+        new_content = note.content.rstrip() + separator + text + "\n"
         self.repo.update(note, new_content, note.type, note.priority, note.category)
         self._board_active = True
         self._reload_keeping_scroll(note.path)   # keep the note selected + the view put
@@ -1106,8 +1366,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self._append_note = None
 
     def _toggle_merge_mark(self) -> None:
-        """Ctrl+G: add/remove the selected card from the merge set. The first note marked is the
-        survivor (keeps its tags/filename); the rest fold into it, in mark order, on Ctrl+Shift+G."""
+        """Ctrl+M: add/remove the selected card from the merge set. The first note marked is the
+        survivor (keeps its tags/filename); the rest fold into it, in mark order, on Ctrl+Shift+M."""
         note = self.selected_note
         if note is None or self._sel is None:
             return
@@ -1134,7 +1394,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         """Set the header title, appending a live merge hint while notes are marked so it's obvious
         the mark registered and how many are staged."""
         n = len(self._merge_marks)
-        hint = f"   ·   ⛓ {n} marked — Ctrl+Shift+G to merge, Esc to clear" if n else ""
+        hint = f"   ·   ⛓ {n} marked — Ctrl+Shift+M to merge, Esc to clear" if n else ""
         self.header.set_title(getattr(self, "_base_title", "knotes") + hint)
 
     def _clear_merge_marks(self) -> None:
@@ -1144,7 +1404,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self._apply_header_title()
 
     def _merge_marked(self) -> None:
-        """Ctrl+Shift+G: fold the marked notes into the first-marked one and move the rest to the
+        """Ctrl+Shift+M: fold the marked notes into the first-marked one and move the rest to the
         ``merged`` subfolder, keeping the view put."""
         by_path = {n.path: n for row in self._grid for col in row for (n, _c) in col}
         marked = [by_path[p] for p in self._merge_marks if p in by_path]
@@ -1153,8 +1413,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
                 transient_for=self, modal=True, message_type=Gtk.MessageType.INFO,
                 buttons=Gtk.ButtonsType.OK, text="Mark at least two notes to merge")
             dialog.format_secondary_text(
-                "Select a card and press Ctrl+G to mark it (first one marked is the survivor); "
-                "mark the others, then press Ctrl+Shift+G.")
+                "Select a card and press Ctrl+M to mark it (first one marked is the survivor); "
+                "mark the others, then press Ctrl+Shift+M.")
             dialog.run()
             dialog.destroy()
             return
@@ -1187,8 +1447,10 @@ class KnotesWindow(Gtk.ApplicationWindow):
         return "\n".join(lines)
 
     def _edit_selected_by_shortcut(self, event) -> bool:
-        """Ctrl+Shift+<letter/digit> on the selected card: toggle its type/category or set priority,
-        renaming the file. Returns True if it matched a code."""
+        """Ctrl+Shift+<letter/digit> on the selected card: set its type/category or priority,
+        renaming the file. Always sets (never clears) — safe to mass-apply the same tag across
+        many notes without checking each one's current state first; un-setting a type/category
+        still needs the full editor. Returns True if it matched a code."""
         note = self.selected_note
         if note is None:
             return False
@@ -1197,21 +1459,33 @@ class KnotesWindow(Gtk.ApplicationWindow):
             return False
         up = ch.upper()
         new_type, new_cat = note.type, note.category
-        new_prio = note.priority if note.priority is not None else self.repo_cfg.priority_min
+        if note.priority is not None:
+            new_prio = note.priority
+        else:
+            lo, hi = self.repo_cfg.priority_min, max(self.repo_cfg.priority_max, self.repo_cfg.priority_min)
+            new_prio = min(max(self.repo_cfg.priority_default, lo), hi)
         code = next((c for c in self.type_codes if c.upper() == up), None)
         if code is not None:
-            new_type = None if note.type == code else code
+            new_type = code
         else:
             code = next((c for c in self.category_codes if c.upper() == up), None)
             if code is not None:
-                new_cat = None if note.category == code else code
+                new_cat = code
             elif ch.isdigit() and int(ch) in self.priority_buttons:
                 new_prio = int(ch)
             else:
                 return False
-        new_path = self.repo.update(note, note.content, new_type, new_prio, new_cat)
-        self._sel_path = new_path  # follow the (possibly moved) card after the rebuild
-        self.reload_notes()
+        if note.path in self._unrecognized_paths:
+            new_path = self.repo.promote(note, new_type, new_prio, new_cat, self.settings.timestamp_format)
+        else:
+            new_path = self.repo.update(note, note.content, new_type, new_prio, new_cat)
+        # Follow the edited note itself — a note may be retagged several times in a row (type,
+        # then priority, then category, ...), and jumping selection to a NEIGHBOUR each time (the
+        # earlier fix here) compounds: after a few edits you're focused several cards away from
+        # where you started. The real fix for "mass-tagging relocates the card" is sorting by
+        # "Date created" instead of "Last updated" — that keeps a retagged note's position stable,
+        # so following it here is a no-op move in that mode, and a correct one in every other mode.
+        self._reload_keeping_scroll(new_path)
         return True
 
     def _save_draft(self) -> None:
@@ -1244,6 +1518,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
 
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         row.set_border_width(16)  # inset content from the card border (EventBox ignores CSS padding)
+        row.set_direction(Gtk.TextDirection.LTR)  # tags stay left even under an RTL locale
         caption = Gtk.Label(label="Just added", xalign=0)
         caption.get_style_context().add_class("last-note-caption")
         row.pack_start(caption, False, False, 0)
@@ -1306,8 +1581,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self._set_view_mode(mode)
 
     def _set_view_mode(self, mode: str) -> None:
-        """'kanban' / 'list' switch the board view (leaving minimal mode if on); 'minimal' enters
-        the minimal side-note mode. Persisted; the board re-renders immediately."""
+        """'kanban' / 'list' / 'columns' switch the board view (leaving minimal mode if on);
+        'minimal' enters the minimal side-note mode. Persisted; the board re-renders immediately."""
         if mode == "minimal":
             self._set_minimal_mode(True)   # syncs the buttons via _apply_minimal_mode
             return
@@ -1322,11 +1597,15 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self._sync_mode_buttons()
 
     def _sync_mode_buttons(self) -> None:
-        """Reflect (minimal_mode, view_mode) in the toolbar group without re-triggering handlers."""
+        """Reflect (minimal_mode, view_mode) in the toolbar group without re-triggering handlers.
+        Kanban is the fallback for an unrecognised stored mode — the same way reload_notes
+        dispatches — so the lit button always names what's actually on the board."""
         self._suppress_minimal_toggle = True
+        mode = self.settings.view_mode
         self.minimal_button.set_active(self.minimal_mode)
-        self.kanban_button.set_active(not self.minimal_mode and self.settings.view_mode == "kanban")
-        self.list_button.set_active(not self.minimal_mode and self.settings.view_mode != "kanban")
+        self.list_button.set_active(not self.minimal_mode and mode == "list")
+        self.columns_button.set_active(not self.minimal_mode and mode == "columns")
+        self.kanban_button.set_active(not self.minimal_mode and mode not in ("list", "columns"))
         self._suppress_minimal_toggle = False
 
     def _on_sort_selected(self, combo: Gtk.ComboBoxText) -> None:
@@ -1362,6 +1641,10 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self.selected_note = None
         self.board_scroller.set_no_show_all(minimal)
         self.board_scroller.set_visible(not minimal)
+        # The sidebar goes with the board: minimal mode is about occupying the least screen space,
+        # and a filter bar next to a hidden board would also block _shrink_to_minimum.
+        self.sidebar.set_no_show_all(minimal)
+        self.sidebar.set_visible(not minimal)
         self.chips_row.set_no_show_all(minimal)
         self.chips_row.set_visible(not minimal)
         self.minimal_tags.set_visible(minimal)
@@ -1394,6 +1677,43 @@ class KnotesWindow(Gtk.ApplicationWindow):
         rtl = self._keymap.get_direction() == Pango.Direction.RTL
         self.layout_label.set_text("ع" if rtl else "EN")
 
+    # ----------------------------------------------------- note-folder watch (Syncthing etc.)
+
+    def _setup_note_dir_watch(self) -> None:
+        """Auto-refresh the board when the active note folder changes on disk — e.g. Syncthing
+        pulling in notes written on another machine — instead of only picking them up on the next
+        manual refresh (Ctrl+R / the toolbar button)."""
+        self._watch_monitor: Gio.FileMonitor | None = None
+        self._watch_reload_pending = False
+        self._rearm_note_dir_watch()
+
+    def _rearm_note_dir_watch(self) -> None:
+        """(Re)point the filesystem watch at the current repo's folder — called on startup and
+        whenever the active folder changes (see _on_repo_changed)."""
+        if self._watch_monitor is not None:
+            self._watch_monitor.cancel()
+            self._watch_monitor = None
+        gfile = Gio.File.new_for_path(self.repo.directory)
+        try:
+            monitor = gfile.monitor_directory(Gio.FileMonitorFlags.NONE, None)
+        except GLib.Error:
+            return  # e.g. a filesystem without inotify support — the manual refresh still works
+        monitor.connect("changed", self._on_note_dir_changed)
+        self._watch_monitor = monitor  # keep a reference; an unreferenced GFileMonitor stops firing
+
+    def _on_note_dir_changed(self, *_args) -> None:
+        # Syncthing writes several files per sync batch, each its own filesystem event — coalesce
+        # a burst into a single reload a moment after the last change, instead of thrashing.
+        if self._watch_reload_pending:
+            return
+        self._watch_reload_pending = True
+        GLib.timeout_add(700, self._debounced_dir_reload)
+
+    def _debounced_dir_reload(self) -> bool:
+        self._watch_reload_pending = False
+        self.reload_notes()
+        return False  # one-shot timeout
+
     def _refresh_minimal_tags(self) -> None:
         """One-line summary of the selected tags for minimal mode, order: type · pN · subject.
         Rendered big/bold/coloured so the active options stand out at a glance."""
@@ -1420,6 +1740,17 @@ class KnotesWindow(Gtk.ApplicationWindow):
                                   self.selected_category, self.settings.timestamp_format)
         if self.settings.auto_open_folder:
             self._reveal_folder(path)  # toolbar toggle: drop the note's files in right away
+        # Saving ends board navigation, so the cursor lands back in the add field ready for the next
+        # note. Order matters: _reset_input's grab_focus would otherwise be undone a line later by
+        # reload_notes → _restore_selection (which re-grabs the selected card while _board_active) or
+        # by _render_last_note (which grabs the lone card in minimal mode). Clearing both flags first
+        # stops the re-grab at the source rather than racing it with a second grab afterwards.
+        # The card keeps its "selected" look, just unfocused — the same deal Esc/_focus_textfield
+        # gives you, since _sel_path survives and _restore_selection re-applies the style.
+        self._board_active = False
+        self._minimal_card_selected = False
+        if self._selected_widget is not None:
+            self._selected_widget.get_style_context().remove_class("selected")
         self._reset_input()
         self.reload_notes()
         # Immediate save feedback: scroll the list so the just-saved note (added at the end) is visible.
@@ -1440,7 +1771,10 @@ class KnotesWindow(Gtk.ApplicationWindow):
         grab. Falls back to the input field when nothing is left to select."""
         pos = self._pos_of_path(keep_path)  # look it up in the still-current (pre-reload) grid
         card = self._grid[pos[0]][pos[1]][pos[2]][1] if pos is not None else None
-        scroller = self._card_scroller(card) if card is not None else None
+        # A retag renames the file, so ``keep_path`` is a name the pre-reload grid has never seen and
+        # the lookup above misses — measure the card we're standing on instead, or the offset reads
+        # as 0 and "keep the view put" becomes "jump to the top" on every Ctrl+Shift+<code>.
+        scroller = self._card_scroller(card or self._selected_widget)
         adj = scroller.get_vadjustment() if scroller is not None else None
         scroll = adj.get_value() if adj is not None else 0.0
         self._sel_path = keep_path
@@ -1458,13 +1792,51 @@ class KnotesWindow(Gtk.ApplicationWindow):
         return w
 
     def _restore_scroll(self, value: float) -> bool:
-        """Put the view back to a previously captured scroll offset after a delete rebuild, so it
-        stays put instead of jumping. Targets the re-selected card's scroller (board in list view,
-        column scroller in kanban) and clamps to the new, shorter content height."""
+        """Put the view back to a previously captured scroll offset after a rebuild, so it stays put
+        instead of jumping. Targets the re-selected card's scroller (board in list view, column
+        scroller in kanban) and clamps to the new content height."""
         scroller = self._card_scroller(self._selected_widget) if self._selected_widget else None
-        adj = scroller.get_vadjustment() if scroller is not None else None
+        if scroller is None:
+            return False
+        self._apply_scroll(scroller, value)
+        # On this idle pass the rebuilt cards still haven't been size-allocated: the adjustment
+        # reports the pre-rebuild (often empty) content height, so the clamp above can floor the
+        # offset to 0, and the scroll-into-view GTK does for the re-focused card aims at a card
+        # whose position isn't known yet. Either one drops the view at the top — which is what lost
+        # your place on every Ctrl+Shift+<code> retag. Hold the offset until the layout settles.
+        self._pin_scroll(scroller, value)
+        return False
+
+    @staticmethod
+    def _apply_scroll(scroller: Gtk.ScrolledWindow, value: float) -> None:
+        adj = scroller.get_vadjustment()
         if adj is not None:
             adj.set_value(min(value, max(adj.get_lower(), adj.get_upper() - adj.get_page_size())))
+
+    def _pin_scroll(self, scroller: Gtk.ScrolledWindow, value: float) -> None:
+        """Hold ``scroller`` at ``value`` while the rebuilt cards are measured and laid out: re-apply
+        it on every content-height change ("changed") and after every allocation of the scroller —
+        the point at which GTK has already done its own scroll-into-view for the focused card — then
+        let go after SCROLL_PIN_MS so a later, deliberate scroll is never fought."""
+        self._unpin_scroll()
+        adj = scroller.get_vadjustment()
+        if adj is None:
+            return
+        def reapply(*_args) -> None:
+            self._apply_scroll(scroller, value)
+
+        self._scroll_pin = [(adj, adj.connect("changed", reapply)),
+                            (scroller, scroller.connect("size-allocate", reapply))]
+        self._scroll_pin_timeout = GLib.timeout_add(SCROLL_PIN_MS, self._unpin_scroll, True)
+
+    def _unpin_scroll(self, from_timeout: bool = False) -> bool:
+        """Stop holding the scroll offset — the layout has settled, or a new rebuild has taken over."""
+        for obj, handler in self._scroll_pin:
+            obj.disconnect(handler)
+        self._scroll_pin = []
+        if self._scroll_pin_timeout is not None and not from_timeout:
+            GLib.source_remove(self._scroll_pin_timeout)
+        self._scroll_pin_timeout = None
         return False
 
     def _on_focus_in(self, *_args) -> bool:
@@ -1534,11 +1906,16 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # Each folder has its own tag options — load them and rebuild the chips for the new folder.
         self.repo_cfg = RepoConfig.load(self.settings.active_repo_path(), self.settings)
         self._build_chips()
+        # Filters name codes/dates from the folder we're leaving; carried over they'd silently hide
+        # most of the new folder — so the sidebar starts clean on every switch.
+        self.filters.clear()
+        self._refresh_taxonomy()
         self._apply_defaults()
         self._sel_path = None      # selection belonged to the previous folder's board
         self._board_active = False
         self._refresh_status()
         self.reload_notes()
+        self._rearm_note_dir_watch()   # follow the switch — watch the new folder, not the old one
         self._sync_backend_taxonomy()  # the new folder may bind its own backend
 
     def _reset_input(self) -> None:
@@ -1640,9 +2017,10 @@ class KnotesWindow(Gtk.ApplicationWindow):
                 self._focus_textfield()
             return True
 
-        # Ctrl+Shift+G: commit the pending merge (checked before the Ctrl+Shift+<code> tag editor so
-        # 'g' isn't swallowed as a type/category code). Layout-independent via _base_char.
-        if ctrl and shift and not alt and self._base_char(event).lower() == "g":
+        # Ctrl+Shift+M: commit the pending merge (checked before the Ctrl+Shift+<code> tag editor so
+        # 'm' isn't swallowed as a type/category code). Layout-independent via _base_char. (Merge uses
+        # M, not G — Ctrl+Shift+G collided with retagging a card to the 'G' type.)
+        if ctrl and shift and not alt and self._base_char(event).lower() == "m":
             self._merge_marked()
             return True
 
@@ -1671,8 +2049,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
             if ctrl and not shift and not alt and kv in (Gdk.KEY_d, Gdk.KEY_D):
                 self._delete_selected()
                 return True
-            # Ctrl+G ("gather"): mark/unmark this card for merging. Layout-independent via _base_char.
-            if ctrl and not shift and not alt and self._base_char(event).lower() == "g":
+            # Ctrl+M ("mark"): mark/unmark this card for merging. Layout-independent via _base_char.
+            if ctrl and not shift and not alt and self._base_char(event).lower() == "m":
                 self._toggle_merge_mark()
                 return True
             # Ctrl+O ("open"): reveal the note's files folder in the file manager (created on demand).
@@ -1700,10 +2078,17 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if ctrl and not shift and not alt and kv in (Gdk.KEY_t, Gdk.KEY_T):
             self._toggle_theme()
             return True
+        if ctrl and not shift and not alt and kv in (Gdk.KEY_r, Gdk.KEY_R):
+            self.reload_notes()
+            return True
         # Ctrl+L ("less") toggles minimal mode. _base_char keys off the physical 'l', so it works on
         # any keyboard layout (incl. Arabic). Ctrl+L (unlike Ctrl+M) has no Return-quirk to dodge.
         if ctrl and not shift and not alt and self._base_char(event).lower() == "l":
             self._toggle_minimal_mode()
+            return True
+        # Ctrl+B ("bar") shows/hides the filter sidebar. Layout-independent via _base_char.
+        if ctrl and not shift and not alt and self._base_char(event).lower() == "b":
+            self.sidebar.toggle_collapsed()
             return True
         return False
 
@@ -1779,6 +2164,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self.priority = min(max(self.priority, self.repo_cfg.priority_min),
                                 max(self.repo_cfg.priority_max, self.repo_cfg.priority_min))
             self._build_chips()
+            self._refresh_taxonomy()
             self._apply_defaults()
             self._populate_repo_combo()
             self._refresh_status()
@@ -1795,13 +2181,15 @@ class KnotesWindow(Gtk.ApplicationWindow):
             ("Ctrl+Shift+<digit>", "Priority: edit selected card, else the add form"),
             ("Click a card / Arrows", "Select a card · move between cards (↑↓ in a column, ←→ across)"),
             ("Enter (card selected)", "Open the selected note in your editor"),
-            ("Ctrl+D (card selected)", "Move the selected note to the Deleted folder (with confirmation)"),
-            ("Ctrl+G / Ctrl+click", "Mark/unmark card for merge (first marked = survivor) · Esc clears"),
-            ("Ctrl+Shift+G", "Merge marked notes into the survivor, rest → merged folder"),
+            ("Ctrl+D (card selected)", "Move the selected note to the .deleted folder (with confirmation)"),
+            ("Ctrl+M / Ctrl+click", "Mark/unmark card for merge (first marked = survivor) · Esc clears"),
+            ("Ctrl+Shift+M", "Merge marked notes into the survivor, rest → .merged folder"),
             ("Space (card selected)", "Quick-append a comment to the note (inline field · Enter adds · Esc cancels)"),
             ("Ctrl+O (card selected)", "Open the note's files folder in the file manager (created on demand)"),
             ("Ctrl+1 … Ctrl+9", "Switch to the 1st … 9th note folder"),
             ("Ctrl+F", "Toggle search"),
+            ("Ctrl+B", "Show / hide the filter sidebar (calendar heat map, tags, counts)"),
+            ("Ctrl+R", "Refresh from disk (pick up notes synced from another machine)"),
             ("Ctrl+T", "Toggle light / dark theme"),
             ("Ctrl+L", "Toggle minimal side-note mode (board hidden)"),
             ("F12", "Focus the card area / add field (in minimal mode, select the card)"),
@@ -1890,12 +2278,40 @@ class SettingsDialog(Gtk.Dialog):
             "On: a plain Enter saves the note. Off: only Ctrl+Enter saves; Enter inserts a newline.")
         add("Saving", self.save_enter_check)
 
-        # Display mode (kanban/list/minimal) and sort order moved to the TOOLBAR — they're
-        # switched too often to live behind this dialog.
+        self.show_tags_summary_check = Gtk.CheckButton(label="List every #hashtag under the add field")
+        self.show_tags_summary_check.set_active(settings.show_tags_summary)
+        self.show_tags_summary_check.set_tooltip_text(
+            "On: every #hashtag in use, with how many notes use each. Off: just a compact "
+            "total-uses count in its place — the strip stays, but without spelling out every tag.")
+        add("Tags", self.show_tags_summary_check)
+
+        self.append_template_entry = Gtk.Entry(text=settings.append_template)
+        self.append_template_entry.set_tooltip_text(
+            "Inserted between a note's existing content and text appended via Space (quick-append). "
+            '"$date" is replaced with the current time, formatted per the field below. '
+            r'Use \n for a newline.')
+        add("Append separator", self.append_template_entry)
+
+        self.append_date_format_entry = Gtk.Entry(text=settings.append_date_format)
+        self.append_date_format_entry.set_tooltip_text(
+            "Python strftime format for \"$date\" in the append separator above, e.g. "
+            "%Y-%m-%d %H:%M.")
+        add("Append date format", self.append_date_format_entry)
+
+        # Display mode (kanban/list/columns/minimal) and sort order moved to the TOOLBAR — they're
+        # switched too often to live behind this dialog. The two numbers that SHAPE those views are
+        # set once and left alone, so they do belong here.
         self.rows_spin = Gtk.SpinButton.new_with_range(1, 3, 1)
         self.rows_spin.set_value(settings.kanban_rows)
         self.rows_spin.set_tooltip_text("How many rows the kanban columns are spread across (1–3).")
         add("Kanban rows", self.rows_spin)
+
+        self.card_width_spin = Gtk.SpinButton.new_with_range(120, 1200, 20)
+        self.card_width_spin.set_value(settings.card_max_width)
+        self.card_width_spin.set_tooltip_text(
+            "Columns view: the widest a card may get. The board fits as many whole cards of this "
+            "width as it can, so a smaller number means more, narrower columns.")
+        add("Card max width (columns view)", self.card_width_spin)
 
         # --- Optional nibras backend: on launch it refreshes the type codes from the backend's
         #     modules and the category codes from its bookmarked departments, so a capture maps to the
@@ -1998,7 +2414,11 @@ class SettingsDialog(Gtk.Dialog):
         settings.preview_head_words = int(self.head_words_spin.get_value())
         settings.preview_tail_words = int(self.tail_words_spin.get_value())
         settings.save_on_enter = self.save_enter_check.get_active()
+        settings.show_tags_summary = self.show_tags_summary_check.get_active()
+        settings.append_template = self.append_template_entry.get_text()
+        settings.append_date_format = self.append_date_format_entry.get_text().strip() or settings.append_date_format
         settings.kanban_rows = int(self.rows_spin.get_value())
+        settings.card_max_width = int(self.card_width_spin.get_value())
         settings.backend_url = self.backend_url_entry.get_text().strip()
         settings.backend_user = self.backend_user_entry.get_text().strip()
         settings.backend_password = self.backend_pass_entry.get_text()

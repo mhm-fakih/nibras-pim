@@ -9,11 +9,12 @@ public record AppModuleDto(
         String color,
         Boolean enabled,
         Integer sortOrder,
+        Integer syncOrder,
         Boolean bucketBy100,
         Boolean bucketByType) {
 
     public static AppModuleDto of(AppModule m) {
         return new AppModuleDto(m.getModuleKey(), m.getLabel(), m.getCode(), m.getColor(),
-                m.getEnabled(), m.getSortOrder(), m.getBucketBy100(), m.getBucketByType());
+                m.getEnabled(), m.getSortOrder(), m.getSyncOrder(), m.getBucketBy100(), m.getBucketByType());
     }
 }

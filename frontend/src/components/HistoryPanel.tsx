@@ -8,7 +8,6 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import ExpandMore from '@mui/icons-material/ExpandMore';
 import { AuditEntry, getRecordHistory } from '../api/client';
 
 const OP_COLOR: Record<string, 'success' | 'info' | 'error' | 'default'> = {
@@ -27,8 +26,8 @@ export function HistoryPanel({ entityClass, id }: { entityClass: string; id: num
   const entries = data ?? [];
 
   return (
-    <Accordion variant="outlined" disableGutters sx={{ mt: 2 }}>
-      <AccordionSummary expandIcon={<ExpandMore />}>
+    <Accordion variant="outlined" disableGutters expanded sx={{ mt: 2 }}>
+      <AccordionSummary sx={{ cursor: 'default' }}>
         <Typography variant="overline" color="text.secondary">
           History ({entries.length})
         </Typography>

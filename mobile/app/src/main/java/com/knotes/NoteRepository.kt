@@ -16,6 +16,23 @@ private val NOTE_NAME = Regex("""^\d{4}_\d{2}_\d{2}-\d{6}(-\d+)?~[^~]*~[pP]\d+~[
 
 fun isFormattedNote(name: String): Boolean = NOTE_NAME.matches(name)
 
+/** A note's attachments folder, named after the note's stem. Same convention as desktop/backend. */
+const val COMPANION_SUFFIX = ".d"
+
+/**
+ * Housekeeping folders that are never "needs metadata" placeholders. Matched on the bare stem with
+ * leading dots stripped and case folded, so `Deleted`, `.deleted` and `TRASH` are all caught —
+ * these arrive from several machines through Syncthing and their spelling isn't consistent.
+ * Mirrors desktop's `NoteRepository.AUX_DIR_STEMS`.
+ */
+private val AUX_DIR_STEMS = setOf("deleted", "merged", "imported", "trash", "trashed")
+
+fun isAuxDir(name: String): Boolean = name.trimStart('.').lowercase() in AUX_DIR_STEMS
+
+/** A file missing its final newline shows as a spurious change on every future line ('No newline
+ * at end of file') in git diff and similar tools — always write one. */
+private fun String.withTrailingNewline(): String = if (endsWith("\n")) this else this + "\n"
+
 /** Reads and writes notes as plain-text files in the configured directory. */
 class NoteRepository(private val settings: SettingsStore) {
 
@@ -32,6 +49,60 @@ class NoteRepository(private val settings: SettingsStore) {
         return files.map(::toNote).sortedBy { it.lastModified }
     }
 
+    /**
+     * Files and folders sitting in the notes directory that aren't canonical notes — surfaced as
+     * "needs metadata" placeholders (type/priority/category all null) rather than silently ignored,
+     * matching desktop's `NoteRepository.list_unrecognized`.
+     *
+     * This is not a theoretical case on a phone: the folder is a Syncthing share, so anything
+     * another machine drops in lands here, correctly-named or not. Without this the non-standard
+     * filter would have nothing to act on and those files would be invisible on the phone.
+     *
+     * Deliberately kept OUT of [listNotes]: that is the counted set — the header's "N notes", the
+     * status notification and the KPI widget all derive from it, and folding foreign files in would
+     * silently inflate every one of those numbers.
+     *
+     * Skipped: dotfiles (Syncthing's own `.stfolder`/`.stversions`, `.knotes.json`), companion
+     * `.d/` folders, and the app's housekeeping folders.
+     */
+    fun listUnrecognized(): List<Note> {
+        val d = dir()
+        return (d.listFiles() ?: emptyArray())
+            .filter { f ->
+                !f.name.startsWith(".") &&
+                    !isAuxDir(f.name) &&
+                    if (f.isDirectory) !f.name.endsWith(COMPANION_SUFFIX) else !isFormattedNote(f.name)
+            }
+            .map(::toPlaceholder)
+            .sortedBy { it.lastModified }
+    }
+
+    /**
+     * A non-conforming file/folder wrapped as a [Note] with blank tags, so it slots into the
+     * existing card rendering and grouping with no changes there. A directory reads as empty
+     * content; a file is read as text, best-effort — a binary drop-in simply shows no preview
+     * rather than failing the whole listing.
+     */
+    private fun toPlaceholder(file: File): Note {
+        val content = if (file.isDirectory) "" else runCatching { file.readText() }.getOrDefault("")
+        return Note(
+            file = file,
+            timestamp = "",
+            type = null,
+            priority = null,
+            category = null,
+            content = content,
+            lastModified = file.lastModified(),
+            createdMillis = file.lastModified(),   // no parseable name: the file's own time is all there is
+            isRtl = NoteFiles.isRtl(content),
+            fileNames = if (file.isDirectory) {
+                (file.listFiles() ?: emptyArray()).filter { it.isFile }.map { it.name }.sorted()
+            } else {
+                emptyList()
+            },
+        )
+    }
+
     private fun toNote(file: File): Note {
         val parsed = NoteFiles.parse(file.name)
         val content = runCatching { file.readText() }.getOrDefault("")
@@ -43,6 +114,8 @@ class NoteRepository(private val settings: SettingsStore) {
             category = parsed.category,
             content = content,
             lastModified = file.lastModified(),
+            createdMillis = NoteFiles.parseCreated(
+                parsed.timestamp, settings.value.timestampFormat, file.lastModified()),
             isRtl = NoteFiles.isRtl(content),
             fileNames = companionFileNames(file),
         )
@@ -56,7 +129,7 @@ class NoteRepository(private val settings: SettingsStore) {
             file = File(dir(), NoteFiles.buildName("$token-$counter", type, priority, category))
             counter++
         }
-        file.writeText(text)
+        file.writeText(text.withTrailingNewline())
         return file
     }
 
@@ -72,7 +145,7 @@ class NoteRepository(private val settings: SettingsStore) {
             }
             note.file.renameTo(target)
         }
-        target.writeText(text)
+        target.writeText(text.withTrailingNewline())
         return target
     }
 

@@ -23,8 +23,8 @@ data class AppSettings(
     val collectNewDir: String,
     /** Font-size multiplier for the Resources full-text view (1.0 = default). */
     val fulltextScale: Float,
-    /** Root folder browsed by the Audiobooks page. */
-    val audiobookDir: String,
+    /** Root folders scanned by the Audiobooks page's Library (genre/artist/album) and Folders tabs. */
+    val audioLibraryRoots: List<String>,
     /** Folder shown by the Gallery page. */
     val galleryDir: String,
     /** Calendar visible time range (hours 0..23). */
@@ -36,10 +36,20 @@ data class AppSettings(
     val reminderOffsetsMin: List<Int>,
     /** Sound URI played for reminders (blank = system default). */
     val reminderSoundUri: String,
-    /** When true, a reminder is a full-screen alarm whose sound loops until dismissed on screen. */
+    /** When true, a reminder is a full-screen alarm whose sound loops until dismissed on screen —
+     *  takes priority over [reminderRepeatCount] (an infinite loop, not a fixed repeat count). */
     val reminderRequireDismiss: Boolean,
+    /** Ignored when [reminderRequireDismiss] is on. Otherwise, the reminder sound plays this many
+     *  times (minimum 1) instead of just once, so it's harder to miss. */
+    val reminderRepeatCount: Int,
     /** Persistent ongoing notification showing today's note count (also keeps the process alive). */
     val statusNotificationEnabled: Boolean,
+    /** Periodic background backend sync (health-check + pull/push), reported in the status notification. */
+    val syncEnabled: Boolean,
+    /** How often to check whether the backend is reachable, in seconds. */
+    val syncCheckIntervalSec: Int,
+    /** How often to run a full sync (pull all types + drain outbox) while online, in seconds. */
+    val syncIntervalSec: Int,
     /** Quarter-hour chime at :00/:15/:30/:45 within the window below. */
     val chimeEnabled: Boolean,
     /** Sound played by the chime (blank = system default notification sound). */
@@ -93,7 +103,11 @@ class SettingsStore(context: Context) {
         collectSourceDirs = prefs.getString(K_COLLECT_SRC, null)?.let { decodeLines(it) } ?: defaultSourceDirs(),
         collectNewDir = prefs.getString(K_COLLECT_NEW, defaultNewDir()) ?: defaultNewDir(),
         fulltextScale = prefs.getFloat(K_FULLTEXT_SCALE, 1.5f),
-        audiobookDir = prefs.getString(K_AUDIOBOOK, defaultAudiobookDir()) ?: defaultAudiobookDir(),
+        // Migration: if the new multi-root key was never written, seed once from the old
+        // single-folder key (still just read, never written again — same pattern as "subjects" below).
+        audioLibraryRoots = prefs.getString(K_AUDIO_ROOTS, null)?.let { decodeLines(it) }
+            ?: prefs.getString(K_AUDIOBOOK, null)?.trim()?.trimEnd('/')?.takeIf { it.isNotBlank() }?.let { listOf(it) }
+            ?: defaultAudioLibraryRoots(),
         galleryDir = prefs.getString(K_GALLERY, defaultGalleryDir()) ?: defaultGalleryDir(),
         calendarStartHour = prefs.getInt(K_CAL_START, 5),
         calendarEndHour = prefs.getInt(K_CAL_END, 22),
@@ -101,7 +115,11 @@ class SettingsStore(context: Context) {
         reminderOffsetsMin = decodeInts(prefs.getString(K_REM_OFFSETS, DEFAULT_REM_OFFSETS) ?: DEFAULT_REM_OFFSETS),
         reminderSoundUri = prefs.getString(K_REM_SOUND, "") ?: "",
         reminderRequireDismiss = prefs.getBoolean(K_REM_DISMISS, false),
+        reminderRepeatCount = prefs.getInt(K_REM_REPEAT, 4),
         statusNotificationEnabled = prefs.getBoolean(K_STATUS_NOTIF, true),
+        syncEnabled = prefs.getBoolean(K_SYNC_ENABLED, true),
+        syncCheckIntervalSec = prefs.getInt(K_SYNC_CHECK_SEC, 30),
+        syncIntervalSec = prefs.getInt(K_SYNC_SEC, 300),
         chimeEnabled = prefs.getBoolean(K_CHIME, true),
         chimeSoundUri = prefs.getString(K_CHIME_SOUND, "") ?: "",
         chimeStartHour = prefs.getInt(K_CHIME_START, 8),
@@ -130,7 +148,11 @@ class SettingsStore(context: Context) {
             .putString(K_COLLECT_SRC, settings.collectSourceDirs.joinToString("\n") { it.trim() })
             .putString(K_COLLECT_NEW, settings.collectNewDir.trim().trimEnd('/').ifBlank { defaultNewDir() })
             .putFloat(K_FULLTEXT_SCALE, settings.fulltextScale.coerceIn(0.8f, 3f))
-            .putString(K_AUDIOBOOK, settings.audiobookDir.trim().trimEnd('/').ifBlank { defaultAudiobookDir() })
+            .putString(
+                K_AUDIO_ROOTS,
+                settings.audioLibraryRoots.map { it.trim().trimEnd('/') }.filter { it.isNotBlank() }
+                    .ifEmpty { defaultAudioLibraryRoots() }.joinToString("\n"),
+            )
             .putString(K_GALLERY, settings.galleryDir.trim().trimEnd('/').ifBlank { defaultGalleryDir() })
             .putInt(K_CAL_START, settings.calendarStartHour.coerceIn(0, 23))
             .putInt(K_CAL_END, settings.calendarEndHour.coerceIn(settings.calendarStartHour + 1, 24))
@@ -138,7 +160,11 @@ class SettingsStore(context: Context) {
             .putString(K_REM_OFFSETS, settings.reminderOffsetsMin.filter { it >= 0 }.joinToString(","))
             .putString(K_REM_SOUND, settings.reminderSoundUri.trim())
             .putBoolean(K_REM_DISMISS, settings.reminderRequireDismiss)
+            .putInt(K_REM_REPEAT, settings.reminderRepeatCount.coerceAtLeast(1))
             .putBoolean(K_STATUS_NOTIF, settings.statusNotificationEnabled)
+            .putBoolean(K_SYNC_ENABLED, settings.syncEnabled)
+            .putInt(K_SYNC_CHECK_SEC, settings.syncCheckIntervalSec.coerceAtLeast(10))
+            .putInt(K_SYNC_SEC, settings.syncIntervalSec.coerceAtLeast(settings.syncCheckIntervalSec.coerceAtLeast(10)))
             .putBoolean(K_CHIME, settings.chimeEnabled)
             .putString(K_CHIME_SOUND, settings.chimeSoundUri.trim())
             .putInt(K_CHIME_START, settings.chimeStartHour.coerceIn(0, 23))
@@ -168,7 +194,10 @@ class SettingsStore(context: Context) {
         private const val K_COLLECT_SRC = "collect_source_dirs"
         private const val K_COLLECT_NEW = "collect_new_dir"
         private const val K_FULLTEXT_SCALE = "fulltext_scale"
+        // "audiobook_dir" key retained read-only so an existing single folder migrates once into
+        // audio_library_roots (same pattern as "subjects" above) — no longer written.
         private const val K_AUDIOBOOK = "audiobook_dir"
+        private const val K_AUDIO_ROOTS = "audio_library_roots"
         private const val K_GALLERY = "gallery_dir"
         private const val K_CAL_START = "calendar_start_hour"
         private const val K_CAL_END = "calendar_end_hour"
@@ -176,7 +205,11 @@ class SettingsStore(context: Context) {
         private const val K_REM_OFFSETS = "reminder_offsets_min"
         private const val K_REM_SOUND = "reminder_sound_uri"
         private const val K_REM_DISMISS = "reminder_require_dismiss"
+        private const val K_REM_REPEAT = "reminder_repeat_count"
         private const val K_STATUS_NOTIF = "status_notification_enabled"
+        private const val K_SYNC_ENABLED = "sync_enabled"
+        private const val K_SYNC_CHECK_SEC = "sync_check_interval_sec"
+        private const val K_SYNC_SEC = "sync_interval_sec"
         private const val K_CHIME = "chime_enabled"
         private const val K_CHIME_SOUND = "chime_sound_uri"
         private const val K_CHIME_START = "chime_start_hour"
@@ -209,6 +242,8 @@ class SettingsStore(context: Context) {
 
         fun defaultAudiobookDir(): String =
             Environment.getExternalStorageDirectory().absolutePath + "/Audiobooks"
+
+        fun defaultAudioLibraryRoots(): List<String> = listOf(defaultAudiobookDir())
 
         fun defaultGalleryDir(): String =
             Environment.getExternalStorageDirectory().absolutePath + "/Pictures"

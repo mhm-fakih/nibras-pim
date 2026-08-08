@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
@@ -53,6 +55,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.IconButton
@@ -85,11 +88,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.knotes.AppSettings
 import com.knotes.BuildConfig
+import com.knotes.DraftStore
 import com.knotes.MainViewModel
 import com.knotes.Note
 import com.knotes.NoteFiles
+import com.knotes.NoteFilterState
+import com.knotes.computeFacets
 import com.knotes.nibras.PushCenter
 import com.knotes.nibras.RecordOutbox
+import com.knotes.nibras.SyncCenter
+import com.knotes.nibras.SyncStatusStore
+import com.knotes.util.FriendlyTime
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.knotes.reminder.PlansStore
 import java.io.File
@@ -133,12 +143,32 @@ fun MainScreen(
     onSharedTextConsumed: () -> Unit,
 ) {
     val notes by vm.notes.collectAsState()
+    // Foreign files Syncthing put in the folder, shown as "needs metadata" placeholders alongside
+    // real notes — the same thing the desktop board does. They are NOT part of `notes`, which is
+    // the counted set behind the header and the widgets.
+    val unrecognized by vm.unrecognized.collectAsState()
     val settings by vm.settingsStore.state.collectAsState()
     // Backend push-outbox state, so each card can show queued/synced and offer "Push to Nibras".
     val pushContext = LocalContext.current
     LaunchedEffect(Unit) { RecordOutbox.seed(pushContext) }
     val outboxPending by RecordOutbox.pending.collectAsState()
     val outboxPushed by RecordOutbox.pushed.collectAsState()
+    // Last-sync label, kept live: seed once from disk, then re-render every 20s so "moments ago"
+    // ages into "5m ago" etc. without needing a sync to actually happen.
+    LaunchedEffect(Unit) { SyncStatusStore.seed(pushContext) }
+    val lastSyncMillis by SyncStatusStore.lastSyncMillis.collectAsState()
+    val syncOnline by SyncStatusStore.online.collectAsState()
+    var syncNowTick by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(20_000)
+            syncNowTick = System.currentTimeMillis()
+        }
+    }
+    val syncLabel = remember(lastSyncMillis, syncOnline, syncNowTick) {
+        val ago = FriendlyTime.ago(lastSyncMillis)
+        if (syncOnline == false) "offline · last synced $ago" else "synced $ago"
+    }
     // Note counts shown under the app title: total, and how many were touched today.
     val todayCount = remember(notes) {
         val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
@@ -154,7 +184,9 @@ fun MainScreen(
     val collapsedGroups = remember(groupMode) { mutableStateListOf<String>() }
     var sortMenuOpen by remember { mutableStateOf(false) }
 
-    var input by rememberSaveable { mutableStateOf("") }
+    // Seeded from the on-disk draft, so a half-typed note survives the app being closed. See
+    // DraftStore for why rememberSaveable alone doesn't cover that case.
+    var input by rememberSaveable { mutableStateOf(DraftStore.load(pushContext)) }
     // Type / priority / category start at their configured defaults and stay sticky across saves —
     // someone entering a task usually enters another of the same kind next.
     var selectedType by rememberSaveable { mutableStateOf(settings.effectiveDefaultType) }
@@ -165,7 +197,14 @@ fun MainScreen(
     fun resetInput() {
         input = ""
         editing = null
+        DraftStore.clear(pushContext)
         // Type / priority / category are intentionally left as-is (sticky) for the next entry.
+    }
+
+    // Mirror the compose box to disk as it changes — but only for a NEW note. While editing an
+    // existing note the box holds that note's own saved text, which must not come back as a draft.
+    LaunchedEffect(input, editing) {
+        if (editing == null) DraftStore.save(pushContext, input)
     }
 
     // Keep priority within the configured range when it changes.
@@ -182,13 +221,34 @@ fun MainScreen(
         onSharedTextConsumed()
     }
 
-    val filtered = remember(notes, query) {
-        if (query.isBlank()) notes
-        else notes.filter { n ->
+    // Everything the collapsible filter panel edits (see NoteFilterPanel). Held as one immutable
+    // value so the panel can be a pure function of it, exactly as the desktop sidebar is of
+    // filters.FilterState. Saveable so a rotation doesn't silently clear the filters.
+    var filterState by rememberSaveable(stateSaver = noteFilterSaver) {
+        mutableStateOf(NoteFilterState())
+    }
+    var filterPanelOpen by rememberSaveable { mutableStateOf(false) }
+
+    // Merge-sorted rather than concatenated, so the newest item is the actual newest whichever
+    // list it came from.
+    val allNotes = remember(notes, unrecognized) { (notes + unrecognized).sortedBy { it.lastModified } }
+
+    val searched = remember(allNotes, query) {
+        if (query.isBlank()) allNotes
+        else allNotes.filter { n ->
             n.content.contains(query, ignoreCase = true) ||
                 n.type?.contains(query, ignoreCase = true) == true ||
                 n.category?.contains(query, ignoreCase = true) == true
         }
+    }
+
+    // The panel's counts follow the search box and the list follows both — the same relationship
+    // the desktop sidebar has with its search field. One pass computes every number the panel draws.
+    val facets = remember(searched, filterState, settings.types, settings.categories, settings.priorities) {
+        computeFacets(searched, filterState, settings)
+    }
+    val filtered = remember(searched, filterState, settings.types, settings.categories, settings.priorities) {
+        if (!filterState.active()) searched else searched.filter { filterState.matches(it, settings) }
     }
 
     // `notes` arrives oldest→newest (by date); other modes re-sort with blanks last, date as tiebreak.
@@ -249,7 +309,7 @@ fun MainScreen(
                                 Text(settings.appName)
                                 Spacer(Modifier.width(6.dp))
                                 Text(
-                                    "v${BuildConfig.VERSION_NAME} · build ${BuildConfig.BUILD_NUMBER}",
+                                    "v${BuildConfig.VERSION_NAME}.b${BuildConfig.BUILD_NUMBER} \"${BuildConfig.CODENAME}\"",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(bottom = 2.dp),
@@ -260,6 +320,13 @@ fun MainScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            if (settings.syncEnabled) {
+                                Text(
+                                    syncLabel,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 },
@@ -322,6 +389,13 @@ fun MainScreen(
                 .imePadding(),
         ) {
             UpcomingPlansPanel()
+            NoteFilterPanel(
+                state = filterState,
+                onState = { filterState = it },
+                counts = facets,
+                expanded = filterPanelOpen,
+                onExpanded = { filterPanelOpen = it },
+            )
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             // When the jump-button overlay is shown (long lists), pad the list bottom by the
             // overlay's height so the LAST card can scroll clear of it — otherwise the overlay
@@ -393,11 +467,13 @@ fun MainScreen(
                         scope.launch { listState.animateScrollToItem(0) }
                     }
                     // Refresh everything: re-list the notes (and their counts in the status
-                    // notification / widget) and re-pull the type/department codes from the backend.
+                    // notification / widget), re-pull the type/department codes from the backend,
+                    // and force an immediate full sync (same as the periodic background one).
                     val refreshContext = LocalContext.current
-                    ScrollJumpButton(Icons.Filled.Refresh, "Refresh notes + backend codes") {
+                    ScrollJumpButton(Icons.Filled.Refresh, "Refresh notes + sync now") {
                         vm.refresh()
                         vm.syncTaxonomy()
+                        scope.launch { SyncCenter.syncNow(refreshContext) }
                         com.knotes.status.StatusService.refresh(refreshContext)
                         com.knotes.reminder.KpiWidget.refresh(refreshContext)
                     }
@@ -781,6 +857,12 @@ private fun InputBar(
     onCancelEdit: () -> Unit,
     onSend: () -> Unit,
 ) {
+    // Collapsible: the form (text box + type/priority/category chips) eats a lot of a phone screen
+    // when you're only reading. Collapsed it leaves a single tap-to-expand strip. An edit in
+    // progress force-expands it, so "Editing note" can never be hidden behind a collapsed bar.
+    var expanded by rememberSaveable { mutableStateOf(true) }
+    val open = expanded || isEditing
+
     Surface(tonalElevation = 3.dp) {
         Column(
             modifier = Modifier
@@ -792,6 +874,26 @@ private fun InputBar(
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = !isEditing) { expanded = !expanded },
+            ) {
+                Text(
+                    text = if (open) "New note" else "New note — tap to expand",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                )
+                if (!isEditing) {
+                    Icon(
+                        imageVector = if (open) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
+                        contentDescription = if (open) "Collapse the add form" else "Expand the add form",
+                    )
+                }
+            }
+            if (!open) return@Column
             if (isEditing) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(

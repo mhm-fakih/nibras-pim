@@ -2,6 +2,9 @@ package com.nibras.pim.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -14,6 +17,8 @@ import java.time.LocalDateTime;
  * inferred from which field is set: a non-blank {@code query} → DB-query indicator;
  * else a non-blank {@code path} → file-count indicator; else manual entry. {@code frequency}
  * ("daily"/"weekly") drives the missing-data reminders. Bookmarked = actively monitored.
+ * Optionally linked to a {@link Goal} — a daily-frequency indicator linked this way is how a
+ * habit's day-by-day progress log / heatmap (shown in the goal's detail view) is built.
  */
 @Entity
 @Table(name = "indicators")
@@ -46,6 +51,16 @@ public class Indicator extends BaseEntity {
 
     private Integer priority;
     private Boolean bookmarked;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "goal_id")
+    private Goal goal;
+
+    /** When set, {@code IndicatorAutoCollectScheduler} computes and saves this indicator's value
+     *  automatically at the configured end-of-day time, instead of waiting for manual confirmation
+     *  on the Indicators page. No effect on a MANUAL-kind indicator (nothing to compute). */
+    @Column(name = "auto_collect")
+    private Boolean autoCollect;
 
     @Column(columnDefinition = "longtext")
     private String notes;

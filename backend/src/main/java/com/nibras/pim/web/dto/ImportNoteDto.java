@@ -15,5 +15,6 @@ public record ImportNoteDto(
         Long deptId,            // resolved department id (or null)
         String deptName,
         String summary,         // suitable first line, or null
+        String description,     // body with the summary's line removed (null if nothing remains)
         String body) {
 }

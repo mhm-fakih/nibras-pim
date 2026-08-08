@@ -28,8 +28,22 @@ export function LoginPage() {
       const from = (location.state as { from?: string })?.from ?? '/tasks';
       navigate(from, { replace: true });
     } catch (err) {
-      const status = (err as AxiosError)?.response?.status;
-      setError(status === 401 ? 'Invalid username or password.' : 'Sign-in failed. Please try again.');
+      const res = (err as AxiosError<{ message?: string; error?: string }>)?.response;
+      // The backend's own error responses are always JSON with a message/error field (see
+      // SecurityConfig's writeError / Spring's default REST error body). A response WITHOUT
+      // that shape (e.g. an empty text/plain body) didn't come from the app — it's the dev
+      // proxy (or a reverse proxy) reporting it can't reach the backend at all, which reads very
+      // differently from "wrong password" and shouldn't be presented as one.
+      const data = res?.data;
+      const isAppError =
+        typeof data === 'object' && data !== null && (('message' in data) || ('error' in data));
+      if (!res || !isAppError) {
+        setError("Can't reach the server — the backend may be down. Check with your administrator.");
+      } else if (res.status === 401) {
+        setError('Invalid username or password.');
+      } else {
+        setError('Sign-in failed. Please try again.');
+      }
     } finally {
       setBusy(false);
     }

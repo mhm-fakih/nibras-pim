@@ -197,7 +197,9 @@ public class SiteGeneratorService {
         }
         return new FilterParams(
                 m.get("q"), null, null, null, null,
-                bool(m.get("bookmarked")), lng(m.get("statusId")), lng(m.get("typeId")), lng(m.get("tagId")),
+                bool(m.get("bookmarked")), bool(m.get("urgent")), bool(m.get("dashboard")),
+                lng(m.get("statusId")), lng(m.get("typeId")), lng(m.get("tagId")), lng(m.get("goalId")),
+                lng(m.get("writingId")),
                 bool(m.get("noStatus")), bool(m.get("noType")), bool(m.get("noDepartment")),
                 bool(m.get("noPriority")), bool(m.get("hasTags")), bool(m.get("overdue")),
                 bool(m.get("dueSoon")), bool(m.get("highPriority")),

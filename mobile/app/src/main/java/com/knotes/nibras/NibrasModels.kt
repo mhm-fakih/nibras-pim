@@ -75,6 +75,16 @@ data class NibrasRecord(
     val fulltext: String,
     /** File names attached to the record (synced to the phone by Syncthing). */
     val files: List<String>,
+    /** Set on a recurring planner: the series master's id. Blank when the record isn't part of one. */
+    val seriesId: String = "",
+    /** The slot this occurrence stands for — its original start. Blank when not part of a series. */
+    val recurrenceId: String = "",
+    /**
+     * True for a computed occurrence of a recurring planner that has no record of its own yet. Its
+     * [id] is the composite `<seriesId>@<recurrenceId>`, NOT a record id — pushing an edit against
+     * it would rewrite the master and so change every occurrence. Materialise it first.
+     */
+    val virtual: Boolean = false,
 ) {
     /** Stable key for local read/bookmark tracking. */
     val key: String get() = "$type:$id"

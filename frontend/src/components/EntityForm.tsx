@@ -112,6 +112,7 @@ export function EntityForm({ config, recordId, onClose, onSaved }: Props) {
             key={f.name}
             field={f}
             value={form[f.name]}
+            form={form}
             lookups={lookups}
             record={record}
             onChange={(v) => set(f.name, v)}
@@ -141,6 +142,7 @@ export function EntityForm({ config, recordId, onClose, onSaved }: Props) {
 function FieldInput({
   field,
   value,
+  form,
   lookups,
   record,
   onChange,
@@ -148,12 +150,15 @@ function FieldInput({
 }: {
   field: FieldDef;
   value: unknown;
+  form: FormState;
   lookups?: Record<string, Lookup[]>;
   record?: EntityRecord;
   onChange: (v: unknown) => void;
   setField: (name: string, value: unknown) => void;
 }) {
   switch (field.type) {
+    case 'recurrence':
+      return <RecurrenceField form={form} setField={setField} mode={field.recurrenceMode} />;
     case 'book':
       return (
         <BookField
@@ -296,6 +301,149 @@ function FieldInput({
   }
 }
 
+const RECURRENCE_PRESETS: { value: string; label: string; unit: string }[] = [
+  { value: 'DAILY', label: 'Daily', unit: 'days' },
+  { value: 'WEEKLY', label: 'Weekly', unit: 'weeks' },
+  { value: 'MONTHLY', label: 'Monthly', unit: 'months' },
+  { value: 'YEARLY', label: 'Yearly', unit: 'years' },
+  { value: 'CUSTOM', label: 'Custom (cron)', unit: '' },
+];
+
+/**
+ * Compound recurrence picker. Unlike every other field here it edits several real DTO keys at once
+ * (recurring, recurrencePreset, recurrenceInterval, recurrenceCron, plus fixedSchedule or
+ * recurrenceUntil/recurrenceCount) rather than one — so it takes the whole form state + setField,
+ * the same shape CourseField already uses to write into `department` as a side effect of picking a
+ * course.
+ *
+ * Two modes, because the two modules mean different things by "repeats" — see
+ * {@link FieldDef.recurrenceMode}. A chain (tasks) offers "fixed schedule"; a series (planners) is
+ * always by date and offers an end instead.
+ */
+function RecurrenceField({
+  form,
+  setField,
+  mode = 'chain',
+}: {
+  form: FormState;
+  setField: (name: string, value: unknown) => void;
+  mode?: 'chain' | 'series';
+}) {
+  const recurring = Boolean(form.recurring);
+  const preset = (form.recurrencePreset as string) || 'DAILY';
+  const interval = (form.recurrenceInterval as number) ?? 1;
+  const cron = (form.recurrenceCron as string) ?? '';
+  const fixedSchedule = Boolean(form.fixedSchedule);
+  const until = (form.recurrenceUntil as Date | null) ?? null;
+  const count = (form.recurrenceCount as number | '') ?? '';
+  const unit = RECURRENCE_PRESETS.find((p) => p.value === preset)?.unit;
+
+  // Derived rather than stored: the two limits are mutually exclusive on the wire, so whichever is
+  // set IS the mode. Keeping a separate state variable would let the radio and the payload disagree.
+  const endMode: 'never' | 'on' | 'after' = until ? 'on' : count !== '' && count != null ? 'after' : 'never';
+  const setEndMode = (next: 'never' | 'on' | 'after') => {
+    setField('recurrenceUntil', next === 'on' ? until ?? new Date() : null);
+    setField('recurrenceCount', next === 'after' ? (count === '' ? 10 : count) : null);
+  };
+
+  return (
+    <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2 }}>
+      <FormControlLabel
+        control={<Switch checked={recurring} onChange={(e) => setField('recurring', e.target.checked)} />}
+        label="Repeats"
+      />
+      {recurring && (
+        <Stack spacing={2} sx={{ mt: 1, ml: 4 }}>
+          <TextField
+            select
+            label="Repeat"
+            value={preset}
+            onChange={(e) => setField('recurrencePreset', e.target.value)}
+            sx={{ maxWidth: 220 }}
+          >
+            {RECURRENCE_PRESETS.map((p) => (
+              <MenuItem key={p.value} value={p.value}>
+                {p.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          {preset !== 'CUSTOM' ? (
+            <TextField
+              label="Every N"
+              type="number"
+              value={interval}
+              onChange={(e) =>
+                setField('recurrenceInterval', e.target.value === '' ? 1 : Number(e.target.value))
+              }
+              helperText={unit ? `e.g. 2 = every 2 ${unit}` : undefined}
+              sx={{ maxWidth: 160 }}
+            />
+          ) : (
+            <TextField
+              label="Cron expression"
+              value={cron}
+              onChange={(e) => setField('recurrenceCron', e.target.value)}
+              placeholder="0 0 9 * * MON"
+              helperText="Standard 6-field Spring cron: sec min hour day-of-month month day-of-week"
+              sx={{ maxWidth: 360 }}
+            />
+          )}
+
+          {mode === 'chain' ? (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={fixedSchedule}
+                  onChange={(e) => setField('fixedSchedule', e.target.checked)}
+                />
+              }
+              label="Fixed schedule — repeats on the date even if not completed"
+            />
+          ) : (
+            <Stack spacing={1}>
+              <TextField
+                select
+                label="Ends"
+                value={endMode}
+                onChange={(e) => setEndMode(e.target.value as 'never' | 'on' | 'after')}
+                sx={{ maxWidth: 220 }}
+              >
+                <MenuItem value="never">Never</MenuItem>
+                <MenuItem value="on">On date</MenuItem>
+                <MenuItem value="after">After N occurrences</MenuItem>
+              </TextField>
+              {endMode === 'on' && (
+                <DateTimePicker
+                  label="Last occurrence on or before"
+                  value={until}
+                  onChange={(d) => setField('recurrenceUntil', d)}
+                  slotProps={{ textField: { sx: { maxWidth: 260 } } }}
+                />
+              )}
+              {endMode === 'after' && (
+                <TextField
+                  label="Occurrences"
+                  type="number"
+                  value={count}
+                  onChange={(e) =>
+                    setField('recurrenceCount', e.target.value === '' ? '' : Number(e.target.value))
+                  }
+                  helperText="Counting this one — 10 means this plus 9 repeats"
+                  sx={{ maxWidth: 200 }}
+                />
+              )}
+              <Typography variant="caption" color="text.secondary">
+                The calendar draws every occurrence at this event&apos;s time of day. A repeat only
+                becomes a record of its own once you open, move or annotate it.
+              </Typography>
+            </Stack>
+          )}
+        </Stack>
+      )}
+    </Box>
+  );
+}
+
 /** Searchable course picker; selecting a course auto-fills the record's department. */
 function CourseField({
   value,
@@ -389,6 +537,17 @@ function initForm(fields: FieldDef[], record?: EntityRecord): FormState {
       case 'tags':
         f[field.name] = record?.tagIds ?? [];
         break;
+      case 'recurrence':
+        f.recurring = Boolean(record?.recurring);
+        f.recurrencePreset = (record?.recurrencePreset as string) || 'DAILY';
+        f.recurrenceInterval = (record?.recurrenceInterval as number) ?? 1;
+        f.recurrenceCron = (record?.recurrenceCron as string) ?? '';
+        f.fixedSchedule = Boolean(record?.fixedSchedule);
+        // Series only (planners). Left undefined for a chain, so buildPayload omits them entirely
+        // rather than sending nulls a task's DTO has no fields for.
+        f.recurrenceUntil = record?.recurrenceUntil ? new Date(String(record.recurrenceUntil)) : null;
+        f.recurrenceCount = (record?.recurrenceCount as number) ?? '';
+        break;
       case 'datetime':
         f[field.name] = raw ? new Date(String(raw)) : null;
         break;
@@ -428,6 +587,27 @@ function buildPayload(fields: FieldDef[], form: FormState): Record<string, unkno
       case 'tags':
         body.tagIds = (v as number[]) ?? [];
         break;
+      case 'recurrence': {
+        const on = Boolean(form.recurring);
+        body.recurring = on;
+        body.recurrencePreset = on ? (form.recurrencePreset as string) || 'DAILY' : null;
+        body.recurrenceInterval =
+          on && form.recurrencePreset !== 'CUSTOM' ? Number(form.recurrenceInterval) || 1 : null;
+        body.recurrenceCron =
+          on && form.recurrencePreset === 'CUSTOM' ? (form.recurrenceCron as string) || null : null;
+        if (field.recurrenceMode === 'series') {
+          // Mutually exclusive; the backend enforces it too. Both null = "never ends", which is the
+          // normal case for a habit and is why the backend keys on `recurring` being present rather
+          // than null-guarding each field — see PlannerService.applyRecurrence.
+          const until = on ? (form.recurrenceUntil as Date | null) : null;
+          const count = on ? form.recurrenceCount : '';
+          body.recurrenceUntil = until ? toLocalIso(until) : null;
+          body.recurrenceCount = until || count === '' || count == null ? null : Number(count);
+        } else {
+          body.fixedSchedule = on ? Boolean(form.fixedSchedule) : false;
+        }
+        break;
+      }
       case 'datetime':
         body[field.name] = v ? toLocalIso(v as Date) : null;
         break;

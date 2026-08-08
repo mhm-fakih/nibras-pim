@@ -35,9 +35,12 @@ android {
         applicationId = "com.knotes"
         minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // Bumped with each released versionName: Android refuses to install over a build with a
+        // higher code, so a weekly versionName needs this to move too.
+        versionCode = 4
+        versionName = "1.2.32"
         buildConfigField("int", "BUILD_NUMBER", "$buildNumber")
+        buildConfigField("String", "CODENAME", "\"Dastgheib\"")
     }
 
     signingConfigs {
@@ -121,4 +124,8 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.compose.ui:ui-tooling-preview")
+
+    // Plain JVM unit tests (./gradlew :app:testDebugUnitTest) for the Android-free helpers —
+    // filename handling, parsing. Anything touching the Android framework belongs on a device.
+    testImplementation("junit:junit:4.13.2")
 }

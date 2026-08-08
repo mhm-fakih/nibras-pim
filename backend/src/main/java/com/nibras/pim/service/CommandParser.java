@@ -31,6 +31,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
  * <pre>
  *   #code   type            ?code   status          @code   context (work_location)
  *   p3      priority = 3     =code   set the code    *       bookmark    *-   un-bookmark
+ *   !       urgent           !-      un-urgent
  *   cCODE   course           dCODE   department      (cCODE/dCODE only in edit mode)
  *   (DATE   startDate        )DATE   endDate
  * </pre>
@@ -96,6 +97,12 @@ public class CommandParser {
             } else if (tok.equals("*-")) {
                 requireProp(proto, "bookmarked", tok);
                 ops.add(new Assignment("bookmarked", Boolean.FALSE, false));
+            } else if (tok.equals("!")) {
+                requireProp(proto, "urgent", tok);
+                ops.add(new Assignment("urgent", Boolean.TRUE, false));
+            } else if (tok.equals("!-")) {
+                requireProp(proto, "urgent", tok);
+                ops.add(new Assignment("urgent", Boolean.FALSE, false));
             } else if (tok.startsWith("#")) {
                 ops.add(lookup(proto, "type", "types", tok.substring(1), lookups));
             } else if (tok.startsWith("?")) {
@@ -162,12 +169,13 @@ public class CommandParser {
      * (not resolved to ids) because search spans modules; matching compares the code strings
      * against each candidate record's associated lookup code.
      */
-    public record SearchQuery(String text, Integer priority, Boolean bookmarked, String typeCode,
-                              String statusCode, String contextCode, String departmentCode,
-                              String courseCode) {
+    public record SearchQuery(String text, Integer priority, Boolean bookmarked, Boolean urgent,
+                              String typeCode, String statusCode, String contextCode,
+                              String departmentCode, String courseCode) {
         public boolean hasFilters() {
-            return priority != null || bookmarked != null || typeCode != null || statusCode != null
-                    || contextCode != null || departmentCode != null || courseCode != null;
+            return priority != null || bookmarked != null || urgent != null || typeCode != null
+                    || statusCode != null || contextCode != null || departmentCode != null
+                    || courseCode != null;
         }
     }
 
@@ -175,6 +183,7 @@ public class CommandParser {
     public SearchQuery parseSearch(String q) {
         Integer priority = null;
         Boolean bookmarked = null;
+        Boolean urgent = null;
         String type = null, status = null, context = null, department = null, course = null;
         List<String> words = new ArrayList<>();
         for (String tok : (q == null ? "" : q).trim().split("\\s+")) {
@@ -185,6 +194,10 @@ public class CommandParser {
                 bookmarked = Boolean.TRUE;
             } else if (tok.equals("*-")) {
                 bookmarked = Boolean.FALSE;
+            } else if (tok.equals("!")) {
+                urgent = Boolean.TRUE;
+            } else if (tok.equals("!-")) {
+                urgent = Boolean.FALSE;
             } else if (tok.matches("[pP]\\d+")) {
                 priority = Integer.parseInt(tok.substring(1));
             } else if (tok.startsWith("#") && tok.length() > 1) {
@@ -203,8 +216,8 @@ public class CommandParser {
                 words.add(tok);
             }
         }
-        return new SearchQuery(String.join(" ", words), priority, bookmarked, type, status, context,
-                department, course);
+        return new SearchQuery(String.join(" ", words), priority, bookmarked, urgent, type, status,
+                context, department, course);
     }
 
     private Assignment lookup(BeanWrapper proto, String field, String lookupKey, String code,

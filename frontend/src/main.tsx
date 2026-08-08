@@ -17,7 +17,9 @@ import { LoginPage } from './pages/LoginPage';
 import { UsersPage } from './pages/UsersPage';
 import { PermissionsPage } from './pages/PermissionsPage';
 import { ShortcutsProvider } from './components/ShortcutsProvider';
+import { NotificationWatcher } from './components/NotificationWatcher';
 import { CalendarPage } from './pages/CalendarPage';
+import { RecordReadPage } from './pages/RecordReadPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AuditPage } from './pages/AuditPage';
 import { ImportNotesPage } from './pages/ImportNotesPage';
@@ -25,11 +27,16 @@ import { BatchEntryPage } from './pages/BatchEntryPage';
 import { ImportFilesPage } from './pages/ImportFilesPage';
 import { ImagesPage } from './pages/ImagesPage';
 import { KanbanPage } from './pages/KanbanPage';
+import { DashboardsPage } from './pages/DashboardsPage';
+import { DashboardViewPage } from './pages/DashboardViewPage';
 import { AdminPage } from './pages/AdminPage';
 import { SearchPage } from './pages/SearchPage';
 import { BookmarksPage } from './pages/BookmarksPage';
 import { IndicatorsPage } from './pages/IndicatorsPage';
+import { InsightsPage } from './pages/InsightsPage';
+import { ParametersPage } from './pages/ParametersPage';
 import { HelpPage } from './pages/HelpPage';
+import { TrashPage } from './pages/TrashPage';
 import { SitesPage } from './pages/SitesPage';
 import { useModules } from './hooks/useModules';
 
@@ -56,8 +63,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <BrowserRouter basename={new URL(document.baseURI).pathname}>
             <AuthProvider>
             <Routes>
-              {/* Public */}
+              {/* Public: login, and the chrome-free dashboard view (meant for a TV/kiosk with no
+                  session at all — see PublicDashboardService on the backend). */}
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/dashboards/:id/view" element={<DashboardViewPage />} />
               {/* Everything else requires a signed-in user. */}
               <Route
                 path="/*"
@@ -65,11 +74,17 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                   <RequireAuth>
                     <ChangePasswordDialog />
                     <ShortcutsProvider>
+                      <NotificationWatcher />
                       <Routes>
                         <Route path="/calendar" element={<CalendarPage />} />
+                        {/* Chrome-free, narrow reading view for a single record — opened in a new
+                            tab (e.g. from a calendar event) so the page it was opened from stays put. */}
+                        <Route path="/read/:entity/:id" element={<RecordReadPage />} />
                         <Route path="/kanban" element={<KanbanPage />} />
+                        <Route path="/dashboards" element={<DashboardsPage />} />
                         <Route path="/bookmarks" element={<BookmarksPage />} />
                         <Route path="/indicators" element={<IndicatorsPage />} />
+                        <Route path="/insights" element={<InsightsPage />} />
                         <Route
                           path="/admin"
                           element={
@@ -143,12 +158,30 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                             </RequireAuth>
                           }
                         />
+                        {/* Parameter (lookup) data entry — its own capability, so the
+                            PARAMETERS_DATA_ENTRY role reaches it without tools.settings. */}
+                        <Route
+                          path="/parameters"
+                          element={
+                            <RequireAuth permission="params.write">
+                              <ParametersPage />
+                            </RequireAuth>
+                          }
+                        />
                         <Route path="/help" element={<HelpPage />} />
                         <Route
                           path="/audit"
                           element={
                             <RequireAuth permission="tools.audit">
                               <AuditPage />
+                            </RequireAuth>
+                          }
+                        />
+                        <Route
+                          path="/trash"
+                          element={
+                            <RequireAuth permission="content.write">
+                              <TrashPage />
                             </RequireAuth>
                           }
                         />

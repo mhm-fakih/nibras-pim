@@ -35,7 +35,7 @@ import {
   REPORT_KEYS,
 } from '../api/client';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { EntityConfig } from '../config/entities';
+import { EntityConfig, MERGEABLE_MODULES } from '../config/entities';
 import { activeReportLabel } from '../config/reports';
 import { statusStyle } from './statusStyle';
 import { dirOf } from '../util/rtl';
@@ -43,6 +43,7 @@ import { useModules } from '../hooks/useModules';
 import { useAuth } from '../hooks/useAuth';
 import { AuthImage } from './AuthImage';
 import { ModuleBar } from './ModuleBar';
+import { MergeDialog, MergeDraft } from './MergeDialog';
 
 interface Props {
   config: EntityConfig;
@@ -77,6 +78,8 @@ export function ListPane({ config, selectedId, onSelect, onNew, onItems }: Props
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [command, setCommand] = useState('');
   const [batchMsg, setBatchMsg] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<number | null>(null);
+  const [mergeDraft, setMergeDraft] = useState<MergeDraft | null>(null);
 
   // Report presets come from the URL (set by the SideNav reports panel).
   const reportParams = useMemo(() => {
@@ -119,7 +122,7 @@ export function ListPane({ config, selectedId, onSelect, onNew, onItems }: Props
     queryFn: () => getLookups(config.key),
   });
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['list', config.key, { q, onDay, statusId, typeId, bookmarked, page, reportKey }],
     queryFn: () =>
       listEntities(config.key, {
@@ -261,7 +264,7 @@ export function ListPane({ config, selectedId, onSelect, onNew, onItems }: Props
             <TextField
               size="small"
               fullWidth
-              placeholder="cmd: p3 #art ?done @Z * *-  =code"
+              placeholder="cmd: p3 #art ?done @Z * *- ! !-  =code"
               value={command}
               onChange={(e) => setCommand(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && command.trim() && batch.mutate()}
@@ -293,7 +296,41 @@ export function ListPane({ config, selectedId, onSelect, onNew, onItems }: Props
             // Right-align (rtl) Arabic/Hebrew titles based on the text itself, not the language field.
             const rtl = dirOf(it.displayTitle) === 'rtl';
             return (
-            <ListItemButton key={it.id} divider selected={it.id === selectedId} onClick={() => onSelect(it.id)}>
+            <ListItemButton
+              key={it.id}
+              divider
+              selected={it.id === selectedId}
+              onClick={() => onSelect(it.id)}
+              draggable={canWriteContent && MERGEABLE_MODULES.has(config.key)}
+              onDragStart={(e) => {
+                e.dataTransfer.setData('text/plain', String(it.id));
+                e.dataTransfer.effectAllowed = 'move';
+              }}
+              onDragOver={(e) => {
+                if (canWriteContent && MERGEABLE_MODULES.has(config.key)) {
+                  e.preventDefault();
+                  setDragOverId(it.id);
+                }
+              }}
+              onDragLeave={() => setDragOverId((cur) => (cur === it.id ? null : cur))}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOverId(null);
+                const draggedId = Number(e.dataTransfer.getData('text/plain'));
+                if (draggedId && draggedId !== it.id) {
+                  const dragged = items.find((x) => x.id === draggedId);
+                  setMergeDraft({
+                    module: config.key,
+                    moduleLabel: config.label,
+                    primaryId: it.id,
+                    primaryTitle: it.displayTitle,
+                    secondaryId: draggedId,
+                    secondaryTitle: dragged?.displayTitle ?? '',
+                  });
+                }
+              }}
+              sx={dragOverId === it.id ? { bgcolor: 'action.hover', outline: 2, outlineColor: 'primary.main', outlineOffset: -2 } : undefined}
+            >
               <ModuleBar code={moduleMeta?.code} color={moduleMeta?.color} title={config.label} />
               <Checkbox
                 size="small"
@@ -353,7 +390,24 @@ export function ListPane({ config, selectedId, onSelect, onNew, onItems }: Props
             </ListItemButton>
             );
           })}
-          {items.length === 0 && (
+          {items.length === 0 && isError && (
+            <Box sx={{ p: 3 }}>
+              <Alert
+                severity="error"
+                action={
+                  <Button color="inherit" size="small" onClick={() => refetch()}>
+                    Retry
+                  </Button>
+                }
+              >
+                Couldn't load {config.label.toLowerCase()}.{' '}
+                {(error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+                  (error as Error | undefined)?.message ??
+                  'Please try again.'}
+              </Alert>
+            </Box>
+          )}
+          {items.length === 0 && !isError && (
             <Typography sx={{ p: 3, color: 'text.secondary' }}>
               {isFetching ? 'Loading…' : 'No records.'}
             </Typography>
@@ -382,6 +436,28 @@ export function ListPane({ config, selectedId, onSelect, onNew, onItems }: Props
           siblingCount={0}
         />
       </Box>
+
+      <MergeDialog
+        draft={mergeDraft}
+        onSwap={() =>
+          setMergeDraft((d) =>
+            d
+              ? {
+                  ...d,
+                  primaryId: d.secondaryId,
+                  primaryTitle: d.secondaryTitle,
+                  secondaryId: d.primaryId,
+                  secondaryTitle: d.primaryTitle,
+                }
+              : d,
+          )
+        }
+        onCancel={() => setMergeDraft(null)}
+        onMerged={(survivorId) => {
+          setMergeDraft(null);
+          onSelect(survivorId);
+        }}
+      />
     </Box>
   );
 }

@@ -51,6 +51,7 @@ export function HelpPage() {
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
             <Chip label={`${info?.app ?? 'Nibras PIM'}`} color="primary" size="small" />
             <Chip label={`v${info?.version ?? '…'}`} size="small" variant="outlined" />
+            {info?.codename && <Chip label={`"${info.codename}"`} size="small" variant="outlined" />}
             {info?.dbName && <Chip label={`DB: ${info.dbName}`} size="small" variant="outlined" />}
             {info?.repoUrl && (
               <MuiLink href={info.repoUrl} target="_blank" rel="noreferrer" variant="body2">

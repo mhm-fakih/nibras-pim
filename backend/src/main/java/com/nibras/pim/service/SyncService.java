@@ -77,13 +77,15 @@ public class SyncService {
     private final JournalTypeRepository journalTypeRepo;
     private final PlannerTypeRepository plannerTypeRepo;
     private final DepartmentRepository departmentRepo;
+    private final PlannerSeriesService plannerSeries;
 
     public SyncService(TaskRepository taskRepo, GoalRepository goalRepo, PlannerRepository plannerRepo,
                        JournalRepository journalRepo, IndexCardRepository indexCardRepo,
                        WritingRepository writingRepo, BookRepository bookRepo,
                        WorkStatusRepository workStatusRepo, ResourceStatusRepository resourceStatusRepo,
                        WritingStatusRepository writingStatusRepo, JournalTypeRepository journalTypeRepo,
-                       PlannerTypeRepository plannerTypeRepo, DepartmentRepository departmentRepo) {
+                       PlannerTypeRepository plannerTypeRepo, DepartmentRepository departmentRepo,
+                       PlannerSeriesService plannerSeries) {
         this.taskRepo = taskRepo;
         this.goalRepo = goalRepo;
         this.plannerRepo = plannerRepo;
@@ -97,6 +99,7 @@ public class SyncService {
         this.journalTypeRepo = journalTypeRepo;
         this.plannerTypeRepo = plannerTypeRepo;
         this.departmentRepo = departmentRepo;
+        this.plannerSeries = plannerSeries;
     }
 
     // ====================================================================== reads (exportJson*)
@@ -167,6 +170,61 @@ public class SyncService {
             m.put("summary", summary);
             m.put("language", p.getLanguage());
             m.put("description", br(p.getDescription()));
+            // Set on a recurring planner's master row so the phone can mark it as repeating, the
+            // same way it marks the expanded occurrences below.
+            if (Boolean.TRUE.equals(p.getRecurring())) {
+                m.put("seriesId", p.getId());
+                m.put("recurrenceId", fmt(p.getStartDate(), ISO));
+            } else if (p.getSeriesId() != null) {
+                m.put("seriesId", p.getSeriesId());
+                m.put("recurrenceId", fmt(p.getRecurrenceId(), ISO));
+            }
+            out.add(m);
+        }
+        out.addAll(expandedPlanOccurrences(now.minusDays(14), now.plusDays(14)));
+        return out;
+    }
+
+    /**
+     * The virtual occurrences of recurring planners in the same window the plan export covers, so
+     * the phone shows a 07:00 habit on every day it happens rather than only on the master row's own
+     * day. See {@link PlannerSeriesService} for why these have no rows.
+     *
+     * <p>They carry a COMPOSITE id, {@code <seriesId>@<recurrenceId>}, because the export's contract
+     * is that every record has one and the clients key their local state on it. It is deliberately
+     * not a bare number: a client that treated it as a record id and pushed an edit against it would
+     * silently rewrite the master, changing every occurrence. `seriesId`/`recurrenceId` are also
+     * sent separately, which is what a client should actually use — via the materialise endpoint —
+     * to turn one into a real record it may edit.
+     */
+    private List<Map<String, Object>> expandedPlanOccurrences(LocalDateTime from, LocalDateTime to) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (PlannerSeriesService.Occurrence o : plannerSeries.expand(from, to)) {
+            Planner master = o.master();
+            if (master.getCompletedOn() != null) {
+                continue;   // matches the plan export's own filter
+            }
+            String summary = (master.getTask() != null ? "[" + master.getTask().getSummary() + "] " : "")
+                    + nz(master.getSummary());
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("type", "P");
+            m.put("id", master.getId() + "@" + o.recurrenceId());
+            m.put("ecode", "P");
+            m.put("meta", fmt(o.start(), DMY_HM));
+            m.put("subtype", master.getType() != null ? master.getType().getCode() : null);
+            m.put("date", fmt(o.start(), DMY));
+            m.put("datediff", daysFromNow(o.start()));
+            m.put("startDate", fmt(o.start(), ISO));
+            m.put("endDate", fmt(o.end(), ISO));
+            m.put("color", "darkblue");
+            m.put("filesList", master.getFilesList());
+            m.put("nbFiles", master.getNbFiles());
+            m.put("summary", summary);
+            m.put("language", master.getLanguage());
+            m.put("description", br(master.getDescription()));
+            m.put("seriesId", master.getId());
+            m.put("recurrenceId", fmt(o.recurrenceId(), ISO));
+            m.put("virtual", true);
             out.add(m);
         }
         return out;
@@ -360,21 +418,43 @@ public class SyncService {
             LocalDateTime start = parseCalDate(str(r.get("startDate")));
             LocalDateTime end = parseCalDate(str(r.get("endDate")));
             String summary = str(r.get("summary"));
+            String description = str(r.get("description"));
             if ("J".equals(ecode)) {
-                Journal j = new Journal();
-                j.setLevel("m");
+                // Update-by-id when the phone sends one (an edit/resize/move of an existing entry),
+                // same as the Planner branch below — previously this always created a new Journal
+                // and silently ignored any id, so editing a Journal calendar entry from the phone
+                // was impossible.
+                Long id = asLong(r.get("id"));
+                Journal existing = id != null ? journalRepo.findById(id).orElse(null) : null;
+                Journal j = existing != null ? existing : new Journal();
+                if (j.getLevel() == null) {
+                    j.setLevel("m");
+                }
                 j.setSummary(summary);
                 j.setBookmarked(true);
                 j.setStartDate(start);
                 j.setEndDate(end);
-                j.setDescription("?");
-                journalTypeRepo.findFirstByCode("evn").ifPresent(j::setType);
+                // journal.description is nullable — no placeholder needed for a blank description.
+                // A resize/move/edit that doesn't carry one (e.g. only the time changed) must never
+                // clobber an existing description with a blank/placeholder value, hence the guard.
+                if (existing == null || !description.isBlank()) {
+                    j.setDescription(description);
+                }
+                if (j.getType() == null) {
+                    journalTypeRepo.findFirstByCode("evn").ifPresent(j::setType);
+                }
                 journalRepo.save(j);
                 ids.add(j.getId());
             } else {
                 Long id = asLong(r.get("id"));
-                Planner p = id != null ? plannerRepo.findById(id).orElseGet(Planner::new) : new Planner();
+                Planner existing = id != null ? plannerRepo.findById(id).orElse(null) : null;
+                Planner p = existing != null ? existing : new Planner();
                 p.setSummary(summary);
+                // Same guard as Journal above: don't blank out an existing description just
+                // because this particular push (e.g. a drag-resize) didn't carry one.
+                if (existing == null || !description.isBlank()) {
+                    p.setDescription(description);
+                }
                 p.setBookmarked(true);
                 p.setStartDate(start);
                 p.setEndDate(end);

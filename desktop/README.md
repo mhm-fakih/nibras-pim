@@ -45,6 +45,8 @@ sudo pacman -S python-gobject gtk3
 |------|------------|
 | `notes.py`  | Pure-Python storage: the file-name tag scheme, parsing, list/save/update/delete. No GUI — easy to read and reuse. |
 | `config.py` | App-wide `Settings` (saved next to the program in `config.json`) **and** `RepoConfig` — the per-folder tag options saved inside each note folder as `.knotes.json`. |
+| `filters.py` | Pure-Python filter model: which notes match the sidebar's filters, and how many notes are behind every individual option. No GUI, like `notes.py`. |
+| `sidebar.py` | The GTK3 filter sidebar — calendar heat map, tag facets, counts. Draws what `filters.py` decides. |
 | `knotes.py` | The GTK3 window: note list, tagging input bar, editing, search, settings, shortcuts. |
 | `style.css` | Appearance. Plain hex colours — change the accent in one place. |
 
@@ -54,29 +56,70 @@ Everything is reachable from the keyboard (press **F1** in the app for this list
 
 | Keys | Action |
 |------|--------|
-| `Ctrl+Enter` | Save / send the note |
-| `Esc` | Cancel editing · clear the field · close search |
-| `Ctrl+1 … Ctrl+9` | Choose the 1st … 9th **type** |
-| `Alt+1 … Alt+9` | Choose **priority** 1 … 9 |
-| `Ctrl+Alt+1 … 9` | Choose the 1st … 9th **category** |
+| `Ctrl+Enter` (or plain `Enter` if "save on enter" is on) | Save / send the note |
+| `Esc` | Text field ⇄ board (once → field · again → board) |
+| `Ctrl+Shift+<letter>` | Type/category: retags the selected card (renames its file), else sets the add form's chip |
+| `Ctrl+Shift+<digit>` | Priority: retags the selected card, else sets the add form's priority |
+| Click a card / Arrows | Select a card · move between cards (↑↓ in a column, ←→ across) |
+| `Enter` (card selected) | Open the selected note in your editor |
+| `Ctrl+D` (card selected) | Move the selected note to the `.deleted/` folder (with confirmation) |
+| `Ctrl+M` / `Ctrl+click` | Mark/unmark a card for merge (first marked = survivor) · `Esc` clears |
+| `Ctrl+Shift+M` | Merge marked notes into the survivor; the rest move to `.merged/` |
+| `Space` (card selected) | Quick-append a comment to the note (inline field · `Enter` adds · `Esc` cancels) |
+| `Ctrl+O` (card selected) | Open the note's companion files folder (created on demand) |
+| `Ctrl+1 … Ctrl+9` | Switch to the 1st … 9th configured note **folder/repository** — not type; priority uses `Ctrl+Shift+<digit>` instead |
 | `Ctrl+F` | Toggle search |
+| `Ctrl+B` | Show / hide the **filter sidebar** (calendar heat map, tag facets, counts) |
+| `Ctrl+R` | Refresh from disk (pick up notes synced from another machine) |
+| `Ctrl+T` | Toggle light / dark theme |
 | `Ctrl+L` | Toggle **minimal side-note mode** (board hidden) |
 | `F12` | Toggle focus between the card area and the add field (in minimal mode, selects the lone card so you can retag/delete it) |
-| `Ctrl+T` | Toggle light / dark theme |
-| `Ctrl+D` (card selected) | Move the selected note to the `Deleted/` folder (with confirmation) |
 | `Ctrl+,` | Settings |
-| `Ctrl+Q` | Quit |
-| `Tab` / arrows / `Space` | Move between chips and toggle them |
-| `↑`/`↓` in the list, `Enter` | Select a note and open it for editing |
-| `Delete` (in the list) | Delete the selected note |
+| `F1` | This help (shown live, always in sync with the code) |
+| `Ctrl+Q` | Quit (saves an unsent draft first) |
+
+There's no `Alt`-based or bare-`Delete` shortcut — every note-editing shortcut is `Ctrl`(`+Shift`)`+<key>`, and priority is `Ctrl+Shift+<digit>`, not `Alt+<digit>`. Press **F1** in the app any time — this table is generated from the same source, so it can't drift.
 
 ## Notes on behaviour
 
-- **View mode + sorting on the toolbar.** A linked kanban / list / minimal button group and a
-  sort dropdown (Date / Category / Type / Priority) live in the header bar — they're switched
+- **Filter sidebar (`Ctrl+B`).** A collapsible left nav bar that filters the board, with **the
+  number of notes behind every option** shown next to it:
+  - a **calendar heat map** — one cell per day, shaded by how many notes that day has, so a month
+    of note-taking is legible at a glance. A **Created / Updated** switch drives both the shading
+    and what a clicked day means: *Created* uses the note's **file-name timestamp** (never the
+    file's own dates — retagging rewrites the file and would otherwise drag every note to today),
+    *Updated* uses the file's mtime, i.e. the "revisited it" signal. The two use different colour
+    ramps (blue vs. teal) so a day of capture never looks like a day of review. Click a day to
+    filter to it, shift-click for a range; each cell also carries its own count, and its tooltip
+    always shows both numbers.
+  - **Priority / Type / Category** facets — every option the folder defines (even at 0), plus any
+    *foreign* code the notes actually use but the folder doesn't define (shown in italic amber,
+    e.g. a `~Dev` category synced in from a folder with a different taxonomy).
+  - **Non-standard** — include / hide / **only**. Non-standard means a visible file or folder in
+    the note directory whose **name isn't the canonical `<timestamp>~<type>~p<n>~<subject>.md`
+    format** — exactly the "needs metadata" items. (Hidden dotfiles, companion `.d/` folders and
+    the `.deleted`/`.merged`/`.imported` housekeeping folders are never in scope.) Tags don't enter
+    into it: `…~T~p3~Dev.md` is standard even where `Dev` isn't a configured category — that shows
+    up as a foreign-code row instead. "Only" is the clean-up queue; select an item and
+    `Ctrl+Shift+<code>` files it in.
+
+  Counts are *faceted*: each option is counted with all the **other** filters applied but its own
+  dimension ignored, so the number next to *Type W* always means "how many I'd see if I also picked
+  W" rather than dropping to zero because another type is selected. The numbers follow the search
+  box too. Collapsed, the whole bar shrinks to a ~26px rail. Sections collapse individually and the
+  layout is remembered; **which options are picked deliberately isn't**, so a stale filter can never
+  greet you with an empty board on the next launch.
+- **View mode + sorting on the toolbar.** A linked kanban / list / columns / minimal button group
+  and a sort dropdown (Date / Category / Type / Priority) live in the header bar — they're switched
   too often for the Settings dialog. Radio-style (exactly one mode active), persisted, applied
   immediately; `Ctrl+L` still toggles minimal mode and keeps the group in sync. The kanban only
   shows category columns that have notes.
+- **Columns view.** The list view, wrapped: no headings and no grouping, just every note in the
+  chosen sort order read left→right and then down, in as many columns as the window fits. Cards are
+  pinned to **Card max width** (Settings) rather than sharing the width out, so they stay readable
+  on a wide screen instead of stretching into long lines — which is why widening the window adds a
+  column instead of fattening the cards. Arrow keys walk it like the kanban (↑↓ within a column,
+  ←→ across); it re-flows on resize only when the column count actually changes.
 - **Auto-open the files folder after save.** A toolbar toggle (folder icon): every saved note
   immediately opens its companion `.d/` folder in the file manager (the `Ctrl+O` action) —
   for capture sessions where each note gets files dropped in right after writing. Persisted.
@@ -108,9 +151,14 @@ Everything is reachable from the keyboard (press **F1** in the app for this list
 - **Default type/priority/subject.** A `*` on a code in Settings marks the default that a new note
   starts with (and is used when nothing is selected). The `*` is only a marker — it's stripped from
   the code everywhere (chip, tag, file name); if several are starred, the first one wins.
-- **Safe delete.** `Ctrl+D` on a selected note **moves it to a `Deleted/` subfolder** (recoverable)
+- **Safe delete.** `Ctrl+D` on a selected note **moves it to a `.deleted/` subfolder** (recoverable)
   rather than erasing it; the confirmation shows a summary of the note's content (and defaults to the
   "Yes" button) so you don't delete the wrong one.
+- **Hidden housekeeping folders.** The app's own subfolders — `.deleted/` (soft-deletes), `.merged/`
+  (absorbed notes) and `.imported/` (reserved for a future local import archive) — are all hidden
+  (leading dot) and lowercase, so they never clutter the folder or show on the board. Legacy or
+  alternate-cased variants (`Deleted`, `Trash`, `Imported`, …) are recognised and kept off the board
+  too.
 - **Paste-ready on focus.** Whenever the window gains focus, the cursor jumps into the add field
   (unless you're navigating cards or searching) so a paste + `Ctrl+Enter` is immediate.
 - **Per-line text direction.** Mixed Arabic/English is handled per line, the way xed/kate do:
@@ -118,5 +166,10 @@ Everything is reachable from the keyboard (press **F1** in the app for this list
 - **Chronological list.** Oldest at the top, newest at the bottom. Saving a note scrolls the list to
   the bottom so the just-added note is visible (immediate feedback). Click (or `Enter`) a note to
   edit it; editing keeps its original timestamp and only renames the file if you change its tags.
+- **Mass-tagging keeps your place.** Retagging the selected card with `Ctrl+Shift+<code>` renames its
+  file but leaves the view where it is — the list no longer snaps to the top on every edit — so you can
+  select a card partway down and rattle off type/priority/category changes without losing your spot.
+  In both list and kanban the view then follows the selection as you arrow to the next card. Pair it
+  with the **Date created** sort (so a retagged note doesn't relocate) for a smooth top-to-bottom pass.
 - **Cross-compatible filenames.** The scheme matches the Android app exactly, so the same notes
   directory works on both.

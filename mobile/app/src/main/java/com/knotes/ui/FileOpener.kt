@@ -8,14 +8,15 @@ import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.knotes.player.isMediaFile
+import com.knotes.util.FileNames
 import java.io.File
 
 /**
  * Opens a record's file. Audio/video files are handed to [onPlayMedia], which loads them into the
  * persistent in-app player (so playback survives navigation); everything else is handed to another
- * app via a FileProvider content URI. Files live at `filesDir/TYPE/bucket/id/filename` (Syncthing
- * keeps that tree in sync), matching the Ionic app. [type] may be a nested path, e.g.
- * `R/<resourceType>` for Resources records.
+ * app via [openLocalFile]. Files live at `filesDir/TYPE/bucket/id/filename` (Syncthing keeps that
+ * tree in sync), matching the Ionic app. [type] may be a nested path, e.g. `R/<resourceType>` for
+ * Resources records.
  */
 fun openRecordFile(
     context: Context,
@@ -26,23 +27,24 @@ fun openRecordFile(
     onPlayMedia: (File) -> Unit,
 ) {
     val bucket = id.toLong() / 100
-    val file = File("$filesDir/$type/$bucket/$id/$filename")
-    if (!file.exists()) {
-        Toast.makeText(context, "Not found: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+    val dir = File("$filesDir/$type/$bucket/$id")
+    // The name comes from the server's files_list column while the bytes come from Syncthing, so
+    // for a non-ASCII (Arabic) name the two spellings can differ by bidi marks or Unicode
+    // normalization without differing to a reader. Resolve tolerantly — see FileNames.
+    val file = FileNames.resolve(dir, filename)
+    if (file == null) {
+        // Name the neighbours: "not found" on a folder that visibly contains the file is the most
+        // confusing failure this screen can produce, and it only ever happens on non-ASCII names.
+        val siblings = dir.listFiles()?.joinToString(", ") { it.name }.orEmpty()
+        val detail = if (siblings.isBlank()) "folder is empty or missing" else "folder has: $siblings"
+        Toast.makeText(context, "Not found: $filename in ${dir.path} ($detail)", Toast.LENGTH_LONG).show()
         return
     }
-    if (isMediaFile(filename)) {
+    if (isMediaFile(file.name)) {
         onPlayMedia(file)
         return
     }
-    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-    val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase()) ?: "*/*"
-    val intent = Intent(Intent.ACTION_VIEW).apply {
-        setDataAndType(uri, mime)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    runCatching { context.startActivity(intent) }
-        .onFailure { Toast.makeText(context, "No app to open ${file.name}", Toast.LENGTH_LONG).show() }
+    openLocalFile(context, file)
 }
 
 /** Opens any on-disk file in another app via a FileProvider content URI (note attachments etc.). */
@@ -54,7 +56,9 @@ fun openLocalFile(context: Context, file: File) {
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     // Extension → MIME, with a text/plain net for the common unmapped text suffixes (.md etc.) —
     // an unmapped type used to become "*/*", which nothing resolves directly.
-    val ext = file.extension.lowercase()
+    // FileNames.ext, not File.extension: a trailing bidi mark on an Arabic name would otherwise
+    // make every extension unrecognised, collapsing the type to "*/*".
+    val ext = FileNames.ext(file.name)
     val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
         ?: when (ext) {
             "md", "txt", "log", "srt", "json", "csv" -> "text/plain"

@@ -23,4 +23,15 @@ public interface BaseRepository<E extends BaseEntity>
             """)
     List<Object[]> countByCreationDay(@Param("from") LocalDateTime from,
                                       @Param("to") LocalDateTime to);
+
+    /** Per-day last-updated counts (the Insights page's "updated" histogram) — same shape as
+     *  {@link #countByCreationDay}, just keyed on lastUpdated instead of dateCreated. */
+    @Query("""
+            select function('date', e.lastUpdated), count(e)
+            from #{#entityName} e
+            where e.lastUpdated between :from and :to
+            group by function('date', e.lastUpdated)
+            """)
+    List<Object[]> countByUpdateDay(@Param("from") LocalDateTime from,
+                                    @Param("to") LocalDateTime to);
 }

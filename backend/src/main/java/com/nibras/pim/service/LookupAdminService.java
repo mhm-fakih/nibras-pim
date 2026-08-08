@@ -129,6 +129,51 @@ public class LookupAdminService {
         }
     }
 
+    /**
+     * Add a new lookup value. These tables predate this app (legacy Grails reference data —
+     * {@code LookupEntity} carries no JPA {@code @GeneratedValue}), so this goes through plain
+     * JDBC rather than the persistence layer, matching every other method here. {@code version}/
+     * {@code date_created}/{@code last_updated} have no DB-side default and are NOT NULL, so
+     * they're filled in explicitly.
+     */
+    @Transactional
+    public LookupValue create(String table, String name, String code) {
+        requireKnown(table);
+        if (name == null || name.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Name is required.");
+        }
+        jdbc.update("INSERT INTO " + table + " (name, code, version, date_created, last_updated) "
+                        + "VALUES (?, ?, 0, NOW(), NOW())",
+                name.trim(), code == null || code.isBlank() ? null : code.trim());
+        Long id = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        return new LookupValue(id, name.trim(), code, null);
+    }
+
+    /** Rename a lookup value and/or change its code. */
+    @Transactional
+    public void rename(String table, long id, String name, String code) {
+        requireKnown(table);
+        if (name == null || name.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Name is required.");
+        }
+        int n = jdbc.update("UPDATE " + table + " SET name = ?, code = ?, last_updated = NOW() WHERE id = ?",
+                name.trim(), code == null || code.isBlank() ? null : code.trim(), id);
+        if (n == 0) {
+            throw new ResponseStatusException(BAD_REQUEST, "Lookup value not found.");
+        }
+    }
+
+    /** Soft-delete a lookup value (recoverable directly in the DB, same convention as every other
+     * table here — no restore UI for this yet, deliberately out of scope). */
+    @Transactional
+    public void delete(String table, long id) {
+        requireKnown(table);
+        int n = jdbc.update("UPDATE " + table + " SET deleted_on = NOW() WHERE id = ? AND deleted_on IS NULL", id);
+        if (n == 0) {
+            throw new ResponseStatusException(BAD_REQUEST, "Lookup value not found.");
+        }
+    }
+
     /** Give every still-uncoloured lookup value a deterministic pastel. Returns how many were filled. */
     @Transactional
     public int fillColors() {

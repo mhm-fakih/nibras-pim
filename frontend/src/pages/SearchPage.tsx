@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
+  Alert,
   Box,
   Chip,
   InputAdornment,
@@ -12,7 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import { searchAll, SearchHit } from '../api/client';
+import { getSearchIndexStatus, searchAll, SearchHit } from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { ENTITY_BY_KEY } from '../config/entities';
 
@@ -32,6 +33,14 @@ export function SearchPage() {
     enabled: q.trim().length > 0,
   });
   const hits = data ?? [];
+
+  // Only needed to explain a zero-result search, so it's fetched lazily alongside one.
+  const { data: indexStatus } = useQuery({
+    queryKey: ['search-index-status'],
+    queryFn: getSearchIndexStatus,
+    enabled: q.trim().length > 0,
+    staleTime: 300_000,
+  });
 
   const grouped = useMemo(() => {
     const map = new Map<string, SearchHit[]>();
@@ -94,9 +103,20 @@ export function SearchPage() {
         )}
 
         {q && !isFetching && hits.length === 0 && (
-          <Typography color="text.secondary">
-            {dedupe ? 'No similar records found.' : `No matches for “${q}”.`}
-          </Typography>
+          indexStatus?.indexed === 0 ? (
+            // Distinguish "genuinely no matches" from "the index was never built" — the latter
+            // silently returns nothing on a fresh install over an existing database, while each
+            // module's own search keeps working, which reads as a broken global search.
+            <Alert severity="warning">
+              The search index is empty, so global search can&rsquo;t match anything yet — this is
+              normal on a new install pointed at an existing database. Build it once with{' '}
+              <strong>Rebuild search index</strong> on the <Link to="/admin">Admin</Link> page.
+            </Alert>
+          ) : (
+            <Typography color="text.secondary">
+              {dedupe ? 'No similar records found.' : `No matches for “${q}”.`}
+            </Typography>
+          )
         )}
 
         {grouped.map(([module, list]) => (

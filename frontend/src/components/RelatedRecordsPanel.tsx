@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Box, Chip, List, ListItemButton, ListItemText, Typography } from '@mui/material';
 import LinkIcon from '@mui/icons-material/Link';
 import { getRelated } from '../api/client';
+import { dirOf } from '../util/rtl';
 
 /** Records linked to this one through the legacy foreign keys (Book→excerpts, Goal→tasks, …). */
 export function RelatedRecordsPanel({ module, id }: { module: string; id: number }) {
@@ -22,19 +23,27 @@ export function RelatedRecordsPanel({ module, id }: { module: string; id: number
             {g.label} ({g.count})
           </Typography>
           <List dense disablePadding>
-            {g.items.map((it) => (
-              <ListItemButton
-                key={it.id}
-                sx={{ py: 0.25, borderRadius: 1 }}
-                onClick={() => navigate(`/${it.module}?select=${it.id}`)}
-              >
-                <ListItemText
-                  primary={it.title || '(untitled)'}
-                  primaryTypographyProps={{ dir: 'auto', noWrap: true, fontSize: 13 }}
-                />
-                <Chip size="small" variant="outlined" label={`#${it.id}`} sx={{ ml: 1 }} />
-              </ListItemButton>
-            ))}
+            {g.items.map((it) => {
+              const rtl = dirOf(it.title) === 'rtl';
+              return (
+                <ListItemButton
+                  key={it.id}
+                  sx={{ py: 0.25, borderRadius: 1 }}
+                  onClick={() => navigate(`/${it.module}?select=${it.id}`)}
+                >
+                  <ListItemText
+                    primary={it.title || '(untitled)'}
+                    primaryTypographyProps={{
+                      dir: rtl ? 'rtl' : 'ltr',
+                      align: rtl ? 'right' : 'left',
+                      noWrap: true,
+                      fontSize: 13,
+                    }}
+                  />
+                  <Chip size="small" variant="outlined" label={`#${it.id}`} sx={{ ml: 1 }} />
+                </ListItemButton>
+              );
+            })}
             {g.count > g.items.length && (
               <Typography variant="caption" color="text.secondary" sx={{ pl: 1 }}>
                 …and {g.count - g.items.length} more — open the {g.label.toLowerCase()} list to see all

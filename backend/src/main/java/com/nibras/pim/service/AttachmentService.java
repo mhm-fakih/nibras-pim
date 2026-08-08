@@ -66,7 +66,10 @@ public class AttachmentService {
         return repositories.listFiles(module, id, typeCode(module, id));
     }
 
-    /** Store an uploaded file in the record's folder in repository {@code repo} (created if needed). */
+    /** Store an uploaded file in the record's folder in repository {@code repo} (created if needed).
+     * A name collision doesn't overwrite the existing file — the new upload gets a
+     * {@code <stem>.<yyyyMMdd-HHmmss>[.n]<ext>} suffix instead (same convention as
+     * {@code FulltextService}'s checkout-file backups). */
     public void store(String module, long id, int repo, org.springframework.web.multipart.MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(BAD_REQUEST, "Empty upload.");
@@ -78,12 +81,32 @@ public class AttachmentService {
         // Strip any directory components from the client-supplied name.
         String safeName = java.nio.file.Paths.get(original).getFileName().toString();
         Path target = resolveInRepo(module, id, repo, safeName);
+        if (Files.exists(target)) {
+            target = withDateStamp(target);
+        }
         try {
             Files.createDirectories(target.getParent());
             file.transferTo(target);
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
         }
+    }
+
+    /** {@code <stem>.<yyyyMMdd-HHmmss>[.n]<ext>} next to {@code target}, not yet existing. */
+    private static Path withDateStamp(Path target) {
+        String name = target.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        // A dot at position 0 (dotfile, e.g. ".gitignore") isn't an extension separator.
+        String stem = dot > 0 ? name.substring(0, dot) : name;
+        String ext = dot > 0 ? name.substring(dot) : "";
+        String ts = java.time.LocalDateTime.now().format(
+                java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        Path candidate = target.resolveSibling(stem + "." + ts + ext);
+        int n = 2;
+        while (Files.exists(candidate)) {
+            candidate = target.resolveSibling(stem + "." + ts + "." + n++ + ext);
+        }
+        return candidate;
     }
 
     /** Delete a file (not a folder) from the record's folder in repository {@code repo}. */

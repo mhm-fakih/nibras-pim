@@ -65,7 +65,10 @@ export function StatusBar() {
         {cell('Server', data ? `${data.serverIp}:${data.port}` : '…')}
         {cell('DB', data?.dbName)}
         {cell('App', data?.app)}
-        {cell('Version', data ? `v${data.version}` : '…')}
+        {cell(
+          'Version',
+          data ? `v${data.version}${data.codename ? ` "${data.codename}"` : ''}` : '…',
+        )}
       </Typography>
 
       <Box sx={{ flex: 1 }} />

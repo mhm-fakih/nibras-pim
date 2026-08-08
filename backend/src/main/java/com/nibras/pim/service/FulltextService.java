@@ -55,7 +55,10 @@ public class FulltextService {
             "planners", List.of("summary", "description", "notes"),
             "notes", List.of("summary", "description", "notes"),
             "writings", List.of("summary", "description", "notes"),
-            "goals", List.of("title", "description", "notes"),
+            // Goal keeps a vestigial `title` column from the legacy schema (populated on 9 of 1300+
+            // rows) but the app edits `summary` — exporting `title` produced a checkout file whose
+            // first field was always blank. Resources below genuinely use `title` (Book has no summary).
+            "goals", List.of("summary", "description", "notes"),
             "resources", List.of("title", "description", "fullText", "highlights", "notes"));
 
     private static final Map<String, Class<? extends BaseEntity>> CLASSES = Map.of(
@@ -157,6 +160,11 @@ public class FulltextService {
     }
 
     public record ExportResult(String path, String content) {
+    }
+
+    /** Whether this module has a checkout-file mapping at all (only the 7 main record types do). */
+    public boolean supports(String module) {
+        return CLASSES.containsKey(module);
     }
 
     /** Write the record's fields to its _record.md and return the path + content. */

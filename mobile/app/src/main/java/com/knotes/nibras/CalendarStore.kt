@@ -23,10 +23,37 @@ class CalendarStore(context: Context) {
         save(_pending.value)
     }
 
-    fun remove(event: CalendarEvent) {
-        _pending.value = _pending.value - event
+    /**
+     * Queue an edit, replacing any pending entry for the SAME entry rather than appending a copy,
+     * so repeated edits before the next sync collapse into just the latest one.
+     *
+     * Identity is the server id when there is one, else the client-generated [CalendarEvent.localKey].
+     * The localKey case matters: an entry created offline has a blank id, and matching on id alone
+     * treated every edit of it as a brand-new entry — the outbox grew a copy per edit and each copy
+     * was pushed as its own create, which is how one edited entry became several server records.
+     */
+    fun upsert(event: CalendarEvent) {
+        _pending.value = _pending.value.filterNot { same(it, event) } + event
         save(_pending.value)
     }
+
+    fun remove(event: CalendarEvent) {
+        // By identity, not value equality: the copy handed back after a push may differ from the
+        // stored one (an edit landed in between), and a value-equality removal would silently miss
+        // it and leave the entry to be pushed again on the next flush.
+        _pending.value = _pending.value.filterNot { same(it, event) }
+        save(_pending.value)
+    }
+
+    /** Same logical entry: server id when both have one, otherwise the stable local key. */
+    private fun same(a: CalendarEvent, b: CalendarEvent): Boolean =
+        if (a.id.isNotBlank() && b.id.isNotBlank()) a.type == b.type && a.id == b.id
+        else a.localKey == b.localKey
+
+    /** The entry type ("J"/"P") last used in the "New entry" dialog — persists across app restarts. */
+    var lastType: String
+        get() = prefs.getString(K_LAST_TYPE, "J") ?: "J"
+        set(value) = prefs.edit().putString(K_LAST_TYPE, value).apply()
 
     private fun save(events: List<CalendarEvent>) {
         val arr = JSONArray()
@@ -38,7 +65,9 @@ class CalendarStore(context: Context) {
                     .put("date", it.date.toString())
                     .put("start", it.start.toString())
                     .put("end", it.end.toString())
-                    .put("summary", it.summary),
+                    .put("summary", it.summary)
+                    .put("description", it.description)
+                    .put("localKey", it.localKey),
             )
         }
         prefs.edit().putString(K_PENDING, arr.toString()).apply()
@@ -58,6 +87,10 @@ class CalendarStore(context: Context) {
                         start = LocalTime.parse(o.getString("start")),
                         end = LocalTime.parse(o.getString("end")),
                         summary = o.optString("summary"),
+                        description = o.optString("description"),
+                        // Entries persisted before localKey existed get a fresh one; they're
+                        // identified by server id anyway once synced.
+                        localKey = o.optString("localKey").ifBlank { java.util.UUID.randomUUID().toString() },
                     )
                 }.getOrNull()
             }
@@ -66,5 +99,6 @@ class CalendarStore(context: Context) {
 
     private companion object {
         const val K_PENDING = "pending_calendar"
+        const val K_LAST_TYPE = "last_entry_type"
     }
 }

@@ -71,6 +71,39 @@ def now_token(fmt: str) -> str:
         return datetime.now().strftime("%Y_%m_%d-%H%M%S")
 
 
+def mtime_token(path: str, fmt: str) -> str:
+    """A file/folder's own last-modified time formatted the same way as :func:`now_token` — used
+    when promoting a non-conforming item, so it lands at its real chronological position instead
+    of jumping to "now"."""
+    try:
+        return datetime.fromtimestamp(os.path.getmtime(path)).strftime(fmt)
+    except (ValueError, TypeError, OSError):
+        return datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y_%m_%d-%H%M%S")
+
+
+def parse_created(timestamp: str, fmt: str, fallback_epoch: float) -> float:
+    """A note's creation time (its filename timestamp token, parsed as ``fmt``) as a Unix epoch —
+    for sorting by "date created" independent of the file's own mtime (which a metadata-only edit
+    still bumps, since the note file gets rewritten/renamed). Falls back to ``fallback_epoch``
+    (the note's mtime) when the token doesn't match ``fmt`` — a foreign note, or one written before
+    the format was last changed."""
+    try:
+        return datetime.strptime(timestamp, fmt).timestamp()
+    except (ValueError, TypeError):
+        return fallback_epoch
+
+
+def is_companion_dir(dir_path: str) -> bool:
+    """True if `dir_path` is *already* a real companion folder — i.e. its name ends in
+    :data:`COMPANION_SUFFIX` and a matching ``<stem>.md`` note sits next to it. There's no reverse
+    index from folder to note (companion_dir() only goes note → folder), so this re-derives it."""
+    name = os.path.basename(dir_path.rstrip(os.sep))
+    if not name.endswith(COMPANION_SUFFIX):
+        return False
+    sibling = os.path.join(os.path.dirname(dir_path), name[: -len(COMPANION_SUFFIX)] + ".md")
+    return os.path.isfile(sibling)
+
+
 def build_name(timestamp: str, type_: str | None, priority: int, category: str | None) -> str:
     # '*' is only a "default" marker in settings — never a real code — so strip it defensively here
     # so it can never leak into a file name regardless of where the code came from.
@@ -121,6 +154,10 @@ def _blank_to_none(s: str) -> str | None:
     return s if s.strip() else None
 
 
+def _with_trailing_newline(text: str) -> str:
+    """A file missing its final newline shows as a spurious change on every future line ('No
+    newline at end of file') in git diff and similar tools — always write one."""
+    return text if text.endswith("\n") else text + "\n"
 @dataclass
 class Note:
     path: str
@@ -168,6 +205,19 @@ class Note:
 class NoteRepository:
     """Reads and writes notes as plain-text files in one directory."""
 
+    # The app's own housekeeping folders (soft-deletes → .deleted, merges → .merged) plus ones that
+    # arrive from the phone / import side (.imported). The app always creates them hidden + lowercase
+    # (a leading dot), so they never show on the board. AUX_DIR_STEMS also lets is_aux_dir() catch
+    # legacy or phone-synced variants in ANY case, dotted or not — so a stray ``Imported``, ``Trash``
+    # or ``Deleted`` can't leak in as a "needs metadata" card.
+    AUX_DIR_STEMS = frozenset({"deleted", "merged", "imported", "trash", "trashed"})
+
+    @classmethod
+    def is_aux_dir(cls, name: str) -> bool:
+        """True for any auxiliary/housekeeping folder — its bare stem (leading dots stripped, case
+        folded) is one of AUX_DIR_STEMS. Catches ``.deleted``, ``Deleted``, ``Trash``, ``.imported`` …"""
+        return name.lstrip(".").casefold() in cls.AUX_DIR_STEMS
+
     def __init__(self, directory: str):
         self.directory = directory
 
@@ -185,6 +235,53 @@ class NoteRepository:
                 notes.append(self._to_note(path))
         notes.sort(key=lambda n: n.mtime)
         return notes
+
+    def list_unrecognized(self) -> list[Note]:
+        """Files and folders sitting in the directory that aren't a canonical note, a real
+        companion folder, a dotfile (``.knotes.json``, Syncthing's ``.stfolder``/``.stversions``,
+        …), or one of the app's own special folders — shown to the user as "needs metadata"
+        placeholders (type/priority/category all ``None``) rather than silently ignored."""
+        d = self._dir()
+        items = []
+        for name in os.listdir(d):
+            if name.startswith(".") or self.is_aux_dir(name):
+                continue
+            path = os.path.join(d, name)
+            if os.path.isfile(path):
+                if not is_note_file(name):
+                    items.append(self._to_placeholder(path))
+            elif os.path.isdir(path):
+                if not is_companion_dir(path):
+                    items.append(self._to_placeholder(path))
+        items.sort(key=lambda n: n.mtime)
+        return items
+
+    def _to_placeholder(self, path: str) -> Note:
+        """A non-conforming file/folder, wrapped as a `Note` with blank tags so it slots into the
+        existing card rendering, kanban/list grouping ("—"/Uncategorized bucket), and navigation
+        with no further changes there. `os.path.isdir(note.path)` distinguishes the two cases when
+        it's later promoted (see `NoteRepository.promote`)."""
+        if os.path.isdir(path):
+            content = ""
+            file_names = sorted(os.listdir(path))
+        else:
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    content = f.read()
+            except (OSError, UnicodeDecodeError):
+                content = ""
+            file_names = []
+        return Note(
+            path=path,
+            timestamp=mtime_token(path, "%Y_%m_%d-%H%M%S"),
+            type=None,
+            priority=None,
+            category=None,
+            content=content,
+            mtime=os.path.getmtime(path),
+            is_rtl=is_rtl(content),
+            file_names=file_names,
+        )
 
     def _to_note(self, path: str) -> Note:
         p = parse(os.path.basename(path))
@@ -214,7 +311,7 @@ class NoteRepository:
             path = os.path.join(self._dir(), build_name(f"{token}-{counter}", type_, priority, category))
             counter += 1
         with open(path, "w", encoding="utf-8") as f:
-            f.write(text)
+            f.write(_with_trailing_newline(text))
         return path
 
     def update(self, note: Note, text: str, type_: str | None, priority: int,
@@ -231,7 +328,40 @@ class NoteRepository:
             os.rename(note.path, target)
             self._relocate_companion(note.path, target)  # keep the files folder next to the note
         with open(target, "w", encoding="utf-8") as f:
-            f.write(text)
+            f.write(_with_trailing_newline(text))
+        return target
+
+    def promote(self, note: Note, type_: str | None, priority: int, category: str | None,
+                fmt: str) -> str:
+        """Turn a `list_unrecognized()` placeholder into a real note, once the user has supplied
+        at least one tag. Two cases, told apart by `os.path.isdir(note.path)`:
+
+        - **File**: renamed into the canonical format, timestamped from the file's own mtime (its
+          real chronological position, not "now"); its original filename becomes the first line
+          of the body so that info isn't lost once the name turns opaque.
+        - **Folder**: a brand-new note is created (via `save_new`, timestamped "now" — there's no
+          prior content to anchor it to), with the folder's original name as its first line; the
+          folder itself is then renamed to become that new note's companion folder.
+        """
+        if os.path.isdir(note.path):
+            original_name = os.path.basename(note.path.rstrip(os.sep))
+            new_path = self.save_new(original_name + "\n", type_, priority, category, fmt)
+            target_dir = companion_dir(new_path)
+            os.rename(note.path, target_dir)  # target_dir can't already exist: new_path is fresh
+            return new_path
+
+        original_name = os.path.basename(note.path)
+        new_body = original_name + "\n" + note.content
+        parent = os.path.dirname(note.path)
+        timestamp = mtime_token(note.path, fmt)
+        target = os.path.join(parent, build_name(timestamp, type_, priority, category))
+        counter = 2
+        while os.path.exists(target):
+            target = os.path.join(parent, build_name(f"{timestamp}-{counter}", type_, priority, category))
+            counter += 1
+        os.rename(note.path, target)
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(_with_trailing_newline(new_body))
         return target
 
     def _relocate_companion(self, old_note_path: str, new_note_path: str) -> None:
@@ -293,10 +423,10 @@ class NoteRepository:
     # Notes are never physically erased — they're moved here, inside the repo folder, so a mistaken
     # delete is always recoverable. list_notes() only reads root-level .md files, so this subfolder's
     # contents never show on the board.
-    TRASH_DIRNAME = "Deleted"
+    TRASH_DIRNAME = ".deleted"
 
     def delete(self, note: Note) -> bool:
-        """Soft-delete: move the note into the repo's ``Deleted`` subfolder (created on demand),
+        """Soft-delete: move the note into the repo's ``.deleted`` subfolder (created on demand),
         de-duplicating the name on collision. Returns True on success."""
         try:
             trash = os.path.join(os.path.dirname(note.path), self.TRASH_DIRNAME)
@@ -314,15 +444,19 @@ class NoteRepository:
         except OSError:
             return False
 
-    # Absorbed notes are moved here (a sibling of Deleted) rather than erased, so a merge stays
-    # recoverable. Like Deleted, list_notes() never reads this subfolder, so they drop off the board.
-    MERGED_DIRNAME = "merged"
+    MERGED_DIRNAME = ".merged"
+    # Notes brought in from the phone / an import run land here (hidden + lowercase, like the rest);
+    # the desktop app doesn't create it, but names it so the constant is the single source of truth.
+    IMPORTED_DIRNAME = ".imported"
+
+    # Absorbed notes are moved here (a sibling of .deleted) rather than erased, so a merge stays
+    # recoverable. Like .deleted, list_notes() never reads this subfolder, so they drop off the board.
 
     def merge(self, survivor: Note, others: list[Note]) -> str | None:
         """Fold every note in ``others`` into ``survivor``: append each one's body under the
         survivor's, separated by a ``---`` line carrying the source filename (which preserves the
         tags/timestamp the absorbed note is about to lose), then move the absorbed files into the
-        ``merged`` subfolder. The survivor keeps its filename/metadata and original mtime (so it
+        ``.merged`` subfolder. The survivor keeps its filename/metadata and original mtime (so it
         stays put in the list). Returns the survivor's path, or None on failure."""
         try:
             parts = [survivor.content.rstrip()]

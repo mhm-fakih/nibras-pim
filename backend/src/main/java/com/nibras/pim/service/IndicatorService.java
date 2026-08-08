@@ -1,5 +1,6 @@
 package com.nibras.pim.service;
 
+import com.nibras.pim.domain.Goal;
 import com.nibras.pim.domain.Indicator;
 import com.nibras.pim.repo.IndicatorRepository;
 import com.nibras.pim.web.dto.IndicatorDto;
@@ -51,7 +52,10 @@ public class IndicatorService extends AbstractCrudService<Indicator, IndicatorDt
                 i.getCode(), i.getName(), i.getDescription(), i.getFrequency(), i.getScale(),
                 i.getQuery(), i.getPath(), i.getExtensions(), i.getScript(),
                 i.getCategory(), color, i.getPriority(),
-                i.getBookmarked(), i.getSummary(), i.getNotes(),
+                i.getBookmarked(), i.getAutoCollect(),
+                i.getGoal() == null ? null : i.getGoal().getId(),
+                i.getGoal() == null ? null : goalLookup(i.getGoal()),
+                i.getSummary(), i.getNotes(),
                 i.getStartDate(), i.getEndDate(),
                 coverExists(i.getId()), i.getDateCreated(), i.getLastUpdated());
     }
@@ -80,6 +84,8 @@ public class IndicatorService extends AbstractCrudService<Indicator, IndicatorDt
                 dto.name() != null && !dto.name().isBlank() ? dto.name() : dto.code()));
         i.setPriority(dto.priority());
         i.setBookmarked(dto.bookmarked());
+        i.setAutoCollect(dto.autoCollect());
+        i.setGoal(ref(Goal.class, dto.goalId()));
         i.setSummary(dto.summary());
         i.setNotes(dto.notes());
         i.setStartDate(dto.startDate());
@@ -88,6 +94,6 @@ public class IndicatorService extends AbstractCrudService<Indicator, IndicatorDt
 
     @Override
     public Map<String, List<LookupDto>> lookups() {
-        return Map.of();
+        return Map.of("goals", bookmarkedGoalOptions());
     }
 }
