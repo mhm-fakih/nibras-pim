@@ -58,6 +58,11 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
     private var base = ""
     private var username = ""
 
+    /** The entry type ("J"/"P") last used in the "New entry" dialog — persists across app restarts. */
+    var lastType: String
+        get() = store.lastType
+        set(value) { store.lastType = value }
+
     fun load(base: String, username: String) {
         this.base = base
         this.username = username
@@ -73,8 +78,9 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun add(type: String, date: LocalDate, start: LocalTime, end: LocalTime, summary: String) {
-        val event = CalendarEvent(type, "", date, start, end, summary.trim())
+    fun add(type: String, date: LocalDate, start: LocalTime, end: LocalTime, summary: String, description: String = "") {
+        lastType = type
+        val event = CalendarEvent(type, "", date, start, end, summary.trim(), description.trim())
         store.add(event)
         viewModelScope.launch {
             val synced = runCatching { api.pushCalendar(base, username, listOf(entryOf(event))) }.getOrDefault(false)
@@ -95,6 +101,65 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Edit an existing (already-synced) entry — same push path as [add], but keeps the server id so
+     * `mobilePushCalendar` updates it in place (both Journal and Planner support update-by-id
+     * server-side) instead of creating a duplicate. Used for the drag-to-resize/move gestures on the
+     * grid and for the "tap an event to edit it" dialog.
+     */
+    fun update(
+        original: CalendarEvent,
+        date: LocalDate,
+        start: LocalTime,
+        end: LocalTime,
+        summary: String = original.summary,
+        description: String = original.description,
+    ) {
+        val event = original.copy(
+            date = date, start = start, end = end,
+            summary = summary.trim(), description = description.trim(),
+        )
+        // Reflect immediately (both the fetched view and the outbox), so the edit is visible right
+        // away and survives the app closing before it syncs.
+        _fetched.value = _fetched.value.map { if (it.type == event.type && it.id == event.id) event else it }
+        store.upsert(event)
+        viewModelScope.launch {
+            // A virtual occurrence of a recurring planner has no record behind it, and its id is a
+            // composite the push endpoint can't accept — so editing one creates the record first.
+            // Deliberately NOT queued offline: without a real id the outbox would push a composite
+            // that the server would reject, and the edit would look saved while being dropped.
+            val resolved = resolveOccurrence(event) ?: run {
+                store.remove(event)
+                _fetched.value = _fetched.value.map { if (it.localKey == event.localKey) original else it }
+                _message.value = "Can't edit a repeat while offline — try again when connected"
+                return@launch
+            }
+            val synced = runCatching { api.pushCalendar(base, username, listOf(entryOf(resolved))) }.getOrDefault(false)
+            if (synced) {
+                store.remove(event)
+                _message.value = "Saved"
+                if (base.isNotEmpty()) load(base, username)
+            } else {
+                _message.value = "Saved — will sync when online"
+            }
+            runCatching {
+                com.knotes.reminder.PlansRepository.refresh(
+                    getApplication(), com.knotes.SettingsStore(getApplication()).value)
+            }
+        }
+    }
+
+    /**
+     * Gives [event] a real server id if it is a computed occurrence of a recurring planner; returns
+     * it unchanged otherwise. Null means the record couldn't be created (offline or refused).
+     */
+    private suspend fun resolveOccurrence(event: CalendarEvent): CalendarEvent? {
+        if (!event.virtual) return event
+        if (base.isEmpty() || event.seriesId.isBlank() || event.recurrenceId.isBlank()) return null
+        val id = api.materialiseOccurrence(base, event.seriesId, event.recurrenceId) ?: return null
+        return event.copy(id = id, virtual = false)
+    }
+
     /** Push every still-pending local entry; drop each one that the server accepts. */
     private suspend fun flushPending() {
         if (base.isEmpty()) return
@@ -110,6 +175,7 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
         startDate = formatServerDateTime(LocalDateTime.of(event.date, event.start)),
         endDate = formatServerDateTime(LocalDateTime.of(event.date, event.end)),
         summary = event.summary,
+        description = event.description,
     )
 
     override fun onCleared() {

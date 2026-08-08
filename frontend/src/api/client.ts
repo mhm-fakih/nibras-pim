@@ -173,6 +173,13 @@ export interface EntityRecord {
   goalId?: number;
   tags?: TagRef[];
   hasCover?: boolean;
+  urgent?: boolean;
+  orderNumber?: number;
+  recurring?: boolean;
+  recurrencePreset?: string;
+  recurrenceInterval?: number;
+  recurrenceCron?: string;
+  fixedSchedule?: boolean;
   [key: string]: unknown;
 }
 
@@ -194,12 +201,21 @@ export interface ListParams {
   createdOn?: string;
   /** Date-aware "day" filter (journals→startDate, planners→startDate, else dateCreated). */
   onDay?: string;
+  /** Inclusive dateCreated range, e.g. "records created in the last 3 months". */
+  from?: string;
+  to?: string;
   bookmarked?: boolean;
+  urgent?: boolean;
+  dashboard?: boolean;
   statusId?: number;
   typeId?: number;
   tagId?: number;
+  goalId?: number;
   page?: number;
   size?: number;
+  /** Spring Pageable sort, e.g. "lastUpdated,desc" — overrides the endpoint's default (dateCreated
+   * desc) when the "most recent" that actually matters is last-touched, not first-created. */
+  sort?: string;
   // report presets
   noStatus?: boolean;
   noType?: boolean;
@@ -216,7 +232,7 @@ export interface ListParams {
 /** Report preset query keys (used by the reports panel + list chip). */
 export const REPORT_KEYS = [
   'noStatus', 'noType', 'noDepartment', 'noPriority', 'hasTags',
-  'overdue', 'dueSoon', 'highPriority', 'recentCreated', 'recentUpdated', 'bookmarked',
+  'overdue', 'dueSoon', 'highPriority', 'recentCreated', 'recentUpdated', 'bookmarked', 'urgent',
 ] as const;
 
 function clean(params: Record<string, unknown>): Record<string, unknown> {
@@ -249,6 +265,12 @@ export async function updateEntity(
   body: unknown,
 ): Promise<EntityRecord> {
   const { data } = await http.put(`/${path}/${id}`, body);
+  return data;
+}
+
+/** "+ Subtask": creates a new Task on the same Goal as `taskId`, ordered right after it. */
+export async function createSubtask(taskId: number, summary: string): Promise<EntityRecord> {
+  const { data } = await http.post(`/tasks/${taskId}/subtask`, { summary });
   return data;
 }
 
@@ -411,6 +433,22 @@ export async function fillLookupColors(): Promise<number> {
   return data.filled as number;
 }
 
+/** Add a new value to a lookup table (e.g. a new resource type). */
+export async function createLookupValue(table: string, name: string, code?: string): Promise<LookupValue> {
+  const { data } = await http.post(`/lookups/${table}`, { name, code });
+  return data;
+}
+
+/** Rename a lookup value and/or change its code. */
+export async function renameLookupValue(table: string, id: number, name: string, code?: string): Promise<void> {
+  await http.put(`/lookups/${table}/${id}`, { name, code });
+}
+
+/** Soft-delete a lookup value. */
+export async function deleteLookupValue(table: string, id: number): Promise<void> {
+  await http.delete(`/lookups/${table}/${id}`);
+}
+
 /** Course option for the record course-picker (carries its department for auto-fill). */
 export interface CourseOption {
   id: number;
@@ -438,18 +476,51 @@ export async function getCalendar(
 
 export interface CalendarEvent {
   module: 'journals' | 'planners';
-  id: number;
+  /** Null on a virtual occurrence — there is no record behind it yet. See `virtual`. */
+  id: number | null;
   title: string;
+  description?: string;
   start: string;
   end?: string;
+  typeName?: string;
+  typeId?: number;
+  typeStyle?: string;
+  /** Set on every event belonging to a recurring planner series, virtual or not. */
+  seriesId?: number | null;
+  /** The slot this occurrence stands for: its ORIGINAL start, unchanged by dragging it. */
+  recurrenceId?: string | null;
+  /**
+   * True for a computed occurrence with no row of its own. Anything needing a record id must call
+   * `materialiseOccurrence` first — see PlannerSeriesService on the backend for the whole model.
+   */
+  virtual?: boolean;
+}
+
+/**
+ * Turns a virtual occurrence of a recurring planner into a real record and returns it. Idempotent:
+ * the same slot always resolves to the same record, so it is safe to call on every interaction
+ * rather than tracking what has already been materialised.
+ */
+export async function materialiseOccurrence(
+  seriesId: number,
+  recurrenceId: string,
+): Promise<EntityRecord> {
+  const { data } = await http.post('/calendar/occurrences/materialise', { seriesId, recurrenceId });
+  return data;
+}
+
+/** Removes one occurrence from its series (soft-deletes the row if there is one). */
+export async function skipOccurrence(seriesId: number, recurrenceId: string): Promise<void> {
+  await http.post('/calendar/occurrences/skip', { seriesId, recurrenceId });
 }
 
 export async function getCalendarEvents(
   from: string,
   to: string,
   modules = 'journals,planners',
+  type?: string,
 ): Promise<CalendarEvent[]> {
-  const { data } = await http.get('/calendar/events', { params: { from, to, modules } });
+  const { data } = await http.get('/calendar/events', { params: clean({ from, to, modules, type }) });
   return data;
 }
 
@@ -499,6 +570,8 @@ export interface AppModule {
   color?: string;
   enabled: boolean;
   sortOrder: number;
+  /** Order the module's parameters are handed to the clients (Admin → Synced to clients). */
+  syncOrder?: number;
   /** Record folder nests under an id/100 bucket (<code>/<id100>/<id>). */
   bucketBy100?: boolean;
   /** Record folder nests under its type code (<code>/<type>/…/<id>). */
@@ -630,6 +703,7 @@ export interface RepoSettings {
   repo1: string;
   repo2: string;
   repo3: string;
+  checkout: string;
   explorer: string;
 }
 
@@ -700,6 +774,7 @@ export interface ImportNote {
   deptId?: number;
   deptName?: string;
   summary?: string;
+  description?: string;
   body: string;
 }
 
@@ -836,8 +911,56 @@ export interface SearchHit {
   snippet: string;
 }
 
+/**
+ * Rows in the `search_doc` index. 0 means it was never built — the index fills incrementally as
+ * records are written plus a bulk rebuild, so a fresh install pointed at an existing database has
+ * an empty one and global search finds nothing while each module's own search still works.
+ */
+export async function getSearchIndexStatus(): Promise<{ indexed: number }> {
+  const { data } = await http.get('/search/index-status');
+  return data;
+}
+
 export async function searchAll(q: string, limit = 100): Promise<SearchHit[]> {
   const { data } = await http.get('/search', { params: { q, limit } });
+  return data;
+}
+
+export interface DuplicatePair {
+  module: string;
+  id1: number;
+  title1: string;
+  id2: number;
+  title2: string;
+  score: number;
+}
+
+/** Candidate duplicate pairs already in the database, within one module — a one-off dedup scan. */
+export async function findDuplicatePairs(module: string, limit = 50): Promise<DuplicatePair[]> {
+  const { data } = await http.get('/search/duplicates', { params: { module, limit } });
+  return data;
+}
+
+// ---- AI-assisted semantic dedup (local Ollama) --------------------------------
+
+export interface OllamaStatus {
+  reachable: boolean;
+  hasEmbedModel: boolean;
+  hasJudgeModel: boolean;
+}
+
+export async function getSemanticDedupStatus(): Promise<OllamaStatus> {
+  const { data } = await http.get('/search/semantic-status');
+  return data;
+}
+
+/** mode 'embedding' = fast, same-language only. mode 'llm' = slower, cross-language aware. */
+export async function findSemanticDuplicates(
+  module: string,
+  mode: 'embedding' | 'llm',
+  limit = 20,
+): Promise<DuplicatePair[]> {
+  const { data } = await http.get('/search/duplicates/semantic', { params: { module, mode, limit } });
   return data;
 }
 
@@ -895,6 +1018,33 @@ export interface AdminModuleStats {
   parametric: FieldStat[];
 }
 
+export interface SyncedDepartment {
+  id: number;
+  code?: string;
+  name?: string;
+  priority?: number;
+  orderNumber?: number;
+}
+
+export interface SyncedModule {
+  moduleKey: string;
+  label: string;
+  code?: string;
+  syncOrder: number;
+  types: Lookup[];
+}
+
+/** What the mobile/terminal/desktop clients are expected to be filtering to — for spotting drift. */
+export interface ClientSyncView {
+  departments: SyncedDepartment[];
+  modules: SyncedModule[];
+}
+
+export async function getClientSyncView(): Promise<ClientSyncView> {
+  const { data } = await http.get('/admin/client-sync');
+  return data;
+}
+
 export async function getAdminStats(): Promise<AdminModuleStats[]> {
   const { data } = await http.get('/admin/stats');
   return data;
@@ -916,6 +1066,37 @@ export async function batchEdit(
   return data;
 }
 
+// ---- merge two records --------------------------------------------------------
+
+export async function mergeRecords(
+  module: string,
+  primaryId: number,
+  secondaryId: number,
+): Promise<EntityRecord> {
+  const { data } = await http.post(`/${module}/merge`, { primaryId, secondaryId });
+  return data;
+}
+
+// ---- trash (soft-deleted records) ----------------------------------------------
+
+export interface TrashEntry {
+  module: string;
+  id: number;
+  title: string;
+  deletedOn: string;
+  mergedIntoId?: number | null;
+  mergedIntoTitle?: string | null;
+}
+
+export async function listTrash(): Promise<TrashEntry[]> {
+  const { data } = await http.get('/trash');
+  return data;
+}
+
+export async function restoreFromTrash(module: string, id: number): Promise<void> {
+  await http.post(`/trash/${module}/${id}/restore`);
+}
+
 // ---- record cover -----------------------------------------------------------
 
 export function coverUrl(module: string, id: number): string {
@@ -930,7 +1111,14 @@ export function coverUrl(module: string, id: number): string {
  * Authorization header, so they 401 under the security layer.
  */
 export async function fetchBlob(url: string): Promise<Blob> {
-  const { data } = await http.get(url.replace(/^\/api/, ''), { responseType: 'blob' });
+  // The callers build these context-absolute (`${BASE}api/...`) so the same string also works as a
+  // plain href. axios would prepend its own baseURL again, so strip the prefix that's actually
+  // there: under a servlet context path BASE is e.g. "/nibras/", so the URL starts with
+  // "/nibras/api" and a hardcoded /^\/api/ never matches — that produced a doubled
+  // "/nibras/api/nibras/api/..." and every cover/download silently failed off the root context.
+  const prefix = `${BASE}api`;
+  const path = url.startsWith(prefix) ? url.slice(prefix.length) : url.replace(/^\/api/, '');
+  const { data } = await http.get(path, { responseType: 'blob' });
   return data as Blob;
 }
 
@@ -951,6 +1139,7 @@ export async function downloadFile(url: string, filename: string): Promise<void>
 export interface ServerInfo {
   app: string;
   version: string;
+  codename?: string;
   serverIp: string;
   serverAddress: string;
   port: number;
@@ -1025,6 +1214,38 @@ export async function getKpis(): Promise<Kpi[]> {
   return data;
 }
 
+// ---- insights (the fixed Insights page — activity histograms + review nudges) -----------
+
+export interface InsightsDayCount {
+  date: string;
+  count: number;
+}
+
+export interface ModuleInsight {
+  key: string;
+  label: string;
+  total: number;
+  createdRecent: number;
+  updatedRecent: number;
+  percentUpdatedRecent: number;
+  createdSeries: InsightsDayCount[];
+  updatedSeries: InsightsDayCount[];
+}
+
+export interface InsightsSummary {
+  from: string;
+  to: string;
+  reviewDays: number;
+  modules: ModuleInsight[];
+}
+
+/** `from`/`to` default to a 90-day window ending today when omitted; `reviewDays` (the trailing
+ * "reviewed recently" window) defaults to 7. */
+export async function getInsights(from?: string, to?: string, reviewDays?: number): Promise<InsightsSummary> {
+  const { data } = await http.get('/insights/summary', { params: clean({ from, to, reviewDays }) });
+  return data;
+}
+
 // ---- indicators -------------------------------------------------------------
 
 export interface DueIndicator {
@@ -1042,6 +1263,7 @@ export interface DueIndicator {
 export interface SeriesPoint {
   date: string;
   value: number;
+  notes?: string;
 }
 
 export async function getIndicatorsDue(): Promise<DueIndicator[]> {
@@ -1071,4 +1293,103 @@ export async function getIndicatorSeries(id: number): Promise<SeriesPoint[]> {
 export async function listMonitoredIndicators(): Promise<EntityRecord[]> {
   const { data } = await http.get('/indicators', { params: { bookmarked: true, size: 500, sort: 'name' } });
   return data.content;
+}
+
+// ---- Custom dashboards (the dashboard builder) --------------------------------
+
+/** A region's `config` is a JSON string whose shape depends on componentType — see
+ * frontend/src/components/DashboardComponents.tsx for what each type reads/writes. */
+export interface CustomDashboardRegion {
+  id?: number;
+  orderIndex: number;
+  componentType: string;
+  config?: string;
+  /** How many of the dashboard's grid columns this region spans. Default 1. */
+  colSpan?: number;
+}
+
+export interface CustomDashboard {
+  id?: number;
+  name: string;
+  columnsCount: number;
+  /** Minutes between auto full-page-reloads of the chrome-free view. Null/0 disables it. */
+  refreshMinutes?: number | null;
+  regions: CustomDashboardRegion[];
+}
+
+export async function listCustomDashboards(): Promise<CustomDashboard[]> {
+  const { data } = await http.get('/custom-dashboards');
+  return data;
+}
+
+export async function getCustomDashboard(id: number): Promise<CustomDashboard> {
+  const { data } = await http.get(`/custom-dashboards/${id}`);
+  return data;
+}
+
+export async function createCustomDashboard(body: CustomDashboard): Promise<CustomDashboard> {
+  const { data } = await http.post('/custom-dashboards', body);
+  return data;
+}
+
+export async function updateCustomDashboard(id: number, body: CustomDashboard): Promise<CustomDashboard> {
+  const { data } = await http.put(`/custom-dashboards/${id}`, body);
+  return data;
+}
+
+export async function deleteCustomDashboard(id: number): Promise<void> {
+  await http.delete(`/custom-dashboards/${id}`);
+}
+
+export interface DashboardFileContent {
+  path: string;
+  content: string;
+  truncated: boolean;
+}
+
+/** Reads a file's plain-text content under repo 1/2/3, for the "file" component. */
+export async function getDashboardFileContent(repo: number, path: string): Promise<DashboardFileContent> {
+  const { data } = await http.get('/custom-dashboards/file-content', { params: { repo, path } });
+  return data;
+}
+
+// ---- Public (unauthenticated) dashboard snapshot — the chrome-free /view page --------
+
+export interface PublicIndicatorWithSeries {
+  indicator: EntityRecord;
+  series: SeriesPoint[];
+}
+
+export interface PublicGoalHeatmap {
+  goalId: number;
+  goalCode?: string;
+  indicators: PublicIndicatorWithSeries[];
+}
+
+export interface PublicDashboardRegion {
+  id?: number;
+  orderIndex: number;
+  componentType: string;
+  colSpan?: number;
+  config?: string;
+  quote: EntityRecord | null;
+  calendarEvents: CalendarEvent[] | null;
+  goalsHeatmap: PublicGoalHeatmap[] | null;
+  kanbanBoard: KanbanData | null;
+  file: DashboardFileContent | null;
+}
+
+export interface PublicDashboardSnapshot {
+  id: number;
+  name: string;
+  columnsCount: number;
+  refreshMinutes?: number | null;
+  regions: PublicDashboardRegion[];
+}
+
+/** Every region's data pre-resolved server-side in one call — no auth, no per-component queries.
+ * Backs the chrome-free dashboard view meant for a TV/kiosk with no session at all. */
+export async function getPublicDashboard(id: number): Promise<PublicDashboardSnapshot> {
+  const { data } = await http.get(`/public/custom-dashboards/${id}`);
+  return data;
 }

@@ -1,5 +1,382 @@
 # Changelog
 
+## 2026-08-08
+
+### Added — recurring planner events
+
+- **Planner entries can now repeat, with a start AND end time** — habits at a fixed time of day, not
+  just to-dos due on a date. Set it on any planner with the same "Repeats" picker tasks use.
+
+  **A series is a rule, not a chain.** Task recurrence materialises one occurrence at a time and
+  clears the source's flag, so exactly one future instance ever exists; that suits a to-do and fails
+  a 07:00 habit, where you want to see next Tuesday and to know what you missed. A recurring planner
+  instead keeps the rule on one row — the *master*, whose own start/end are the first occurrence —
+  and the calendar computes the rest inside whatever window it is drawing. **A year of a daily habit
+  is 365 events and zero extra rows** (there's a test asserting exactly that). A real record appears
+  only when an occurrence is *touched*: opened, moved, or annotated.
+
+  Same model as iCalendar's `RRULE` + `RECURRENCE-ID` + `EXDATE`, and the reason `recurrence_id` is
+  stored separately from `start_date`: drag one occurrence to 09:00 and the row moves, but it still
+  stands for the 07:00 slot, so expansion suppresses that slot instead of drawing a ghost at 07:00
+  and a duplicate at 09:00.
+
+  Details worth knowing:
+  - **Ends: never / on a date / after N occurrences.** Open-ended is the default and is only
+    tractable because occurrences are virtual.
+  - **× on an occurrence removes just that one.** Deleting the *first* one moves the rule's anchor
+    forward rather than destroying the series.
+  - **DST is handled by construction.** Expanding a rule gives 07:00 wall-clock every day;
+    pre-computed absolute instants would drift by an hour twice a year.
+  - **Monthly from the 31st** clamps to Feb 28 for that month and returns to the 31st afterwards,
+    because each step is taken from the anchor, not from the previous clamped result.
+  - The one recurrence step function (`RecurrenceSteps`) now serves both tasks and planners, so the
+    two can't drift apart on what "monthly" means.
+  - **On the phone too** (see below). Desktop and terminal still read plain rows via
+    `/sync/exportJson*` and so show a recurring planner as its master row only.
+
+  Schema: `V4__planner_recurrence.sql`. Applies on first boot — back up before deploying.
+
+- **Recurring plans appear on the phone's calendar.** `/sync/exportJsonP` expands each series inside
+  the ±14-day window it already covers, so a 07:00 habit shows on every day it happens instead of
+  only on the master row's own day. Marked **⟳** and drawn paler than a stored entry, because the
+  difference is real: tapping or dragging one *creates* the record first (the same idempotent
+  endpoint the web uses), and offline it can't be edited at all — you get *"Can't edit a repeat while
+  offline"* rather than a silently dropped edit.
+
+  Computed occurrences carry a composite id, `<seriesId>@<recurrenceId>`, plus `seriesId` and
+  `recurrenceId` as separate fields. Deliberately not a bare number: a client that mistook it for a
+  record id and pushed an edit would rewrite the master and so change *every* occurrence. The
+  composite is inert — nothing accepts it — which turns that silent corruption into an obvious
+  rejection.
+
+### Added — filters
+
+- **The desktop sidebar's filters are now on the phone**, in a collapsible panel above the note list:
+  priority, type and category facets, the non-standard and bad-taxonomy tri-states, the tag cloud,
+  and a date strip — with the same faceted counting, so an unpicked option still shows the count it
+  *would* match rather than reading 0. Collapsed by default; the header always shows how many filters
+  are on and what they narrowed the list to, so a short list is never mistaken for missing notes.
+
+  The date strip is **two weeks** (last week + this, Monday-first) rather than desktop's full month:
+  a 6x7 grid can't shrink to fit beside a phone list and still be tappable. It shades by note count
+  and filters on tap, and Created/Updated switches which date it reads — "created" comes from the
+  file *name's* timestamp, never the mtime, since retagging renames the file and would otherwise drag
+  every edited note onto today.
+
+- **Foreign files in the notes folder are visible on the phone.** The folder is a Syncthing share, so
+  anything another machine drops in lands there, correctly-named or not; those now appear as "needs
+  metadata" placeholders exactly as they do on desktop, which is what gives the non-standard filter
+  something to act on. They are kept *out* of the counted set — the header's "N notes", the status
+  notification and the KPI widget all read that, and folding foreign files in would inflate all three.
+
+- **A tag cloud, on desktop and mobile.** Free-form `#hashtags` written in a note's **body**, sized by
+  how often each is used; clicking one narrows to the notes carrying it, and picking several means
+  "carries all of them" (a union could only ever grow the result, which is useless for narrowing).
+  This is a different thing from type/category: those are single codes in the file name drawn from a
+  configured list, while a tag needs no declaring and a note can hold any number — which is exactly
+  what a cloud is for and a fixed row list is not. `## Markdown headings` and `http://…#fragments`
+  are not tags.
+
+### Fixed
+
+- **Arabic hashtags were dropped on the phone but kept on the laptop.** Caught by a test before it
+  shipped, and worth recording because the two files looked identical: Python 3's `\w` is
+  Unicode-aware, Java's is ASCII-only, so the same regex matched `#كتابة` on desktop and not on
+  mobile — the two surfaces would have disagreed about the same folder. The Kotlin side now spells
+  the class out as `[\p{L}\p{N}_]` rather than relying on `\w` meaning the same thing in both
+  languages. (Java's `UNICODE_CHARACTER_CLASS` flag would also fix it, but it needs API 24 and
+  minSdk here is 23.)
+
+- **Mobile: a file with an Arabic name wouldn't open.** Three things go wrong on non-ASCII names and
+  nothing else, which is why only Arabic files were affected. Copying Arabic text carries invisible
+  bidi marks (U+200E/200F and friends) along with it, and they land *after* the extension as often
+  as inside the name — so `محاضرة.mp3‏` has extension `"mp3‏"`, matches no MIME type, fails
+  `isMediaFile`, skips the in-app player, and ends up in an `ACTION_VIEW` that nothing can resolve.
+  The same text can also be spelled in the Unicode presentation block (the lam-alef ligature U+FEFB
+  where the plain letters would do), so the name in the server's `files_list` column and the name
+  Syncthing wrote to disk can differ byte-wise while reading identically. And `lowercase()` on an
+  extension used the device locale. New `FileNames` handles all three: extensions are bidi-stripped
+  and folded with `Locale.ROOT`, and a file whose exact name isn't on disk is resolved by an
+  NFKC-normalised directory scan before giving up. A genuine miss now names the folder's actual
+  contents in the toast instead of only the path it looked for. Covered by unit tests
+  (`:app:testDebugUnitTest`, new to this module).
+
+### Added
+
+- **Desktop: a "Bad taxonomy" filter** in the sidebar, alongside "Non-standard". Deliberately a
+  separate tri-state: non-standard is about the file *name's shape*, this is about its *values* —
+  `2026_08_08-101500~Y~p3~A.md` is perfectly well-formed but invisible to every type filter when no
+  type `Y` exists. The two queues want different fixes (retag vs. rename), so a file is never
+  counted in both: non-standard names are excluded here, and a *blank* tag is not a bad tag.
+- **The same filter on the mobile home screen**, in a collapsible panel above the list. It hides
+  itself when nothing is wrong — a permanent "0 bad" row is furniture on a phone — but the header
+  stays visible while the filter is on, so a narrowed board can't be mistaken for data loss.
+- **Mobile: "Upcoming plans" and "Top priority" are now two widgets** instead of two lists stacked in
+  one, so each can be sized and placed on its own. The lists were already independent adapters; this
+  is a packaging change. Both are served by the shared `SectionListWidget`.
+- **Mobile: the KPI widget is two columns with abridged labels** — `5 nt. td. / 1204` over
+  `7.7 gb f.`, and `862 f.` over `12 f. td.`. Three columns of value-plus-spelled-out-caption didn't
+  survive being shrunk to a 3x1 cell. The second column now tracks the knotes folder's own growth
+  (total files, and how many arrived today) in place of the `/new` inbox count.
+- **Mobile: an unsaved note draft survives closing the app.** `rememberSaveable` covers rotation and
+  a system-initiated kill but not swiping the app away, which is exactly when a half-typed note was
+  lost. Drafts are written to disk as you type; only saving or clearing removes one. New notes only —
+  restoring a copy of an existing note's text later would resurrect stale content.
+- **Audiobooks: a "Bookmarked" tab** listing every file that has bookmarks, most recently bookmarked
+  first, with how far in the furthest mark sits. The folder tree pins the same list for the current
+  folder above its alphabetical contents — a folder of 40 numbered chapters sorts the one you were on
+  into the middle. Tapping resumes from the player's saved position.
+- **Settings: a "Features" section** for parts of the UI that aren't whole pages — currently the RSS
+  feed link and the standard per-module reports. Same default-on rule as the page toggles, separate
+  `feature.*` key namespace. Your own saved searches are unaffected by the reports toggle: nobody
+  would look in Settings for why those vanished. Switching the reports off also skips their
+  count queries (one request per report).
+- **Saved-search results are full record cards** in the middle pane, not a minimal table, and clicking
+  one opens the full record in the detail pane. The search projection only yields module/id/title, so
+  each card's body is fetched per record — capped at 40 with a "Show more" button, and showing the
+  known title over a skeleton until its fetch lands.
+
+## 2026-08-07
+
+### Fixed
+
+- **WAR silently 404'd on Tomcat** (see `war-fix.md`). `providedRuntime
+  'spring-boot-starter-tomcat'` pulls the whole framework transitively on Boot 4, and the war plugin
+  subtracts everything reachable from `providedRuntime` out of `WEB-INF/lib` — so the deployed WAR
+  had no `spring-web`, Tomcat found no `ServletContainerInitializer`, Spring never booted, and every
+  URL returned 404 with a clean log. (`java -jar` kept working, which is what made it easy to miss.)
+  Replaced with the four jars the container actually supplies. `bootWar` now fails the build if
+  `spring-web` isn't in `WEB-INF/lib`, so this can't regress silently — the guard was verified by
+  reintroducing the bug.
+- **A task set to repeat monthly repeated every day.** The nightly fixed-schedule sweep spawns any
+  recurring task whose due date has passed, but advanced the new occurrence only one step from the
+  old anchor — so a task overdue by six months landed five months in the past, was immediately due
+  again, and spawned another copy the next night. One task per day until the chain crawled back to
+  the present, whatever interval you configured. Fixed-schedule recurrence now advances to the first
+  occurrence in the future; completion-triggered recurrence deliberately keeps the single step (a
+  weekly task finished late should read as overdue, not silently reschedule itself). A rule that
+  can't advance at all — the legacy `recurring` varchar holds nulls and stray values — now spawns
+  nothing and logs, instead of duplicating the same task nightly forever.
+- **Resource covers (and repo downloads, and the image renamer) were broken off the root context.**
+  `fetchBlob` stripped a hardcoded `/api`, but the URLs are built as `${BASE}api/...`; under a Tomcat
+  context path that strip silently no-ops and axios prepends its base again, producing
+  `/nibras/api/nibras/api/...`. Only covers were noticed because the repo-1 file list uses a relative
+  path.
+- **Mobile: editing an entry created offline produced several server records.** The outbox
+  identified entries only by server id, which is blank until the first successful push, so an edit
+  appended a second copy rather than replacing it — and every copy was pushed as its own create.
+  Entries now carry a client-generated key assigned at creation; removal matches on identity too, so
+  an entry edited mid-push is no longer re-pushed.
+- **Mobile reported "Synced" when the password was wrong.** `/page/heartbeatJson` is unauthenticated,
+  so the heartbeat passed regardless; every `fetchType` then 401'd into `.getOrNull()` and the
+  enclosing `runCatching` still succeeded. Nothing was cached and success was recorded. It now counts
+  successful fetches and says *"Sign-in failed — check the username and password in Settings"*.
+- **Bluetooth/headset pause didn't rewind.** The on-screen bookmark button marks
+  `bookmarkRewind` seconds behind the playhead and seeks there; auto-bookmark-on-pause did neither —
+  it stored the raw cut-off point and left the playhead alone. Both paths now behave identically.
+- **Global search found nothing on a new machine.** Not a bug: `search_doc` fills incrementally on
+  write plus a bulk rebuild, so a fresh install over an existing database has an empty index while
+  each module's own search still works. A zero-result search now detects the empty index and points
+  at **Rebuild search index** instead of saying "no matches" (`GET /api/search/index-status`).
+- **Checking out a goal wrote a blank `title` field.** Goal keeps a vestigial `title` column from the
+  legacy schema — populated on 9 of 1300+ rows — while the app edits `summary`. Now exports
+  `summary`. Resources still use `title` (Book has no summary).
+
+### Added
+
+- **Automatic schema migrations (Flyway).** `db/extra-schema.sql` no longer needs running by hand on
+  a new machine: migrations live in `backend/src/main/resources/db/migration` and apply at startup,
+  baselined so the legacy tables are stamped as version 0 and left alone. `ddl-auto` stays `none`.
+  Note `spring-boot-flyway` is required alongside `flyway-core` — Boot 4 moved auto-configuration
+  into per-integration modules, so without it the app starts cleanly and skips every migration in
+  silence. **Any WAR from here on migrates whatever database it's pointed at, on first boot — back
+  up before deploying.**
+- **Click-to-highlight on the reading page**, mirroring the mobile resource card: clicking wraps the
+  text in `==…==` in the body field and appends it to the record's highlights field; clicking again
+  removes both. Two granularities, remembered per record — **sentence** (the same split the phone
+  uses) and **clause** (also breaks at `، ؛ , ; : —`, for articles whose sentences run a whole
+  paragraph). Both are device-independent, unlike a visual-line split, so a highlight stores the same
+  text whatever the screen. Now available on every module with a description: `mainHighlights` was
+  added to Tasks, Journal, Planner, Goals and Writings; resources keep `fullText` → `highlights`,
+  which is the field the phone's own highlight push writes to.
+- **The reading page is a real destination**: Edit and repo 1/2/3 buttons, and an expand icon in the
+  detail pane that opens it. Edit hands the record back to the master-detail shell via
+  `?select=<id>&edit=1` rather than duplicating the form.
+- **Admin → Synced to clients**: the parameter vocabulary mobile/terminal/desktop should be showing,
+  filtered exactly as they filter it (departments priority ≥ 2 by order number; types of enabled
+  modules, in each module's sync order) so a drifted device is visible by comparison. Adds a
+  `syncOrder` per module, seeded T G P J N W R I and editable in Settings.
+- **Parameters moved to their own page** (`/parameters`, gated by `params.write`) out of Settings
+  (`tools.settings`), so the existing PARAMETERS_DATA_ENTRY role can actually maintain the vocabulary
+  without being handed the admin surface.
+- **Journal nudge** (`journal-nudge.sh` + a `systemd --user` timer): a true OS-level `notify-send`
+  reminder, independent of any browser tab. During configurable work hours/days it nudges unless
+  **both** a journal entry overlaps the last hour and a task timer is running. Persistent
+  notification, time in the title. Install steps are in the README.
+- **Dashboards toggle** in Settings → Pages, and toggles for the new Parameters/Insights pages.
+
+### Changed
+
+- **Calendar events are coloured by their own type**, using the chip colour configured on the
+  Parameters page. Journal and planner types are separate lookups that can share a colour, so module
+  identity moved off the colour channel: planner events get a dashed border, journals solid.
+- **The rail's mini calendar shows two weeks by default** (previous + current), expandable to the
+  full month — enough to reach "yesterday" or "last Tuesday" while leaving the reports and
+  saved-searches list room.
+- **Goal habit tracking**: the log entry takes a date (defaulting to today) so a missed day can be
+  backfilled, and the "add another indicator" button is gone — a goal tracks one habit, and extra
+  indicators only fragmented its history.
+- **Calendar "New entry" pre-selects the configured default type** instead of showing "None" for a
+  value that wouldn't have stayed blank once saved.
+- **The browser tab title follows the app name** from Settings.
+- **History is always expanded** in the detail pane; **quick-add note** now confirms with a toast.
+- **Mobile**: the add form on the home screen collapses.
+
+## 2026-08-03
+
+- **Insights page** (`/insights`): a new dashboard for the 7 core record types (Tasks, Journal,
+  Planner, Resources, Notes, Writings, Goals) — a pie chart of where records live, a "needs review
+  first" ranked list (share updated recently, ascending), and a per-module card with a
+  created-vs-updated weekly bar chart plus a stale-records mini-list linking into the record.
+  Covers a **configurable past period** (default last 3 months) with a separate **configurable
+  review window** (default last week), both as dropdowns remembered per-browser — deliberately
+  scoped to recent activity rather than a module's entire history, so the page motivates reviewing
+  recent work instead of years of backlog. Backend: `InsightsService`/`InsightsController`
+  (`GET /api/insights/summary?from=&to=&reviewDays=`), scoping `total` to records **created** in
+  the period (not `countAll()`) so the denominator matches what's on screen.
+- **Append to description**: every record's detail pane now has an always-visible, autofocused
+  "Append to `<field>`…" field under its description field (Enter to add) — no need to open Edit
+  for a quick addendum. The prefix/suffix wrapped around the appended text is configurable in
+  Settings → "Append to description" (default: a blank-line separator).
+- **History section is always expanded** in the record detail pane (previously collapsed by
+  default, one click to open).
+- **Quick-add note now shows an unmissable confirmation** — a bottom-center Snackbar toast (the
+  same one `QuickEditDialog` uses), not just a small flash in the collapsed bar's own header.
+- **Calendar "New calendar entry" dialog pre-selects the admin-configured default type** for
+  Journal/Planner instead of showing "None" for a value that silently wouldn't stay blank once
+  saved (the backend's `LookupDefaultsService` already fills it in on save either way).
+- **Browser tab title follows the "app name" setting** (Settings → Application) instead of the
+  static `Nibras PIM` baked into `index.html`.
+- **1st-pane calendar → one-line date field + icon.** The full month-grid calendar in the sidebar
+  used to always take a fixed chunk of vertical space, squeezing out the reports/saved-searches
+  list below it. It's now a compact one-line date field with a calendar icon that opens the full
+  grid in a popover; picking a date either way runs the same handler and closes the popover.
+- **Datetime pickers now support typing digits directly**, everywhere. The remaining native
+  `<input type="date">`/`type="datetime-local">` fields (new calendar entry's Start/End, the audit
+  log's From/To, the new sidebar date field) are now MUI X `DatePicker`/`DateTimePicker` — a
+  JS-driven field whose keyboard section-editing (click a segment, type digits, auto-advance) is
+  consistent across every browser/OS, unlike native date-widget typing support, which can vary by
+  platform.
+- **Journal nudge**: a new local script + `systemd --user` timer (`journal-nudge.sh`,
+  `systemd/journal-nudge.{timer,service}`, `systemd/install-journal-nudge.sh`) — a true OS-level
+  `notify-send` desktop notification, independent of any browser tab, separate from the web app's
+  own once-a-day in-tab reminder. During configurable work hours/days (default 8am–8pm Mon–Fri),
+  checked every 15 minutes: unless **both** a journal entry overlaps the last hour (via
+  `/api/calendar/events`, a real start/end overlap check, not just "started recently") **and** a
+  task timer is currently running (`/api/timer`), it nudges — either condition alone isn't enough,
+  and the notification names which one is missing. The notification's title carries the time it
+  fired and is **persistent** (`-u critical -t 0`) — stays on screen until dismissed rather than
+  auto-hiding after a few seconds. Same config/token-cache convention as `timer-status.sh`
+  (`~/.config/nibras/journal-nudge.conf`). New README section covers install on a new machine.
+
+## 2026-08-01
+
+- **Version 1.2.4 "Dastgheib".** All six components (backend, frontend, desktop, terminal, audio
+  player, mobile) bumped to 1.2.4 and given this release's codename. Version strings now carry the
+  build number as a `.b<N>` suffix where the app has one (e.g. mobile's `1.2.4.b68`, frontend's
+  `1.2.4.b78`) — each app's build counter is independent (auto-incremented per build), so the
+  suffix is per-app, not a shared number.
+- **Calendar: drag to resize/move events, click to edit.** Web (`/calendar`) and mobile now both
+  support dragging an event's edge to resize it or its body to move it (mobile: within the same
+  day — cross-day drag isn't implemented yet), and clicking/tapping an event opens it for editing
+  instead of just navigating away. Backend fix: `mobilePushCalendar` only supported update-by-id
+  for Planner entries — Journal entries were always duplicated instead of updated, silently
+  breaking edit/resize/move for Journal-type events from the phone.
+- **Calendar events bookmarked by default.** The web "New calendar entry" dialog now sends
+  `bookmarked: true` on create (mobile's `mobilePushCalendar` already forced this server-side), so
+  journal/planner entries created from either calendar round-trip back down to the phone on its
+  next sync (mobile only pulls bookmarked records).
+- **Record reading page** (`/read/:entity/:id`): clicking a calendar event now opens it on a new
+  tab, narrow and chrome-free — the record's content without the full 3-pane master-detail shell.
+- **Search by numeric id.** A purely-numeric query now resolves to "the record whose id is this"
+  (checked across every module, since ids aren't unique per module) instead of a full-text scan —
+  both the global search and each module's own list search. Falls back to normal text search if no
+  record anywhere has that id.
+- **Goal detail page: inline "add a task" field** — always visible, no button needed to reveal it;
+  Enter creates the task linked to that goal.
+- **Mobile reminders**: new "Repeat sound (times)" setting (default 4) — plays the reminder sound
+  that many times instead of just once, a middle ground between "once" and "loop until dismissed."
+  Every reminder notification is now persistent (can't be swiped away) regardless of playback mode
+  — previously only the loop-until-dismissed mode was.
+- **Mobile: connectivity-triggered sync**, plus tap-to-sync on the KPI and Upcoming-plans widgets'
+  titles — both run the same background sync as the periodic timer and the in-app refresh button,
+  always ending in a toast with the outcome.
+- **Desktop kanban**: empty type-subgroups (a category with zero notes of some type) are hidden
+  instead of always showing an empty header. Toolbar split into two rows — title bar (app name ·
+  build · note count) and a dedicated toolbar row below it — plus a new refresh button (Ctrl+R),
+  and the active note folder is watched on disk (`Gio.FileMonitor`) so a note synced in from
+  another machine (e.g. via Syncthing) appears automatically, debounced.
+- **Frontend quick-add note field auto-detects RTL** (`dir="auto"`) like the rest of the app's text
+  inputs — previously stayed left-to-right even for Arabic content.
+
+## 2026-07-23
+
+- **Version 1.2.0 "Maitham".** Backend, frontend, and the file-watch/scr-annotator/window-tracker
+  sibling tools all bumped and tagged with this release's codename.
+- **Dashboard builder** (`/dashboards` · `GET/POST/PUT/DELETE /api/custom-dashboards`): named,
+  grid-arranged dashboards built from typed regions — quote-of-the-day (last bookmarked note of a
+  chosen type), a filtered week calendar (journal/planner entries by type, real hour-grid not a
+  list), the goals habit heatmap, the kanban board, or a file's plain-text content. Each region can
+  span 1+ of the dashboard's grid columns (`colSpan`, e.g. a calendar spanning 3/4 columns next to a
+  1-column heatmap).
+- **`/dashboards/{id}/view` — chrome-free, unauthenticated TV/kiosk view.** No SideNav, no login at
+  all: backed by one new aggregate, read-only snapshot endpoint (`GET
+  /api/public/custom-dashboards/{id}`, explicitly `permitAll` in `SecurityConfig`) that resolves
+  only the exact data that one dashboard's regions need, server-side — deliberately narrower than
+  opening the generic notes/goals/calendar/kanban read endpoints to anonymous callers. Auto-refreshes
+  the data on an interval and reloads the whole page periodically (configurable `refreshMinutes`) so
+  a screen left running for days never accumulates stale state.
+- **Goals gain a `dashboard` flag** ("Show habit heatmap on dashboards") — marks a goal's linked
+  habit indicators for the dashboard builder's heatmap component. Habit heatmap redesigned: 40 past
+  days (10/row), a fixed red/orange/light-green/dark-green intensity legend independent of the
+  indicator's own colour, future days greyed out, and a count badge when a day has more than one
+  logged entry.
+- **Deep-link / SPA-fallback fix.** A direct navigation or refresh on a multi-segment route (e.g.
+  `/dashboards/2/view`) used to hit Spring's raw 404 Whitelabel page — the WAR's `SpaController`
+  pattern only ever matched a single path segment. It now also implements `ErrorController`: any GET
+  that falls through to a real 404 and isn't clearly a backend path (`/api`, `/feeds`, `/sync`,
+  `/page`, springdoc) gets the SPA shell instead; backend/API 404s still get byte-for-byte the same
+  JSON error body Spring Boot produced before (verified — the ~130 `ResponseStatusException` call
+  sites across the backend that the frontend reads error messages from are unaffected).
+- **Links open in a new tab.** Resources' `url` field is now a clickable link (new `"url"` field
+  type) instead of plain text; every link inside markdown/rich-text content anywhere in the detail
+  pane (explicit `[text](url)` or an auto-linkified bare URL) now also forces `target="_blank"
+  rel="noopener noreferrer"`.
+- **HTTPS via Caddy, for desktop notifications.** Browsers silently refuse the Notifications
+  permission over plain HTTP on a LAN IP (only `localhost`/`127.0.0.1` count as a secure context).
+  Three setup scripts at the repo root (`setup-caddy-prod.sh`, `setup-caddy-client-trust.sh`,
+  `setup-caddy-client-local.sh`) cover HTTPS on the server itself vs. a client-side fallback proxy —
+  see [DEPLOY.md](DEPLOY.md#https-via-caddy-needed-for-desktop-notifications).
+- **Search fixes**: an exact-title-match boost so a record whose title literally contains the full
+  query ranks first regardless of MySQL's natural-language-mode word-frequency scoring; and the
+  bookmarked/typed token grammar (`* #quote`) now does a real per-module filtered query instead of
+  only scanning the ~100 most-recently-updated records across all modules.
+- **File upload collisions get a datetime-stamped suffix** instead of silently overwriting an
+  existing file of the same name in a repo.
+- **Settings page**: lookup/parameter values (resource type, status, context, …) can now be
+  created, renamed, and deleted in-app, not just recoloured/defaulted; the "Parameter colours"
+  heading is legible again (was near-invisible small grey text).
+- **Quick note bar**: an always-present, collapsible entry form at the bottom of the 3rd pane — the
+  first line (if under 120 chars after trimming) becomes the summary, the rest the description;
+  otherwise the whole thing is the description.
+
+## 2026-07-21
+
+- **Version 1.1.1 "Ammar".** All components (backend, frontend, desktop, terminal, audio player,
+  mobile) bumped to 1.1.1 and given this release's codename — shown next to the version number in
+  each app's title bar / About section (web: Help page "About" + status bar; desktop apps: window
+  title bar; mobile: the version line under the app name).
+
 ## 2026-07-17
 
 - **Import notes: resource type chosen up front for 'R' notes.** The type places the record's

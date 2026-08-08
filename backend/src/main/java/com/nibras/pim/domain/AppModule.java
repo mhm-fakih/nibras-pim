@@ -41,6 +41,11 @@ public class AppModule {
     @Column(name = "sort_order", nullable = false)
     private Integer sortOrder = 0;
 
+    /** Order the module's parameters are handed to the clients in (see V3 migration). Distinct from
+     *  {@link #sortOrder}, which is the sidebar's navigation order. */
+    @Column(name = "sync_order")
+    private Integer syncOrder = 0;
+
     /** Record folder nests under an id/100 bucket: {@code <code>/<id/100>/<id>}. */
     @Column(name = "bucket_by_100", nullable = false)
     private Boolean bucketBy100 = false;

@@ -181,12 +181,26 @@ export function UsersPage() {
                 label="Username"
                 value={draft.username}
                 onChange={(e) => setDraft({ ...draft, username: e.target.value })}
+                onKeyDown={(e) =>
+                  e.key === 'Enter' &&
+                  !save.isPending &&
+                  draft.username &&
+                  (draft.id || draft.password) &&
+                  save.mutate(draft)
+                }
                 fullWidth
               />
               <TextField
                 label="Display name"
                 value={draft.displayName}
                 onChange={(e) => setDraft({ ...draft, displayName: e.target.value })}
+                onKeyDown={(e) =>
+                  e.key === 'Enter' &&
+                  !save.isPending &&
+                  draft.username &&
+                  (draft.id || draft.password) &&
+                  save.mutate(draft)
+                }
                 fullWidth
               />
               <TextField
@@ -207,6 +221,13 @@ export function UsersPage() {
                 type="password"
                 value={draft.password}
                 onChange={(e) => setDraft({ ...draft, password: e.target.value })}
+                onKeyDown={(e) =>
+                  e.key === 'Enter' &&
+                  !save.isPending &&
+                  draft.username &&
+                  (draft.id || draft.password) &&
+                  save.mutate(draft)
+                }
                 autoComplete="new-password"
                 fullWidth
               />

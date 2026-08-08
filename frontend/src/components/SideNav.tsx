@@ -31,8 +31,11 @@ import School from '@mui/icons-material/School';
 import ShowChart from '@mui/icons-material/ShowChart';
 import CalendarMonth from '@mui/icons-material/CalendarMonth';
 import ViewKanban from '@mui/icons-material/ViewKanban';
+import Dashboard from '@mui/icons-material/Dashboard';
+import InsightsIcon from '@mui/icons-material/Insights';
 import StarIcon from '@mui/icons-material/Star';
 import AdminPanelSettings from '@mui/icons-material/AdminPanelSettings';
+import Tune from '@mui/icons-material/Tune';
 import History from '@mui/icons-material/History';
 import Settings from '@mui/icons-material/Settings';
 import HelpOutline from '@mui/icons-material/HelpOutline';
@@ -47,6 +50,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import People from '@mui/icons-material/People';
+import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import Security from '@mui/icons-material/Security';
 import Logout from '@mui/icons-material/Logout';
 import { useAuth } from '../hooks/useAuth';
@@ -56,7 +60,7 @@ import { ENTITY_BY_KEY } from '../config/entities';
 import { reportsFor } from '../config/reports';
 import { useModules } from '../hooks/useModules';
 import { getSetting, getSettingsMulti, listEntities, ListParams } from '../api/client';
-import { PAGE_SETTING_KEYS, pageEnabled } from '../config/pages';
+import { FEATURE_SETTING_KEYS, PAGE_SETTING_KEYS, featureEnabled, pageEnabled } from '../config/pages';
 import { SavedSearchPanel } from './SavedSearchPanel';
 import type { SavedSearchRecordRef } from '../api/client';
 import { CalendarNotebookIcon } from './CalendarNotebookIcon';
@@ -82,7 +86,10 @@ const ROLE_LABEL: Record<string, string> = {
 const TOOLS: { path: string; label: string; icon: typeof Flag; perm?: Permission }[] = [
   { path: '/calendar', label: 'Calendar', icon: CalendarMonth },
   { path: '/kanban', label: 'Kanban', icon: ViewKanban },
+  { path: '/dashboards', label: 'Dashboards', icon: Dashboard },
+  { path: '/insights', label: 'Insights', icon: InsightsIcon },
   { path: '/bookmarks', label: 'All bookmarks', icon: StarIcon },
+  { path: '/parameters', label: 'Parameters', icon: Tune, perm: 'params.write' },
   { path: '/admin', label: 'Admin', icon: AdminPanelSettings, perm: 'tools.admin' },
   { path: '/batch', label: 'Batch entry', icon: PlaylistAdd, perm: 'content.write' },
   { path: '/import-files', label: 'Import files', icon: DriveFileMove, perm: 'content.write' },
@@ -90,6 +97,7 @@ const TOOLS: { path: string; label: string; icon: typeof Flag; perm?: Permission
   { path: '/images', label: 'Image renamer', icon: Photo, perm: 'content.write' },
   { path: '/sites', label: 'Static website', icon: Public, perm: 'content.write' },
   { path: '/audit', label: 'Audit log', icon: History, perm: 'tools.audit' },
+  { path: '/trash', label: 'Trash', icon: DeleteOutline, perm: 'content.write' },
   { path: '/settings', label: 'Settings', icon: Settings, perm: 'tools.settings' },
   { path: '/help', label: 'Help & shortcuts', icon: HelpOutline },
 ];
@@ -99,6 +107,8 @@ export function SideNav({
   calendar,
   onSearchRecords,
 }: {
+  /** The rail's mini calendar (MiniCalendar), rendered inline — it owns its own two-week/full-month
+   * expand state. */
   calendar?: ReactNode;
   onSearchRecords?: (title: string, records: SavedSearchRecordRef[]) => void;
 }) {
@@ -106,7 +116,6 @@ export function SideNav({
   const qc = useQueryClient();
   const { pathname, search } = useLocation();
   const { entity } = useParams();
-
   // Clicking a tool icon for the page you're already on can't re-navigate (same route = no
   // remount), so the data would stay stale. Treat it as a refresh: refetch the active queries.
   const goTool = (path: string) => {
@@ -120,11 +129,23 @@ export function SideNav({
     queryFn: () => getSetting('app.name', 'Nibras'),
     staleTime: 300_000,
   });
+  // The browser tab title follows the configurable app name (Settings → Application) instead of
+  // the static fallback baked into index.html — SideNav is mounted on every authenticated page.
+  useEffect(() => {
+    document.title = appName;
+  }, [appName]);
   const { data: pageSettings } = useQuery({
     queryKey: ['page-settings'],
     queryFn: () => getSettingsMulti(PAGE_SETTING_KEYS),
     staleTime: 60_000,
   });
+  const { data: featureSettings } = useQuery({
+    queryKey: ['feature-settings'],
+    queryFn: () => getSettingsMulti(FEATURE_SETTING_KEYS),
+    staleTime: 60_000,
+  });
+  const showModuleReports = featureEnabled(featureSettings, 'moduleReports');
+  const showRss = featureEnabled(featureSettings, 'rss');
   const [q, setQ] = useState('');
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('nibras.railCollapsed') === '1');
   const [width, setWidth] = useState(() => {
@@ -166,9 +187,10 @@ export function SideNav({
   const reports = reportsFor(activeModule);
   const moduleLabel = ENTITY_BY_KEY[activeModule]?.label ?? activeModule;
 
-  // A matching-record count per report, shown as a badge so empty reports are obvious.
+  // A matching-record count per report, shown as a badge so empty reports are obvious. One request
+  // per report, so skip them entirely when the reports section is switched off.
   const reportCounts = useQueries({
-    queries: reports.map((r) => ({
+    queries: (showModuleReports ? reports : []).map((r) => ({
       queryKey: ['report-count', activeModule, r.key],
       queryFn: () =>
         listEntities(activeModule, { ...r.params, size: 1 } as unknown as ListParams).then(
@@ -204,7 +226,7 @@ export function SideNav({
           variant="caption"
           sx={{ color: 'text.secondary', alignSelf: 'flex-end', mb: 0.5, whiteSpace: 'nowrap' }}
         >
-          v{__APP_VERSION__} · {__BUILD_NUMBER__}
+          v{__APP_VERSION__}.b{__BUILD_NUMBER__} &quot;{__APP_CODENAME__}&quot;
         </Typography>
         <Box sx={{ flex: 1 }} />
         {!isMobile && (
@@ -238,20 +260,27 @@ export function SideNav({
         />
       </Box>
 
-      <Box sx={{ mt: -0.5, mb: -0.5 }}>{calendar}</Box>
+      {/* The mini calendar renders inline again (two weeks by default, expandable to the full
+          month) — the one-line field + popover freed space but hid the day badges that make the
+          rail useful at a glance. */}
+      <Box sx={{ mt: -0.5 }}>{calendar}</Box>
 
       <Divider />
 
-      {/* Reports for the active module */}
+      {/* Reports for the active module. The built-in shortcuts and the RSS link are each behind
+          their own Settings feature toggle; saved searches below are always shown, since those are
+          the user's own and nobody would look in Settings for why they vanished. */}
       <Box sx={{ flex: 1, overflow: 'auto', px: 1, py: 0.5 }}>
-        <Stack direction="row" alignItems="center" spacing={0.5} sx={{ px: 1, py: 0.5 }}>
-          <AssessmentIcon fontSize="small" color="action" />
-          <Typography variant="overline" color="text.secondary">
-            {moduleLabel} reports
-          </Typography>
-        </Stack>
+        {showModuleReports && (
+          <Stack direction="row" alignItems="center" spacing={0.5} sx={{ px: 1, py: 0.5 }}>
+            <AssessmentIcon fontSize="small" color="action" />
+            <Typography variant="overline" color="text.secondary">
+              {moduleLabel} reports
+            </Typography>
+          </Stack>
+        )}
         <List dense disablePadding>
-          {reports.map((r, i) => {
+          {showModuleReports && reports.map((r, i) => {
             const count = reportCounts[i]?.data;
             const empty = count === 0;
             return (
@@ -272,18 +301,20 @@ export function SideNav({
               </ListItemButton>
             );
           })}
-          <ListItemButton
-            component="a"
-            href={`${BASE}feeds/${activeModule}.xml`}
-            target="_blank"
-            rel="noreferrer"
-            sx={{ py: 0.25, borderRadius: 1 }}
-          >
-            <ListItemIcon sx={{ minWidth: 28 }}>
-              <RssFeed fontSize="small" />
-            </ListItemIcon>
-            <ListItemText primary="RSS (bookmarked)" primaryTypographyProps={{ fontSize: 13 }} />
-          </ListItemButton>
+          {showRss && (
+            <ListItemButton
+              component="a"
+              href={`${BASE}feeds/${activeModule}.xml`}
+              target="_blank"
+              rel="noreferrer"
+              sx={{ py: 0.25, borderRadius: 1 }}
+            >
+              <ListItemIcon sx={{ minWidth: 28 }}>
+                <RssFeed fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primary="RSS (bookmarked)" primaryTypographyProps={{ fontSize: 13 }} />
+            </ListItemButton>
+          )}
         </List>
 
         {/* User-defined reports for the active module, after the standard ones. */}

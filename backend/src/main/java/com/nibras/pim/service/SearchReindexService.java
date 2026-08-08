@@ -32,4 +32,10 @@ public class SearchReindexService {
         }
         return count;
     }
+
+    /** Rows currently in {@code search_doc} — 0 on a fresh install until {@link #reindexAll()} runs. */
+    @Transactional(readOnly = true)
+    public long indexedCount() {
+        return index.count();
+    }
 }

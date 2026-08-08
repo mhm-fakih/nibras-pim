@@ -201,12 +201,12 @@ public class NoteImportService {
     private ImportNoteDto parse(Path file) {
         String filename = file.getFileName().toString();
         String body = readBody(file);
-        String summary = suitableSummary(body);
+        SummaryAndDescription sd = splitSummary(body);
 
         Matcher m = NAME.matcher(filename);
         if (!m.matches()) {
             return new ImportNoteDto(filename, false, null, null, null, null, null, null, null, null,
-                    summary, body);
+                    sd.summary(), sd.description(), body);
         }
         LocalDateTime ts = LocalDateTime.of(
                 Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)),
@@ -224,7 +224,7 @@ public class NoteImportService {
                 priority, deptCode,
                 dept == null ? null : dept.getId(),
                 dept == null ? null : dept.getName(),
-                summary, body);
+                sd.summary(), sd.description(), body);
     }
 
     private static String readBody(Path file) {
@@ -235,21 +235,44 @@ public class NoteImportService {
         }
     }
 
-    /** First non-empty line, used as the title only when a sensible length (3–120 chars). */
-    private static String suitableSummary(String body) {
-        for (String line : body.split("\\R")) {
-            String t = line.strip();
-            if (!t.isEmpty()) {
-                return t.length() >= 3 && t.length() <= 120 ? t : null;
-            }
+    private record SummaryAndDescription(String summary, String description) {
+    }
+
+    /**
+     * Splits the body into a title line and the rest. The first non-empty line becomes the
+     * summary only when it's a sensible title length (3–120 chars); the description is whatever
+     * follows it — never the same text as the summary, so a one-line note (title, nothing else)
+     * gets a populated summary and a blank description instead of duplicating the line into both.
+     */
+    private static SummaryAndDescription splitSummary(String body) {
+        String[] lines = body.split("\\R", -1);
+        int i = 0;
+        while (i < lines.length && lines[i].strip().isEmpty()) {
+            i++;
         }
-        return null;
+        if (i >= lines.length) {
+            return new SummaryAndDescription(null, null);   // blank body
+        }
+        String first = lines[i].strip();
+        if (first.length() < 3 || first.length() > 120) {
+            // Not a usable title — nothing is "consumed," the whole body is the description.
+            return new SummaryAndDescription(null, body.isBlank() ? null : body);
+        }
+        StringBuilder rest = new StringBuilder();
+        for (int j = i + 1; j < lines.length; j++) {
+            if (rest.length() > 0) {
+                rest.append('\n');
+            }
+            rest.append(lines[j]);
+        }
+        String description = rest.toString().strip();
+        return new SummaryAndDescription(first, description.isEmpty() ? null : description);
     }
 
     // ---- record creation -------------------------------------------------------------
 
     private BaseEntity createEntity(ImportNoteDto d, Long resourceTypeId) {
-        String html = toHtml(d.body());
+        String html = toHtml(d.description());
         Department dept = d.deptId() == null ? null : em.getReference(Department.class, d.deptId());
 
         BaseEntity entity = switch (d.moduleKey()) {

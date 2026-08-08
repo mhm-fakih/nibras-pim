@@ -1,5 +1,6 @@
 export type FieldType =
   | 'text'
+  | 'url'
   | 'textarea'
   | 'richtext'
   | 'markdown'
@@ -12,12 +13,23 @@ export type FieldType =
   | 'course'
   | 'book'
   | 'goal'
-  | 'tags';
+  | 'tags'
+  | 'recurrence';
 
 export interface FieldDef {
   name: string;
   label: string;
   type: FieldType;
+  /**
+   * `recurrence` only. The two modules mean different things by repeating, so the picker adapts:
+   *
+   * - `'chain'` (tasks) — one occurrence exists at a time and the next is spawned when this one is
+   *   completed, or by date if "fixed schedule" is on. That switch is offered.
+   * - `'series'` (planners) — the record holds a rule that the calendar expands into occurrences.
+   *   Always by date, so the switch is meaningless and hidden; an "ends" control is offered
+   *   instead, which a chain has no use for since it only ever has one future instance.
+   */
+  recurrenceMode?: 'chain' | 'series';
 }
 
 export interface EntityConfig {
@@ -36,7 +48,6 @@ const common: FieldDef[] = [
   { name: 'course', label: 'Course', type: 'course' },
   { name: 'priority', label: 'Priority', type: 'number' },
   { name: 'bookmarked', label: 'Bookmarked', type: 'switch' },
-  { name: 'isPrivate', label: 'Private', type: 'switch' },
   { name: 'tags', label: 'Tags', type: 'tags' },
 ];
 
@@ -50,12 +61,18 @@ export const ENTITIES: EntityConfig[] = [
     fields: [
       { name: 'summary', label: 'Summary', type: 'text' },
       { name: 'description', label: 'Description', type: 'richtext' },
+      { name: 'mainHighlights', label: 'Highlights', type: 'textarea' },
       { name: 'notes', label: 'Notes', type: 'textarea' },
       { name: 'status', label: 'Status', type: 'status' },
       { name: 'goal', label: 'Goal', type: 'goal' },
       { name: 'percentCompleted', label: '% complete', type: 'number' },
       { name: 'startDate', label: 'Start', type: 'datetime' },
       { name: 'endDate', label: 'End', type: 'datetime' },
+      { name: 'urgent', label: 'Urgent', type: 'switch' },
+      { name: 'orderNumber', label: 'Order #', type: 'number' },
+      // Pseudo-field: renders a compound recurrence picker over recurring, recurrencePreset,
+      // recurrenceInterval, recurrenceCron, fixedSchedule — see RecurrenceField in EntityForm.tsx.
+      { name: 'recurrence', label: 'Repeats', type: 'recurrence', recurrenceMode: 'chain' },
       ...common,
     ],
   },
@@ -67,7 +84,8 @@ export const ENTITIES: EntityConfig[] = [
     hasType: true,
     fields: [
       { name: 'summary', label: 'Summary', type: 'text' },
-      { name: 'description', label: 'Entry', type: 'richtext' },
+      { name: 'description', label: 'Description', type: 'richtext' },
+      { name: 'mainHighlights', label: 'Highlights', type: 'textarea' },
       { name: 'notes', label: 'Notes', type: 'textarea' },
       { name: 'type', label: 'Type', type: 'type' },
       { name: 'startDate', label: 'Start', type: 'datetime' },
@@ -85,6 +103,7 @@ export const ENTITIES: EntityConfig[] = [
     fields: [
       { name: 'summary', label: 'Summary', type: 'text' },
       { name: 'description', label: 'Plan', type: 'richtext' },
+      { name: 'mainHighlights', label: 'Highlights', type: 'textarea' },
       { name: 'reality', label: 'Reality', type: 'textarea' },
       { name: 'notes', label: 'Notes', type: 'textarea' },
       { name: 'type', label: 'Type', type: 'type' },
@@ -92,6 +111,10 @@ export const ENTITIES: EntityConfig[] = [
       { name: 'startDate', label: 'Start', type: 'datetime' },
       { name: 'endDate', label: 'End', type: 'datetime' },
       { name: 'percentCompleted', label: '% complete', type: 'number' },
+      // A recurring planner is a SERIES: this record holds the rule and its own start/end are the
+      // first occurrence; the calendar expands the rest on the fly and only writes a row when one
+      // is touched. See PlannerSeriesService on the backend.
+      { name: 'recurrence', label: 'Repeats', type: 'recurrence', recurrenceMode: 'series' },
       ...common,
     ],
   },
@@ -114,7 +137,7 @@ export const ENTITIES: EntityConfig[] = [
       { name: 'highlights', label: 'Highlights', type: 'markdown' },
       { name: 'comments', label: 'Comments', type: 'textarea' },
       { name: 'notes', label: 'Notes', type: 'textarea' },
-      { name: 'url', label: 'URL', type: 'text' },
+      { name: 'url', label: 'URL', type: 'url' },
       { name: 'status', label: 'Status', type: 'status' },
       { name: 'resourceYear', label: 'Year', type: 'text' },
       { name: 'pages', label: 'Pages', type: 'text' },
@@ -153,6 +176,7 @@ export const ENTITIES: EntityConfig[] = [
       // captures only `summary` (title stays DB-mapped for back-compat; see Goal.feedTitle).
       { name: 'summary', label: 'Summary', type: 'text' },
       { name: 'description', label: 'Description', type: 'richtext' },
+      { name: 'mainHighlights', label: 'Highlights', type: 'textarea' },
       { name: 'notes', label: 'Notes', type: 'textarea' },
       { name: 'code', label: 'Code', type: 'text' },
       { name: 'status', label: 'Status', type: 'status' },
@@ -161,6 +185,7 @@ export const ENTITIES: EntityConfig[] = [
       { name: 'startDate', label: 'Start', type: 'datetime' },
       { name: 'endDate', label: 'End', type: 'datetime' },
       { name: 'completedOn', label: 'Completed', type: 'datetime' },
+      { name: 'dashboard', label: 'Show habit heatmap on dashboards', type: 'switch' },
       ...common,
     ],
   },
@@ -173,6 +198,7 @@ export const ENTITIES: EntityConfig[] = [
     fields: [
       { name: 'summary', label: 'Summary', type: 'text' },
       { name: 'description', label: 'Body', type: 'richtext' },
+      { name: 'mainHighlights', label: 'Highlights', type: 'textarea' },
       { name: 'shortDescription', label: 'Short description', type: 'textarea' },
       { name: 'notes', label: 'Notes', type: 'textarea' },
       { name: 'slug', label: 'Slug', type: 'text' },
@@ -241,6 +267,11 @@ export const ENTITY_BY_KEY: Record<string, EntityConfig> = Object.fromEntries(
   ENTITIES.map((e) => [e.key, e]),
 );
 
+/** Modules the backend merge endpoint supports (mirrors MergeService.CLASSES on the backend). */
+export const MERGEABLE_MODULES = new Set([
+  'tasks', 'journals', 'planners', 'resources', 'notes', 'goals', 'writings',
+]);
+
 /**
  * Indicator definitions are managed from the Indicators dashboard (not the generic module list),
  * so this config lives outside ENTITIES — it only drives the New/Edit form there.
@@ -265,6 +296,12 @@ export const INDICATOR_CONFIG: EntityConfig = {
     { name: 'color', label: 'Colour (chart line, e.g. #1f77b4 — auto-filled if blank)', type: 'text' },
     { name: 'priority', label: 'Priority', type: 'number' },
     { name: 'bookmarked', label: 'Actively monitored', type: 'switch' },
+    {
+      name: 'autoCollect',
+      label: 'Auto-collect (query/file-count/script, end of day — see Settings)',
+      type: 'switch',
+    },
+    { name: 'goal', label: 'Goal (habit tracking — daily indicator linked to a goal)', type: 'goal' },
     { name: 'summary', label: 'Summary', type: 'text' },
     { name: 'notes', label: 'Notes', type: 'textarea' },
     { name: 'startDate', label: 'Start', type: 'datetime' },

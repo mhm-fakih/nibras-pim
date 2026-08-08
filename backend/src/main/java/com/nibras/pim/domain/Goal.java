@@ -33,6 +33,11 @@ public class Goal extends BaseEntity implements SyncMutable, Taggable {
     @Column(columnDefinition = "longtext")
     private String description;
 
+    /** Sentences highlighted out of {@link #description} by the reading page's click-to-highlight
+     *  (same collector IndexCard/Book already had). */
+    @Column(name = "main_highlights", columnDefinition = "longtext")
+    private String mainHighlights;
+
     @Column(columnDefinition = "longtext")
     private String notes;
 
@@ -82,6 +87,13 @@ public class Goal extends BaseEntity implements SyncMutable, Taggable {
 
     @Column(name = "user_id")
     private Long userId;
+
+    /** Set when this record was absorbed into another record via merge; it stays soft-deleted. */
+    @Column(name = "merged_into_id")
+    private Long mergedIntoId;
+
+    /** Shows this goal's linked habit indicators in the dashboard builder's "goalsHeatmap" component. */
+    private Boolean dashboard;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "goal_tag",

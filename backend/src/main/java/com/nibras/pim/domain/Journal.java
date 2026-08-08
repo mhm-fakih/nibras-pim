@@ -32,6 +32,11 @@ public class Journal extends BaseEntity implements SyncMutable, Taggable {
     @Column(columnDefinition = "longtext")
     private String description;
 
+    /** Sentences highlighted out of {@link #description} by the reading page's click-to-highlight
+     *  (same collector IndexCard/Book already had). */
+    @Column(name = "main_highlights", columnDefinition = "longtext")
+    private String mainHighlights;
+
     @Column(columnDefinition = "longtext")
     private String notes;
 
@@ -84,6 +89,10 @@ public class Journal extends BaseEntity implements SyncMutable, Taggable {
 
     @Column(name = "nb_files")
     private Integer nbFiles;
+
+    /** Set when this record was absorbed into another record via merge; it stays soft-deleted. */
+    @Column(name = "merged_into_id")
+    private Long mergedIntoId;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "journal_tag",

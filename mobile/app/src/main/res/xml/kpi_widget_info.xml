@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- minWidth is what actually constrains how narrow the launcher will let this widget go:
+     Android sizes home-screen cells as 70*n - 30 dp, so 180dp meant "3 cells minimum" and the
+     widget snapped back to 3 columns however it was dragged. 110dp = 2 cells, matching the
+     two-column layout it draws. targetCellWidth/Height are the API 31+ equivalents and are set to
+     agree; older launchers read minWidth/minHeight. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:initialLayout="@layout/widget_kpi"
     android:minHeight="70dp"
-    android:minWidth="180dp"
+    android:minWidth="110dp"
     android:resizeMode="horizontal|vertical"
     android:targetCellHeight="1"
-    android:targetCellWidth="3"
+    android:targetCellWidth="2"
     android:updatePeriodMillis="1800000"
     android:widgetCategory="home_screen" />

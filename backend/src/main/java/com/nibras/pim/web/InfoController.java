@@ -51,13 +51,13 @@ public class InfoController {
         this.buildProperties = buildProperties;
     }
 
-    public record Info(String app, String version, String serverIp, String serverAddress,
-                       int port, String dbName, String repoUrl) {
+    public record Info(String app, String version, String codename, String buildNumber, String serverIp,
+                       String serverAddress, int port, String dbName, String repoUrl) {
     }
 
     @GetMapping
     public Info info() {
-        return new Info(app, version(), resolveIp(), address, port, parseDbName(dbUrl), repoUrl());
+        return new Info(app, version(), codename(), buildNumber(), resolveIp(), address, port, parseDbName(dbUrl), repoUrl());
     }
 
     /** Latest version on GitHub vs the running build. {@code configured=false} until nibras.repo is set. */
@@ -104,6 +104,18 @@ public class InfoController {
     private String version() {
         BuildProperties bp = buildProperties.getIfAvailable();
         return bp != null && bp.getVersion() != null ? bp.getVersion() : DEV_VERSION;
+    }
+
+    /** This release's Mint-style nickname (set via the `codename` build-info property), if any. */
+    private String codename() {
+        BuildProperties bp = buildProperties.getIfAvailable();
+        return bp != null ? bp.get("codename") : null;
+    }
+
+    /** Auto-incrementing build counter (set via the `buildNumber` build-info property), if any. */
+    private String buildNumber() {
+        BuildProperties bp = buildProperties.getIfAvailable();
+        return bp != null ? bp.get("buildNumber") : null;
     }
 
     private String repoUrl() {

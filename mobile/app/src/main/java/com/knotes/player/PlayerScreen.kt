@@ -40,6 +40,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Movie
@@ -93,7 +94,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /** The togglable panels under the main controls — one (or none) shown at a time. */
-private enum class PlayerPanel { FOLDER, BOOKMARKS, RECENTS, SETTINGS }
+private enum class PlayerPanel { FOLDER, BOOKMARKS, RECENT_FOLDERS, RECENTS, SETTINGS }
 
 /** Dark theme shared by the player, whether shown full-screen or as part of the app shell. */
 @Composable
@@ -416,6 +417,7 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
             // sections. Tapping a chip shows its panel below; tapping again hides it. The chips
             // share the full screen width, bookmarks first (it's also the panel open by default).
             val recents = controller.recents
+            val recentFolders = controller.recentFolders
             Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -429,6 +431,11 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                     selected = activePanel == PlayerPanel.FOLDER, enabled = siblings.isNotEmpty(),
                     modifier = Modifier.weight(1f)) {
                     activePanel = if (activePanel == PlayerPanel.FOLDER) null else PlayerPanel.FOLDER
+                }
+                PanelChip(Icons.Filled.FolderOpen, "Recent folders", "${recentFolders.size}",
+                    selected = activePanel == PlayerPanel.RECENT_FOLDERS, enabled = recentFolders.isNotEmpty(),
+                    modifier = Modifier.weight(1f)) {
+                    activePanel = if (activePanel == PlayerPanel.RECENT_FOLDERS) null else PlayerPanel.RECENT_FOLDERS
                 }
                 PanelChip(Icons.Filled.History, "Recently played", null,
                     selected = activePanel == PlayerPanel.RECENTS, enabled = recents.isNotEmpty(),
@@ -459,6 +466,17 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                             Text(formatTime(b.positionMs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.width(64.dp))
                             Text(b.text.ifBlank { "—" }, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                             IconButton(onClick = { deleteBookmark(b) }) { Icon(Icons.Filled.Delete, "Delete", modifier = Modifier.size(20.dp)) }
+                        }
+                    }
+                }
+
+                // Folders recently played from — tapping one resumes the most-recently-played file
+                // in it (recents is already newest-first, so the first match is exact).
+                PlayerPanel.RECENT_FOLDERS -> ListSection("Recent folders", maxHeight = 280.dp) {
+                    recentFolders.forEach { folder ->
+                        FolderRow(folder, current = folder.absolutePath == currentFile.parentFile?.absolutePath) {
+                            recents.firstOrNull { it.parentFile?.absolutePath == folder.absolutePath }
+                                ?.let { controller.open(it) }
                         }
                     }
                 }
@@ -767,6 +785,51 @@ private fun MediaRow(file: File, current: Boolean, showPath: Boolean = false, on
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+        }
+    }
+}
+
+/** A tappable folder row for "recently played from" — mirrors [MediaRow]'s look. Tapping resumes
+ *  the most-recently-played file in that folder (see PlayerPanel.RECENT_FOLDERS above). */
+@Composable
+private fun FolderRow(folder: File, current: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .border(1.dp, Color(0xFF3A3A3A), RoundedCornerShape(6.dp))
+            .background(
+                if (current) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent,
+                RoundedCornerShape(6.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Filled.FolderOpen,
+            contentDescription = null,
+            tint = if (current) MaterialTheme.colorScheme.primary else Color(0xFFAAAAAA),
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                folder.name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (current) MaterialTheme.colorScheme.primary else Color.White,
+                fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                folder.absolutePath.removePrefix("/storage/emulated/0/"),
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF9AA0A6),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

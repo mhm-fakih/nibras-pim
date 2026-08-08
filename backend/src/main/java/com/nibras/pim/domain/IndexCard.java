@@ -49,6 +49,15 @@ public class IndexCard extends BaseEntity implements SyncMutable, Taggable, HasS
     private Integer priority;
     private Boolean bookmarked;
 
+    // Present in the legacy schema (a note "belongs" to a Writing as one of its ordered
+    // verses/lines) but never mapped on this entity until now — the columns already exist on
+    // index_card, this just makes them visible through the API for the ayat/verse report tool.
+    @Column(name = "order_in_writing")
+    private Integer orderInWriting;
+
+    @Column(name = "is_new_section")
+    private Boolean isNewSection;
+
     @Column(name = "is_private")
     private Boolean isPrivate;
 
@@ -89,6 +98,10 @@ public class IndexCard extends BaseEntity implements SyncMutable, Taggable, HasS
 
     @Column(name = "user_id")
     private Long userId;
+
+    /** Set when this record was absorbed into another record via merge; it stays soft-deleted. */
+    @Column(name = "merged_into_id")
+    private Long mergedIntoId;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "index_card_tag",

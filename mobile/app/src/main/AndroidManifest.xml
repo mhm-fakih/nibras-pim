@@ -108,6 +108,11 @@
             android:name=".status.ChimeReceiver"
             android:exported="false" />
 
+        <!-- Runs a full sync when tapped from the KPI/upcoming-plans widget titles. -->
+        <receiver
+            android:name=".nibras.SyncNowReceiver"
+            android:exported="false" />
+
         <!-- Reminder alarm receiver (also handles the Dismiss action). -->
         <receiver
             android:name=".reminder.ReminderReceiver"
@@ -133,6 +138,19 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/plans_widget_info" />
+        </receiver>
+
+        <!-- Home-screen widget: priority-4 notes. Was the lower half of the plans widget. -->
+        <receiver
+            android:name=".reminder.TopPriorityWidget"
+            android:exported="false"
+            android:label="Top priority">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/top_priority_widget_info" />
         </receiver>
 
         <!-- Home-screen widget: bookmarked records (Plans/Goals/Tasks). -->

@@ -71,6 +71,28 @@ public class RelationService {
     public record RelatedGroup(String module, String label, String fk, int count, List<RelatedItem> items) {
     }
 
+    /**
+     * Re-points every child record's FK from the secondary record to the primary — used when
+     * merging two records of the same type, so linked children (a goal's tasks, a resource's
+     * excerpts, a task's journal entries, …) follow the surviving record instead of being left
+     * pointing at the merged-away one. Runs as bulk JPQL updates (no per-child audit trail —
+     * the merge itself is the audited action).
+     */
+    @Transactional
+    public void repoint(String module, Class<?> parentClass, Long primaryId, Long secondaryId) {
+        Object primaryRef = em.getReference(parentClass, primaryId);
+        for (Rel r : RELATIONS) {
+            if (!r.parent().equals(module)) {
+                continue;
+            }
+            String entity = r.childClass().getSimpleName();
+            em.createQuery("update " + entity + " e set e." + r.fk() + " = :primaryRef where e." + r.fk() + ".id = :secondaryId")
+                    .setParameter("primaryRef", primaryRef)
+                    .setParameter("secondaryId", secondaryId)
+                    .executeUpdate();
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<RelatedGroup> related(String module, Long id) {
         List<RelatedGroup> out = new ArrayList<>();

@@ -276,6 +276,13 @@ function ManagerDialog({
               fullWidth
               value={form.summary}
               onChange={(e) => set({ summary: e.target.value })}
+              onKeyDown={(e) =>
+                e.key === 'Enter' &&
+                !save.isPending &&
+                form.summary.trim() &&
+                form.query.trim() &&
+                save.mutate(form)
+              }
             />
             <Stack direction="row" spacing={2}>
               <TextField
@@ -296,6 +303,13 @@ function ManagerDialog({
                 size="small"
                 value={form.priority ?? 0}
                 onChange={(e) => set({ priority: Number(e.target.value) })}
+                onKeyDown={(e) =>
+                  e.key === 'Enter' &&
+                  !save.isPending &&
+                  form.summary.trim() &&
+                  form.query.trim() &&
+                  save.mutate(form)
+                }
                 sx={{ width: 110 }}
               />
             </Stack>

@@ -109,6 +109,10 @@ public class Book extends BaseEntity implements SyncMutable, Taggable, HasShortS
     @Column(name = "user_id")
     private Long userId;
 
+    /** Set when this record was absorbed into another record via merge; it stays soft-deleted. */
+    @Column(name = "merged_into_id")
+    private Long mergedIntoId;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "book_tag",
             joinColumns = @JoinColumn(name = "book_tags_id"),

@@ -33,7 +33,8 @@ import kotlinx.coroutines.launch
 @OptIn(UnstableApi::class)
 class PlayerController(app: Application) : AndroidViewModel(app) {
 
-    private val prefs = app.getSharedPreferences("knotes_prefs", Application.MODE_PRIVATE)
+    private val prefs =
+        app.getSharedPreferences(PlaybackService.PLAYER_PREFS, Application.MODE_PRIVATE)
 
     private var controller: MediaController? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
@@ -78,6 +79,10 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
 
     /** Most-recently-opened media files, newest first (capped), persisted across launches. */
     var recents by mutableStateOf(loadRecents())
+        private set
+
+    /** Folders those recent files came from, newest first (capped), persisted across launches. */
+    var recentFolders by mutableStateOf(loadRecentFolders())
         private set
 
     private val listener = object : Player.Listener {
@@ -281,6 +286,18 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         val updated = (listOf(file) + recents.filter { it.absolutePath != file.absolutePath }).take(20)
         recents = updated
         prefs.edit().putString(K_RECENTS, updated.joinToString("\n") { it.absolutePath }).apply()
+        pushRecentFolder(file.parentFile)
+    }
+
+    private fun loadRecentFolders(): List<File> =
+        prefs.getString(K_RECENT_FOLDERS, "").orEmpty()
+            .split("\n").filter { it.isNotBlank() }.map(::File)
+
+    private fun pushRecentFolder(folder: File?) {
+        if (folder == null) return
+        val updated = (listOf(folder) + recentFolders.filter { it.absolutePath != folder.absolutePath }).take(20)
+        recentFolders = updated
+        prefs.edit().putString(K_RECENT_FOLDERS, updated.joinToString("\n") { it.absolutePath }).apply()
     }
 
     private fun sendGain() =
@@ -308,9 +325,11 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
     private companion object {
         const val K_AUTO_BOOKMARK = "auto_bookmark_on_pause"
         const val K_VIDEO_DISABLED = "video_disabled"
-        const val K_BOOKMARK_REWIND = "bookmark_rewind_secs"
+        // PlaybackService reads this one too (auto-bookmark on pause rewinds by it).
+        const val K_BOOKMARK_REWIND = PlaybackService.PREF_BOOKMARK_REWIND
         const val K_BOOKMARK_DOUBLE = "bookmark_double_secs"
         const val K_RECENTS = "recent_media"
+        const val K_RECENT_FOLDERS = "recent_media_folders"
         const val K_LAST_FILE = "last_media"
     }
 }

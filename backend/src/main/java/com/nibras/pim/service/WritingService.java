@@ -35,7 +35,7 @@ public class WritingService extends AbstractCrudService<Writing, WritingDto> {
     protected WritingDto toDto(Writing w) {
         return new WritingDto(
                 w.getId(), w.getVersion(), w.feedTitle(),
-                w.getSummary(), w.getDescription(), w.getShortDescription(), w.getNotes(),
+                w.getSummary(), w.getDescription(), w.getMainHighlights(), w.getShortDescription(), w.getNotes(),
                 w.getSlug(), w.getSource(), w.getBornOn(),
                 w.getPriority(), w.getBookmarked(), w.getIsPrivate(),
                 w.getStatus() == null ? null : w.getStatus().getId(),
@@ -63,6 +63,11 @@ public class WritingService extends AbstractCrudService<Writing, WritingDto> {
         // summary is NOT NULL in the schema.
         w.setSummary(dto.summary() != null ? dto.summary() : "");
         w.setDescription(dto.description());
+        // Only overwrite when the payload actually carries it: the record form sends an explicit
+        // field allowlist, so a normal edit omits mainHighlights and a blind set would erase it.
+        if (dto.mainHighlights() != null) {
+            w.setMainHighlights(dto.mainHighlights());
+        }
         w.setShortDescription(dto.shortDescription());
         w.setNotes(dto.notes());
         w.setSlug(dto.slug());

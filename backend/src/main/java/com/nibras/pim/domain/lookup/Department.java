@@ -32,6 +32,10 @@ public class Department extends BaseEntity {
     private Integer priority;
     private Boolean bookmarked;
 
+    /** Display order on the clients (the legacy `order_number` column, previously unmapped). */
+    @Column(name = "order_number")
+    private Integer orderNumber;
+
     // Departments have no dedicated "name" column — their name IS the (already populated) summary.
     // These delegate so existing callers of getName()/setName() keep working without a schema change.
     public String getName() {

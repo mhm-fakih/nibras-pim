@@ -9,10 +9,23 @@ public record PlannerDto(
         String displayTitle,
         String summary,
         String description,
+        String mainHighlights,
         String notes,
         String reality,
         LocalDateTime startDate,
         LocalDateTime endDate,
+        // --- Recurrence (see PlannerSeriesService). On a series MASTER these carry the rule; on a
+        //     materialised occurrence only seriesId/recurrenceId are set. All are null-guarded in
+        //     PlannerService.apply, because EntityForm sends an explicit field allowlist and a
+        //     normal edit from another surface omits them entirely.
+        Boolean recurring,
+        String recurrencePreset,
+        Integer recurrenceInterval,
+        String recurrenceCron,
+        LocalDateTime recurrenceUntil,
+        Integer recurrenceCount,
+        Long seriesId,
+        LocalDateTime recurrenceId,
         Integer priority,
         Boolean bookmarked,
         Boolean isPrivate,

@@ -44,7 +44,21 @@ public class SearchIndexService {
         }
     }
 
-    /** Natural-language full-text search across all modules, best matches first. */
+    /** Rows in the index. 0 means "never built" — see SearchController.indexStatus(). */
+    public long count() {
+        Long n = jdbc.queryForObject("select count(*) from search_doc", Long.class);
+        return n == null ? 0L : n;
+    }
+
+    /**
+     * Natural-language full-text search across all modules, best matches first. MySQL's natural-
+     * language relevance score is pure word-frequency math over the combined title+body index —
+     * it has no idea a record's TITLE literally contains the whole query as a phrase, so a record
+     * whose body happens to repeat the individual (common) words more often can outrank one whose
+     * title matches the query exactly. An exact-phrase title match is exactly what a searcher means
+     * by "the right answer", so those are boosted to the very top before falling back to the normal
+     * relevance score as the tiebreaker.
+     */
     public List<SearchHit> search(String q, int limit) {
         if (q == null || q.isBlank()) {
             return List.of();
@@ -53,16 +67,17 @@ public class SearchIndexService {
         return jdbc.query("""
                 select module, record_id,
                        title, body,
-                       match(title, body) against (? in natural language mode) as score
+                       match(title, body) against (? in natural language mode) as score,
+                       (title like concat('%', ?, '%')) as title_exact
                 from search_doc
                 where match(title, body) against (? in natural language mode)
-                order by score desc
+                order by title_exact desc, score desc
                 limit ?
                 """,
                 (rs, i) -> new SearchHit(rs.getString("module"), rs.getLong("record_id"),
                         rs.getString("title"), rs.getDouble("score"),
                         snippet(rs.getString("body"), terms)),
-                q, q, limit);
+                q, q, q, limit);
     }
 
     /** Every indexed doc's id + title (no body) — used by the fuzzy duplicate search. */
@@ -70,6 +85,24 @@ public class SearchIndexService {
         return jdbc.query("select module, record_id, title from search_doc",
                 (rs, i) -> new SearchHit(rs.getString("module"), rs.getLong("record_id"),
                         rs.getString("title"), 0.0, ""));
+    }
+
+    /**
+     * A module's most-recently-updated titles, capped — used by the semantic dedup scan, which
+     * has to call out to an embedding model per title and so can't afford to run over an entire
+     * module of thousands of records. Most-recent-first is also the more useful subset for "did I
+     * just re-enter this" than an arbitrary slice would be.
+     */
+    public List<SearchHit> recentTitles(String module, int limit) {
+        return jdbc.query("""
+                select record_id, title
+                from search_doc
+                where module = ?
+                order by updated_at desc
+                limit ?
+                """,
+                (rs, i) -> new SearchHit(module, rs.getLong("record_id"), rs.getString("title"), 0.0, ""),
+                module, limit);
     }
 
     /** Most-recently-updated docs (no full-text term) — used when a search has only token filters. */

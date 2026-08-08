@@ -47,18 +47,34 @@ object PlansRepository {
             .take(50)
 
         PlansStore.save(context, items)
+
+        // Tasks with a due date, not yet completed. Split into "still ahead" (gets the same
+        // before-it's-due alarms as Plans/Journal) and "already overdue" (an alarm can't fire in
+        // the past, so those get an immediate consolidated notification instead — see
+        // TaskOverdueNotifier).
+        val taskItems = runCatching { api.fetchType(base, "T", user) }.getOrNull()
+            ?.filter { it.endDate.isNotBlank() && it.completedOn.isBlank() }
+            ?.mapNotNull { it.toTaskDueItem() }
+            ?: TasksReminderStore.read(context)
+        val (overdueTasks, upcomingTasks) = taskItems.partition { it.startMillis <= now }
+        TasksReminderStore.save(context, upcomingTasks)
+        TaskOverdueNotifier.notifyIfChanged(context, overdueTasks)
+
         reschedule(context, settings)
         PlansWidget.refresh(context)
     }
 
-    /** Re-arm alarms from the cached items (used after settings change and on boot). */
+    /** Re-arm alarms from the cached items (used after settings change and on boot). Merges
+     *  calendar-event items (Plans/Journal) with upcoming-task-due items — both use the same
+     *  before-it's-due offsets, just from different sources. */
     fun reschedule(context: Context, settings: AppSettings) {
         ReminderScheduler.scheduleAll(
             context = context,
-            items = PlansStore.read(context),
+            items = PlansStore.read(context) + TasksReminderStore.read(context),
             offsetsMin = settings.reminderOffsetsMin,
             soundUri = settings.reminderSoundUri,
             requireDismiss = settings.reminderRequireDismiss,
+            repeatCount = settings.reminderRepeatCount,
         )
     }
 
@@ -72,6 +88,20 @@ object PlansRepository {
             summary = summary.ifBlank { description },
             startMillis = start.atZone(zone).toInstant().toEpochMilli(),
             endMillis = end.atZone(zone).toInstant().toEpochMilli(),
+        )
+    }
+
+    /** A Task's "due moment" (endDate) — used as both start and end so the same before-it's-due
+     *  offset math (and the recently-expired window) applies to task reminders as to events. */
+    private fun NibrasRecord.toTaskDueItem(): PlanItem? {
+        val due = parseServerDateTime(endDate) ?: return null
+        val millis = due.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        return PlanItem(
+            type = type,
+            id = id,
+            summary = summary.ifBlank { description },
+            startMillis = millis,
+            endMillis = millis,
         )
     }
 

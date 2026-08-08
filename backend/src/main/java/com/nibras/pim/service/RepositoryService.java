@@ -2,6 +2,8 @@ package com.nibras.pim.service;
 
 import com.nibras.pim.domain.AppModule;
 import com.nibras.pim.repo.AppModuleRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -29,11 +31,14 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
  * {@code bucketBy100} nesting is per-module (see app_module settings; only Resources use both).
  *
  * Also maintains the daily-journal symlinks in repo 1: {@code ~/rps1/jrn/W<week>/W<week><dow>-dd-mm-yyyy}
- * and an atomically-swapped {@code ~/tdy} for today.
+ * and an atomically-swapped {@code ~/tdy} for today; and the bookmark "checkout folder" symlinks
+ * ({@code <checkoutRoot>/<CODE><id> -> repo1/<code>/.../<id>}), kept in sync with each record's
+ * {@code bookmarked} flag by {@link AbstractCrudService}.
  */
 @Service
 public class RepositoryService {
 
+    private static final Logger log = LoggerFactory.getLogger(RepositoryService.class);
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
     private final SettingService settings;
@@ -117,6 +122,32 @@ public class RepositoryService {
         return p.resolve(Long.toString(id));
     }
 
+    /**
+     * Move everything in the secondary record's repo-1 folder into a {@code <secondaryId>-files}
+     * subfolder of the primary record's repo-1 folder — used when merging two records of the same
+     * type. No-op if the secondary has no repo-1 folder, or it's empty.
+     */
+    public void mergeFiles(String moduleKey, long primaryId, String primaryTypeCode,
+                           long secondaryId, String secondaryTypeCode) {
+        Path secondaryDir = folder(1, moduleKey, secondaryId, secondaryTypeCode);
+        if (!Files.isDirectory(secondaryDir)) {
+            return;
+        }
+        try (var stream = Files.list(secondaryDir)) {
+            List<Path> items = stream.toList();
+            if (items.isEmpty()) {
+                return;
+            }
+            Path dest = folder(1, moduleKey, primaryId, primaryTypeCode).resolve(secondaryId + "-files");
+            Files.createDirectories(dest);
+            for (Path item : items) {
+                Files.move(item, dest.resolve(item.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not move files for merge", e);
+        }
+    }
+
     /** Create (if needed) and open a record's folder in the given repo, in the desktop file manager. */
     public void openFolder(int repo, String moduleKey, long id, String typeCode) {
         Path dir = folder(repo, moduleKey, id, typeCode);
@@ -158,6 +189,51 @@ public class RepositoryService {
         } catch (IOException e) {
             throw new UncheckedIOException("Could not link journal day", e);
         }
+    }
+
+    /** Root of the "checkout" folder — where bookmarked records get a symlink to their repo-1 folder. */
+    public Path checkoutRoot() {
+        String def = System.getProperty("user.home") + "/checkout";
+        return Paths.get(settings.get("checkout.path", def)).toAbsolutePath().normalize();
+    }
+
+    /**
+     * Create (or refresh) the bookmark symlink for a record: {@code <checkoutRoot>/<CODE><id>},
+     * pointing at its repo-1 folder. Filesystem failures (permissions, missing/unwritable
+     * checkout root, etc.) are logged, not thrown — this runs as a side effect of an ordinary
+     * record save and must never fail that save.
+     */
+    public void linkCheckout(String moduleKey, long id, String typeCode) {
+        try {
+            Path target = folder(1, moduleKey, id, typeCode);
+            Files.createDirectories(target);
+            Path root = checkoutRoot();
+            Files.createDirectories(root);
+            replaceSymlink(root.resolve(checkoutName(moduleKey, id)), target);
+        } catch (IOException | RuntimeException e) {
+            log.warn("Could not create checkout symlink for {} {}: {}", moduleKey, id, e.toString());
+        }
+    }
+
+    /** Remove the bookmark symlink for a record, if present. See {@link #linkCheckout} on failure handling. */
+    public void unlinkCheckout(String moduleKey, long id, String typeCode) {
+        try {
+            Files.deleteIfExists(checkoutRoot().resolve(checkoutName(moduleKey, id)));
+        } catch (IOException | RuntimeException e) {
+            log.warn("Could not remove checkout symlink for {} {}: {}", moduleKey, id, e.toString());
+        }
+    }
+
+    /** Symlink name for a record's checkout entry: {@code <CODE><id>} (same scheme as the checkout .md file). */
+    private String checkoutName(String moduleKey, long id) {
+        return moduleCode(moduleKey) + id;
+    }
+
+    /** The module's short code (repo folder name), falling back to the module key. */
+    private String moduleCode(String moduleKey) {
+        return modules.findByModuleKey(moduleKey)
+                .map(m -> m.getCode() != null && !m.getCode().isBlank() ? m.getCode().trim() : moduleKey)
+                .orElse(moduleKey);
     }
 
     /** Remove any existing link/file at {@code link} and point it at {@code target}. */

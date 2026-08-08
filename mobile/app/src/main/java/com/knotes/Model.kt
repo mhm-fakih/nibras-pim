@@ -25,6 +25,14 @@ data class Note(
     /** Full file contents. */
     val content: String,
     val lastModified: Long,
+    /**
+     * When the note was WRITTEN, from its file-name timestamp — not the file's mtime. Retagging a
+     * note rewrites and renames the file, which would otherwise drag it to "today" and wreck the
+     * calendar strip. Falls back to [lastModified] when the name doesn't parse (a foreign file, or
+     * a timestamp in a format the settings no longer use). Same rule as desktop's
+     * `Taxonomy.created_on`.
+     */
+    val createdMillis: Long,
     /** True when the body contains Arabic (or other RTL) text. */
     val isRtl: Boolean,
     /** Names of the files in the note's companion folder (attachments), sorted. */
@@ -72,6 +80,27 @@ object NoteFiles {
     fun nowToken(format: String): String =
         runCatching { SimpleDateFormat(format, Locale.US).format(Date()) }
             .getOrElse { SimpleDateFormat("yyyy_MM_dd-HHmmss", Locale.US).format(Date()) }
+
+    /**
+     * The instant encoded in a note's file-name [timestamp], or [fallbackMillis] when it can't be
+     * read — a foreign file, or a token written in a format the settings no longer use. Mirrors
+     * desktop's `notes.parse_created`.
+     *
+     * The de-dup suffix (`…-2`, added when two notes land in the same second) is stripped first:
+     * it is part of the file name, not of the time, and `SimpleDateFormat` would reject it.
+     */
+    fun parseCreated(timestamp: String, format: String, fallbackMillis: Long): Long {
+        val token = timestamp.substringBeforeLast('-', timestamp).takeIf {
+            // Only treat a trailing "-N" as the de-dup suffix; the format itself contains dashes.
+            timestamp.substringAfterLast('-', "").toIntOrNull() != null
+        } ?: timestamp
+        for (candidate in listOf(token, timestamp)) {
+            runCatching {
+                return SimpleDateFormat(format, Locale.US).parse(candidate)?.time ?: fallbackMillis
+            }
+        }
+        return fallbackMillis
+    }
 
     // Characters illegal in a file name on Android's storage (plus our '~' field separator).
     // Stripping them keeps a tag like "*" from producing an unwritable name (which would crash).

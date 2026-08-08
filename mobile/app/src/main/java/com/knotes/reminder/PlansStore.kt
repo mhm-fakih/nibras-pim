@@ -14,8 +14,11 @@ data class PlanItem(
     val startMillis: Long,
     val endMillis: Long,
 ) {
-    /** Stable key for an alarm request code, independent of the server id being present. */
-    val key: String get() = id.ifBlank { "$startMillis-$summary" }
+    /** Stable key for an alarm request code, independent of the server id being present.
+     *  Namespaced by `type` — Tasks and Plans/Journal entries are separate DB tables, so their
+     *  server ids can collide numerically; without the prefix that would silently drop one
+     *  side's reminder when both lists are merged for scheduling (see PlansRepository.reschedule). */
+    val key: String get() = "$type:" + id.ifBlank { "$startMillis-$summary" }
 }
 
 /**

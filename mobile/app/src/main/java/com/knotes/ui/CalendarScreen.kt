@@ -3,6 +3,7 @@ package com.knotes.ui
 import android.app.TimePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.clickable
@@ -114,6 +115,8 @@ fun CalendarScreen(startHour: Int, endHour: Int, baseUrl: String, username: Stri
     val days = (0 until dayCount).map { anchor.plusDays(it.toLong()) }
 
     var addFor by remember { mutableStateOf<Triple<LocalDate, LocalTime, LocalTime>?>(null) }
+    // Non-null while the edit dialog is open for an existing (already-synced) event.
+    var editing by remember { mutableStateOf<CalendarEvent?>(null) }
 
     val events = fetched + pending
 
@@ -178,6 +181,8 @@ fun CalendarScreen(startHour: Int, endHour: Int, baseUrl: String, username: Stri
                 slotMin = slotMin,
                 onTapSlot = { date, time -> addFor = Triple(date, time, endTimeFor(time, slotMin)) },
                 onSelectRange = { date, s, e -> addFor = Triple(date, s, e) },
+                onTapEvent = { editing = it },
+                onEventMoved = { event, date, start, end -> vm.update(event, date, start, end) },
                 modifier = Modifier.weight(1f),
             )
 
@@ -203,10 +208,28 @@ fun CalendarScreen(startHour: Int, endHour: Int, baseUrl: String, username: Stri
             initialDate = date,
             initialStart = start,
             initialEnd = end,
+            initialType = vm.lastType,
             onDismiss = { addFor = null },
-            onSave = { type, d, s, e, summary ->
-                vm.add(type, d, s, e, summary)
+            onSave = { type, d, s, e, summary, description ->
+                vm.add(type, d, s, e, summary, description)
                 addFor = null
+            },
+        )
+    }
+
+    editing?.let { ev ->
+        AddEntryDialog(
+            initialDate = ev.date,
+            initialStart = ev.start,
+            initialEnd = ev.end,
+            initialType = ev.type,
+            initialSummary = ev.summary,
+            initialDescription = ev.description,
+            isEditing = true,
+            onDismiss = { editing = null },
+            onSave = { _, d, s, e, summary, description ->
+                vm.update(ev, d, s, e, summary, description)
+                editing = null
             },
         )
     }
@@ -306,6 +329,8 @@ private fun CalendarGrid(
     slotMin: Int,
     onTapSlot: (LocalDate, LocalTime) -> Unit,
     onSelectRange: (LocalDate, LocalTime, LocalTime) -> Unit,
+    onTapEvent: (CalendarEvent) -> Unit,
+    onEventMoved: (event: CalendarEvent, date: LocalDate, start: LocalTime, end: LocalTime) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val totalHours = (endHour - startHour).coerceAtLeast(1)
@@ -417,7 +442,18 @@ private fun CalendarGrid(
                             )
                         },
                 ) {
-                    dayEvents.forEach { e -> EventBlock(e, startHour, hourHeight) }
+                    dayEvents.forEach { e ->
+                        EventBlock(
+                            e = e,
+                            startHour = startHour,
+                            endHour = endHour,
+                            slotMin = slotMin,
+                            hourHeight = hourHeight,
+                            hourPx = hourPx,
+                            onTap = { onTapEvent(e) },
+                            onCommit = { newStart, newEnd -> onEventMoved(e, day, newStart, newEnd) },
+                        )
+                    }
 
                     // Live selection rectangle, expanding as the finger drags.
                     if (selDay == day) {
@@ -448,15 +484,94 @@ private fun CalendarGrid(
     }
 }
 
+/** Which edge (or the whole block) is being dragged. */
+private enum class DragMode { RESIZE_START, RESIZE_END, MOVE }
+
+/**
+ * A calendar event on the grid. Tap opens it for editing; the thin strips at the very top/bottom
+ * resize its start/end; long-press-and-drag the body moves it (kept within the same day/column —
+ * matching the grid's own long-press-drag idiom for sweeping a new range). Both gestures show a
+ * live snapped preview and only commit (via [onCommit]) on release.
+ */
 @Composable
-private fun EventBlock(e: CalendarEvent, startHour: Int, hourHeight: androidx.compose.ui.unit.Dp) {
-    val top = (hourHeight * ((e.start.minutesOfDay() - startHour * 60) / 60f)).coerceAtLeast(0.dp)
-    val height = (hourHeight * ((e.end.minutesOfDay() - e.start.minutesOfDay()) / 60f)).coerceAtLeast(14.dp)
-    // Planner (P, from exportJsonP) → green; Journal (J) → light blue.
-    val container = if (e.type == "P") Color(0xFFC8E6C9) else Color(0xFFB3E5FC)
+private fun EventBlock(
+    e: CalendarEvent,
+    startHour: Int,
+    endHour: Int,
+    slotMin: Int,
+    hourHeight: androidx.compose.ui.unit.Dp,
+    hourPx: Float,
+    onTap: () -> Unit,
+    onCommit: (start: LocalTime, end: LocalTime) -> Unit,
+) {
+    // Live preview while resizing/moving; null (the common case) just renders e's own times.
+    var previewStartMin by remember(e) { mutableStateOf<Int?>(null) }
+    var previewEndMin by remember(e) { mutableStateOf<Int?>(null) }
+    var dragMode by remember { mutableStateOf<DragMode?>(null) }
+    var dragMoved by remember { mutableStateOf(false) }
+
+    fun beginDrag(mode: DragMode) {
+        dragMode = mode
+        dragMoved = false
+        previewStartMin = e.start.minutesOfDay()
+        previewEndMin = e.end.minutesOfDay()
+    }
+
+    fun applyDelta(deltaPx: Float) {
+        val deltaMin = ((deltaPx / hourPx) * 60f).toInt().let { (it / slotMin) * slotMin }
+        if (deltaMin == 0) return
+        dragMoved = true
+        val origStart = e.start.minutesOfDay()
+        val origEnd = e.end.minutesOfDay()
+        when (dragMode) {
+            DragMode.RESIZE_START -> previewStartMin = (origStart + deltaMin)
+                .coerceIn(startHour * 60, (previewEndMin ?: origEnd) - slotMin)
+            DragMode.RESIZE_END -> previewEndMin = (origEnd + deltaMin)
+                .coerceIn((previewStartMin ?: origStart) + slotMin, endHour * 60)
+            DragMode.MOVE -> {
+                val duration = origEnd - origStart
+                val s = (origStart + deltaMin).coerceIn(startHour * 60, endHour * 60 - duration)
+                previewStartMin = s
+                previewEndMin = s + duration
+            }
+            null -> {}
+        }
+    }
+
+    fun endDrag() {
+        val moved = dragMoved
+        val finalStart = previewStartMin
+        val finalEnd = previewEndMin
+        dragMode = null
+        previewStartMin = null
+        previewEndMin = null
+        if (moved && finalStart != null && finalEnd != null) {
+            onCommit(timeOfMin(finalStart), timeOfMin(finalEnd))
+        }
+    }
+
+    fun cancelDrag() {
+        dragMode = null
+        previewStartMin = null
+        previewEndMin = null
+    }
+
+    val startMin = previewStartMin ?: e.start.minutesOfDay()
+    val endMin = previewEndMin ?: e.end.minutesOfDay()
+    val top = (hourHeight * ((startMin - startHour * 60) / 60f)).coerceAtLeast(0.dp)
+    val height = (hourHeight * ((endMin - startMin) / 60f)).coerceAtLeast(14.dp)
+    // Planner (P, from exportJsonP) → green; Journal (J) → light blue. A computed occurrence of a
+    // recurring planner is drawn paler than a stored one: it has no record behind it yet, and the
+    // difference matters — editing one creates a record, and offline it can't be edited at all.
+    val container = when {
+        e.type != "P" -> Color(0xFFB3E5FC)
+        e.virtual -> Color(0xFFE4F3E5)
+        else -> Color(0xFFC8E6C9)
+    }
     val onContainer = if (e.type == "P") Color(0xFF1B5E20) else Color(0xFF01579B)
     // Let the summary wrap to as many lines as the block height can hold (~14dp per line).
     val maxLines = (height.value / 14f).toInt().coerceIn(1, 8)
+
     Box(
         modifier = Modifier
             .offset(y = top)
@@ -464,14 +579,53 @@ private fun EventBlock(e: CalendarEvent, startHour: Int, hourHeight: androidx.co
             .height(height)
             .padding(horizontal = 2.dp, vertical = 1.dp)
             .background(container, RoundedCornerShape(4.dp))
+            .pointerInput(e.type, e.id) {
+                detectTapGestures(onTap = { onTap() })
+            }
+            .pointerInput(e.type, e.id, hourPx, slotMin, startHour, endHour) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { beginDrag(DragMode.MOVE) },
+                    onDrag = { change, dragAmount -> change.consume(); applyDelta(dragAmount.y) },
+                    onDragEnd = { endDrag() },
+                    onDragCancel = { cancelDrag() },
+                )
+            }
             .padding(horizontal = 4.dp, vertical = 1.dp),
     ) {
         Text(
-            "${e.start.format(HHMM)} ${e.summary}",
+            (if (e.seriesId.isNotBlank()) "⟳ " else "") +
+                "${timeOfMin(startMin).format(HHMM)} ${e.summary}",
             style = MaterialTheme.typography.labelSmall,
             color = onContainer,
             maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
+        )
+
+        // Resize handles: a plain (no long-press needed) drag on these thin edge strips resizes
+        // that edge instead of moving the whole event.
+        val handleDragModifier: (DragMode) -> Modifier = { mode ->
+            Modifier.pointerInput(e.type, e.id, hourPx, slotMin, startHour, endHour) {
+                detectDragGestures(
+                    onDragStart = { beginDrag(mode) },
+                    onDrag = { change, dragAmount -> change.consume(); applyDelta(dragAmount.y) },
+                    onDragEnd = { endDrag() },
+                    onDragCancel = { cancelDrag() },
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(10.dp)
+                .then(handleDragModifier(DragMode.RESIZE_START)),
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(10.dp)
+                .then(handleDragModifier(DragMode.RESIZE_END)),
         )
     }
 }
@@ -481,15 +635,20 @@ private fun AddEntryDialog(
     initialDate: LocalDate,
     initialStart: LocalTime,
     initialEnd: LocalTime,
+    initialType: String,
+    initialSummary: String = "",
+    initialDescription: String = "",
+    isEditing: Boolean = false,
     onDismiss: () -> Unit,
-    onSave: (type: String, date: LocalDate, start: LocalTime, end: LocalTime, summary: String) -> Unit,
+    onSave: (type: String, date: LocalDate, start: LocalTime, end: LocalTime, summary: String, description: String) -> Unit,
 ) {
     val context = LocalContext.current
-    var type by remember { mutableStateOf("J") }
+    var type by remember { mutableStateOf(initialType) }
     var date by remember { mutableStateOf(initialDate) }
     var start by remember { mutableStateOf(initialStart) }
     var end by remember { mutableStateOf(initialEnd) }
-    var summary by remember { mutableStateOf("") }
+    var summary by remember { mutableStateOf(initialSummary) }
+    var description by remember { mutableStateOf(initialDescription) }
     val summaryFocus = remember { FocusRequester() }
     // Land in the summary field with the keyboard up as soon as the dialog appears.
     LaunchedEffect(Unit) { summaryFocus.requestFocus() }
@@ -506,13 +665,22 @@ private fun AddEntryDialog(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("New entry", style = MaterialTheme.typography.titleLarge)
+            Text(if (isEditing) "Edit entry" else "New entry", style = MaterialTheme.typography.titleLarge)
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Type", style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(64.dp))
-                FilterChip(selected = type == "J", onClick = { type = "J" }, label = { Text("Journal") })
-                Spacer(Modifier.width(8.dp))
-                FilterChip(selected = type == "P", onClick = { type = "P" }, label = { Text("Plan") })
+            // The type is locked once created — its id lives in a different server table per type
+            // (Journal vs. Planner), so switching type mid-edit would push this id to the wrong one.
+            if (isEditing) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Type", style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(64.dp))
+                    Text(if (type == "P") "Plan" else "Journal", style = MaterialTheme.typography.bodyLarge)
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Type", style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(64.dp))
+                    FilterChip(selected = type == "J", onClick = { type = "J" }, label = { Text("Journal") })
+                    Spacer(Modifier.width(8.dp))
+                    FilterChip(selected = type == "P", onClick = { type = "P" }, label = { Text("Plan") })
+                }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -545,11 +713,24 @@ private fun AddEntryDialog(
                 minLines = 2,
             )
 
+            val descRtl = NoteFiles.isRtl(description)
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text("Description") },
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    textAlign = if (descRtl) TextAlign.Right else TextAlign.Start,
+                    textDirection = if (descRtl) TextDirection.Rtl else TextDirection.Ltr,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3,
+            )
+
             Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                 TextButton(onClick = onDismiss) { Text("Cancel") }
                 Spacer(Modifier.width(8.dp))
                 TextButton(
-                    onClick = { onSave(type, date, start, end, summary) },
+                    onClick = { onSave(type, date, start, end, summary, description) },
                     enabled = summary.isNotBlank() && end.isAfter(start),
                 ) { Text("Save") }
             }

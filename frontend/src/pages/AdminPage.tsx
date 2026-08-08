@@ -14,7 +14,7 @@ import {
   Typography,
 } from '@mui/material';
 import Sync from '@mui/icons-material/Sync';
-import { AdminModuleStats, getAdminStats, reindexSearch } from '../api/client';
+import { AdminModuleStats, getAdminStats, getClientSyncView, reindexSearch } from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { ENTITY_BY_KEY } from '../config/entities';
 
@@ -58,6 +58,8 @@ export function AdminPage() {
             <ModuleCard key={m.module} stats={m} />
           ))}
         </Box>
+
+        <ClientSyncPanel />
       </Box>
     </Box>
   );
@@ -106,5 +108,75 @@ function ModuleCard({ stats }: { stats: AdminModuleStats }) {
         </TableBody>
       </Table>
     </Paper>
+  );
+}
+
+/**
+ * The parameter vocabulary the mobile / terminal / desktop clients are expected to be working from,
+ * filtered exactly as they filter it (departments priority >= 2 by orderNumber; types of enabled
+ * modules only, modules in their configured sync order). Shown here so a device that's drifted —
+ * a renamed department still cached on the phone, a type no client knows about — is visible by
+ * comparison rather than discovered through a mis-filed record.
+ */
+function ClientSyncPanel() {
+  const { data } = useQuery({ queryKey: ['admin-client-sync'], queryFn: getClientSyncView });
+  if (!data) return null;
+
+  return (
+    <Box sx={{ mt: 5 }}>
+      <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
+        Synced to clients
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        What mobile, terminal and desktop should be showing. Departments are limited to priority 2
+        and above and ordered by their order number; types are those of enabled modules, in each
+        module&rsquo;s sync order. Compare against a device to spot a stale copy.
+      </Typography>
+
+      <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+        <Typography variant="overline" color="text.secondary">
+          Departments ({data.departments.length})
+        </Typography>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+          {data.departments.map((d) => (
+            <Chip
+              key={d.id}
+              size="small"
+              variant="outlined"
+              label={`${d.code ?? '?'} · ${d.name ?? '(unnamed)'}  p${d.priority ?? '-'}`}
+            />
+          ))}
+          {data.departments.length === 0 && (
+            <Typography variant="caption" color="text.secondary">
+              No department reaches priority 2 — the clients would offer none.
+            </Typography>
+          )}
+        </Stack>
+      </Paper>
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 2 }}>
+        {data.modules.map((m) => (
+          <Paper key={m.moduleKey} variant="outlined" sx={{ p: 2 }}>
+            <Stack direction="row" alignItems="baseline" spacing={1} sx={{ mb: 1 }}>
+              <Chip size="small" label={m.code ?? '?'} sx={{ fontFamily: 'monospace' }} />
+              <Typography sx={{ fontWeight: 700, flex: 1 }}>{m.label}</Typography>
+              <Typography variant="caption" color="text.secondary">
+                #{m.syncOrder}
+              </Typography>
+            </Stack>
+            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+              {m.types.map((t) => (
+                <Chip key={t.id} size="small" variant="outlined" label={t.code ? `${t.name} (${t.code})` : t.name} />
+              ))}
+              {m.types.length === 0 && (
+                <Typography variant="caption" color="text.secondary">
+                  No types.
+                </Typography>
+              )}
+            </Stack>
+          </Paper>
+        ))}
+      </Box>
+    </Box>
   );
 }

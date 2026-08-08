@@ -87,8 +87,12 @@ class Settings:
     # When True a plain Enter in the add field saves the note (Shift+Enter inserts a newline);
     # when False (the default) only Ctrl+Enter saves and Enter inserts a newline.
     save_on_enter: bool = False
-    # How the notes are displayed: "kanban" (category columns, the default) or "list" (a flat list).
+    # How the notes are displayed: "kanban" (category columns, the default), "list" (a flat single
+    # column) or "columns" (a heading-free grid — the list, wrapped into as many columns as fit).
     view_mode: str = "kanban"
+    # "columns" view: the widest a card is allowed to get. It also sets how many columns fit, since
+    # the view packs in as many whole cards of this width as the board is wide.
+    card_max_width: int = 340
     # Minimal side-note mode (toggle with Ctrl+L): hides the board and the tag chip rows, showing only
     # the just-added card + the compact selected tags + the text field. Overlays view_mode, so turning
     # it off returns to whatever list/kanban view was active.
@@ -100,6 +104,24 @@ class Settings:
     # After saving a note, automatically open its companion files folder in the file manager
     # (the Ctrl+O action) so attachments can be dropped in right away. Toolbar-toggleable.
     auto_open_folder: bool = False
+    # The one-line #hashtag strip under the add field. On: every tag + how many notes use it.
+    # Off: a single compact "N #tag uses" count in its place (never fully hidden).
+    show_tags_summary: bool = True
+    # Left filter sidebar (Ctrl+B): the calendar heat map + priority/type/category/non-standard
+    # facets, each with its note count. Only the LAYOUT is remembered across launches — which
+    # options are picked is deliberately not, so a stale filter can never greet you with an empty
+    # board. `heatmap_metric` is which date the calendar shades and a clicked day filters on
+    # ("created", read from the note's file name, or "updated", the file's mtime).
+    sidebar_visible: bool = True
+    heatmap_metric: str = "created"
+    sidebar_sections_collapsed: list[str] = field(default_factory=list)
+    # Quick-append (Space on a selected card) inserts this between the note's existing content and
+    # the newly appended text. "$date" is substituted with now, formatted per append_date_format.
+    # Literal "\n" (backslash-n, not an actual newline — this is a single-line settings field) is
+    # unescaped to a real newline when applied; see _commit_append.
+    append_template: str = r"\n---$date:\n"
+    # strftime format for the "$date" placeholder in append_template.
+    append_date_format: str = "%Y-%m-%d %H:%M"
     # DEFAULT nibras backend, used ONLY to refresh the type/category codes so captures map exactly
     # to backend modules/departments on import. Each note folder can override it with its own
     # backend in .knotes.json (RepoConfig.backend_*) — these globals are the fallback.
@@ -172,10 +194,18 @@ class Settings:
         s.theme = raw.get("theme", s.theme)
         s.save_on_enter = bool(raw.get("save_on_enter", s.save_on_enter))
         s.view_mode = raw.get("view_mode", s.view_mode)
+        s.card_max_width = int(raw.get("card_max_width", s.card_max_width))
         s.minimal_mode = bool(raw.get("minimal_mode", s.minimal_mode))
         s.sort_by = raw.get("sort_by", s.sort_by)
         s.kanban_rows = int(raw.get("kanban_rows", s.kanban_rows))
         s.auto_open_folder = bool(raw.get("auto_open_folder", s.auto_open_folder))
+        s.show_tags_summary = bool(raw.get("show_tags_summary", s.show_tags_summary))
+        s.sidebar_visible = bool(raw.get("sidebar_visible", s.sidebar_visible))
+        s.heatmap_metric = raw.get("heatmap_metric", s.heatmap_metric)
+        s.sidebar_sections_collapsed = [
+            str(k) for k in raw.get("sidebar_sections_collapsed", s.sidebar_sections_collapsed)]
+        s.append_template = raw.get("append_template", s.append_template)
+        s.append_date_format = raw.get("append_date_format", s.append_date_format)
         s.backend_url = str(raw.get("backend_url", s.backend_url)).strip()
         s.backend_user = raw.get("backend_user", s.backend_user)
         s.backend_password = raw.get("backend_password", s.backend_password)

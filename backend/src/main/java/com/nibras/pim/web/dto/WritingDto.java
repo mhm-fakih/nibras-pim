@@ -9,6 +9,7 @@ public record WritingDto(
         String displayTitle,
         String summary,
         String description,
+        String mainHighlights,
         String shortDescription,
         String notes,
         String slug,

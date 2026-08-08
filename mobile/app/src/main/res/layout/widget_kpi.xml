@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- KPI widget: notes today/total · free space · files in "New folder".
-     Fonts/padding match the bookmarks widget: 12dp frame, 14sp bold title, 13sp values. -->
+<!-- KPI widget: two columns, two lines each.
+
+     Three columns each carrying a value above a spelled-out grey caption ("notes today / total")
+     did not survive being shrunk to a 3x1 home-screen cell — the captions wrapped or clipped and
+     the values lost their room. So the caption is gone and the abbreviation is part of the value
+     itself ("5 nt. td. / 1204"), which is legible at 13sp in half the width. The abbreviations are
+     expanded in KpiWidget's doc comment.
+
+     Fonts/padding otherwise match the bookmarks widget: 12dp frame, 14sp bold title, 13sp values. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
@@ -24,7 +31,7 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:orientation="horizontal"
-        android:weightSum="3">
+        android:weightSum="2">
 
         <LinearLayout
             android:layout_width="0dp"
@@ -37,39 +44,22 @@
                 android:id="@+id/kpi_notes_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:textColor="#8AB4F8"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="notes today / total"
-                android:textColor="#AAAAAA"
-                android:textSize="11sp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center_vertical"
-            android:orientation="vertical">
-
-            <TextView
                 android:id="@+id/kpi_free_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:paddingTop="4dp"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:textColor="#81C995"
                 android:textSize="13sp"
                 android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="free space"
-                android:textColor="#AAAAAA"
-                android:textSize="11sp" />
         </LinearLayout>
 
         <LinearLayout
@@ -83,16 +73,22 @@
                 android:id="@+id/kpi_folders_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:textColor="#F28B82"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
             <TextView
+                android:id="@+id/kpi_folders_today_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="knotes / new files"
-                android:textColor="#AAAAAA"
-                android:textSize="11sp" />
+                android:paddingTop="4dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FDD663"
+                android:textSize="13sp"
+                android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

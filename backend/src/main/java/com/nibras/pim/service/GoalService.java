@@ -35,9 +35,9 @@ public class GoalService extends AbstractCrudService<Goal, GoalDto> {
     protected GoalDto toDto(Goal g) {
         return new GoalDto(
                 g.getId(), g.getVersion(), g.feedTitle(),
-                g.getTitle(), g.getSummary(), g.getDescription(), g.getNotes(), g.getCode(),
+                g.getTitle(), g.getSummary(), g.getDescription(), g.getMainHighlights(), g.getNotes(), g.getCode(),
                 g.getPriority(), g.getBookmarked(), g.getIsPrivate(), g.getPercentCompleted(),
-                g.getStartDate(), g.getEndDate(), g.getCompletedOn(),
+                g.getStartDate(), g.getEndDate(), g.getCompletedOn(), g.getDashboard(),
                 g.getStatus() == null ? null : g.getStatus().getId(),
                 g.getType() == null ? null : g.getType().getId(),
                 g.getDepartment() == null ? null : g.getDepartment().getId(),
@@ -67,6 +67,11 @@ public class GoalService extends AbstractCrudService<Goal, GoalDto> {
         }
         g.setSummary(dto.summary());
         g.setDescription(dto.description());
+        // Only overwrite when the payload actually carries it: the record form sends an explicit
+        // field allowlist, so a normal edit omits mainHighlights and a blind set would erase it.
+        if (dto.mainHighlights() != null) {
+            g.setMainHighlights(dto.mainHighlights());
+        }
         g.setNotes(dto.notes());
         g.setCode(dto.code());
         g.setPriority(dto.priority());
@@ -76,6 +81,7 @@ public class GoalService extends AbstractCrudService<Goal, GoalDto> {
         g.setStartDate(dto.startDate());
         g.setEndDate(dto.endDate());
         g.setCompletedOn(dto.completedOn());
+        g.setDashboard(dto.dashboard());
         g.setStatus(ref(WorkStatus.class, dto.statusId()));
         g.setType(ref(GoalType.class, dto.typeId()));
         g.setDepartment(ref(Department.class, dto.departmentId()));

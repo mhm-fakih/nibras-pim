@@ -20,6 +20,7 @@ object ReminderScheduler {
     const val EXTRA_OFFSET = "offset"
     const val EXTRA_REQUIRE_DISMISS = "require_dismiss"
     const val EXTRA_SOUND = "sound"
+    const val EXTRA_REPEAT_COUNT = "repeat_count"
 
     private const val PREFS = "knotes_reminder_codes"
     private const val K_CODES = "codes"
@@ -30,6 +31,7 @@ object ReminderScheduler {
         offsetsMin: List<Int>,
         soundUri: String,
         requireDismiss: Boolean,
+        repeatCount: Int = 1,
     ) {
         val am = context.getSystemService(AlarmManager::class.java) ?: return
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -53,6 +55,7 @@ object ReminderScheduler {
                     putExtra(EXTRA_OFFSET, off)
                     putExtra(EXTRA_REQUIRE_DISMISS, requireDismiss)
                     putExtra(EXTRA_SOUND, soundUri)
+                    putExtra(EXTRA_REPEAT_COUNT, repeatCount)
                 }
                 val pi = PendingIntent.getBroadcast(context, code, intent, flags(mutable = false))
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()) {

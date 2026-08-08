@@ -33,6 +33,11 @@ public class Writing extends BaseEntity implements SyncMutable, Taggable, HasSho
     @Column(columnDefinition = "longtext")
     private String description;
 
+    /** Sentences highlighted out of {@link #description} by the reading page's click-to-highlight
+     *  (same collector IndexCard/Book already had). */
+    @Column(name = "main_highlights", columnDefinition = "longtext")
+    private String mainHighlights;
+
     @Column(name = "short_description", columnDefinition = "longtext")
     private String shortDescription;
 
@@ -84,6 +89,10 @@ public class Writing extends BaseEntity implements SyncMutable, Taggable, HasSho
 
     @Column(name = "review_count")
     private Integer reviewCount;
+
+    /** Set when this record was absorbed into another record via merge; it stays soft-deleted. */
+    @Column(name = "merged_into_id")
+    private Long mergedIntoId;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "writing_tag",

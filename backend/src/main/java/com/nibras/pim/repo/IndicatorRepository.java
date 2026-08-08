@@ -10,4 +10,7 @@ public interface IndicatorRepository extends BaseRepository<Indicator> {
 
     /** Actively-monitored indicators. */
     List<Indicator> findByBookmarkedTrue();
+
+    /** Indicators flagged for scheduled auto-collection (see IndicatorAutoCollectScheduler). */
+    List<Indicator> findByAutoCollectTrue();
 }

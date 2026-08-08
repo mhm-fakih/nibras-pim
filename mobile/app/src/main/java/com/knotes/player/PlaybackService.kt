@@ -133,13 +133,32 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
+    /**
+     * Bookmark where playback stopped — behaving exactly like the on-screen bookmark button, which
+     * is what a listener expects when they tap pause on a headset instead of on the phone.
+     *
+     * That means two things this used to skip: the mark goes `bookmarkRewind` seconds BEHIND the
+     * playhead (you want the line you just heard, not the silence after it), and the playhead is
+     * moved back to it, so resuming replays that moment instead of continuing from the cut-off point.
+     * Previously it stored the raw position and left the playhead alone, so a Bluetooth pause
+     * produced a bookmark you had to seek to by hand.
+     *
+     * The rewind amount is read from the same SharedPreferences the player UI writes, rather than
+     * being pushed over as a session command, so moving the slider mid-listen takes effect on the
+     * very next pause with nothing to keep in sync.
+     */
     private fun bookmarkCurrentPosition() {
         val path = player.currentMediaItem?.mediaId ?: return
         val file = File(path)
         if (!file.exists()) return
-        val updated = (Bookmarks.load(file) + Bookmark(player.currentPosition, AUTO_BOOKMARK_LABEL))
+        val rewindMs = getSharedPreferences(PLAYER_PREFS, MODE_PRIVATE)
+            .getInt(PREF_BOOKMARK_REWIND, DEFAULT_BOOKMARK_REWIND_SECS) * 1000L
+        val pos = (player.currentPosition - rewindMs).coerceAtLeast(0L)
+        val updated = (Bookmarks.load(file) + Bookmark(pos, AUTO_BOOKMARK_LABEL))
             .sortedBy { it.positionMs }
         Bookmarks.save(file, updated)
+        // Leave the playhead on the bookmark so pressing play resumes from it.
+        player.seekTo(pos)
     }
 
     companion object {
@@ -150,5 +169,10 @@ class PlaybackService : MediaSessionService() {
         const val KEY_SLEEP_MS = "sleep_ms"
         const val KEY_ENABLED = "enabled"
         const val AUTO_BOOKMARK_LABEL = "auto"
+
+        // Shared with PlayerController, which owns the UI for these.
+        const val PLAYER_PREFS = "knotes_prefs"
+        const val PREF_BOOKMARK_REWIND = "bookmark_rewind_secs"
+        const val DEFAULT_BOOKMARK_REWIND_SECS = 7
     }
 }

@@ -15,6 +15,7 @@ import {
   Typography,
   Button,
 } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AuditEntry, AuditParams, listAudit } from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { ENTITIES, ENTITY_CLASS_BY_KEY } from '../config/entities';
@@ -24,6 +25,10 @@ const OP_COLOR: Record<string, 'success' | 'info' | 'error' | 'default'> = {
   UPDATE: 'info',
   DELETE: 'error',
 };
+
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 export function AuditPage() {
   const [filters, setFilters] = useState<AuditParams>({ page: 0, size: 50 });
@@ -78,21 +83,17 @@ export function AuditPage() {
             onChange={(e) => set({ field: e.target.value || undefined })}
             sx={{ width: 140 }}
           />
-          <TextField
-            size="small"
-            type="date"
+          <DatePicker
             label="From"
-            InputLabelProps={{ shrink: true }}
-            value={filters.from ?? ''}
-            onChange={(e) => set({ from: e.target.value || undefined })}
+            value={filters.from ? new Date(`${filters.from}T00:00:00`) : null}
+            onChange={(d) => set({ from: d ? ymd(d as Date) : undefined })}
+            slotProps={{ textField: { size: 'small', sx: { width: 160 } }, field: { clearable: true } }}
           />
-          <TextField
-            size="small"
-            type="date"
+          <DatePicker
             label="To"
-            InputLabelProps={{ shrink: true }}
-            value={filters.to ?? ''}
-            onChange={(e) => set({ to: e.target.value || undefined })}
+            value={filters.to ? new Date(`${filters.to}T00:00:00`) : null}
+            onChange={(d) => set({ to: d ? ymd(d as Date) : undefined })}
+            slotProps={{ textField: { size: 'small', sx: { width: 160 } }, field: { clearable: true } }}
           />
         </Stack>
 

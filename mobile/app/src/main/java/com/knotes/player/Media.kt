@@ -1,6 +1,7 @@
 package com.knotes.player
 
 import android.media.MediaMetadataRetriever
+import com.knotes.util.FileNames
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -8,7 +9,12 @@ private val AUDIO_EXT = setOf("mp3", "m4a", "m4b", "aac", "opus", "ogg", "oga", 
 private val VIDEO_EXT = setOf("mp4", "m4v", "mkv", "webm", "avi", "mov", "3gp", "ts", "flv", "wmv")
 private val IMAGE_EXT = setOf("jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif", "avif")
 
-fun fileExt(name: String): String = name.substringAfterLast('.', "").lowercase()
+/**
+ * The lowercase extension. Delegates to [FileNames.ext] so an Arabic name carrying an invisible
+ * bidi mark after the extension (`اسم.mp3‏`) is still recognised as media rather than being
+ * treated as an unopenable document, and so case folding does not depend on the device locale.
+ */
+fun fileExt(name: String): String = FileNames.ext(name)
 
 fun isMediaFile(name: String): Boolean = fileExt(name).let { it in AUDIO_EXT || it in VIDEO_EXT }
 
@@ -54,3 +60,27 @@ fun mediaDurationMs(file: File): Long {
 
 /** Reads a file's duration and bookmark count (call off the main thread — it touches disk). */
 fun loadMediaMeta(file: File): MediaMeta = MediaMeta(mediaDurationMs(file), Bookmarks.load(file).size)
+
+/** Genre/artist/album tags for the library's Genre → Artist → Album browsing. Any tag missing
+ *  or unreadable is left null; callers bucket those under "Unknown …" rather than hiding the file. */
+data class MediaTags(val genre: String?, val artist: String?, val album: String?)
+
+private val tagsCache = ConcurrentHashMap<String, MediaTags>()
+
+/** Reads a file's genre/artist/album (via [MediaMetadataRetriever]), cached per path. Call off the
+ *  main thread — it touches disk, same as [mediaDurationMs]. */
+fun mediaTags(file: File): MediaTags {
+    tagsCache[file.absolutePath]?.let { return it }
+    val r = MediaMetadataRetriever()
+    val tags = runCatching {
+        r.setDataSource(file.absolutePath)
+        MediaTags(
+            genre = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)?.trim()?.ifBlank { null },
+            artist = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)?.trim()?.ifBlank { null },
+            album = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)?.trim()?.ifBlank { null },
+        )
+    }.getOrDefault(MediaTags(null, null, null))
+    runCatching { r.release() }
+    tagsCache[file.absolutePath] = tags
+    return tags
+}

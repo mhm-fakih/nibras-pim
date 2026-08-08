@@ -92,6 +92,13 @@ export function ImportFilesPage() {
             label="Drop folder"
             value={dir}
             onChange={(e) => setDir(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                setScanned(true);
+                setResult(null);
+                preview.refetch();
+              }
+            }}
             helperText="~ expands to home. Remembered for next time."
             sx={{ minWidth: 360, flex: 1 }}
             inputProps={{ style: { fontFamily: 'monospace' } }}

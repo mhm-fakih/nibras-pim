@@ -114,11 +114,53 @@ class NibrasApi {
                         .put("username", username)
                         .put("startDate", it.startDate)
                         .put("endDate", it.endDate)
-                        .put("summary", it.summary),
+                        .put("summary", it.summary)
+                        .put("description", it.description),
                 )
             }
             postAuthed("${base.trimEnd('/')}$PATH_MOBILE_PUSH_CALENDAR", JSONObject().put("data", data))
         }
+
+    /**
+     * Turns one occurrence of a recurring planner into a real record and returns its id.
+     *
+     * A virtual occurrence is computed, not stored: its exported id is the composite
+     * `<seriesId>@<recurrenceId>`, which is not something the push endpoints can accept. Editing one
+     * therefore has to create the record first — and because the endpoint is idempotent, calling it
+     * again for the same slot returns the record made the first time rather than a duplicate.
+     *
+     * Returns null when offline or refused, so the caller can say so instead of silently discarding
+     * the edit.
+     */
+    suspend fun materialiseOccurrence(base: String, seriesId: String, recurrenceId: String): String? =
+        withContext(Dispatchers.IO) {
+            val payload = JSONObject()
+                .put("seriesId", seriesId.toLongOrNull() ?: return@withContext null)
+                .put("recurrenceId", recurrenceId)
+            runCatching {
+                val body = postAuthedBody("${base.trimEnd('/')}$PATH_MATERIALISE", payload)
+                    ?: return@withContext null
+                JSONObject(body).optLong("id").takeIf { it > 0 }?.toString()
+            }.getOrNull()
+        }
+
+    /** As [postAuthed], but hands back the response body (null when the call failed). */
+    private fun postAuthedBody(url: String, payload: JSONObject): String? {
+        fun build(): Request {
+            val b = Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .post(payload.toString().toRequestBody(jsonMedia))
+            token?.let { b.header("Authorization", "Bearer $it") }
+            return b.build()
+        }
+        var resp = client.newCall(build()).execute()
+        if (resp.code == 401 && doLogin()) {
+            resp.close()
+            resp = client.newCall(build()).execute()
+        }
+        return resp.use { if (it.isSuccessful) it.body?.string() else null }
+    }
 
     /** Creates records of ANY exportable type (bookmarked=true server-side so they round-trip).
      *  Envelope: {data:[{ecode, summary, description, priority, department}]}. */
@@ -213,6 +255,9 @@ class NibrasApi {
             completedOn = str("completedOn"),
             fulltext = str("fullText"),
             files = parseFilesList(str("filesList")),
+            seriesId = str("seriesId"),
+            recurrenceId = str("recurrenceId"),
+            virtual = optBoolean("virtual", false),
         )
     }
 
@@ -256,6 +301,7 @@ class NibrasApi {
         const val PATH_MOBILE_PUSH_HIGHLIGHT = "/sync/mobilePushHighlight"
         const val PATH_MOBILE_PUSH_COMPLETE = "/sync/mobilePushComplete"
         const val PATH_MOBILE_PUSH_CALENDAR = "/sync/mobilePushCalendar"
+        const val PATH_MATERIALISE = "/api/calendar/occurrences/materialise"
         const val PATH_MOBILE_PUSH_CREATE = "/sync/mobilePushCreate"
         const val PATH_MODULES = "/api/modules"
         const val PATH_DEPARTMENTS = "/api/departments?bookmarked=true&size=500"

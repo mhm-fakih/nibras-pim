@@ -33,6 +33,11 @@ public class Task extends BaseEntity implements SyncMutable, Taggable {
     @Column(columnDefinition = "longtext")
     private String description;
 
+    /** Sentences highlighted out of {@link #description} by the reading page's click-to-highlight
+     *  (same collector IndexCard/Book already had). */
+    @Column(name = "main_highlights", columnDefinition = "longtext")
+    private String mainHighlights;
+
     @Column(columnDefinition = "longtext")
     private String notes;
 
@@ -71,6 +76,34 @@ public class Task extends BaseEntity implements SyncMutable, Taggable {
     @JoinColumn(name = "context_id")
     private Context context;
 
+    // --- Eisenhower-style urgency axis, independent of `priority` (importance). New column. ---
+    private Boolean urgent;
+
+    // --- Subtask/manual ordering. Legacy column, previously unmapped (the table also has
+    //     order_in_goal/sequence_number, left unmapped — this is the one the "+ Subtask" flow uses). ---
+    @Column(name = "order_number")
+    private Integer orderNumber;
+
+    // --- Recurrence. All five columns are legacy, previously unmapped. `recurring` is the on/off
+    //     master switch; `recurrencePreset` (DB column literally named `recurring`) holds
+    //     DAILY/WEEKLY/MONTHLY/YEARLY/CUSTOM; `recurrenceCron` is used only when preset = CUSTOM;
+    //     `fixedSchedule` (DB column `permissive_recurring`) selects calendar-scheduled recurrence
+    //     (spawns strictly by date) over the default completion-triggered recurrence. ---
+    @Column(name = "is_recurring")
+    private Boolean recurring;
+
+    @Column(name = "recurring")
+    private String recurrencePreset;
+
+    @Column(name = "recurring_interval")
+    private Integer recurrenceInterval;
+
+    @Column(name = "recurring_cron")
+    private String recurrenceCron;
+
+    @Column(name = "permissive_recurring")
+    private Boolean fixedSchedule;
+
     // --- Legacy columns used by the mobile-sync API (exportJsonT / mobilePush*). Mapped but not
     //     yet surfaced in the web UI forms/views. ---
     @Column(name = "is_todo")
@@ -89,6 +122,10 @@ public class Task extends BaseEntity implements SyncMutable, Taggable {
 
     @Column(name = "user_id")
     private Long userId;
+
+    /** Set when this record was absorbed into another record via merge; it stays soft-deleted. */
+    @Column(name = "merged_into_id")
+    private Long mergedIntoId;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "task_tag",

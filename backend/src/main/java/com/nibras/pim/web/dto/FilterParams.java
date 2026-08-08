@@ -12,9 +12,13 @@ public record FilterParams(
         LocalDate from,
         LocalDate to,
         Boolean bookmarked,
+        Boolean urgent,
+        Boolean dashboard,
         Long statusId,
         Long typeId,
         Long tagId,
+        Long goalId,
+        Long writingId,
         // report presets (all nullable; only applied when true)
         Boolean noStatus,
         Boolean noType,

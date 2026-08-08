@@ -56,9 +56,13 @@ public class SecurityConfig {
                 .cors(org.springframework.security.config.Customizer.withDefaults())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Public: login and the connectivity probe.
+                        // Public: login, the connectivity probe, and one read-only dashboard-snapshot
+                        // endpoint (see PublicDashboardService) for chrome-free TV/kiosk display with no
+                        // login — deliberately narrow: it resolves only the exact data a specific,
+                        // already-configured dashboard's regions need, not the generic content API.
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/page/heartbeatJson").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
 
                         // Admin surfaces, each behind its capability.
                         .requestMatchers("/api/users/**", "/api/permissions/**").access(perm(perms, Permissions.USERS_MANAGE))

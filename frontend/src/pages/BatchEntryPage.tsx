@@ -70,6 +70,7 @@ export function BatchEntryPage() {
           <SyntaxChip token="p3" label="priority" />
           <SyntaxChip token="=code" label="code" />
           <SyntaxChip token="*" label="bookmark" />
+          <SyntaxChip token="!" label="urgent" />
           <SyntaxChip token="(DATE" label="start date" />
           <SyntaxChip token=")DATE" label="end date" />
         </Stack>

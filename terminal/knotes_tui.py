@@ -10,7 +10,8 @@ bar docked at the bottom.
     e.g. "s t3d some note" → repo s, type t, priority 3, subject d, body "some note".
   - A line starting with '/' → a command (like Claude Code).
 
-Commands: /repos · /login <user> <pass> · /heartbeat · /tasks / /goals / … · /help · /quit.
+Commands: /repos · /login <user> <pass> · /heartbeat · /tasks / /goals / … · /theme · /help · /quit.
+Theme: solarized (light by default); '/theme light' / '/theme dark' switches and persists to config.
 Config: a local, non-hidden ./config.json (created on first run, seeded from the desktop app's
 config.json) holds the repos (code → path + its OWN backend URL), the tag defaults, and the preview
 length. Each repo points at its own backend.
@@ -50,11 +51,20 @@ except ImportError:
     )
     raise SystemExit(1)
 
+VERSION = "1.2.32"
+CODENAME = "Dastgheib"
+
 # Local, non-hidden config file, right next to this program — the terminal app owns it.
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
 
 DEFAULT_BACKEND = "http://127.0.0.1:8081"
+
+DEFAULT_THEME = "solarized-light"
+THEME_ALIASES = {
+    "light": "solarized-light", "l": "solarized-light", "solarized-light": "solarized-light",
+    "dark": "solarized-dark", "d": "solarized-dark", "solarized-dark": "solarized-dark",
+}
 
 
 def _default_config() -> dict:
@@ -66,6 +76,7 @@ def _default_config() -> dict:
         "default_type": "N",
         "default_priority": 2,
         "default_subject": "Z",
+        "theme": DEFAULT_THEME,        # solarized-light / solarized-dark (switch with /theme)
         # code -> { path, backend }: every repo points at its own backend.
         "repos": {"A": {"path": "~/knotes", "backend": DEFAULT_BACKEND}},
     }
@@ -165,18 +176,21 @@ MODULES = ("tasks", "goals", "journals", "planners", "resources", "notes", "writ
 
 # Inline suggestions for '/' commands (accept the ghost text with the → / End key). Bare note text
 # matches nothing here, so it isn't interfered with. Order matters — the first prefix match wins.
-COMMAND_SUGGESTIONS = ["/login ", "/heartbeat", *(f"/{m}" for m in MODULES), "/repos", "/help", "/quit"]
+COMMAND_SUGGESTIONS = ["/login ", "/heartbeat", *(f"/{m}" for m in MODULES), "/repos", "/theme ", "/help", "/quit"]
 
 
 class KnotesTUI(App):
-    TITLE = "knotes terminal"
+    TITLE = "Nibras terminal"
+    SUB_TITLE = f'v{VERSION} "{CODENAME}"'
     CSS = """
     #dashboard { dock: top; padding: 0 1; border: round $panel; }
     #log { height: 1fr; border: round $panel; padding: 0 1; }
     #bottombar { dock: bottom; height: auto; }
     /* Claude-Code-style command bar: a single-line field between a top and bottom grey rule. */
-    #promptrow { height: auto; border-top: solid grey; border-bottom: solid grey; background: transparent; }
-    #prompt { width: 2; color: white; background: transparent; }
+    /* Rules and prompt glyph track the theme — hardcoded grey/white vanished on a light background. */
+    #promptrow { height: auto; border-top: solid $foreground-muted; border-bottom: solid $foreground-muted;
+                 background: transparent; }
+    #prompt { width: 2; color: $foreground; background: transparent; }
     /* Flatten Textual's default 3-high bordered Input to a single line; no field background. */
     #cmd { border: none; height: 1; padding: 0 1; background: transparent; }
     #cmd:focus { background: transparent; }
@@ -247,6 +261,7 @@ class KnotesTUI(App):
             yield Static(id="statusbar")
 
     def on_mount(self) -> None:
+        self.theme = THEME_ALIASES.get(str(self.config.get("theme", "")).lower(), DEFAULT_THEME)
         self.query_one("#log", RichLog).can_focus = False
         cmd = self.query_one("#cmd", Input)
         try:  # non-blinking cursor (attribute name/availability varies by Textual version)
@@ -254,8 +269,7 @@ class KnotesTUI(App):
         except Exception:
             pass
         cmd.focus()
-        self.write("[b]knotes terminal[/b]")
-        self.write("Note line: [b][<repo>] <type><prio><subject> <body>[/b]  e.g. [i]s t3d some note[/i] "
+        self.write("Note line: [b][<repo>] <type><prio><subject> <body>[/b]  \ne.g. [i]s t3d some note[/i] "
                    "or [i]t3d some note[/i] (repo optional → sticky default). '/' for commands (/help).")
         self._refresh_dashboard()
         self._update_statusbar()
@@ -270,10 +284,10 @@ class KnotesTUI(App):
         h, m, sec = s // 3600, (s % 3600) // 60, s % 60
         notes = self._session_notes
         meta = f"{self.def_type or '·'}{self.def_prio}{self.def_cat or '·'}"
-        dot = "green" if self._online else "red"
+        dot = "$text-success" if self._online else "$text-error"
         backend = self._backend()
         self.query_one("#statusbar", Static).update(
-            f"[{dot}]●[/{dot}] [{'green' if self._online else 'dim'}]{backend}[/]"
+            f"[{dot}]●[/{dot}] [{'$text-success' if self._online else 'dim'}]{backend}[/]"
             f"   [dim]·[/dim] [b]{self.default_repo} {meta}[/b]"
             f"   [dim]·   up {h}:{m:02d}:{sec:02d}   ·   {notes} note{'' if notes == 1 else 's'} this session[/dim]")
 
@@ -288,7 +302,7 @@ class KnotesTUI(App):
 
     def _refresh_dashboard(self) -> None:
         """Top panel: each repo's code + path + note count + last-entered note (from the config)."""
-        lines = ["[b]Repositories[/b]"]
+        lines = [f'[b]Nibras Terminal v{VERSION} "{CODENAME}"[/b]\nRepositories:\n']
         for code in sorted(self.repos):
             path = self.repos[code]["path"]
             backend = self.repos[code]["backend"]
@@ -300,8 +314,8 @@ class KnotesTUI(App):
             last_txt = self._note_preview(notes[-1].content) if notes else "[dim]—[/dim]"
             star = "★" if code == self.default_repo else " "
             short = path.replace(os.path.expanduser("~"), "~")
-            lines.append(f" {star} [b cyan]{code}[/b cyan]  [dim]{short}[/dim] → [dim]{backend}[/dim]  "
-                         f"[b]{n}[/b] note{'s' if n != 1 else ''}   last: {last_txt}")
+            lines.append(f" {star} [b $text-primary]{code}[/]  [dim]{short}[/dim] → [dim]{backend}[/dim]  "
+                         f"[b]{n}[/b] note{'s' if n != 1 else ''}")
         self.query_one("#dashboard", Static).update("\n".join(lines))
 
     def action_ignore_quit(self) -> None:
@@ -309,11 +323,40 @@ class KnotesTUI(App):
 
     # --- output / status ---------------------------------------------------------------------------
     def write(self, text: str) -> None:
-        self.query_one("#log", RichLog).write(text)
+        self.query_one("#log", RichLog).write(self._themed(text))
+
+    def _themed(self, text: str) -> str:
+        """Re-point the semantic colour tags in log lines at the ACTIVE theme's palette. RichLog is
+        Rich markup, not Textual's, so it can't read $variables and resolves bare 'green'/'red' to the
+        terminal's own ANSI palette — which fights the app's background (glaring on solarized-light).
+        Substituting concrete hexes keeps the log in the same palette as the rest of the UI."""
+        t = self.current_theme
+        for name, value in (("green", t.success), ("red", t.error),
+                            ("yellow", t.warning), ("cyan", t.primary)):
+            text = (text.replace(f"[{name}]", f"[{value}]").replace(f"[/{name}]", f"[/{value}]")
+                        .replace(f"[b {name}]", f"[b {value}]").replace(f"[/b {name}]", f"[/b {value}]"))
+        return text
 
     def _backend(self) -> str:
         """The current repo's backend URL (each repo has its own)."""
         return self.repos[self.default_repo]["backend"]
+
+    def switch_theme(self, mode: str) -> None:
+        """/theme [light|dark] — bare '/theme' just reports the current one. The choice is written back
+        to config.json so it survives a relaunch (same treatment as the sticky repo)."""
+        if not mode:
+            self.write(f"theme: [b]{self.theme}[/b]  (/theme light · /theme dark)")
+            return
+        name = THEME_ALIASES.get(mode.lower())
+        if not name:
+            self.write(f"[red]unknown theme:[/red] {mode}  (light · dark)")
+            return
+        self.theme = name
+        self.config["theme"] = name
+        save_config(self.config)
+        self._refresh_dashboard()
+        self._update_statusbar()
+        self.write(f"[green]✓ theme[/green] [b]{name}[/b]")
 
     def _persist_default_repo(self) -> None:
         """Remember the last-used repo as the default across launches (writes the local config)."""
@@ -519,9 +562,12 @@ class KnotesTUI(App):
             self.write("[b]note[/b]: [<repo>] <type><prio><subject> <body>  e.g. [i]s t3d some note[/i]  "
                        "(repo optional; an explicit repo becomes the sticky default)")
             self.write("[b]+[/b] prefix: save the note AND push it to the repo's backend as a record (→ imported/)")
-            self.write("/repos · /login <u> <p> · /heartbeat · " + " · ".join(f"/{m}" for m in MODULES) + " · /quit")
+            self.write("/repos · /login <u> <p> · /heartbeat · " + " · ".join(f"/{m}" for m in MODULES)
+                       + " · /theme <light|dark> · /quit")
         elif name in ("repos", "repo"):
             self._refresh_dashboard()
+        elif name == "theme":
+            self.switch_theme(args[0] if args else "")
         elif name == "heartbeat":
             await self.check_heartbeat()
             self.write(f"[{'green' if self._online else 'red'}]● {self._backend()} "

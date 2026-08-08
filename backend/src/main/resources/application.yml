@@ -16,6 +16,20 @@ spring:
     username: ${DB_USERNAME:user1}
     password: ${DB_PASSWORD:user1}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  # Schema migrations applied automatically at startup, so a new machine no longer needs
+  # db/extra-schema.sql run by hand. This is deliberately NOT hibernate ddl-auto: Flyway runs
+  # reviewed SQL in a fixed order and records it in flyway_schema_history, while ddl-auto would
+  # infer ALTERs from the entity mappings against a legacy schema it doesn't own.
+  flyway:
+    enabled: true
+    # The legacy tables predate any migration, so stamp whatever is already there as version 0 and
+    # only apply V1 upward. Without this Flyway refuses to touch a non-empty schema.
+    baseline-on-migrate: true
+    baseline-version: 0
+    # V1 is the (idempotent) extra-schema snapshot, so it is safe on a database where it was
+    # already applied by hand — every CREATE is IF NOT EXISTS and every ALTER is guarded by an
+    # information_schema check.
+    locations: classpath:db/migration
   jpa:
     hibernate:
       # NEVER let Hibernate alter this legacy schema. 'none' avoids validate's
@@ -31,8 +45,6 @@ spring:
   jackson:
     default-property-inclusion: non_null
     time-zone: Africa/Cairo
-    serialization:
-      write-dates-as-timestamps: false
   servlet:
     multipart:
       max-file-size: 100MB
@@ -48,7 +60,7 @@ nibras:
     # Folder of plain-text knotes to import. Imported files move to <dir>/imported/.
     notes-dir: ${NIBRAS_KNOTES_DIR:/home/akil/knotes}
   cors:
-    allowed-origins: "http://localhost:5173,http://127.0.0.1:5173"
+    allowed-origins: "http://localhost:5173,http://127.0.0.1:5173,https://nibras-prod"
   security:
     jwt:
       # HMAC signing secret (>= 32 chars). Override in production via NIBRAS_JWT_SECRET.

@@ -15,72 +15,65 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-/** Serves the scrollable rows for [PlansWidget]: upcoming plans, then a "Top priority list" header
- *  and the priority-4 notes — all in one ListView so the whole thing scrolls. */
+/**
+ * Serves the rows for [PlansWidget]'s two independent lists: "Upcoming plans" and "Top priority"
+ * (priority-4 notes). The two lists are told apart by the section segment of the service intent's
+ * `data` URI ({@code widget://plans/<section>/<widgetId>}, set in [PlansWidget.sectionIntent]).
+ */
 class PlansWidgetService : RemoteViewsService() {
-    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory = PlansFactory(applicationContext)
+    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
+        val section = intent.data?.pathSegments?.firstOrNull()
+        return PlansFactory(applicationContext, priorityOnly = section == "priority")
+    }
 }
 
-private sealed interface PlanRow
-private data class HeaderRow(val text: String) : PlanRow
-private data class ItemRow(val lead: CharSequence, val text: CharSequence) : PlanRow
+private data class ItemRow(val lead: CharSequence, val text: CharSequence)
 
-private class PlansFactory(private val context: Context) : RemoteViewsService.RemoteViewsFactory {
+private class PlansFactory(
+    private val context: Context,
+    private val priorityOnly: Boolean,
+) : RemoteViewsService.RemoteViewsFactory {
 
     private val recentMs = 2 * 60 * 60 * 1000L
-    private var rows: List<PlanRow> = emptyList()
+    private var rows: List<ItemRow> = emptyList()
 
     override fun onCreate() {}
 
     override fun onDataSetChanged() {
-        val now = System.currentTimeMillis()
-        val list = mutableListOf<PlanRow>()
-
-        val plans = PlansStore.read(context)
-            .filter { it.endMillis > now - recentMs }
-            .sortedBy { it.startMillis }
-        if (plans.isEmpty()) {
-            list.add(ItemRow("", "Nothing upcoming"))
+        rows = if (priorityOnly) {
+            val topNotes = runCatching {
+                NoteRepository(SettingsStore(context)).listNotes().filter { it.priority == 4 }
+            }.getOrDefault(emptyList())
+            if (topNotes.isEmpty()) listOf(ItemRow("", "No priority-4 notes"))
+            else topNotes.map { n -> ItemRow(n.type ?: "·", preview20(n.content)) }
         } else {
-            plans.forEach { p ->
+            val now = System.currentTimeMillis()
+            val plans = PlansStore.read(context)
+                .filter { it.endMillis > now - recentMs }
+                .sortedBy { it.startMillis }
+            if (plans.isEmpty()) listOf(ItemRow("", "Nothing upcoming"))
+            else plans.map { p ->
                 val expired = p.endMillis < now
-                list.add(ItemRow(
+                ItemRow(
                     maybeStrike(lead(p.startMillis), expired),
                     maybeStrike(p.summary.ifBlank { "(no summary)" }, expired),
-                ))
+                )
             }
         }
-
-        val topNotes = runCatching {
-            NoteRepository(SettingsStore(context)).listNotes().filter { it.priority == 4 }
-        }.getOrDefault(emptyList())
-        // Header carries the count — this is where the top-priority KPI lives (not the KPI widget).
-        list.add(HeaderRow("Top priority list (${topNotes.size})"))
-        if (topNotes.isEmpty()) {
-            list.add(ItemRow("", "No priority-4 notes"))
-        } else {
-            topNotes.forEach { n -> list.add(ItemRow(n.type ?: "·", preview20(n.content))) }
-        }
-
-        rows = list
     }
 
     override fun onDestroy() { rows = emptyList() }
     override fun getCount(): Int = rows.size
 
-    override fun getViewAt(position: Int): RemoteViews = when (val row = rows[position]) {
-        is HeaderRow -> RemoteViews(context.packageName, R.layout.widget_row_header).apply {
-            setTextViewText(R.id.row_header, row.text)
-        }
-        is ItemRow -> RemoteViews(context.packageName, R.layout.widget_row_compact).apply {
-            setTextViewText(R.id.row_lead, row.lead)
-            setTextViewText(R.id.row_text, row.text)
+    override fun getViewAt(position: Int): RemoteViews =
+        RemoteViews(context.packageName, R.layout.widget_row_compact).apply {
+            setTextViewText(R.id.row_lead, rows[position].lead)
+            setTextViewText(R.id.row_text, rows[position].text)
             setOnClickFillInIntent(R.id.row_root, Intent())
         }
-    }
 
     override fun getLoadingView(): RemoteViews? = null
-    override fun getViewTypeCount(): Int = 2   // header + item
+    override fun getViewTypeCount(): Int = 1
     override fun getItemId(position: Int): Long = position.toLong()
     override fun hasStableIds(): Boolean = false
 

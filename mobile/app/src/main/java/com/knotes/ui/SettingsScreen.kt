@@ -4,6 +4,8 @@ import android.app.Activity
 import android.content.Intent
 import android.media.RingtoneManager
 import android.net.Uri
+import android.os.Environment
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,6 +23,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -78,10 +82,10 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
     var nibrasUser by remember { mutableStateOf(current.nibrasUsername) }
     var nibrasPassword by remember { mutableStateOf(current.nibrasPassword) }
     var nibrasFiles by remember { mutableStateOf(current.nibrasFilesDir) }
-    var collectSources by remember { mutableStateOf(current.collectSourceDirs.joinToString("\n")) }
+    val collectSources = remember { mutableStateListOf<String>().apply { addAll(current.collectSourceDirs) } }
     var collectNew by remember { mutableStateOf(current.collectNewDir) }
     var fulltextScale by remember { mutableStateOf(current.fulltextScale) }
-    var audiobookDir by remember { mutableStateOf(current.audiobookDir) }
+    val audioLibraryRoots = remember { mutableStateListOf<String>().apply { addAll(current.audioLibraryRoots) } }
     var galleryDir by remember { mutableStateOf(current.galleryDir) }
     var calStart by remember { mutableStateOf(current.calendarStartHour.toString()) }
     var calEnd by remember { mutableStateOf(current.calendarEndHour.toString()) }
@@ -89,7 +93,11 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
     var reminderOffsets by remember { mutableStateOf(current.reminderOffsetsMin.joinToString(", ")) }
     var reminderSound by remember { mutableStateOf(current.reminderSoundUri) }
     var reminderDismiss by remember { mutableStateOf(current.reminderRequireDismiss) }
+    var reminderRepeat by remember { mutableStateOf(current.reminderRepeatCount.toString()) }
     var statusNotif by remember { mutableStateOf(current.statusNotificationEnabled) }
+    var syncEnabled by remember { mutableStateOf(current.syncEnabled) }
+    var syncCheckSec by remember { mutableStateOf(current.syncCheckIntervalSec.toString()) }
+    var syncSec by remember { mutableStateOf(current.syncIntervalSec.toString()) }
     var chimeEnabled by remember { mutableStateOf(current.chimeEnabled) }
     var chimeSound by remember { mutableStateOf(current.chimeSoundUri) }
     var chimeStart by remember { mutableStateOf(current.chimeStartHour.toString()) }
@@ -123,6 +131,22 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
             chimeSound = uri.toString()
         }
     }
+    // Every folder-path setting below shares this one picker: whichever field's "choose folder"
+    // button was tapped supplies the callback that receives the resolved path. SAF hands back a
+    // content:// tree URI, not a plain path — but this app already holds MANAGE_EXTERNAL_STORAGE
+    // and every other file API here works with plain paths, so the picker's only job is to prevent
+    // typos; no persistable URI permission is needed once the path is extracted.
+    var pendingFolderPick by remember { mutableStateOf<((String) -> Unit)?>(null) }
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        val path = uri?.let(::treeUriToPath)
+        if (path != null) pendingFolderPick?.invoke(path)
+        pendingFolderPick = null
+    }
+    fun pickFolder(onPicked: (String) -> Unit) {
+        pendingFolderPick = onPicked
+        folderPicker.launch(null)
+    }
+
     fun soundLabel(uri: String): String =
         if (uri.isBlank()) "Default"
         else runCatching { RingtoneManager.getRingtone(context, Uri.parse(uri))?.getTitle(context) }
@@ -151,10 +175,10 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 nibrasUsername = nibrasUser,
                 nibrasPassword = nibrasPassword,
                 nibrasFilesDir = nibrasFiles,
-                collectSourceDirs = collectSources.split("\n").map { it.trim() }.filter { it.isNotBlank() },
+                collectSourceDirs = collectSources.toList(),
                 collectNewDir = collectNew,
                 fulltextScale = fulltextScale,
-                audiobookDir = audiobookDir,
+                audioLibraryRoots = audioLibraryRoots.toList(),
                 galleryDir = galleryDir,
                 calendarStartHour = calStart.toIntOrNull() ?: 5,
                 calendarEndHour = calEnd.toIntOrNull() ?: 22,
@@ -162,7 +186,11 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 reminderOffsetsMin = SettingsStore.decodeInts(reminderOffsets),
                 reminderSoundUri = reminderSound,
                 reminderRequireDismiss = reminderDismiss,
+                reminderRepeatCount = reminderRepeat.toIntOrNull() ?: 4,
                 statusNotificationEnabled = statusNotif,
+                syncEnabled = syncEnabled,
+                syncCheckIntervalSec = syncCheckSec.toIntOrNull() ?: 30,
+                syncIntervalSec = syncSec.toIntOrNull() ?: 300,
                 chimeEnabled = chimeEnabled,
                 chimeSoundUri = chimeSound,
                 chimeStartHour = chimeStart.toIntOrNull() ?: 8,
@@ -234,13 +262,12 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            OutlinedTextField(
+            FolderField(
                 value = dir,
                 onValueChange = { dir = it },
-                label = { Text("Notes directory") },
-                supportingText = { Text("Absolute path, e.g. /storage/emulated/0/knotes") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                label = "Notes directory",
+                supportingText = "Absolute path, e.g. /storage/emulated/0/knotes",
+                onPick = { pickFolder { path -> dir = path } },
             )
 
             OutlinedTextField(
@@ -344,13 +371,12 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedTextField(
+            FolderField(
                 value = nibrasFiles,
                 onValueChange = { nibrasFiles = it },
-                label = { Text("Files folder") },
-                supportingText = { Text("Where record files live (Syncthing), e.g. /storage/emulated/0/Nibras") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                label = "Files folder",
+                supportingText = "Where record files live (Syncthing), e.g. /storage/emulated/0/Nibras",
+                onPick = { pickFolder { path -> nibrasFiles = path } },
             )
 
             Text(
@@ -366,21 +392,18 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
 
             HorizontalDivider()
             Text("Media", style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
-                value = audiobookDir,
-                onValueChange = { audiobookDir = it },
-                label = { Text("Audiobook folder") },
-                supportingText = { Text("Browsed by the Audiobooks page, e.g. /storage/emulated/0/Audiobooks") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+            FolderListEditor(
+                label = "Audio library folders",
+                supportingText = "Scanned by the Audiobooks page's Library and Folders tabs.",
+                paths = audioLibraryRoots,
+                onPick = ::pickFolder,
             )
-            OutlinedTextField(
+            FolderField(
                 value = galleryDir,
                 onValueChange = { galleryDir = it },
-                label = { Text("Gallery folder") },
-                supportingText = { Text("Shown by the Gallery page, e.g. /storage/emulated/0/Pictures") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                label = "Gallery folder",
+                supportingText = "Shown by the Gallery page, e.g. /storage/emulated/0/Pictures",
+                onPick = { pickFolder { path -> galleryDir = path } },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedTextField(
@@ -437,14 +460,63 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Require dismissal", style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "Full-screen alarm; the sound loops until you tap Dismiss. Off = play once and " +
-                            "auto-clear.",
+                        "Full-screen alarm; the sound loops until you tap Dismiss. Off = play the " +
+                            "repeat count below, then auto-clear.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Switch(checked = reminderDismiss, onCheckedChange = { reminderDismiss = it })
             }
+            OutlinedTextField(
+                value = reminderRepeat,
+                onValueChange = { reminderRepeat = it.filter { c -> c.isDigit() } },
+                label = { Text("Repeat sound (times)") },
+                supportingText = { Text("e.g. 4 — plays that many times instead of just once. Ignored when \"Require dismissal\" is on.") },
+                singleLine = true,
+                enabled = !reminderDismiss,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            HorizontalDivider()
+            Text("Background sync", style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Sync with Nibras", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Periodically checks the backend and pulls fresh records while online. " +
+                            "Shown in the status notification below.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = syncEnabled, onCheckedChange = { syncEnabled = it })
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = syncCheckSec,
+                    onValueChange = { syncCheckSec = it.filter { c -> c.isDigit() } },
+                    label = { Text("Check every (sec)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = syncSec,
+                    onValueChange = { syncSec = it.filter { c -> c.isDigit() } },
+                    label = { Text("Sync every (sec)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Text(
+                "\"Check\" is a lightweight online/offline ping; a full sync (pulling records, " +
+                    "pushing queued notes) only runs on the longer interval, and only while online.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             HorizontalDivider()
             Text("Status & chime", style = MaterialTheme.typography.titleMedium)
@@ -522,21 +594,19 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedTextField(
-                value = collectSources,
-                onValueChange = { collectSources = it },
-                label = { Text("Source folders (one per line)") },
-                supportingText = { Text("Start a line with # to comment it out (kept, but skipped).") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 4,
+            FolderListEditor(
+                label = "Source folders",
+                supportingText = "Uncheck a folder to skip it (kept in the list, not scanned).",
+                paths = collectSources,
+                allowDisable = true,
+                onPick = ::pickFolder,
             )
-            OutlinedTextField(
+            FolderField(
                 value = collectNew,
                 onValueChange = { collectNew = it },
-                label = { Text("Destination (New) folder") },
-                supportingText = { Text("e.g. /storage/emulated/0/New") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                label = "Destination (New) folder",
+                supportingText = "e.g. /storage/emulated/0/New",
+                onPick = { pickFolder { path -> collectNew = path } },
             )
 
             HorizontalDivider()
@@ -594,6 +664,96 @@ private fun TagListEditor(title: String, subtitle: String, addLabel: String, tag
         Text(addLabel)
     }
 }
+
+/** A single folder-path setting: still a plain text field (so a path can be pasted or fixed by
+ *  hand if the picker ever can't reach somewhere), but its trailing icon opens the system folder
+ *  picker so the common case never requires typing a path at all. */
+@Composable
+private fun FolderField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    supportingText: String,
+    onPick: () -> Unit,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        supportingText = { Text(supportingText) },
+        singleLine = true,
+        trailingIcon = {
+            IconButton(onClick = onPick) {
+                Icon(Icons.Filled.FolderOpen, contentDescription = "Choose folder")
+            }
+        },
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/**
+ * A folder-path *list* setting (e.g. audio library roots, file-collection sources): each entry is
+ * a path chosen via the folder picker, not typed — removes the whole class of "one folder per
+ * line, hope you didn't fat-finger the path" text-field bugs. [allowDisable] adds a checkbox that
+ * comments a path out (a leading "#", the same convention [com.knotes.SettingsStore] already
+ * persists and the collector already skips) instead of removing it from the list.
+ */
+@Composable
+private fun FolderListEditor(
+    label: String,
+    supportingText: String,
+    paths: SnapshotStateList<String>,
+    allowDisable: Boolean = false,
+    onPick: (onPicked: (String) -> Unit) -> Unit,
+) {
+    Text(label, style = MaterialTheme.typography.titleMedium)
+    Text(supportingText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+    paths.forEachIndexed { index, raw ->
+        val disabled = allowDisable && raw.trimStart().startsWith("#")
+        val shown = if (disabled) raw.trimStart().removePrefix("#").trim() else raw
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            if (allowDisable) {
+                Checkbox(
+                    checked = !disabled,
+                    onCheckedChange = { include -> paths[index] = if (include) shown else "#$shown" },
+                )
+            }
+            Text(
+                shown.ifBlank { "(blank)" },
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (disabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = { paths.removeAt(index) }) {
+                Icon(Icons.Filled.Delete, contentDescription = "Remove")
+            }
+        }
+    }
+
+    OutlinedButton(onClick = { onPick { path -> if (path !in paths) paths.add(path) } }) {
+        Icon(Icons.Filled.FolderOpen, contentDescription = null)
+        Spacer(Modifier.width(6.dp))
+        Text("Add folder")
+    }
+}
+
+/** Resolves a SAF directory-tree URI (from [androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree])
+ *  to a plain filesystem path. This app already holds MANAGE_EXTERNAL_STORAGE and every other file
+ *  API here works with plain paths — the picker is only a typo-proof folder chooser, not a
+ *  scoped-storage access grant, so there's nothing else to persist once the path is extracted. */
+private fun treeUriToPath(uri: Uri): String? = runCatching {
+    val docId = DocumentsContract.getTreeDocumentId(uri)
+    val parts = docId.split(":", limit = 2)
+    val volume = parts[0]
+    val relative = parts.getOrElse(1) { "" }
+    val root = if (volume.equals("primary", ignoreCase = true)) {
+        Environment.getExternalStorageDirectory().absolutePath
+    } else {
+        "/storage/$volume"
+    }
+    if (relative.isBlank()) root else "$root/$relative"
+}.getOrNull()
 
 private fun previewTimestamp(format: String): String =
     runCatching { SimpleDateFormat(format, Locale.US).format(Date()) }

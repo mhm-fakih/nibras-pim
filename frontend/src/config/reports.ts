@@ -17,6 +17,12 @@ const always = () => true;
 export const REPORTS: ReportDef[] = [
   { key: 'bookmarked', label: '★ Bookmarked', params: { bookmarked: 'true' }, appliesTo: always },
   {
+    key: 'urgent',
+    label: '🚩 Urgent',
+    params: { urgent: 'true' },
+    appliesTo: (m) => hasField(m, 'urgent'),
+  },
+  {
     key: 'noStatus',
     label: 'No status',
     params: { noStatus: 'true' },

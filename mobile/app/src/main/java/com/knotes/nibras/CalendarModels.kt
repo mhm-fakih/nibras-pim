@@ -9,13 +9,14 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** A calendar entry as POSTed to mobilePushCalendar (envelope: {data:[{ecode,id,startDate,endDate,summary}]}). */
+/** A calendar entry as POSTed to mobilePushCalendar (envelope: {data:[{ecode,id,startDate,endDate,summary,description}]}). */
 data class CalendarEntry(
     val type: String,   // "J" or "P" (sent as ecode)
     val id: String,     // "" for a new entry
     val startDate: String,
     val endDate: String,
     val summary: String,
+    val description: String = "",
 )
 
 /** A calendar entry placed on the day grid. */
@@ -26,6 +27,24 @@ data class CalendarEvent(
     val start: LocalTime,
     val end: LocalTime,
     val summary: String,
+    val description: String = "",
+    /**
+     * Client-generated identity, stable across edits and assigned before the server ever sees the
+     * entry. Needed because [id] is blank until the first successful push: without it the outbox
+     * can't tell "an edit of the entry I already queued" from "a second new entry", so editing a
+     * not-yet-synced entry queued a duplicate and each copy created its own server record.
+     */
+    val localKey: String = java.util.UUID.randomUUID().toString(),
+    /** Set on any occurrence of a recurring planner series (virtual or already materialised). */
+    val seriesId: String = "",
+    /** The slot it stands for — its ORIGINAL start, unchanged if the occurrence is later moved. */
+    val recurrenceId: String = "",
+    /**
+     * True when the server computed this occurrence and no record exists for it. Read-only on the
+     * phone: [id] is a composite, not a record id, so an edit pushed against it would rewrite the
+     * whole series. See NibrasRecord.virtual.
+     */
+    val virtual: Boolean = false,
 )
 
 private val LOCAL_PATTERNS = listOf(
@@ -71,5 +90,9 @@ fun NibrasRecord.toCalendarEvent(): CalendarEvent? {
         start = start.toLocalTime(),
         end = end.toLocalTime(),
         summary = summary.ifBlank { description },
+        description = description,
+        seriesId = seriesId,
+        recurrenceId = recurrenceId,
+        virtual = virtual,
     )
 }
