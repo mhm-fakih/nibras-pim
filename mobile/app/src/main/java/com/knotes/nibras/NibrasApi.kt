@@ -68,24 +68,78 @@ class NibrasApi {
             (0 until data.length()).map { i -> data.getJSONObject(i).toRecord(code) }
         }
 
-    /** App modules as (code, label) — the capture "types". Enabled+coded only, in sortOrder. */
-    suspend fun fetchModules(base: String): List<Tag> = withContext(Dispatchers.IO) {
-        val arr = JSONArray(get("${base.trimEnd('/')}$PATH_MODULES"))
-        (0 until arr.length()).map { arr.getJSONObject(it) }
-            .filter { it.optString("code").isNotBlank() && (!it.has("enabled") || it.optBoolean("enabled", true)) }
-            .sortedBy { it.optInt("sortOrder", 0) }
-            .map { Tag(it.optString("code").trim(),
-                it.optString("label").ifBlank { it.optString("moduleKey") }.ifBlank { it.optString("code") }) }
+    /**
+     * Free-text search against the BACKEND — records that may not be on the phone at all, unlike
+     * every other read here, which serves already-bookmarked ones out of the export.
+     *
+     * Results come back in the export's own shape, so they parse into the same [NibrasRecord] the
+     * browser screen already renders. [ecode] blank searches every enabled module.
+     */
+    @Throws(ApiException::class)
+    suspend fun searchBackend(base: String, q: String, ecode: String = "", limit: Int = 25):
+            List<NibrasRecord> = withContext(Dispatchers.IO) {
+        if (q.isBlank()) return@withContext emptyList()
+        val url = "${base.trimEnd('/')}$PATH_MOBILE_SEARCH" +
+            "?q=${java.net.URLEncoder.encode(q, "UTF-8")}" +
+            "&ecode=${java.net.URLEncoder.encode(ecode, "UTF-8")}&limit=$limit"
+        val data: JSONArray = JSONObject(get(url)).optJSONArray("data") ?: JSONArray()
+        (0 until data.length()).map { i -> data.getJSONObject(i).toRecord(ecode) }
     }
 
-    /** Bookmarked departments as (code, name) — the capture "categories". The department name is its
-     *  summary column (the backend entity has no separate name column). */
-    suspend fun fetchBookmarkedDepartments(base: String): List<Tag> = withContext(Dispatchers.IO) {
-        val arr = JSONObject(get("${base.trimEnd('/')}$PATH_DEPARTMENTS")).optJSONArray("content") ?: JSONArray()
+    /**
+     * Flags a record on the server so the next sync pulls it down (or unflags it). The exports
+     * carry bookmarked records only, so this IS "send this to my phone".
+     */
+    suspend fun pushBookmark(base: String, ecode: String, id: String, bookmarked: Boolean = true):
+            Boolean = withContext(Dispatchers.IO) {
+        val item = JSONObject().put("ecode", ecode).put("id", id).put("bookmarked", bookmarked)
+        postAuthed("${base.trimEnd('/')}$PATH_MOBILE_PUSH_BOOKMARK",
+            JSONObject().put("data", JSONArray().put(item)))
+    }
+
+    /**
+     * The vocabulary the server says this client should be working from: enabled modules and the
+     * departments of priority >= 2, already filtered and ordered by the backend.
+     *
+     * One request, and NO client-side filtering — that is the point. The phone used to fetch
+     * `/api/modules` and `/api/departments?bookmarked=true` and apply its own rules, which meant it
+     * could disagree with the Admin page's "synced to clients" list, the very list that exists to
+     * make such drift visible. Both now come from the one service behind that page.
+     */
+    private suspend fun fetchTaxonomy(base: String): JSONObject? = withContext(Dispatchers.IO) {
+        runCatching { JSONObject(get("${base.trimEnd('/')}$PATH_CLIENT_TAXONOMY")) }.getOrNull()
+    }
+
+    /** Enabled modules as (code, label) — the capture "types", in the server's order. */
+    suspend fun fetchModules(base: String): List<Tag> = withContext(Dispatchers.IO) {
+        val arr = fetchTaxonomy(base)?.optJSONArray("modules") ?: return@withContext emptyList()
         (0 until arr.length()).map { arr.getJSONObject(it) }
             .filter { it.optString("code").isNotBlank() }
-            .map { Tag(it.optString("code").trim(),
-                it.optString("name").ifBlank { it.optString("summary") }.ifBlank { it.optString("code") }) }
+            .map {
+                Tag(
+                    it.optString("code").trim(),
+                    it.optString("label").ifBlank { it.optString("moduleKey") }
+                        .ifBlank { it.optString("code") },
+                )
+            }
+    }
+
+    /**
+     * Departments of priority >= 2 as (code, name) — the capture "categories", in the server's
+     * order. Not the bookmarked ones: priority is what decides whether a department is worth a slot
+     * on a phone keypad, and bookmarking means something else entirely.
+     */
+    suspend fun fetchDepartments(base: String): List<Tag> = withContext(Dispatchers.IO) {
+        val arr = fetchTaxonomy(base)?.optJSONArray("departments") ?: return@withContext emptyList()
+        (0 until arr.length()).map { arr.getJSONObject(it) }
+            .filter { it.optString("code").isNotBlank() }
+            .map {
+                Tag(
+                    it.optString("code").trim(),
+                    it.optString("name").ifBlank { it.optString("summary") }
+                        .ifBlank { it.optString("code") },
+                )
+            }
     }
 
     /** Appends each item's text to the records' notes field. Returns true on HTTP success. */
@@ -214,6 +268,16 @@ class NibrasApi {
     }
 
     /** GET with the bearer token, re-logging-in and retrying once on a 401. */
+    /**
+     * A request that failed, carrying the HTTP status when there was one.
+     *
+     * The point is the message the user ends up reading: "search failed, check your sign-in" sent
+     * someone hunting through Settings when the real answer was that the server was running an
+     * older build with no such endpoint. A 404 and a 401 are different problems with different
+     * fixes, and the UI can only say so if the status survives this far.
+     */
+    class ApiException(val status: Int?, message: String) : RuntimeException(message)
+
     private fun get(url: String): String {
         fun build(): Request {
             val b = Request.Builder().url(url).get()
@@ -227,7 +291,7 @@ class NibrasApi {
         }
         resp.use { r ->
             val body = r.body?.string().orEmpty()
-            if (!r.isSuccessful) error("HTTP ${r.code}")
+            if (!r.isSuccessful) throw ApiException(r.code, "HTTP ${r.code} for $url")
             return body
         }
     }
@@ -255,6 +319,7 @@ class NibrasApi {
             completedOn = str("completedOn"),
             fulltext = str("fullText"),
             files = parseFilesList(str("filesList")),
+            bookmarked = optBoolean("bookmarked", false),
             seriesId = str("seriesId"),
             recurrenceId = str("recurrenceId"),
             virtual = optBoolean("virtual", false),
@@ -303,7 +368,8 @@ class NibrasApi {
         const val PATH_MOBILE_PUSH_CALENDAR = "/sync/mobilePushCalendar"
         const val PATH_MATERIALISE = "/api/calendar/occurrences/materialise"
         const val PATH_MOBILE_PUSH_CREATE = "/sync/mobilePushCreate"
-        const val PATH_MODULES = "/api/modules"
-        const val PATH_DEPARTMENTS = "/api/departments?bookmarked=true&size=500"
+        const val PATH_MOBILE_SEARCH = "/sync/mobileSearch"
+        const val PATH_MOBILE_PUSH_BOOKMARK = "/sync/mobilePushBookmark"
+        const val PATH_CLIENT_TAXONOMY = "/sync/clientTaxonomy"
     }
 }

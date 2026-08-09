@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Box, Button, Snackbar, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { Alert, Box, Button, Snackbar, Typography, useMediaQuery, useTheme } from '@mui/material';
 import ChevronLeft from '@mui/icons-material/ChevronLeft';
 import { batchEdit, createJournalDay, exportFulltext, getSetting, openRecordFolder, EntityRecord, SavedSearchRecordRef } from '../api/client';
 import { ENTITY_BY_KEY } from '../config/entities';
@@ -36,6 +36,9 @@ export function AppShell() {
   // HQL saved-search results shown in the middle pane; resultModule = the opened record's module
   // (results can be a different entity than the current route, so the detail pane uses its config).
   const [searchResults, setSearchResults] = useState<{ title: string; records: SavedSearchRecordRef[] } | null>(null);
+  // Fields pulled off a URL, waiting to prefill the New-resource form (see ListPane.ScrapeFromUrl).
+  // Cleared whenever the form closes so a later plain "New" starts blank.
+  const [scraped, setScraped] = useState<{ fields: Record<string, unknown>; warnings: string[] } | null>(null);
   const [resultModule, setResultModule] = useState<string | null>(null);
   // Resizable middle (list) pane — width persisted per browser (dragged via the divider handle).
   const [listWidth, setListWidth] = useState(() => {
@@ -256,9 +259,20 @@ export function AppShell() {
               setMode('view');
             }}
             onNew={() => {
+              setScraped(null);
               setSelectedId(null);
               setMode('create');
             }}
+            // Resources only: everything else has no URL to build itself from.
+            onScraped={
+              config.key === 'resources'
+                ? (fields, warnings) => {
+                    setScraped({ fields, warnings });
+                    setSelectedId(null);
+                    setMode('create');
+                  }
+                : undefined
+            }
             onItems={setItemIds}
           />
         )}
@@ -298,11 +312,27 @@ export function AppShell() {
           </Box>
         )}
         <Box sx={{ flex: 1, overflow: 'auto' }}>
+        {mode === 'create' && scraped && (
+          <Alert
+            severity={scraped.warnings.length ? 'warning' : 'success'}
+            variant="outlined"
+            sx={{ mx: 3, mt: 2 }}
+          >
+            {scraped.warnings.length
+              ? `Filled in from the page — check these: ${scraped.warnings.join(' ')}`
+              : 'Filled in from the page. Review the fields before saving.'}
+          </Alert>
+        )}
         {mode === 'create' && (
           <EntityForm
             config={config}
-            onClose={() => setMode('view')}
+            initial={scraped?.fields}
+            onClose={() => {
+              setScraped(null);
+              setMode('view');
+            }}
             onSaved={(saved) => {
+              setScraped(null);
               setJustSaved(saved);       // show a card of what was just created
               setSelectedId(saved.id);
               setMode('view');

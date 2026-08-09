@@ -1,5 +1,6 @@
 package com.nibras.pim.web;
 
+import com.nibras.pim.service.ClientSyncViewService;
 import com.nibras.pim.service.SyncService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,9 +23,11 @@ import java.util.Map;
 public class SyncController {
 
     private final SyncService sync;
+    private final ClientSyncViewService clientSyncView;
 
-    public SyncController(SyncService sync) {
+    public SyncController(SyncService sync, ClientSyncViewService clientSyncView) {
         this.sync = sync;
+        this.clientSyncView = clientSyncView;
     }
 
     /** Connectivity probe — the app's {@code heartbeat()} checks {@code result == "ok"}. */
@@ -73,6 +76,55 @@ public class SyncController {
         out.put("result", ids.size() + " calendar entries saved");
         out.put("data", ids);
         return out;
+    }
+
+    /**
+     * The parameter vocabulary the clients should be working from: enabled modules with their
+     * types, and departments of {@code priority >= 2}, in the clients' own order.
+     *
+     * <p>Served from {@link ClientSyncViewService} — the SAME method behind the Admin page's
+     * "synced to clients" list. That is the point: the Admin page exists so drift between the
+     * server and a device is visible, which it cannot be if the page and the device apply their own
+     * separate filters. Previously the phone fetched {@code /api/departments?bookmarked=true} and
+     * sorted modules by {@code sortOrder}, so it was showing a different set from the one the Admin
+     * page claimed it had.
+     *
+     * <p>Under {@code /sync} rather than {@code /api/admin} so an ordinary signed-in device can read
+     * it; the admin route needs {@code tools.admin}, which a phone user has no reason to hold.
+     */
+    @GetMapping("/sync/clientTaxonomy")
+    public ClientSyncViewService.ClientSyncView clientTaxonomy() {
+        return clientSyncView.view();
+    }
+
+    /**
+     * Free-text search across the enabled syncable modules, for the phone's backend-search page.
+     * Records come back in the same flat shape as {@code exportJson*}, so the phone parses and
+     * renders them with what it already has.
+     *
+     * <p>{@code ecode} (T G P J N W R) narrows to one module; omit it to search them all.
+     * Unlike the exports, results are NOT limited to bookmarked records — finding things that
+     * aren't on the phone yet is the point.
+     */
+    @GetMapping("/sync/mobileSearch")
+    public Map<String, Object> mobileSearch(@RequestParam String q,
+                                            @RequestParam(required = false) String ecode,
+                                            @RequestParam(defaultValue = "25") int limit) {
+        List<Map<String, Object>> hits = sync.search(q, ecode, limit);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("result", hits.size() + " matches");
+        out.put("data", hits);
+        return out;
+    }
+
+    /**
+     * Flag records so the next export carries them to the phone — the write half of mobile search.
+     * Envelope {@code {data:[{ecode,id,bookmarked}]}}; {@code bookmarked} defaults to true and may
+     * be false to un-flag.
+     */
+    @PostMapping("/sync/mobilePushBookmark")
+    public Map<String, Object> mobilePushBookmark(@RequestBody Map<String, Object> body) {
+        return Map.of("result", sync.pushBookmarks(data(body)) + " records flagged");
     }
 
     /** Create records of any exportable type from the phone (bookmarked=true so they round-trip). */

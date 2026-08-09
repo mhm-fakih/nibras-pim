@@ -6,8 +6,10 @@ import com.nibras.pim.domain.Goal;
 import com.nibras.pim.domain.IndexCard;
 import com.nibras.pim.domain.Journal;
 import com.nibras.pim.domain.Planner;
-import com.nibras.pim.domain.SyncMutable;
 import com.nibras.pim.domain.Task;
+import org.springframework.data.domain.PageRequest;
+import com.nibras.pim.web.dto.FilterParams;
+import com.nibras.pim.domain.SyncMutable;
 import com.nibras.pim.domain.Writing;
 import com.nibras.pim.domain.lookup.Department;
 import com.nibras.pim.domain.lookup.JournalType;
@@ -78,6 +80,8 @@ public class SyncService {
     private final PlannerTypeRepository plannerTypeRepo;
     private final DepartmentRepository departmentRepo;
     private final PlannerSeriesService plannerSeries;
+    private final EntityCatalog catalog;
+    private final AppModuleService modules;
 
     public SyncService(TaskRepository taskRepo, GoalRepository goalRepo, PlannerRepository plannerRepo,
                        JournalRepository journalRepo, IndexCardRepository indexCardRepo,
@@ -85,7 +89,8 @@ public class SyncService {
                        WorkStatusRepository workStatusRepo, ResourceStatusRepository resourceStatusRepo,
                        WritingStatusRepository writingStatusRepo, JournalTypeRepository journalTypeRepo,
                        PlannerTypeRepository plannerTypeRepo, DepartmentRepository departmentRepo,
-                       PlannerSeriesService plannerSeries) {
+                       PlannerSeriesService plannerSeries, EntityCatalog catalog,
+                       AppModuleService modules) {
         this.taskRepo = taskRepo;
         this.goalRepo = goalRepo;
         this.plannerRepo = plannerRepo;
@@ -100,6 +105,8 @@ public class SyncService {
         this.plannerTypeRepo = plannerTypeRepo;
         this.departmentRepo = departmentRepo;
         this.plannerSeries = plannerSeries;
+        this.catalog = catalog;
+        this.modules = modules;
     }
 
     // ====================================================================== reads (exportJson*)
@@ -337,6 +344,102 @@ public class SyncService {
 
     private static <E> Specification<E> bookmarked() {
         return (root, q, cb) -> cb.isTrue(root.get("bookmarked"));
+    }
+
+    // ====================================================================== search (mobileSearch)
+
+    /**
+     * Ecode -> the module key the same records are called by everywhere else. The sync API speaks
+     * single letters (a legacy of the Grails app the phone was written against) while the CRUD
+     * layer, the search index and the frontend all speak module names, so any feature that bridges
+     * the two needs this map. Ordered T G P J N W R, matching the documented client sync order.
+     */
+    private static final Map<String, String> MODULE_BY_ECODE = new LinkedHashMap<>(Map.of(
+            "T", "tasks", "G", "goals", "P", "planners", "J", "journals",
+            "N", "notes", "W", "writings", "R", "resources"));
+
+    /**
+     * Free-text search over the syncable modules, returning records in the SAME flat shape as
+     * {@code exportJson*}. Reusing that shape is the point: the phone already parses it, so search
+     * results render with the card it already has instead of a second, parallel model.
+     *
+     * <p>Unlike the exports this deliberately does NOT filter on {@code bookmarked} — the whole
+     * purpose is to find records that are not on the phone yet, so that they can be flagged (see
+     * {@link #pushBookmarks}) and pulled down on the next sync.
+     *
+     * <p>Per-module LIKE search via each service's own {@code searchFields()}, not the
+     * {@code search_doc} full-text index: the index is filled incrementally and is empty on a fresh
+     * install pointed at an existing database, which would make this silently return nothing. The
+     * LIKE path always works.
+     *
+     * @param ecode one of T G P J N W R, or blank/null for every enabled module
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> search(String q, String ecode, int limit) {
+        if (q == null || q.isBlank()) {
+            return List.of();
+        }
+        List<String> codes = ecode == null || ecode.isBlank()
+                ? List.copyOf(MODULE_BY_ECODE.keySet())
+                : List.of(ecode.toUpperCase());
+        int perModule = Math.max(1, Math.min(limit, 200));
+
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (String code : codes) {
+            String module = MODULE_BY_ECODE.get(code);
+            if (module == null) {
+                continue;
+            }
+            AbstractCrudService<?, ?> service = catalog.find(module).orElse(null);
+            if (service == null || !modules.isEnabled(module)) {
+                continue;   // a module switched off in Settings is not offered to the clients
+            }
+            FilterParams f = FilterParams.forQuery(q);
+            for (Object dto : service.list(f, PageRequest.of(0, perModule)).getContent()) {
+                out.add(searchHit(code, module, dto));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * One search result, in the export shape. Read reflectively off the module's DTO because the
+     * seven DTOs are unrelated records with no common supertype — the alternative is seven
+     * near-identical branches that would drift the first time one DTO gains a field.
+     */
+    private Map<String, Object> searchHit(String ecode, String module, Object dto) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("type", ecode);
+        m.put("ecode", ecode);
+        m.put("module", module);
+        m.put("id", dtoValue(dto, "id"));
+        m.put("summary", nz(str(dtoValue(dto, "displayTitle"))));
+        m.put("description", br(str(dtoValue(dto, "description"))));
+        m.put("meta", nz(str(dtoValue(dto, "meta"))));
+        m.put("date", fmt(asDateTime(dtoValue(dto, "dateCreated")), DMY));
+        m.put("subtype", lookupName(dtoValue(dto, "type")));
+        m.put("context", lookupName(dtoValue(dto, "status")));
+        m.put("color", "darkblue");
+        m.put("bookmarked", Boolean.TRUE.equals(dtoValue(dto, "bookmarked")));
+        return m;
+    }
+
+    /** A record component's value, or null when this DTO has no such component. */
+    private static Object dtoValue(Object dto, String component) {
+        try {
+            return dto.getClass().getMethod(component).invoke(dto);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static String lookupName(Object lookup) {
+        Object name = lookup == null ? null : dtoValue(lookup, "name");
+        return name == null ? null : name.toString();
+    }
+
+    private static LocalDateTime asDateTime(Object v) {
+        return v instanceof LocalDateTime d ? d : null;
     }
 
     // ====================================================================== writes (mobilePush*)
@@ -665,6 +768,34 @@ public class SyncService {
             case "R" -> bookRepo.save((Book) e);
             default -> { }
         }
+    }
+
+    /**
+     * {@code mobilePushBookmark}: flag records so the next {@code exportJson*} carries them to the
+     * phone. Envelope {@code {data:[{ecode,id}]}}, matching the other pushes.
+     *
+     * <p>This is the write half of mobile search: the exports return only bookmarked records, so
+     * bookmarking IS "send this to my phone". Deliberately a dedicated endpoint rather than a
+     * generic PUT of the record — {@code apply()} writes every DTO field, so a phone that PUT back
+     * a record it had only partially parsed would blank whatever it left out.
+     *
+     * <p>{@code bookmarked = false} is accepted too, so the same call un-flags a record.
+     */
+    @Transactional
+    public int pushBookmarks(List<Map<String, Object>> data) {
+        int c = 0;
+        for (Map<String, Object> r : data) {
+            String ecode = str(r.get("ecode"));
+            BaseEntity e = load(ecode, asLong(r.get("id")));
+            if (!(e instanceof SyncMutable m)) {
+                continue;
+            }
+            Object flag = r.get("bookmarked");
+            m.setBookmarked(flag == null || Boolean.parseBoolean(String.valueOf(flag)));
+            persist(ecode, e);
+            c++;
+        }
+        return c;
     }
 
     // ====================================================================== helpers

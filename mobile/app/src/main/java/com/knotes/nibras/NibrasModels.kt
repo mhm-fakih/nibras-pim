@@ -75,6 +75,11 @@ data class NibrasRecord(
     val fulltext: String,
     /** File names attached to the record (synced to the phone by Syncthing). */
     val files: List<String>,
+    /**
+     * Whether the record is flagged on the SERVER. Only meaningful on backend-search results — the
+     * exports carry bookmarked records exclusively, so on a synced record it is always true.
+     */
+    val bookmarked: Boolean = false,
     /** Set on a recurring planner: the series master's id. Blank when the record isn't part of one. */
     val seriesId: String = "",
     /** The slot this occurrence stands for — its original start. Blank when not part of a series. */

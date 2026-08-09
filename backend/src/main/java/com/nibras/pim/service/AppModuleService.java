@@ -27,6 +27,18 @@ public class AppModuleService {
         return repo.findAllByOrderBySortOrderAsc().stream().map(AppModuleDto::of).toList();
     }
 
+    /**
+     * Is this module switched on in Settings? A module the user disabled shouldn't be offered to
+     * the clients either — mobile search asks this before including a module's records.
+     * Unknown keys read as enabled: a module missing from the table has never been configured, and
+     * silently hiding it would be a worse failure than showing it.
+     */
+    public boolean isEnabled(String moduleKey) {
+        return repo.findByModuleKey(moduleKey)
+                .map(m -> !Boolean.FALSE.equals(m.getEnabled()))   // null = never configured = on
+                .orElse(true);
+    }
+
     public AppModuleDto update(String key, AppModuleDto dto) {
         AppModule m = repo.findByModuleKey(key)
                 .orElseThrow(() -> new EntityNotFoundException("Module " + key + " not found"));

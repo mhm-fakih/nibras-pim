@@ -161,7 +161,7 @@ function ClientSyncPanel() {
               <Chip size="small" label={m.code ?? '?'} sx={{ fontFamily: 'monospace' }} />
               <Typography sx={{ fontWeight: 700, flex: 1 }}>{m.label}</Typography>
               <Typography variant="caption" color="text.secondary">
-                #{m.syncOrder}
+                #{m.sortOrder}
               </Typography>
             </Stack>
             <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>

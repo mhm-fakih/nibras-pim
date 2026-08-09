@@ -62,6 +62,8 @@ import com.knotes.reminder.PlansStore
 import com.knotes.player.PlayerScreen
 import com.knotes.player.PlayerTheme
 import com.knotes.ui.AUDIOBOOKS_DEST
+import com.knotes.ui.BackendSearchScreen
+import com.knotes.ui.SEARCH_DEST
 import com.knotes.ui.AppRail
 import com.knotes.ui.AudiobookScreen
 import com.knotes.ui.CALENDAR_DEST
@@ -322,6 +324,7 @@ private fun AppShell(
                 onCalendar = { onDest(CALENDAR_DEST) },
                 onCollect = { onDest(COLLECT_DEST) },
                 onSettings = { onDest(SETTINGS_DEST) },
+                onSearch = { onDest(SEARCH_DEST) },
                 onType = { onDest(it) },
             )
             VerticalDivider()
@@ -349,6 +352,14 @@ private fun AppShell(
                             onPlayMedia = onPlayMedia,
                         )
                         GALLERY_DEST -> GalleryScreen(dir = settings.galleryDir)
+                        SEARCH_DEST -> BackendSearchScreen(
+                            baseUrl = settings.nibrasBaseUrl,
+                            username = settings.nibrasUsername,
+                            // The server's own enabled-module list: syncTaxonomy() fetches the
+                            // enabled, coded modules into settings.types, so a module switched off
+                            // in Settings is never offered here either.
+                            types = settings.types,
+                        )
                         CALENDAR_DEST -> CalendarScreen(
                             startHour = settings.calendarStartHour,
                             endHour = settings.calendarEndHour,

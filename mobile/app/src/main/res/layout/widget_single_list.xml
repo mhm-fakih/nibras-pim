@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- One section: a static (non-scrolling) title above one scrolling ListView. Shared by the
      "Upcoming plans" and "Top priority" widgets, which used to be two halves of one widget
-     (widget_collection.xml) and are now separate so each can be sized and placed on its own. -->
+     and are now separate so each can be sized and placed on its own. The old two-list layout is
+     gone: it reserved half the widget for a second ListView, which left every single-list widget
+     using it (bookmarks, notably) drawing its rows into the top half only. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"

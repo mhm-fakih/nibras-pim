@@ -50,7 +50,11 @@ class BookmarksWidget : AppWidgetProvider() {
         }
 
         private fun build(context: Context, widgetId: Int): RemoteViews {
-            val views = RemoteViews(context.packageName, R.layout.widget_collection)
+            // widget_single_list, NOT widget_collection: this widget has one list, but the
+            // collection layout reserves half its height for a second ListView (layout_weight=1)
+            // that nothing ever fills — so the rows got half the widget and the rest sat empty.
+            // The two-list layout exists for the old combined plans widget, which no longer exists.
+            val views = RemoteViews(context.packageName, R.layout.widget_single_list)
             views.setTextViewText(R.id.widget_title, "Bookmarked records (${count(context)})")
             views.setTextViewText(R.id.widget_empty, "No bookmarks")
 

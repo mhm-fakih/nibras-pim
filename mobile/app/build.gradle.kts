@@ -120,6 +120,11 @@ dependencies {
     // Async image loading for the Gallery page.
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // EXIF orientation, for the gallery's annotation editor. Coil rotates images for display, so
+    // marks are drawn against the upright picture — burning them onto a bitmap decoded without the
+    // rotation would put every mark in the wrong place on a phone-camera photo.
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")

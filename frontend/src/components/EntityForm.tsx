@@ -29,6 +29,13 @@ import { EntityConfig, FieldDef } from '../config/entities';
 interface Props {
   config: EntityConfig;
   recordId?: number;
+  /**
+   * Field values to start a NEW record from — e.g. everything scraped off a URL. Applied over the
+   * blank form, never over a loaded record: prefilling an edit would silently overwrite what is
+   * already stored. Keys are DTO field names, so they land through the same allowlist as any
+   * other value and an unknown key is simply ignored.
+   */
+  initial?: Record<string, unknown>;
   onClose: () => void;
   onSaved: (saved: EntityRecord) => void;
 }
@@ -48,7 +55,7 @@ function saveErrorMessage(err: unknown): string {
 
 type FormState = Record<string, unknown>;
 
-export function EntityForm({ config, recordId, onClose, onSaved }: Props) {
+export function EntityForm({ config, recordId, initial, onClose, onSaved }: Props) {
   const qc = useQueryClient();
   const isEdit = recordId != null;
 
@@ -66,8 +73,10 @@ export function EntityForm({ config, recordId, onClose, onSaved }: Props) {
   const [form, setForm] = useState<FormState>({});
 
   useEffect(() => {
-    setForm(initForm(config.fields, record));
-  }, [config.key, record]);
+    const blank = initForm(config.fields, record);
+    // Only on create: see the `initial` doc above.
+    setForm(isEdit ? blank : { ...blank, ...(initial ?? {}) });
+  }, [config.key, record, isEdit, initial]);
 
   const set = (name: string, value: unknown) => setForm((f) => ({ ...f, [name]: value }));
 
