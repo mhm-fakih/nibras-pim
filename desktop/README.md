@@ -46,7 +46,7 @@ sudo pacman -S python-gobject gtk3
 | `notes.py`  | Pure-Python storage: the file-name tag scheme, parsing, list/save/update/delete. No GUI — easy to read and reuse. |
 | `config.py` | App-wide `Settings` (saved next to the program in `config.json`) **and** `RepoConfig` — the per-folder tag options saved inside each note folder as `.knotes.json`. |
 | `filters.py` | Pure-Python filter model: which notes match the sidebar's filters, and how many notes are behind every individual option. No GUI, like `notes.py`. |
-| `sidebar.py` | The GTK3 filter sidebar — calendar heat map, tag facets, counts. Draws what `filters.py` decides. |
+| `sidebar.py` | The GTK3 filter sidebar — calendar heat map, tag facets, hashtag cloud, counts. Draws what `filters.py` decides. |
 | `knotes.py` | The GTK3 window: note list, tagging input bar, editing, search, settings, shortcuts. |
 | `style.css` | Appearance. Plain hex colours — change the accent in one place. |
 
@@ -69,7 +69,7 @@ Everything is reachable from the keyboard (press **F1** in the app for this list
 | `Ctrl+O` (card selected) | Open the note's companion files folder (created on demand) |
 | `Ctrl+1 … Ctrl+9` | Switch to the 1st … 9th configured note **folder/repository** — not type; priority uses `Ctrl+Shift+<digit>` instead |
 | `Ctrl+F` | Toggle search |
-| `Ctrl+B` | Show / hide the **filter sidebar** (calendar heat map, tag facets, counts) |
+| `Ctrl+B` | Show / hide the **filter sidebar** (calendar heat map, tag facets, hashtag cloud, counts) |
 | `Ctrl+R` | Refresh from disk (pick up notes synced from another machine) |
 | `Ctrl+T` | Toggle light / dark theme |
 | `Ctrl+L` | Toggle **minimal side-note mode** (board hidden) |
@@ -102,6 +102,17 @@ There's no `Alt`-based or bare-`Delete` shortcut — every note-editing shortcut
     into it: `…~T~p3~Dev.md` is standard even where `Dev` isn't a configured category — that shows
     up as a foreign-code row instead. "Only" is the clean-up queue; select an item and
     `Ctrl+Shift+<code>` files it in.
+  - **Tags** — a cloud of the `#hashtags` written in note **bodies**, each sized by how often it is
+    used and carrying its count. Free-form, unlike the single type/category codes in the file name:
+    nothing has to be declared before use and a note can carry any number, which is what a cloud
+    suits and a fixed row list doesn't. Clicking one narrows the board to the notes carrying it —
+    **one tag at a time**, so a second click moves the selection rather than intersecting. A
+    `## Markdown heading` and a `http://…#fragment` are not tags.
+  - **Bad taxonomy** — include / hide / **only**. The *other* clean-up queue, and deliberately
+    separate from Non-standard: that one is about the file name's **shape**, this one about its
+    **values**. `2026_08_08-101500~Y~p3~A.md` is perfectly well-formed but invisible to every type
+    filter when no type `Y` exists. The fixes differ — retag vs. rename — so a file is never counted
+    in both, and a *blank* tag is not a bad tag.
 
   Counts are *faceted*: each option is counted with all the **other** filters applied but its own
   dimension ignored, so the number next to *Type W* always means "how many I'd see if I also picked

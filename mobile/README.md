@@ -25,6 +25,20 @@ Notes are stored as **plain `.md` files** in a directory you choose (legacy
   app-level drain also flushes offline-created calendar events).
 - **2–3 line preview** per note (configurable).
 - Tap a note to edit it in place; ⋮ → **Delete** to remove it.
+- **Unsaved drafts survive closing the app** — a half-typed note is written to disk as you type and
+  restored on the next launch. `rememberSaveable` alone doesn't cover swiping the app away, which is
+  exactly when a draft used to be lost.
+- **Filter panel** (collapsible, above the list) — the desktop sidebar's dimensions, with the same
+  faceted counts, so an unpicked option still shows what it *would* match rather than reading 0:
+  priority / type / category facets (shown as codes, counts in parentheses), a **two-week date strip**
+  shaded by note count (Created or Updated), a **tag cloud** of the `#hashtags` written in note
+  bodies sized by frequency (one tag at a time), and two clean-up queues — **non-standard names**
+  (files another machine dropped into the Syncthing folder) and **bad taxonomy** (a well-formed name
+  carrying a type/priority/category this folder doesn't define). "Created" comes from the file
+  *name's* timestamp, never the mtime, so retagging doesn't drag a note onto today.
+- **Search the server** (rail → *Search server*) — query the backend directly, including records
+  never synced to this phone, filtered by type. Each result has a **bookmark button**: the exports
+  carry bookmarked records only, so flagging one is how you pull it down on the next sync.
 
 ## File-name scheme
 
@@ -101,6 +115,37 @@ The Nibras server uses a self-signed certificate on the LAN, so the OkHttp clien
 `NibrasApi.kt` is intentionally configured to trust all certificates — fine for a personal
 LAN tool; don't reuse that client for public-internet traffic.
 
+## Gallery — view and annotate
+
+Full-screen, swipeable viewer for the configured folder, with the desktop `scr-annotator`'s tools on
+the photo itself: **pen**, **highlighter**, **crop** and a **label field that renames the file**.
+
+**No edit button and no save button.** Pick a tool and draw; the work is written when you leave the
+image — Next/Previous, switching back to *View*, or leaving the gallery. Marks are burnt before the
+rename, because they go into the file the label is about to move. A failed save keeps the marks in
+hand and says so rather than advancing.
+
+Picking a tool is one tap and can't be avoided: a horizontal drag can only mean one thing, and on a
+phone that gesture is already the page turn. While a tool is armed the always-visible Previous/Next
+buttons page instead — they are also what triggers the autosave, which is why they are never hidden.
+
+Ported from the desktop, and each of these is wrong if reversed:
+
+- **Crop is applied last**, whatever order you drew in — every other mark is positioned in the
+  *uncropped* image's coordinates.
+- **The highlighter is composited on its own layer**, so it blends with the photo rather than with
+  earlier marks. Its drag sets only the horizontal extent; the band thickness is fixed, like a nib.
+- **The original is backed up once** into a `.scr-backup` sibling folder before the first burn.
+  Nothing prunes it — worth clearing occasionally once edits are accepted.
+
+Marks are stored in **image** pixels, converted as they are drawn, so a stroke made on a 1080-wide
+screen lands correctly on a 4000-wide photo; and EXIF rotation is applied when decoding, since the
+viewer shows photos upright.
+
+A label **replaces** any previous one rather than appending, and a blank label restores the bare
+name — except that the phone treats the current stem as the original, so labelling an
+already-labelled file appends. Label once and it is right.
+
 ## Collect files
 
 Open from the **folder icon** in the top bar. Gathers files from a configurable set of folders
@@ -140,9 +185,18 @@ app/src/main/java/com/knotes/
   SettingsStore.kt    // SharedPreferences-backed settings (StateFlow)
   Model.kt            // Note models + file-name build/parse + RTL detection
 
-  ui/        // screens — MainScreen (capture+list), AppRail (Nibras type rail),
-             // NibrasBrowserScreen, CalendarScreen, AudiobookScreen (Library/Folders
-             // tabs), GalleryScreen, CollectScreen, SettingsScreen, Theme
+  NoteFilters.kt   // the filter model — mirrors desktop's filters.py (facets, tag cloud,
+                   // tri-states, date strip), kept free of Android types so it is unit-tested
+  NoteTaxonomy.kt  // "is this note tagged with values the folder defines?"
+  DraftStore.kt    // the unsaved compose-box text, persisted across app restarts
+
+  ui/        // screens — MainScreen (capture+list+filter panel), AppRail (Nibras type rail),
+             // NibrasBrowserScreen, BackendSearchScreen (search the server + flag results),
+             // CalendarScreen, AudiobookScreen (Library/Folders/Bookmarked tabs),
+             // GalleryScreen (viewer + annotator), CollectScreen, SettingsScreen, Theme
+
+  gallery/   // photo annotation — Mark/Renamer (what a mark is, what the file is called),
+             // AnnotationBurner (writes marks into the file at full resolution), ImageSize
 
   player/    // audio/video player — PlayerController + PlayerScreen, PlaybackService
              // (media3), Bookmark (.tmk sidecars), Subtitles, VolumeController
@@ -154,7 +208,8 @@ app/src/main/java/com/knotes/
 
   reminder/  // ReminderScheduler (AlarmManager), PlansRepository/PlansStore (upcoming
              // plans + task-due items), TaskOverdueNotifier, BootReceiver, and the
-             // home-screen widgets (KPI, Bookmarks, Upcoming-plans, Phone-status)
+             // home-screen widgets — KPI, Bookmarks, Upcoming plans and Top priority
+             // (separate widgets over a shared SectionListWidget), Phone status (volumes)
 
   status/    // StatusService (persistent note-count notification), quarter-hour
              // chime (ChimeScheduler/ChimeReceiver)
