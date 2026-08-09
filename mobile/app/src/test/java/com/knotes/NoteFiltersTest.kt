@@ -78,15 +78,15 @@ class NoteFiltersTest {
     }
 
     @Test
-    fun pickingTwoTagsMeansCarriesBoth() {
-        val both = note(body = "#work #urgent")
-        val one = note(body = "#work only")
-        val state = NoteFilterState(tags = setOf("work", "urgent"))
+    fun aPickedTagKeepsOnlyTheNotesCarryingIt() {
+        val tagged = note(body = "#work on the thing")
+        val other = note(body = "#home only")
+        val untagged = note(body = "no tags")
+        val state = NoteFilterState(tags = setOf("work"))
 
-        assertTrue(state.matches(both, settings))
-        // Intersecting, not unioning: a cloud is for narrowing down, and a union could only ever
-        // grow the result as more tags are picked.
-        assertFalse(state.matches(one, settings))
+        assertTrue(state.matches(tagged, settings))
+        assertFalse(state.matches(other, settings))
+        assertFalse(state.matches(untagged, settings))
     }
 
     // ---------------------------------------------------------------- dimensions

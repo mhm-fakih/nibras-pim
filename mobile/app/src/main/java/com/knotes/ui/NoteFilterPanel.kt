@@ -176,7 +176,10 @@ fun NoteFilterPanel(
                 if (counts.tags.isNotEmpty()) {
                     SectionLabel("Tags")
                     TagCloud(counts.tags, state.tags) { tag, on ->
-                        onState(state.copy(tags = state.tags.toggled(tag, on).filterNotNull().toSet()))
+                        // One tag at a time, matching the desktop cloud: picking a second replaces
+                        // the first rather than intersecting. A cloud answers "show me this topic",
+                        // and chaining tags mostly lands on zero notes.
+                        onState(state.copy(tags = if (on) setOf(tag) else emptySet()))
                     }
                 }
 

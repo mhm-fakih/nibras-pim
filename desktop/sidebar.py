@@ -14,8 +14,8 @@ The panel holds, top to bottom:
 * the **non-standard** tri-state — include / hide / show only the visible files and folders whose
   name isn't the canonical note format yet, i.e. the "needs metadata" clean-up queue;
 * a **tag cloud** of the ``#hashtags`` found in note bodies, sized by how often each is used —
-  clicking one narrows the board to the notes carrying it (picking several means "carries all of
-  them"), which is what makes free-form tags usable alongside the fixed type/category codes;
+  clicking one narrows the board to the notes carrying it (one at a time — a second click moves
+  the selection), which is what makes free-form tags usable alongside the fixed type/category codes;
 * the **bad taxonomy** tri-state — the other clean-up queue: names that ARE the canonical format
   but carry a tag value the folder never defined (type ``Y`` where no type ``Y`` exists). Separate
   from non-standard because the fix is different — retag, not rename.
@@ -468,7 +468,14 @@ class FilterSidebar(Gtk.Box):
                 button.connect("toggled", lambda b, t=tag: self._on_row(b, F.DIM_TAG, t))
                 self._tag_cloud.add(button)
                 self._tag_buttons[tag] = button
-            self._tag_cloud.show_all()
+                # Show the FlowBoxChild GTK wrapped the button in — NOT the FlowBox. It carries
+                # no_show_all so the section's collapsed state survives the window's show_all(),
+                # and that also means show_all() never reaches INTO it (same reason the facet and
+                # tri-state sections show their rows one by one).
+                button.show_all()
+                parent = button.get_parent()
+                if parent is not None:
+                    parent.show_all()
 
         peak = max(counts.values(), default=0)
         for tag, button in self._tag_buttons.items():
@@ -508,7 +515,11 @@ class FilterSidebar(Gtk.Box):
     def _on_row(self, button: Gtk.ToggleButton, dim: str, key) -> None:
         if self._suppress:
             return
-        if dim in (F.DIM_NONSTANDARD, F.DIM_TAXONOMY):
+        if dim == F.DIM_TAG:
+            # One tag at a time: picking a second replaces the first rather than intersecting.
+            # A cloud is for "show me this topic", and chaining tags mostly lands on zero notes.
+            self.state.tags = {key} if button.get_active() else set()
+        elif dim in (F.DIM_NONSTANDARD, F.DIM_TAXONOMY):
             # Tri-state, so it's a radio: exactly one mode is always on.
             attr = "nonstandard" if dim == F.DIM_NONSTANDARD else "taxonomy"
             if getattr(self.state, attr) == key:

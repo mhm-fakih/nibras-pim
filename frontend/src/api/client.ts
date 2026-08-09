@@ -474,6 +474,31 @@ export async function getCalendar(
 
 // ---- Calendar events (full-page calendar) ----------------------------------
 
+/** What a page gave up when scraped. Every field may be blank — it prefills a form, not a record. */
+export interface ScrapedResource {
+  url: string;
+  title: string;
+  author: string;
+  publisher: string;
+  shortDescription: string;
+  resourceYear: string;
+  fullText: string;
+  /** Non-fatal notes: what couldn't be extracted, and why. */
+  warnings: string[];
+}
+
+/**
+ * Fetch a page server-side and pull Resource fields out of it.
+ *
+ * A POST rather than a GET because it makes the SERVER issue an outbound request to a URL the user
+ * chose — a side effect, and one gated on `content.write` by SecurityConfig precisely because of
+ * it. The browser can't do this itself: cross-origin reads of arbitrary pages are blocked.
+ */
+export async function scrapeUrl(url: string): Promise<ScrapedResource> {
+  const { data } = await http.post('/scrape', { url });
+  return data;
+}
+
 export interface CalendarEvent {
   module: 'journals' | 'planners';
   /** Null on a virtual occurrence — there is no record behind it yet. See `virtual`. */
@@ -1030,7 +1055,8 @@ export interface SyncedModule {
   moduleKey: string;
   label: string;
   code?: string;
-  syncOrder: number;
+  /** The Settings page's "Order" column — the clients follow the same order the sidebar does. */
+  sortOrder: number;
   types: Lookup[];
 }
 

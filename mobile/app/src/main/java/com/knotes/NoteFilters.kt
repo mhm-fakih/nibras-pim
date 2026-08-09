@@ -127,9 +127,9 @@ data class NoteFilterState(
         if (skip != FilterDim.TYPE && types.isNotEmpty() && note.type !in types) return false
         if (skip != FilterDim.PRIORITY && priorities.isNotEmpty() && note.priority !in priorities) return false
         if (skip != FilterDim.CATEGORY && categories.isNotEmpty() && note.category !in categories) return false
-        // Picking two tags means "carries BOTH", unlike the type/category facets where two picks
-        // widen. A tag set is open-ended and a note can hold many, so intersecting is what makes a
-        // cloud useful for narrowing; unioning would only ever grow the result.
+        // The UI picks one tag at a time (see TagCloud), so this is normally a single-element
+        // set. The subset test is kept rather than a single-value field because it degrades
+        // correctly either way and matches desktop's filters.py.
         if (skip != FilterDim.TAG && tags.isNotEmpty() && !NoteFilters.tagsOf(note).containsAll(tags)) return false
         if (skip != FilterDim.TAXONOMY && !taxonomy.accepts(note, settings)) return false
         if (skip != FilterDim.NONSTANDARD && !nonStandard.accepts(note)) return false

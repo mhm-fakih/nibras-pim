@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.filled.DriveFolderUpload
 import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.Home
@@ -39,6 +40,7 @@ const val AUDIOBOOKS_DEST = "audiobooks"
 const val GALLERY_DEST = "gallery"
 const val CALENDAR_DEST = "calendar"
 const val COLLECT_DEST = "collect"
+const val SEARCH_DEST = "search"
 const val SETTINGS_DEST = "settings"
 
 /**
@@ -55,6 +57,7 @@ fun AppRail(
     onGallery: () -> Unit,
     onCalendar: () -> Unit,
     onCollect: () -> Unit,
+    onSearch: () -> Unit,
     onSettings: () -> Unit,
     onType: (String) -> Unit,
 ) {
@@ -87,6 +90,16 @@ fun AppRail(
                 Icons.Filled.PhotoLibrary,
                 contentDescription = "Gallery",
                 tint = if (selected == GALLERY_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        // Searching the SERVER, distinct from the per-type browsers below, which only ever show
+        // what sync already pulled down.
+        RailCell(selected == SEARCH_DEST, onSearch) {
+            Icon(
+                Icons.Filled.TravelExplore,
+                contentDescription = "Search server",
+                tint = if (selected == SEARCH_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                 else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

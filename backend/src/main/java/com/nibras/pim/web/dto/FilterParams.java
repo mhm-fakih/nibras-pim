@@ -30,4 +30,13 @@ public record FilterParams(
         Boolean highPriority,
         Boolean recentCreated,
         Boolean recentUpdated) {
+
+    /**
+     * Just a free-text query, every other filter unset. Spelling out 20-odd nulls at a call site is
+     * both unreadable and a silent hazard — two same-typed neighbours transposed still compiles.
+     */
+    public static FilterParams forQuery(String q) {
+        return new FilterParams(q, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null);
+    }
 }

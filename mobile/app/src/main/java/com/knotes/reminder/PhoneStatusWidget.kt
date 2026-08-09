@@ -20,13 +20,24 @@ class PhoneStatusWidget : AppWidgetProvider() {
         ids.forEach { manager.updateAppWidget(it, build(context)) }
     }
 
-    /** Refresh on tap and on the volume/ringer-mode broadcasts we subscribe to in the manifest.
-     *  A tap ALSO opens the system Sound settings (volume mixer) so the levels can be changed —
-     *  the widget-click grace period allows the activity start from here. */
+    /**
+     * Two tap targets, because reading the levels and changing them are different jobs:
+     *
+     *  - the **title** refreshes in place ([ACTION_REFRESH]) and stays on the home screen;
+     *  - the **bars** refresh AND open the volume mixer ([ACTION_OPEN]), so a level can be changed.
+     *
+     * Previously the whole widget did both, so there was no way to just re-read the numbers without
+     * being thrown into Settings. The same split the plans widget uses for its title.
+     *
+     * Volume/ringer broadcasts also refresh, but they are unreliable in practice — some devices
+     * don't emit VOLUME_CHANGED_ACTION to background receivers — which is exactly why a manual
+     * refresh needs to be one tap.
+     */
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         when (intent.action) {
-            ACTION_REFRESH -> {
+            ACTION_REFRESH -> refresh(context)
+            ACTION_OPEN -> {
                 refresh(context)
                 // Straight to the Volume page (One UI's slider screen); generic sound settings
                 // as the fallback on devices without that activity.
@@ -50,6 +61,7 @@ class PhoneStatusWidget : AppWidgetProvider() {
 
     companion object {
         private const val ACTION_REFRESH = "com.knotes.PHONE_STATUS_REFRESH"
+        private const val ACTION_OPEN = "com.knotes.PHONE_STATUS_OPEN"
 
         fun refresh(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
@@ -70,16 +82,21 @@ class PhoneStatusWidget : AppWidgetProvider() {
             setVolume(views, am, R.id.ps_bar_call, AudioManager.STREAM_VOICE_CALL)
             setVolume(views, am, R.id.ps_bar_system, AudioManager.STREAM_SYSTEM)
 
-            // Tap anywhere → refresh the values AND open the volume mixer (via the ACTION_REFRESH
-            // trampoline in onReceive, so both happen on one tap).
-            val intent = Intent(context, PhoneStatusWidget::class.java).setAction(ACTION_REFRESH)
-            val pi = android.app.PendingIntent.getBroadcast(
-                context, 0, intent,
-                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
-            )
-            views.setOnClickPendingIntent(R.id.widget_root, pi)
+            // Title → re-read the levels, in place. Body → that plus the volume mixer.
+            // Distinct requestCodes: PendingIntents that differ only by action are considered
+            // equal by the system, so a shared code would silently hand both targets the same one.
+            views.setOnClickPendingIntent(R.id.ps_title, broadcast(context, ACTION_REFRESH, 1))
+            views.setOnClickPendingIntent(R.id.widget_root, broadcast(context, ACTION_OPEN, 2))
             return views
         }
+
+        private fun broadcast(context: Context, action: String, requestCode: Int) =
+            android.app.PendingIntent.getBroadcast(
+                context,
+                requestCode,
+                Intent(context, PhoneStatusWidget::class.java).setAction(action),
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
+            )
 
         private fun setVolume(views: RemoteViews, am: AudioManager, barId: Int, stream: Int) {
             val max = am.getStreamMaxVolume(stream).coerceAtLeast(1)

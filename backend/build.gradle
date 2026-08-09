@@ -70,6 +70,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-jackson2'
 
     implementation 'com.rometools:rome:2.1.0'
+
+    // HTML parsing for URL -> resource scraping (UrlScrapeService). Also gives us a whitelist-based
+    // sanitiser, which matters because the text we keep comes from an arbitrary remote page.
+    implementation 'org.jsoup:jsoup:1.18.1'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
 
     // Server-side Markdown -> HTML for the static-site generator (GFM tables/strikethrough/autolinks).

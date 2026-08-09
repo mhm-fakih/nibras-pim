@@ -47,7 +47,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val s = settingsStore.value
             com.knotes.nibras.NibrasApi.configure(base, s.nibrasUsername, s.nibrasPassword)
             val types = runCatching { nibras.fetchModules(base) }.getOrNull()?.takeIf { it.isNotEmpty() }
-            val cats = runCatching { nibras.fetchBookmarkedDepartments(base) }.getOrNull()?.takeIf { it.isNotEmpty() }
+            val cats = runCatching { nibras.fetchDepartments(base) }.getOrNull()?.takeIf { it.isNotEmpty() }
             if (types != null || cats != null) {
                 val cur = settingsStore.value
                 settingsStore.save(cur.copy(types = types ?: cur.types, categories = cats ?: cur.categories))

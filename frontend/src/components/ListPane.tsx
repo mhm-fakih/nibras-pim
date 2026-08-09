@@ -5,6 +5,7 @@ import {
   Alert,
   Box,
   Button,
+  CircularProgress,
   Checkbox,
   Chip,
   IconButton,
@@ -33,7 +34,9 @@ import {
   ListParams,
   Lookup,
   REPORT_KEYS,
+  scrapeUrl,
 } from '../api/client';
+import DownloadIcon from '@mui/icons-material/CloudDownload';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { EntityConfig, MERGEABLE_MODULES } from '../config/entities';
 import { activeReportLabel } from '../config/reports';
@@ -50,6 +53,8 @@ interface Props {
   selectedId: number | null;
   onSelect: (id: number) => void;
   onNew: () => void;
+  /** Resources only: fetch a URL server-side and open the New form prefilled from the page. */
+  onScraped?: (fields: Record<string, unknown>, warnings: string[]) => void;
   /** Reports the currently-loaded record ids (in order) for keyboard j/k navigation. */
   onItems?: (ids: number[]) => void;
 }
@@ -63,7 +68,7 @@ function ymd(d: Date): string {
   ).padStart(2, '0')}`;
 }
 
-export function ListPane({ config, selectedId, onSelect, onNew, onItems }: Props) {
+export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onItems }: Props) {
   const { canWriteContent } = useAuth();
   const qc = useQueryClient();
   const { modules } = useModules();
@@ -196,6 +201,7 @@ export function ListPane({ config, selectedId, onSelect, onNew, onItems }: Props
             </Button>
           )}
         </Stack>
+        {canWriteContent && onScraped && <ScrapeFromUrl onScraped={onScraped} />}
         <TextField
           fullWidth
           size="small"
@@ -507,4 +513,77 @@ function FilterSelect({
 function formatDate(iso: string): string {
   if (!iso) return '';
   return new Date(iso).toLocaleDateString();
+}
+
+/**
+ * URL → prefilled New-resource form.
+ *
+ * The fetch happens on the SERVER: a browser cannot read an arbitrary cross-origin page, so this
+ * could not be done client-side even in principle. What comes back is a best-effort guess at each
+ * field — it opens the ordinary create form for review rather than saving anything, because
+ * extraction from someone else's markup is never reliable enough to write straight to a record.
+ */
+function ScrapeFromUrl({
+  onScraped,
+}: {
+  onScraped: (fields: Record<string, unknown>, warnings: string[]) => void;
+}) {
+  const [url, setUrl] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const scrape = useMutation({
+    mutationFn: () => scrapeUrl(url.trim()),
+    onSuccess: (s) => {
+      setError(null);
+      setUrl('');
+      onScraped(
+        {
+          url: s.url,
+          title: s.title,
+          author: s.author,
+          publisher: s.publisher,
+          shortDescription: s.shortDescription,
+          resourceYear: s.resourceYear,
+          fullText: s.fullText,
+        },
+        s.warnings ?? [],
+      );
+    },
+    // The backend's rejections are all written for a person — a bad URL, a private address, a dead
+    // page — so show the message rather than a generic failure.
+    onError: (e: unknown) => {
+      const detail = (e as { response?: { data?: { detail?: string; message?: string } } })?.response?.data;
+      setError(detail?.detail ?? detail?.message ?? 'Could not fetch that page.');
+    },
+  });
+
+  const go = () => {
+    if (url.trim() && !scrape.isPending) scrape.mutate();
+  };
+
+  return (
+    <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ px: 1.5, pb: 1 }}>
+      <TextField
+        size="small"
+        fullWidth
+        placeholder="Paste a URL to build a resource from it…"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && go()}
+        error={Boolean(error)}
+        helperText={error ?? undefined}
+        disabled={scrape.isPending}
+      />
+      <Button
+        size="small"
+        variant="outlined"
+        onClick={go}
+        disabled={!url.trim() || scrape.isPending}
+        startIcon={scrape.isPending ? <CircularProgress size={14} /> : <DownloadIcon />}
+        sx={{ mt: 0.25, flexShrink: 0 }}
+      >
+        {scrape.isPending ? 'Fetching…' : 'Fetch'}
+      </Button>
+    </Stack>
+  );
 }

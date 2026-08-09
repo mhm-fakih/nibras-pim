@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- minHeight is the real floor the launcher enforces (cells are 70*n - 30 dp), so 180dp meant
+     "3 rows minimum" and the widget refused to shrink however it was dragged — targetCellHeight
+     is only a placement hint. 110dp = 2 rows, matching the bookmarks and top-priority lists. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:initialLayout="@layout/widget_single_list"
-    android:minHeight="180dp"
+    android:minHeight="110dp"
     android:minWidth="110dp"
     android:resizeMode="horizontal|vertical"
     android:targetCellHeight="2"

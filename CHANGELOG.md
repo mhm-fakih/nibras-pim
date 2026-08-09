@@ -1,5 +1,102 @@
 # Changelog
 
+## 2026-08-09
+
+### Added
+
+- **Build a resource from a URL.** A URL field beside the New button on the resources list: paste a
+  link, and it opens the ordinary New-resource form prefilled with the page's title, author,
+  publisher, description, year and its article text as Markdown. A banner names anything that
+  couldn't be extracted ("No article text found — the page may be JavaScript-rendered or paywalled").
+
+  It prefills a form rather than saving a record, because extraction from someone else's markup is
+  never reliable enough to write straight to the database. Metadata comes from Open Graph, then
+  schema.org JSON-LD, then `<title>`/`<h1>`; the body prefers `<article>`/`<main>`, and on a page
+  with no semantic markup it scores each block by **text length minus link text** — a nav column is
+  almost all link text and scores near zero however long it is. Nav, header, footer, asides,
+  comments and share widgets are stripped either way.
+
+  **This endpoint makes the server fetch a URL you choose, which is an SSRF vector by
+  construction** — the browser can't reach the machine's loopback interface, its LAN neighbours or a
+  cloud metadata endpoint, but this process can. It resolves the host and refuses loopback, private,
+  link-local, unique-local and multicast addresses, rejects any scheme but http(s) (`file:` would
+  read the server's own disk), and **re-checks after every redirect**, since a public host that 302s
+  to `169.254.169.254` would walk straight past a check done only on the original URL. It is a POST
+  so `SecurityConfig` gates it on `content.write`; as a GET, any authenticated user including
+  READ_ONLY could have driven it. One residual limit: DNS could change between the check and the
+  fetch, which needs a custom resolver or an egress proxy to close.
+
+- **Mobile: search the server.** A new *Search server* page — every other screen shows only what sync
+  already pulled down, i.e. only bookmarked records, so anything not yet flagged is invisible on the
+  phone however you look for it. This queries the backend directly, filtered by type (the enabled
+  modules, from the server), and gives each result a bookmark button.
+
+  **Flagging is the sync mechanism, not a separate feature**: the exports carry bookmarked records
+  exclusively, so the button is literally "send this to my phone" and it arrives on the next pull.
+  Results come back in the export's own wire shape, so they parse into the record model the browser
+  screen already uses. `mobilePushBookmark` is a dedicated endpoint rather than a generic PUT —
+  `apply()` writes every DTO field, so a phone PUTting back a record it had only partly parsed would
+  blank whatever it left out.
+
+- **Mobile: annotate photos in the gallery** — the desktop `scr-annotator`'s pen, highlighter, crop
+  and rename, with **no edit button and no save button**. The tools sit on the photo; picking one
+  starts drawing, and the work is saved on leaving the image (page change, switching back to View,
+  or leaving the gallery).
+
+  Ported semantics that are wrong if reversed: **crop is applied last** whatever order you drew in,
+  because every other mark is positioned in the uncropped image's coordinates; the **highlighter is
+  composited on its own layer**, so it blends with the photo rather than with earlier marks, and its
+  drag sets only the horizontal extent while the band thickness stays fixed like a real nib; the
+  **original is backed up once** to a `.scr-backup` sibling folder before the first burn. As on the
+  desktop, **a failed save does not advance** — the marks stay in hand and say so.
+
+  Two things specific to a phone: marks are stored in **image pixels**, converted as they are drawn,
+  so a stroke made on a 1080-wide screen lands correctly on a 4000-wide photo; and **EXIF rotation is
+  applied when decoding**, since the viewer shows photos upright and burning onto an unrotated bitmap
+  would put every mark rotated off its target.
+
+  Arming a tool is one tap and can't be removed: a horizontal drag can only mean one thing, and on a
+  phone that gesture is already the page turn. While a tool is armed, the always-visible Previous/Next
+  buttons page instead — they are also what triggers the autosave, which is why they are never hidden.
+
+### Fixed
+
+- **The clients were told a different vocabulary from the one Admin claimed.** The phone fetched
+  `/api/departments?bookmarked=true` — not priority >= 2 at all — and applied its own enabled-filter
+  and sort, so its department list had no necessary relationship to the Admin page's "synced to
+  clients" list, the very list that exists to make such drift visible. Both now come from one call to
+  `/sync/clientTaxonomy`, served by the same service behind that page, with a test asserting the two
+  routes return identical JSON. Ordering follows **`sortOrder`** (the Settings page's "Order"
+  column), so there is one order maintained in one place. *`syncOrder` now has no consumer — its
+  column, DTO field and Settings input are still there and can be removed.*
+
+- **The bookmarked-records widget used only half its height.** Left over from splitting the plans
+  widget: it drew into `widget_collection.xml`, the two-list layout, but only ever filled the first
+  list, while the second `ListView` still claimed `layout_weight="1"`. The two-list layout is now
+  deleted outright, since nothing referenced it. **Remove and re-add the widget** — a placed instance
+  keeps the layout it was created with.
+
+- **The volume widget's title now refreshes in place.** Tapping already refreshed, but the same tap
+  also launched Sound settings, so there was no way to just re-read the levels. Title and body are
+  now separate targets (title refreshes; bars refresh and open the mixer). They carry **distinct
+  request codes** — Android treats PendingIntents differing only by `action` as equal, so a shared
+  code would have silently given both targets the same one. This matters because
+  `VOLUME_CHANGED_ACTION` isn't reliably delivered to background receivers, which is why the levels
+  went stale in the first place.
+
+- **The KPI and volume widgets refused to shrink below three columns**, and the plans widget below
+  three rows. `minWidth`/`minHeight` are the floors the launcher enforces (cells are `70·n − 30` dp),
+  and they were left at 180dp when `targetCellWidth`/`Height` — only a placement hint — were changed.
+  All five widgets now sit at a 110dp (2-cell) floor. **Remove and re-add** to pick it up.
+
+- **Mobile filters show codes, not full names**, with counts parenthesised; the tag cloud selects
+  **one tag at a time**, matching the desktop.
+
+- **The desktop tag cloud never appeared.** Its FlowBox carries `no_show_all` so the section's
+  collapsed state survives the window's `show_all()` — which also means `show_all()` never reaches
+  *into* it, so the chips were created and never shown. The facet and tri-state sections already show
+  their rows one by one for exactly this reason; the cloud now does too.
+
 ## 2026-08-08
 
 ### Added — recurring planner events

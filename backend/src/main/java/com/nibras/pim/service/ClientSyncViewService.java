@@ -26,7 +26,9 @@ import java.util.Map;
  *   <li><b>Types</b> — only those of an <i>enabled</i> module. A disabled module isn't synced, so
  *       its types aren't either.</li>
  * </ul>
- * Modules come back in {@link AppModule#getSyncOrder()} order (seeded T G P J N W R I).
+ * Modules come back in {@link AppModule#getSortOrder()} order — the "Order" column on the frontend
+ * Settings page, i.e. the same order the sidebar navigates in. One order the user maintains in one
+ * place, rather than a second one they would have to remember to keep in step.
  */
 @Service
 @Transactional(readOnly = true)
@@ -49,7 +51,7 @@ public class ClientSyncViewService {
     public record SyncedDepartment(Long id, String code, String name, Integer priority, Integer orderNumber) {
     }
 
-    public record SyncedModule(String moduleKey, String label, String code, int syncOrder,
+    public record SyncedModule(String moduleKey, String label, String code, int sortOrder,
                                List<LookupDto> types) {
     }
 
@@ -69,10 +71,10 @@ public class ClientSyncViewService {
         List<SyncedModule> mods = modules.findAll().stream()
                 .filter(m -> !Boolean.FALSE.equals(m.getEnabled()))
                 .sorted(Comparator.comparingInt(
-                        (AppModule m) -> m.getSyncOrder() == null ? Integer.MAX_VALUE : m.getSyncOrder())
+                        (AppModule m) -> m.getSortOrder() == null ? Integer.MAX_VALUE : m.getSortOrder())
                         .thenComparing(m -> nz(m.getLabel())))
                 .map(m -> new SyncedModule(m.getModuleKey(), m.getLabel(), m.getCode(),
-                        m.getSyncOrder() == null ? 0 : m.getSyncOrder(), typesOf(m.getModuleKey())))
+                        m.getSortOrder() == null ? 0 : m.getSortOrder(), typesOf(m.getModuleKey())))
                 .toList();
 
         return new ClientSyncView(deps, mods);
