@@ -58,16 +58,49 @@ public class PermissionService {
         return out;
     }
 
-    /** Replace a role's capabilities (ADMIN is fixed and cannot be edited). Unknown keys are ignored. */
+    /**
+     * Replace a role's capabilities (ADMIN is fixed and cannot be edited). Unknown keys are ignored.
+     *
+     * <p>Applied as a <b>delta</b>: rows the role keeps are left exactly where they are, and only
+     * the genuinely added and genuinely removed keys are written. This is not a micro-optimisation.
+     * The obvious version — delete every row for the role, then insert the new set — is broken on
+     * any edit that keeps at least one existing key, because Hibernate orders INSERTs <i>before</i>
+     * DELETEs inside a single flush: re-inserting a key the role already holds hits
+     * {@code uk_role_permission} before the delete that was supposed to clear the way has run.
+     *
+     * <p>That failure is quiet and looks like nothing at all from the UI — granting Data entry the
+     * audit capability sends {@code [content.write, tools.audit]}, the {@code content.write} row
+     * collides, the request 500s, and the matrix comes back unchanged, so the checkbox appears to
+     * refuse the click. Granting the FIRST capability to a role that has none worked fine, which is
+     * what made it look arbitrary.
+     */
     @Transactional
     public void setPermissions(Role role, Set<String> permissions) {
         if (role == Role.ADMIN) {
             throw new IllegalArgumentException("The ADMIN role always has every permission and cannot be edited.");
         }
-        Set<String> valid = new LinkedHashSet<>(permissions);
-        valid.retainAll(Permissions.ALL);
-        repo.deleteByRole(role);
-        persist(role, valid);
+        Set<String> wanted = new LinkedHashSet<>(permissions);
+        wanted.retainAll(Permissions.ALL);
+
+        List<RolePermission> existing = repo.findByRole(role);
+        Set<String> held = new LinkedHashSet<>();
+        List<RolePermission> revoked = new java.util.ArrayList<>();
+        for (RolePermission rp : existing) {
+            held.add(rp.getPermission());
+            if (!wanted.contains(rp.getPermission())) {
+                revoked.add(rp);
+            }
+        }
+        if (!revoked.isEmpty()) {
+            repo.deleteAll(revoked);
+        }
+        Set<String> granted = new LinkedHashSet<>(wanted);
+        granted.removeAll(held);
+        persist(role, granted);
+
+        // The cache is rebuilt with a query, so make sure the changes above are in the database
+        // first rather than relying on Hibernate's auto-flush to notice.
+        repo.flush();
         reload();
     }
 

@@ -80,7 +80,7 @@ fun AppRail(
         RailCell(selected == AUDIOBOOKS_DEST, onAudiobooks) {
             Icon(
                 Icons.Filled.Headset,
-                contentDescription = "Audiobooks",
+                contentDescription = "Media",
                 tint = if (selected == AUDIOBOOKS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                 else MaterialTheme.colorScheme.onSurfaceVariant,
             )

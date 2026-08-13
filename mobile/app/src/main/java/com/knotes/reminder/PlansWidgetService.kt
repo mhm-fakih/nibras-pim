@@ -42,7 +42,8 @@ private class PlansFactory(
     override fun onDataSetChanged() {
         rows = if (priorityOnly) {
             val topNotes = runCatching {
-                NoteRepository(SettingsStore(context)).listNotes().filter { it.priority == 4 }
+                NoteRepository(SettingsStore(context)).listNotes()
+                    .filter { it.priority == SettingsStore(context).value.topPriority }
             }.getOrDefault(emptyList())
             if (topNotes.isEmpty()) listOf(ItemRow("", "No priority-4 notes"))
             else topNotes.map { n -> ItemRow(n.type ?: "·", preview20(n.content)) }

@@ -36,57 +36,45 @@ import kotlinx.coroutines.launch
 class StatusService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private var loopJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         SyncStatusStore.seed(this)
-        ensureLoopStarted()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val settings = SettingsStore(this).value
-        if (!settings.statusNotificationEnabled && !settings.syncEnabled) {
+
+        // startForeground() FIRST, unconditionally, and only then decide whether to keep running.
+        //
+        // This looks redundant when we are about to stop, and it is not. A caller that used
+        // startForegroundService() has entered a contract on our behalf: call startForeground()
+        // within ~5 seconds or Android kills the process with
+        // ForegroundServiceDidNotStartInTimeException. Returning early via stopSelf() without ever
+        // posting the notification breaks that contract, and the app dies — which is exactly what
+        // happened after every note save, because saving calls refresh() and refresh() started this
+        // service. The notification appears and vanishes within a frame; the crash it prevents is
+        // the whole point.
+        startForegroundWith(buildNotification(this, settings))
+
+        // Sync no longer keeps this service alive — SyncWorker does that job without a
+        // notification. The service now exists ONLY to show the status notification, so that
+        // setting alone decides whether it stays.
+        if (!settings.statusNotificationEnabled) {
             stopForegroundCompat()
             stopSelf()
             return START_NOT_STICKY
         }
-        ensureLoopStarted()
-        startForegroundWith(buildNotification(this, settings))
         return START_STICKY
     }
 
     override fun onDestroy() {
-        loopJob?.cancel()
+        scope.coroutineContext[Job]?.cancel()
         super.onDestroy()
     }
 
-    /** Runs for the lifetime of the service: alternates a cheap online check with a fuller sync
-     *  once [AppSettings.syncIntervalSec] has elapsed, then re-posts the notification either way.
-     *  Settings are re-read every iteration, so edits from Settings take effect on the next tick
-     *  without needing to restart the service. */
-    private fun ensureLoopStarted() {
-        if (loopJob?.isActive == true) return
-        loopJob = scope.launch {
-            var nextSyncAtMillis = 0L // 0 forces a sync on the very first eligible tick
-            while (isActive) {
-                val settings = SettingsStore(this@StatusService).value
-                if (settings.syncEnabled) {
-                    val now = System.currentTimeMillis()
-                    if (now >= nextSyncAtMillis) {
-                        SyncCenter.syncNow(this@StatusService)
-                        nextSyncAtMillis = now + settings.syncIntervalSec.coerceAtLeast(10) * 1000L
-                    } else {
-                        SyncCenter.checkOnline(this@StatusService)
-                    }
-                    // SyncCenter already reposts the notification with the fresh state.
-                }
-                delay(settings.syncCheckIntervalSec.coerceAtLeast(10) * 1000L)
-            }
-        }
-    }
 
     private fun startForegroundWith(notification: Notification) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -112,10 +100,18 @@ class StatusService : Service() {
         private const val CHANNEL = "knotes_status_v2"
         private const val NOTIF_ID = 4720
 
-        /** Start or stop the service to match the current settings. */
+        /**
+         * Line the two background pieces up with the settings.
+         *
+         * They are independent now. The notification is a foreground service, which Android will
+         * not let you hide from the status bar; periodic sync is a WorkManager job, which shows
+         * nothing. Turning sync on therefore no longer drags a permanent notification along with
+         * it — which is the whole point of the split.
+         */
         fun sync(context: Context) {
             val settings = SettingsStore(context).value
-            if (settings.statusNotificationEnabled || settings.syncEnabled) start(context) else stop(context)
+            if (settings.statusNotificationEnabled) start(context) else stop(context)
+            com.knotes.nibras.SyncWorker.sync(context)
         }
 
         fun start(context: Context) {
@@ -128,9 +124,13 @@ class StatusService : Service() {
         }
 
         /** Re-post with fresh counts/sync status (a no-op start that re-runs onStartCommand). */
+        /**
+         * Re-post the notification with fresh counts. Starts the service ONLY when the notification
+         * is switched on — `|| syncEnabled` was left here when sync moved to WorkManager, and it
+         * meant every note save started a foreground service that immediately stopped itself.
+         */
         fun refresh(context: Context) {
-            val settings = SettingsStore(context).value
-            if (settings.statusNotificationEnabled || settings.syncEnabled) start(context)
+            if (SettingsStore(context).value.statusNotificationEnabled) start(context)
         }
 
         fun stop(context: Context) {

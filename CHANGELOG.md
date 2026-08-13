@@ -1,5 +1,507 @@
 # Changelog
 
+## 2026-08-13
+
+### Added
+
+- **The task timer moved into a shared store, so only one can run.** It persisted under
+  `nibras.timer.task.<id>` — one slot per task — so nothing stopped three running at once, and two
+  trackers for the *same* task (its record page and its sprint row) couldn't see each other. A guard
+  inside the component couldn't have fixed it: the task being stopped is usually not the one whose
+  component is mounted. One key now holds the running session, starting one **stops and saves** the
+  previous, and a `storage` listener extends that across tabs.
+
+- **The timer appears under each task on the sprint board**, so the list you work from is the list
+  you start the clock from. Hidden for completed tasks and closed sprints.
+
+- **The auto-stop is configurable and now actually fires.** Settings → Tasks → "Auto-stop a timer
+  after (minutes)", default 60. It had always been 60, but in a per-browser preference with no UI at
+  all. More importantly it lived in the tracker component, so a timer started on a sprint row and
+  navigated away from had nothing left to stop it; it is armed in the store now, survives navigation,
+  and is re-armed from the persisted start time on load. A deadline already passed (tab closed
+  overnight) saves the session ending **at the cut-off, not when the browser noticed** — a maximum
+  that can be exceeded by forgetting isn't one.
+
+- **Two timer notifications**: one when the auto-stop fires, and a 15-minute nudge while nothing is
+  being tracked. The nudge's interval is re-armed from the store rather than running always and
+  checking — an interval ticking through a tracked session would fire the instant you stopped, which
+  reads as nagging. It only runs while a tab is open.
+
+- **Ticking a task's completion checkbox now sets its status**, to whatever you choose in
+  **Settings → Tasks → "Status on completion"** — a menu of the task form's own statuses, so the
+  choice can only ever be one that exists.
+
+  This started as a magic string. `SyncService` already set the status on completion via a hardcoded
+  `findFirstByCode("done")`, so a task completed *from the phone* changed status while the same task
+  completed on its record page or in a sprint review did not — it got a completion date and kept
+  whatever status it had. The same task read as finished on one screen and open on another depending
+  on where you ticked it. One resolver now serves all three paths, and the code is a setting rather
+  than a literal. The old `"done"` code remains the fallback, so an instance that never opens that
+  setting behaves exactly as it did.
+
+  Three behaviours worth knowing, each with a test:
+
+  - **An explicit status in the same save wins.** Choosing a status and completing in one action is
+    a decision, and the automatic one must not overrule it.
+  - **Only on the transition.** Editing an already-complete task doesn't keep resetting its status.
+  - **Un-completing leaves the status alone.** What it was beforehand isn't recorded anywhere, so
+    restoring it would be a guess.
+
+  "Leave unchanged" is a real option, and a setting pointing at a since-deleted status falls back
+  rather than failing the save — completing a task must not break over a parameter someone tidied up.
+
+### Fixed
+
+- **Optimistic locking actually locks now.** Every entity has carried an `@Version` column since the
+  legacy schema and every DTO shipped the value to the client — but nothing carried it back in.
+  `update()` loaded the row and applied the DTO over it, so Hibernate compared the row against
+  itself and no conflict was possible. Two tabs editing one record, or two controls on one screen
+  writing before the first refetch landed, silently overwrote each other.
+
+  The version the client read is now compared against the row's current one, and a mismatch is a
+  **409** telling you to reload. Worth being precise about what this adds: Hibernate's own check
+  covers the window *inside* the transaction (`update … where id = ? and version = ?`), so it
+  catches a concurrent commit while the server works. It cannot see a **client** whose copy is
+  stale — the row and the server's copy agree perfectly; the browser is what's behind. That is the
+  case that was losing data.
+
+  `AbstractCrudService` is *bounded* on a `Versioned` interface rather than reading `version()`
+  reflectively, so a twelfth DTO cannot quietly skip the check — it won't compile. A body with no
+  version is still accepted: that is a caller with no baseline, not a caller dodging the check.
+
+  Six tests, and the decisive one is **"does the first writer's change survive"** rather than "does
+  a stale version 409" — a guard that returned 409 and still wrote would pass the weaker test.
+
+- **Server error messages reach the screen.** Found while testing the above: the 409 body came back
+  empty. Boot returns `{timestamp,status,error,path}` by default, but the frontend reads
+  **`data.detail`** in five places — the RFC 7807 shape, which was never switched on. So every
+  carefully-worded server message ("Refusing to fetch … it resolves to a private address", "The
+  page returned HTTP 404", the new conflict message) has been arriving empty and falling back to a
+  generic string. `spring.mvc.problemdetails.enabled: true` makes the frontend's long-standing
+  expectation true.
+
+- **The reading page's highlight mode ran every record together as one line.** The sentence splitter
+  breaks on `\n` and then trims each chunk — right for matching, since a highlight has to resolve
+  to the same string on any client — but the newlines were gone by render time and the chunks were
+  joined with a literal space. `white-space: pre-wrap` was set the whole time on a container with no
+  newlines left to honour. The gaps are now recovered from the original text by position, so
+  whatever sat between two chunks (space, newline, blank line) is emitted verbatim while the chunks
+  stay trimmed.
+
+- **Appending to Description and then Notes could undo the first append.** Both bars read the same
+  cached record; appending to one writes, invalidates and refetches, and appending to the other
+  before that refetch landed sent the stale copy back — whole record and all, because the generic
+  PUT applies every DTO field. The append now re-reads the record at submit time, narrowing the
+  window from "until the refetch lands" to the milliseconds between that GET and its PUT. The
+  locking above catches what remains.
+
+- **Mobile: the app died on every note save.** Saving calls `StatusService.refresh()`, which still
+  started the service when *sync* was enabled — a leftover from before sync moved to WorkManager.
+  `startForegroundService()` is a contract: call `startForeground()` within ~5 seconds or Android
+  kills the process. The new `onStartCommand` saw the notification setting was off and returned
+  early through `stopSelf()`, never posting the notification. The note was written first, which is
+  why it survived every crash.
+
+  Two fixes, since either alone leaves the trap armed: `refresh()` now starts the service only when
+  the notification is on, and `onStartCommand` calls `startForeground()` **first, unconditionally**,
+  before deciding whether to stop. Any caller that used `startForegroundService()` entered that
+  contract on our behalf, whatever we then decide.
+
+### Changed
+
+- **The "Append to…" bar takes multiple lines and grows to seven**, instead of a single-line slot
+  you had to type a paragraph through blind. That moves submitting to **Ctrl/Cmd+Enter**, since
+  Enter now inserts a newline — binding Enter to submit would make a second line impossible to type.
+
+- **Notes gets its own append bar**, alongside Description. It was hardcoded to `record.description`
+  and now takes the field as a prop, so the two keep independent text.
+
+- The append bar shows the **server's own message** on failure rather than "Could not append." — a
+  409 says the record changed and to reload, which is the one thing worth knowing.
+
+### Mobile
+
+- **Media page** (was Audiobooks), with a filter that searches the whole library regardless of where
+  you are in it. Three folders deep in an album, typing a name finds it anywhere — the filter
+  overrides the tab and shows a flat list, and clearing it returns you exactly where you were.
+  Matches file names plus the cached artist/album/genre. Embedded TITLE tags are **not** indexed:
+  the tag cache holds genre/artist/album, and adding titles would mean re-reading every file, which
+  is the cost that cache exists to avoid.
+
+- **A file collection is now a note with attachments.** It writes
+  `<timestamp>~<type>~p<priority>~<category>.d` plus a matching `.md` beside it, which is the layout
+  the desktop, the backend importer and this app already agree on — so a collection stops being a
+  loose folder nothing recognises. The folder name is *derived* from the note name, so the two can't
+  drift apart; nothing would catch it at runtime if they did.
+
+- **Notes and collected files default to the same folder, `/Notes`.** They used to default apart
+  (`/knotes` and `/New`), which quietly broke what collections are for: the desktop only reads a
+  note plus its `.d` if they sit in the notes folder. Only fresh installs are affected. This also
+  exposed a hardcoded `"knotes"` path in the KPI widget's file counts — already wrong for anyone who
+  had moved their notes, and about to count a folder that doesn't exist.
+
+- **A note's media attachment opens in the app's own player.** Tapping one called the external
+  intent chooser for every file type; there was no in-app path from a note at all, which is why
+  audio would open in some other app but never this one. Media now plays in-app, everything else
+  still goes out to whatever handles it.
+
+- **`notes.sqlite` and its companions are ignored** like dotfiles — prefix-matched
+  case-insensitively, so `-wal`, `-shm`, `-journal`, `Notes.SQLite` and any future companion are one
+  rule rather than a list to maintain.
+
+- **KPI widget: a second row, and colour as the signal.** Top-priority notes and upcoming plans,
+  green when the number is where it should be and red when it isn't — over 20 for today's notes and
+  top-priority, and **under** 10 for upcoming plans, where a low number is the problem. Colour
+  rather than styling because the widget is read at arm's length. The priority counted is now a
+  setting, and all three consumers follow it — the KPI count, the Top priority widget's title, and
+  the rows beneath that title, which came from two different places.
+
+- **The Upcoming plans panel starts collapsed and remembers how you left it.** `rememberSaveable`
+  survives a rotation but dies with the process, so it reopened itself on every cold start.
+
+## 2026-08-12
+
+### Added
+
+- **Sprints.** A dated block of committed work — usually a single day — built from your bookmarked
+  tasks, reviewed by ticking off what got done, and drawn on the calendar alongside journals and
+  planners. New page at `/sprints` (toggleable like any other tool page), new `sprint` and
+  `sprint_task` tables, service, controller and API client.
+
+  **Membership is a row, not a column on the task**, and that is the design decision everything
+  else rests on. The requirement — *how many times was this task committed to a sprint and not
+  done* — is a question about history. A `sprint_id` on `task` can only remember the most recent
+  commitment; a task carried from Monday's sprint into Tuesday's into Thursday's has three
+  memberships and two misses, and only rows can say that.
+
+  **A miss only counts once the sprint has been reviewed.** An unfinished task in a sprint that is
+  still running is not a broken promise, so `sprint.closed_on` exists purely to draw that line —
+  without it every task would accumulate misses simply by being in today's sprint. A task's slip
+  count shows on its row and in the pick list, worst offenders first, so the decision to commit a
+  repeat straggler is made deliberately rather than by scrolling past it.
+
+  **The expected duration comes from `task.planned_duration`** — a legacy column that has been on
+  the table since before this app and was referenced by nothing: no entity, no DTO, no form. Rather
+  than add a second column meaning the same thing, it is now mapped and exposed on the task form,
+  narrowed from `float(9,3)` to `INT`, and read as **minutes**. The unit is the point: a sprint is
+  built from tasks small enough to estimate at 10, 20, 30, 45, 60 minutes, and hours push you toward
+  "about half a day" — the granularity a sprint exists to break down. An integer says the same thing
+  in the type.
+
+  Its 15 legacy values were **cleared**, not converted. They predate anything reading the column and
+  are not in one unit — some were entered as minutes, some as hours, and nothing on the row says
+  which — so any single multiplier would be wrong for part of the set. A wrong estimate is worse
+  than an absent one: absent is visible (the task is counted at the default and named in the
+  warning) while a wrong number is silently believed. Ten of the fifteen were on completed tasks.
+
+  A task without an estimate is counted at **30 minutes** (configurable via
+  `sprint.default-task-minutes`) and **named** in the sprint's warning — not merely counted, so the
+  warning can say which tasks to go and estimate. The sprint also reports its window, so a plan
+  that doesn't fit the time booked for it says so.
+
+  Estimates are **snapshotted at commit time**: re-estimating a task later cannot rewrite what a
+  past sprint was planned to be.
+
+  Ticking a task in the review also completes the task itself and clears its bookmark, so a
+  finished task doesn't offer itself for the next sprint. Un-ticking undoes both — a review
+  submitted too early should be correctable, which is also why closing can be re-opened.
+
+  On the **calendar** a sprint is a block from start to end, titled with its done/total count, in
+  its own colour with a doubled border (planners are dashed, journals solid). Dragging its edges
+  moves the window like any other event; clicking it opens the Sprints page rather than a `/read`
+  view, because a sprint is a board you work rather than a record you read.
+
+### Fixed
+
+- **Imported notes arrive typed.** A knote's filename type code picks the module (`J` → journals),
+  and a journal has always taken its **start date from the filename timestamp** rather than the
+  moment of import — that part was already right, and there are now tests holding it there. What was
+  missing is the type: records created through a form go via `AbstractCrudService.create()`, which
+  fills blank parameters from the admin-configured defaults, but the importer persists straight
+  through the `EntityManager` and skipped that entirely. A `J` knote became a Journal with **no type
+  at all**, invisible to every type filter. 1,444 of the 3,217 journals in the database show the
+  damage.
+
+  One call fixes it for every module at once — planner type, work status and the rest now follow the
+  same defaults a form-created record does. Six tests; the decisive one configures the default
+  itself rather than reading whatever the database happens to have, because an earlier version
+  *skipped* when none was set and a skipped test proves nothing.
+
+  Existing untyped records are left alone: back-filling 1,444 rows is a bulk edit to real data, not
+  a migration.
+
+### Changed
+
+- **Bookmarking no longer touches the filesystem unless you ask it to.** Flagging a record created a
+  symlink in the checkout folder and wrote-and-**opened** its checkout text — the opening because
+  the export inherited `export.open`, a setting that defaults to on and exists for the manual
+  "Export to file" button. So clicking a star could pop an editor window.
+
+  Both are now switches under **Settings → On bookmarking**, and **both are off by default**.
+  Bookmarking is a note to self; on its own it has no business writing to disk or launching a
+  desktop app. The export is passed an explicit open/don't rather than `null`, so it can no longer
+  inherit a setting meant for something else.
+
+  **Removal stays ungated on purpose**: un-bookmarking always removes the symlink, whatever the
+  switch says. Otherwise turning the feature off would strand every link already on disk.
+
+  Two of the five new tests fail against the old unconditional behaviour — the two that assert the
+  defaults, which is the part that matters.
+
+### Mobile
+
+- **The Audiobooks page no longer rebuilds itself on every visit.** Three separate costs were being
+  paid each time the page opened: the scan walked hidden folders, read tags from every file, and
+  then threw all of it away when the composition ended. On this phone the hidden half is not a
+  rounding error — **1,195 visible files against 780 hidden**, mostly Syncthing's `.stversions`
+  archive of previous versions of everything.
+
+  The scan now lives in a process-level `MediaLibrary` instead of a `produceState` inside the
+  composable, and hidden directories are pruned at the *descent* rather than filtered afterwards —
+  a filter runs after the walker has already gone in, which is precisely the cost being avoided.
+  Tags are cached to disk against each file's path, size and mtime, so a refresh re-reads only files
+  that actually changed and an unchanged library costs one directory walk and no file reads at all.
+  Since it no longer rescans by itself, there is a refresh button in the top bar.
+
+- **Folder view: dead ends are hidden, and the first few tracks play from the list.** A folder with
+  no media anywhere beneath it is no longer shown — it was a tap in and a tap back to discover
+  nothing. Up to five of a folder's own tracks are listed under it and start playing when tapped,
+  with "…and N more" opening the folder. The emptiness check short-circuits at the first media file
+  found rather than counting them.
+
+- **Only `.md` and `.txt` are read as note text.** Any other file dropped in the notes folder had
+  its contents read and shown as a note body, so a stray `.xml` appeared as a note full of raw
+  markup. Other files are still listed as "needs metadata" items — they just aren't previewed. A
+  file being decodable as text doesn't make it something you wrote.
+
+- **A file with no preview shows its name** rather than an empty card. Done in `preview()` rather
+  than by faking the note's content, so `content` still honestly means "what we read", search and
+  hashtag parsing aren't polluted with filenames, and folders get the same treatment.
+
+- **Background sync moved from a foreground service to WorkManager**, so it no longer requires a
+  permanent status-bar notification. Android does not allow a foreground service's notification to
+  be hidden, and the service existed only to hold a polling loop — reminders and chimes are
+  AlarmManager alarms with manifest-registered receivers and never depended on it. The service now
+  runs *only* when the status notification is switched on, and the two settings are finally
+  independent.
+
+  **The trade:** WorkManager's minimum period is 15 minutes and it is a floor rather than a
+  schedule — the OS batches work and may run it later. A shorter configured interval still applies
+  while the app is open. Sync failures return `retry()` rather than `success()` so an unreachable
+  server is retried on backoff instead of dropped until the next period.
+
+- **Arabic file and folder names right-align.** Track names, folder names, breadcrumbs, library
+  group names and bookmark rows now use `TextDirection.Content` with `TextAlign.Start`, which
+  resolves direction from the text's first strong character. Preferred to the `if (isRtl)
+  TextAlign.Right` test used elsewhere because the alignment cannot disagree with the direction the
+  text is actually laid out in.
+
+- **Widget titles refresh, Top priority carries a count, and the volume bars colour by headroom** —
+  see the 2026-08-11 entries; shipped in the same build.
+
+## 2026-08-11
+
+### Added
+
+- **Resources search now looks in Notes as well as Title, Author and Description.** On a resource,
+  Notes is where your own words live — the description is usually the publisher's blurb, scraped or
+  pasted — so searching without it finds books by how they were advertised rather than by what you
+  said about them. Author was already searched and still is; there are now tests pinning each
+  searched field individually, each with its term in exactly one field so a hit proves that field is
+  read.
+
+- **A "Read on" date on resources.** The `read_on` column has been on the table all along and was
+  simply never exposed — not in the DTO, so not in the API, so not on the form. It round-trips now.
+
+- **The sidebar's tool buttons show their names when the rail has room for them.** Calendar,
+  Kanban, Dashboards and the rest sat under the enabled modules as a wrapped strip of bare icons
+  whatever the window size, so a tall screen with few saved searches left a band of empty rail above
+  a row of unlabelled glyphs. They now draw as labelled rows whenever the space is there, and fall
+  back to icons when it isn't.
+
+  "Has room" is measured, not guessed, and the measurement has one trap in it: ask "does the reports
+  region have slack for the extra height?" and the answer changes the moment you act on it — labels
+  appear, the flex region shrinks by exactly that much, the slack is gone, the labels come off,
+  forever. So what is measured is the space the reports region and the tool block occupy
+  **together**, which is the same either way. A ResizeObserver re-decides on a window resize, a rail
+  drag, the calendar opening to a full month, or a saved search being added — so widening anything
+  brings the names back.
+
+  The Users and Roles buttons, previously hand-written after the loop, are now ordinary entries in
+  the same list, so a tool can no longer appear in one mode and not the other.
+
+- **Settings → Features → "Release codename"** replaces the "Version in the status bar" toggle
+  added earlier today. The version number is always shown now — it is what you quote when something
+  is wrong — and the switch governs only the nickname beside it, in **both** places it appears: the
+  sidebar header and the status bar. (The stored key changed from `feature.statusVersion.enabled`
+  to `feature.codename.enabled`; anyone who had switched the old one off gets the default, on.)
+
+- **Settings → Features → "Resource detail fields"**, covering Full text, Highlights, Comments, URL
+  and Read-on. Between them they make the resource form several screens long for anyone who mostly
+  fills in title and author; one switch collapses that.
+
+  **Hiding a field never empties it.** The form is still seeded from the whole record and the save
+  payload is still built from the *full* field list, so a hidden field is written back exactly as it
+  was loaded. Building the payload from the visible fields instead would omit those keys, and the
+  server's `apply()` writes every DTO field — a missing key arrives as null, so switching off "Full
+  text" would have blanked it on the next save of every resource that had one. The form, the detail
+  pane and the standalone reading page all honour the same switch, so a hidden field doesn't
+  reappear on the way out.
+
+- **Mobile: every widget title is now a "bring this up to date" button, and Top priority counts.**
+  A home-screen widget is only ever as fresh as the last thing that redrew it, and nothing redraws
+  it on its own. Plans and KPIs already ran a sync on a title tap — but nothing refreshed the
+  widgets afterwards, so the numbers on screen stayed stale even when the sync worked. Top priority
+  and Bookmarked records had no title tap at all.
+
+  All four titles now redraw, and they redraw **before** consulting the network as well as after: a
+  tap that goes quiet for a network round-trip reads as a dead control, and the local half of what
+  these widgets show is already current at the moment of the tap. A failed sync therefore costs the
+  server half, not the whole gesture. Top priority skips the network entirely — those notes are
+  files on the phone, so the server cannot have a different answer.
+
+  "Top priority" now carries its count, like "Bookmarked records" does. It is the true total, so a
+  widget too short to show every note still says how many there are, and it is counted from the
+  file names rather than by loading notes — the same redraw runs on the system's own update path,
+  on the main thread, and loading notes reads every file's contents.
+
+- **Mobile: the home list opens on today.** The phone is where notes get captured rather than
+  browsed, so the useful default is "what I've put down today" rather than the whole folder. It is
+  an ordinary day selection — today is highlighted on the two-week strip, the filter badge counts
+  it, and Clear drops it like any other filter. Applied once at startup, so a rotation or a return
+  from the background restores whatever you last chose instead of re-imposing it.
+
+- **A resource's cover is imported with it.** Building a resource from a URL now also takes the
+  page's main image and saves it as the record's cover (`cover.<ext>` in repository 1), so a
+  scraped article arrives looking like the ones entered by hand.
+
+  The picture is chosen from the social-preview metadata first — `og:image` is the publisher's own
+  answer to "which image represents this page", which is exactly what a cover asks. Only when none
+  of that is present is the article body scanned, and that scan steps over the sprites, avatars,
+  logos and tracking pixels that outnumber real illustrations in most markup, reads `data-src` and
+  `srcset` as well as `src` (a src-less `<img>` is normal on any site with a lazy loader), and
+  skips anything declaring itself under 200px. "No cover image found on the page" joins the other
+  warnings when it comes up empty.
+
+  **The download happens after the record is saved, not as part of saving it.** There is nowhere to
+  put a file until the record has an id, and a picture that won't download is no reason to lose a
+  resource that saved perfectly well — so it reports rather than fails. It only ever fills an empty
+  cover slot; replacing an existing one stays a manual upload, since this picture is a guess made
+  from someone else's markup, not a considered choice.
+
+  The fetch carries the same SSRF guard and the same hop-by-hop redirect re-validation as the page
+  scrape, because it is the same exposure with a picture at the end of it. **SVG is refused** even
+  though browsers call it an image: covers are served back inline from the app's own origin and an
+  SVG can carry script, which would make an imported cover an XSS vector. Rasters are capped at
+  8 MB, and a file landing exactly on the cap is treated as truncated rather than written half-
+  decoded — jsoup cuts the body off at the limit instead of failing.
+
+### Fixed
+
+- **Opening a record no longer swallows every keyboard shortcut.** The "Append to Description" bar
+  is drawn inline on every record you open, and it carried `autoFocus` — so selecting a record put
+  the caret in that field immediately. The shell's key handler stands down whenever an input has
+  focus, by design, which meant `j`/`k` to move through the list, `e` to edit, `o` to open, `p`/`#`
+  to quick-edit and `f` then `1`/`2`/`3` for the repository folders were all dead from the moment a
+  record appeared. Only Escape did anything, because it blurs.
+
+  The `autoFocus` is gone. A field you have to click into costs one click; a field that takes focus
+  by itself costs every shortcut on the page. The subtask dialog keeps its own autofocus — a dialog
+  you opened on purpose should be ready to type into, and it captures the keyboard only while open.
+
+- **Mobile: the ringtone bar sat orange at a level nobody would call high.** The Volumes widget
+  coloured each bar by its percentage of that stream's maximum — but Android does not give every
+  stream the same number of steps. A phone typically gives the ring stream 7 and music 15, so
+  identical positions were being judged on different yardsticks: one notch above the middle is
+  5/7 = 71% on the ring, past the old "orange above 60%" line, while the equivalent 9/15 = 60% on
+  music stayed green. A 7-step scale has no step between 57% and 71%, so it skipped the green
+  band's top half entirely and the ring bar was orange almost all the time.
+
+  Colour now goes by **headroom left** — green normally, orange within a fifth of the top, red at
+  maximum — which is scale-independent: "one notch below maximum" is near the top whether the scale
+  has 7 steps or 15. Tests pin the cross-stream equivalence directly, and 4 of the 8 fail against
+  the old rule.
+
+- **Roles & permissions: a checkbox that appeared to refuse the click.** Granting Data entry the
+  audit capability — or any second capability to any role — silently failed. The save 500'd, the
+  matrix came back unchanged, and since each box is drawn from the server's matrix the tick simply
+  never appeared.
+
+  Writing a role's capabilities cleared its rows and re-inserted the whole set. **Hibernate orders
+  INSERTs before DELETEs within a flush**, so re-inserting a key the role was keeping hit
+  `uk_role_permission` before the delete that was meant to clear the way had run —
+  `Duplicate entry 'DATA_ENTRY-content.write'`. Granting the *first* capability to a role with none
+  worked, because with nothing kept there was nothing to collide with, which is what made the
+  failure look arbitrary.
+
+  Now applied as a delta: rows the role keeps are left untouched, and only genuine additions and
+  removals are written. Seven tests cover it, and the decisive ones are the cases that *keep*
+  something — the old "grant the first capability" case passed throughout and would not have
+  caught this.
+
+  The frontend had no error handler on that mutation at all, so the failure had no way to reach
+  the screen. It now shows what went wrong instead of leaving a box that looks stuck.
+
+- **A record's History panel is hidden from roles that may not read it**, rather than shown empty.
+  The panel reads `/api/audit/{entity}/{id}`, which is gated on `tools.audit`, and a 403 was
+  indistinguishable from an empty result — so a role without the capability was told the record had
+  no recorded changes. Telling someone "no changes" when they simply aren't permitted to know is
+  worse than telling them nothing. Gated inside the component rather than at its call site, so the
+  request is never made either: an ordinary record view was firing a 403 on every open for most of
+  the roles in the matrix.
+
+- **A disabled Journals module no longer gets written to by the mini calendar.** Clicking a day in
+  the rail calendar called *get-or-create the day's journal* unconditionally, so a module that had
+  been switched off in Settings still grew a record every time a date was picked — the one record
+  in the app created by navigating rather than by asking, arriving through a side door in a module
+  the owner had turned off.
+
+  With journals enabled nothing changes: a day **is** a journal entry, and clicking one opens it,
+  creating it first if needed. With journals disabled the click now **creates nothing** and instead
+  shows what the enabled modules already hold for that date, as record cards in the middle pane.
+  Each module answers for its own idea of "that day" — journals and planners by their own date
+  field, everything else by when the record was created — which is what lets one date mean
+  something across modules that don't share a calendar. A day with nothing on it says so rather
+  than opening an empty pane.
+
+  The enabled-module list is read through `fetchQuery`, not the `useModules` hook: that hook
+  reports "everything enabled" while its request is in flight, and this decision leads to a write.
+  A wrong default for a few hundred milliseconds is exactly how the original bug would come back.
+
+  The mini calendar's bold "this day has a journal entry" marker goes with it — with journals off
+  it is a promise the click no longer keeps — and it stops querying the journals module at all.
+
+- **Desktop: the tag cloud was unfindable.** It was rendering correctly all along — six chips,
+  laid out, mapped, clickable — at y=964 inside a 614px-tall viewport. A full screen-height of
+  scrolling below Calendar (329px on its own), Priority, Type, Category and Non-standard, with
+  nothing above the fold to suggest it was there.
+
+  Seven expanded sections come to roughly twice a laptop sidebar's height, so no ordering of them
+  all fits; something has to be fifth. **Tags now leads the sidebar, above the calendar** — it is
+  the one dimension you go *looking* for rather than pick from a list already on screen, and the
+  most compact of them (a wrapped row of chips against the calendar's month grid). The two
+  clean-up queues, Non-standard and Bad taxonomy, moved to the bottom where they belong: they
+  answer "what needs fixing", not "what am I looking for".
+
+  It costs nothing when unused — a folder whose notes carry no hashtags hides the section
+  outright, header and all, rather than parking an empty box in the best slot.
+
+- **Desktop: a collapsed Tags section reopened itself.** `_sync_tag_cloud` set the cloud's
+  visibility from the tag count alone, ignoring whether the user had collapsed the section — and
+  it runs on every refresh, which includes every keystroke in the search box. Collapsing Tags and
+  then typing anything popped it straight back open.
+
+### Changed
+
+- **"New resource from a URL" is now a link button beside New**, not a URL box permanently above
+  the search field, where it read as though it were part of the search. Clicking it opens the box;
+  Escape or the × closes it.
+
+- **Two more Settings → Features toggles.** *Version in the status bar* hides the
+  `Version: v1.2.32 "Dastgheib"` cell (the update check beside it stays, so turning it off doesn't
+  cost you the "a newer release exists" warning), and *New resource from a URL* hides the link
+  button above. Both default to on, like every other feature toggle.
+
 ## 2026-08-09
 
 ### Added

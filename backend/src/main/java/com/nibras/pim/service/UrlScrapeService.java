@@ -71,8 +71,18 @@ public class UrlScrapeService {
             String shortDescription,
             String resourceYear,
             String fullText,
+            /**
+             * Absolute URL of the page's main image, for use as the record's cover. Not fetched
+             * here: the record has no id yet, so there is nowhere to put the file — the caller
+             * saves the record first and then asks for this URL to be stored as its cover.
+             */
+            String imageUrl,
             /** Non-fatal notes for the user: what could not be extracted, and why. */
             List<String> warnings) {
+    }
+
+    /** A downloaded image and the extension its content type says it should be saved under. */
+    public record FetchedImage(byte[] bytes, String extension) {
     }
 
     public Scraped scrape(String rawUrl) {
@@ -133,6 +143,7 @@ public class UrlScrapeService {
                 text(doc.selectFirst("time"))));
 
         String body = articleText(doc);
+        String image = mainImage(doc, uri);
 
         List<String> warnings = new java.util.ArrayList<>();
         if (isBlank(body)) {
@@ -141,8 +152,11 @@ public class UrlScrapeService {
         if (isBlank(author)) {
             warnings.add("No author found.");
         }
+        if (isBlank(image)) {
+            warnings.add("No cover image found on the page.");
+        }
         return new Scraped(uri.toString(), clean(title), clean(author), clean(publisher),
-                clean(description), year, body, warnings);
+                clean(description), year, body, image, warnings);
     }
 
     // ---------------------------------------------------------------- fetching
@@ -296,6 +310,169 @@ public class UrlScrapeService {
             }
         }
         return bestScore > 200 ? best : doc.body();
+    }
+
+    // ---------------------------------------------------------------- cover image
+
+    /**
+     * The page's main image, absolute, or "" when there isn't one worth taking.
+     *
+     * <p>The social-preview metadata is tried first and is by far the best source: {@code og:image}
+     * is the publisher's own answer to "which picture represents this page", which is exactly the
+     * question a cover asks. Only if none of it is present does this fall back to scanning the
+     * article body, and that scan is deliberately picky — see {@link #firstArticleImage}.
+     */
+    private String mainImage(Document doc, URI base) {
+        return absolute(base, firstNonBlank(
+                meta(doc, "meta[property=og:image]"),
+                meta(doc, "meta[property=og:image:url]"),
+                meta(doc, "meta[name=twitter:image]"),
+                meta(doc, "meta[name=twitter:image:src]"),
+                jsonLd(doc, "image"),
+                attr(doc.selectFirst("link[rel=image_src]"), "href"),
+                firstArticleImage(doc)));
+    }
+
+    /**
+     * The first plausible {@code <img>} inside the article — skipping the spacers, avatars, share
+     * badges and tracking pixels that outnumber real illustrations in most markup. "Plausible"
+     * means: not obviously tiny (a declared width or height under 200 disqualifies it), and not
+     * named like furniture.
+     *
+     * <p>Lazy-loading attributes are read as well as {@code src}, because a src-less {@code <img>}
+     * with a {@code data-src} is the normal shape on any site with an image loader.
+     */
+    private String firstArticleImage(Document doc) {
+        Element root = pickArticle(doc);
+        if (root == null) {
+            return null;
+        }
+        for (Element img : root.select("img")) {
+            String src = firstNonBlank(
+                    img.attr("src"), img.attr("data-src"), img.attr("data-original"),
+                    firstSrcsetCandidate(img.attr("srcset")));
+            if (isBlank(src) || src.startsWith("data:") || JUNK_IMAGE.matcher(src).find()) {
+                continue;
+            }
+            if (tooSmall(img.attr("width")) || tooSmall(img.attr("height"))) {
+                continue;
+            }
+            return src;
+        }
+        return null;
+    }
+
+    /** Names that give away a non-content image whatever its dimensions claim. */
+    private static final Pattern JUNK_IMAGE = Pattern.compile(
+            "(?i)(sprite|spacer|blank|pixel|1x1|avatar|gravatar|logo|icon|badge|button|share|"
+                    + "tracking|beacon|placeholder)");
+
+    /** True when a width/height ATTRIBUTE is present and says the image is thumbnail-sized. */
+    private static boolean tooSmall(String dimension) {
+        if (isBlank(dimension)) {
+            return false;   // unstated is not small — most content images don't declare dimensions
+        }
+        try {
+            return Integer.parseInt(dimension.replaceAll("[^0-9].*$", "")) < 200;
+        } catch (NumberFormatException notANumber) {
+            return false;   // "100%", "auto" — tells us nothing either way
+        }
+    }
+
+    /** The first URL out of a {@code srcset} ("a.jpg 1x, b.jpg 2x" → "a.jpg"). */
+    private static String firstSrcsetCandidate(String srcset) {
+        if (isBlank(srcset)) {
+            return null;
+        }
+        String first = srcset.split(",")[0].trim();
+        int space = first.indexOf(' ');
+        return space < 0 ? first : first.substring(0, space);
+    }
+
+    /**
+     * Resolves a possibly-relative URL against the page it came from. Protocol-relative
+     * ({@code //cdn.example/x.jpg}) is handled explicitly because {@link URI#resolve} keeps it
+     * schemeless, which is unusable once the URL leaves the browser.
+     */
+    private static String absolute(URI base, String raw) {
+        if (isBlank(raw)) {
+            return "";
+        }
+        String url = raw.trim();
+        try {
+            if (url.startsWith("//")) {
+                return base.getScheme() + ":" + url;
+            }
+            URI resolved = base.resolve(url);
+            return resolved.isAbsolute() ? resolved.toString() : "";
+        } catch (IllegalArgumentException notAUrl) {
+            return "";
+        }
+    }
+
+    /** Content types worth saving as a cover, mapped to the extension to save them under. */
+    private static final java.util.Map<String, String> IMAGE_EXTS = java.util.Map.of(
+            "image/jpeg", "jpg", "image/jpg", "jpg", "image/png", "png", "image/webp", "webp",
+            "image/gif", "gif", "image/avif", "avif", "image/bmp", "bmp", "image/tiff", "tiff");
+
+    /** Cap the cover download. Generous for an article's lead image, small enough to be harmless. */
+    private static final int MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
+    /**
+     * Downloads an image so it can be stored as a record's cover. Same SSRF guard and same
+     * hop-by-hop redirect re-validation as {@link #scrape} — this is the identical "server fetches
+     * a URL the user chose" exposure, just with a picture at the end of it.
+     *
+     * <p>SVG is refused even though browsers call it an image: covers are served back inline from
+     * the app's own origin, and an SVG can carry script, which would make an imported cover an XSS
+     * vector. Every raster type is accepted.
+     */
+    public FetchedImage fetchImage(String rawUrl) {
+        URI at = assertFetchable(rawUrl);
+        for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
+            org.jsoup.Connection.Response resp;
+            try {
+                resp = Jsoup.connect(at.toString())
+                        .userAgent(USER_AGENT)
+                        .timeout(TIMEOUT_MS)
+                        .maxBodySize(MAX_IMAGE_BYTES)
+                        .ignoreContentType(true)   // jsoup refuses anything non-HTML without this
+                        .followRedirects(false)
+                        .ignoreHttpErrors(true)
+                        .execute();
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Could not fetch the image: " + e.getMessage(), e);
+            }
+            int code = resp.statusCode();
+            if (code >= 300 && code < 400 && resp.header("Location") != null) {
+                at = assertFetchable(at.resolve(resp.header("Location")).toString());
+                continue;
+            }
+            if (code >= 400) {
+                throw new IllegalArgumentException("The image returned HTTP " + code + ".");
+            }
+            String type = resp.contentType() == null ? ""
+                    : resp.contentType().split(";")[0].trim().toLowerCase(Locale.ROOT);
+            String ext = IMAGE_EXTS.get(type);
+            if (ext == null) {
+                throw new IllegalArgumentException(type.isEmpty()
+                        ? "That URL did not return an image."
+                        : "That URL returned " + type + ", which can't be used as a cover.");
+            }
+            byte[] body = resp.bodyAsBytes();
+            if (body.length == 0) {
+                throw new IllegalArgumentException("The image was empty.");
+            }
+            // jsoup TRUNCATES at maxBodySize rather than failing, so a file that lands exactly on
+            // the cap is assumed cut off — writing it would leave a half-decoded cover on disk.
+            if (body.length >= MAX_IMAGE_BYTES) {
+                throw new IllegalArgumentException("That image is larger than "
+                        + (MAX_IMAGE_BYTES / (1024 * 1024)) + " MB.");
+            }
+            log.debug("Fetched cover image {} ({} bytes, {})", at, body.length, type);
+            return new FetchedImage(body, ext);
+        }
+        throw new IllegalArgumentException("Too many redirects.");
     }
 
     // ---------------------------------------------------------------- small helpers

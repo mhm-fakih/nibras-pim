@@ -24,6 +24,8 @@ public record BookDto(
         Boolean bookmarked,
         Boolean isPrivate,
         Boolean isRead,
+        /** When it was finished. Column existed on the table long before it was ever exposed here. */
+        LocalDateTime readOn,
         Integer percentCompleted,
         String resourceYear,
         String pages,
@@ -39,5 +41,5 @@ public record BookDto(
         List<TagDto> tags,
         Boolean hasCover,
         LocalDateTime dateCreated,
-        LocalDateTime lastUpdated) {
+        LocalDateTime lastUpdated) implements Versioned {
 }

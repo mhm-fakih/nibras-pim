@@ -6,6 +6,13 @@ Widgets only: *which* notes match and *how many* match each option is decided by
 
 The panel holds, top to bottom:
 
+* a **tag cloud** of the ``#hashtags`` found in note bodies, sized by how often each is used —
+  clicking one narrows the board to the notes carrying it (one at a time — a second click moves
+  the selection), which is what makes free-form tags usable alongside the fixed type/category
+  codes. It leads because it is the one dimension you go *looking* for rather than pick from a
+  list already on screen, and because seven expanded sections are roughly twice a laptop
+  sidebar's height — whatever sits fifth is effectively invisible. A folder with no hashtags
+  hides the section outright rather than spending that slot on an empty box;
 * a **calendar heat map** — one cell per day, shaded by how many notes were written (or
   last touched) that day, so a month of note-taking is legible at a glance; clicking a day
   filters the board to it, shift-clicking picks a range;
@@ -13,12 +20,12 @@ The panel holds, top to bottom:
   *foreign* code the notes actually use;
 * the **non-standard** tri-state — include / hide / show only the visible files and folders whose
   name isn't the canonical note format yet, i.e. the "needs metadata" clean-up queue;
-* a **tag cloud** of the ``#hashtags`` found in note bodies, sized by how often each is used —
-  clicking one narrows the board to the notes carrying it (one at a time — a second click moves
-  the selection), which is what makes free-form tags usable alongside the fixed type/category codes;
 * the **bad taxonomy** tri-state — the other clean-up queue: names that ARE the canonical format
   but carry a tag value the folder never defined (type ``Y`` where no type ``Y`` exists). Separate
   from non-standard because the fix is different — retag, not rename.
+
+The two clean-up queues sit last on purpose: they answer "what needs fixing", not "what am I
+looking for", and you go to them deliberately rather than while browsing.
 
 Every row carries the number of notes behind it. Collapsed, the whole thing shrinks to a thin
 rail with a re-open chevron, so it costs ~30px when it isn't wanted (Ctrl+B toggles it).
@@ -152,6 +159,34 @@ class FilterSidebar(Gtk.Box):
         scroller.add(body)
         self.panel.pack_start(scroller, True, True, 0)
 
+        # The tag cloud goes FIRST, above the calendar.
+        #
+        # Not a stylistic choice — a measured one. Stacked in dimension order it landed at y=964 in
+        # a 614px-tall viewport, i.e. a full screen-height of scrolling below Calendar (329px on its
+        # own), Priority, Type, Category and Non-standard, and nothing above the fold hinted it
+        # existed. No ordering of seven sections fits a laptop sidebar, so the one dimension whose
+        # value set is open-ended — the one you go looking for, rather than pick from a list you can
+        # already see — takes the slot that needs no scrolling. It is also the most compact: a
+        # wrapped row of chips, a few rows tall, against the calendar's month grid.
+        #
+        # It costs nothing when unused: a folder with no #hashtags hides the section outright
+        # (header and all, see _sync_tag_cloud) rather than parking an empty box in the best spot.
+        self._tag_cloud = Gtk.FlowBox()
+        self._tag_cloud.set_selection_mode(Gtk.SelectionMode.NONE)
+        self._tag_cloud.set_max_children_per_line(99)   # let width, not a count, decide the wrap
+        self._tag_cloud.set_row_spacing(2)
+        self._tag_cloud.set_column_spacing(2)
+        self._tag_cloud.set_no_show_all(True)
+        self._tag_buttons: dict[str, Gtk.ToggleButton] = {}
+        self._tag_section = self._section(F.DIM_TAG, "Tags", self._tag_cloud)
+        # Same reason the calendar box carries it: the section's own visibility is ours to drive
+        # (it tracks whether the folder HAS tags), so the window's show_all() must not force it on.
+        # Its header still has to be shown by hand, since no_show_all stops the recursion too.
+        self._tag_section.set_no_show_all(True)
+        for child in self._tag_section.get_children():
+            child.show_all()
+        body.pack_start(self._tag_section, False, False, 0)
+
         body.pack_start(self._section(SEC_CALENDAR, "Calendar", self._build_calendar()),
                         False, False, 0)
         for dim, caption in ((F.DIM_PRIORITY, "Priority"), (F.DIM_TYPE, "Type"),
@@ -161,18 +196,11 @@ class FilterSidebar(Gtk.Box):
             self._lists[dim] = container
             self._rows[dim] = {}
             body.pack_start(self._section(dim, caption, container), False, False, 0)
+        # The two clean-up queues last: they answer "what needs fixing", not "what am I looking
+        # for", and you visit them on purpose rather than while browsing.
         body.pack_start(
             self._section(F.DIM_NONSTANDARD, "Non-standard", self._build_nonstandard()),
             False, False, 0)
-        self._tag_cloud = Gtk.FlowBox()
-        self._tag_cloud.set_selection_mode(Gtk.SelectionMode.NONE)
-        self._tag_cloud.set_max_children_per_line(99)   # let width, not a count, decide the wrap
-        self._tag_cloud.set_row_spacing(2)
-        self._tag_cloud.set_column_spacing(2)
-        self._tag_cloud.set_no_show_all(True)
-        self._tag_buttons: dict[str, Gtk.ToggleButton] = {}
-        body.pack_start(self._section(F.DIM_TAG, "Tags", self._tag_cloud), False, False, 0)
-
         body.pack_start(
             self._section(F.DIM_TAXONOMY, "Bad taxonomy", self._build_taxonomy()),
             False, False, 0)
@@ -492,7 +520,14 @@ class FilterSidebar(Gtk.Box):
             self._suppress = False
             # A picked tag stays clickable at 0 so it can be switched off; see FacetCounts.tags.
             button.set_sensitive(n > 0 or tag in self.state.tags)
-        self._tag_cloud.set_visible(bool(counts))
+
+        # A folder with no #hashtags hides the whole section, header included — it sits in the
+        # sidebar's most valuable slot (see __init__) and has nothing to say there.
+        self._tag_section.set_visible(bool(counts))
+        # ...and the cloud itself also answers to the section's collapsed state. Without that
+        # second term this reopens a section the user collapsed, on the next keystroke in the
+        # search box — refresh() runs on every one of them.
+        self._tag_cloud.set_visible(bool(counts) and F.DIM_TAG not in self._collapsed_sections)
 
     # -------------------------------------------------------------- facet rows
 

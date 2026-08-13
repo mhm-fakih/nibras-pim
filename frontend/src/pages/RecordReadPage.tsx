@@ -23,6 +23,7 @@ import { FieldView, OpenFolderButtons } from '../components/DetailPane';
 import { AuthImage } from '../components/AuthImage';
 import { isRtlText } from '../util/rtl';
 import { useAuth } from '../hooks/useAuth';
+import { useFeatureFlags } from '../hooks/useFeature';
 import {
   HighlightMode,
   HighlightableText,
@@ -69,6 +70,7 @@ export function RecordReadPage() {
   const { entity, id } = useParams();
   const qc = useQueryClient();
   const { canWriteContent } = useAuth();
+  const featureOn = useFeatureFlags();
   const config = entity ? ENTITY_BY_KEY[entity] : undefined;
   const recordId = Number(id);
 
@@ -227,7 +229,9 @@ export function RecordReadPage() {
       )}
 
       <Stack spacing={3}>
-        {config.fields.map((f) =>
+        {/* Honours the same Settings → Features switches as the form and the detail pane, so a
+            hidden field doesn't come back the moment the record is opened for reading. */}
+        {config.fields.filter((f) => featureOn(f.feature)).map((f) =>
           highlighting && fields && f.name === fields.source ? (
             <Box key={f.name}>
               <Typography variant="overline" color="text.secondary">

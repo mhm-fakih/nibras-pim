@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -41,13 +42,20 @@ import { useCalendarPrefs } from '../hooks/useCalendarPrefs';
 const SLOT_PX = 26;
 const GUTTER = 56;
 /** Fallback block colour when an entry has no type (or its type has no configured colour). */
-const MODULE_COLOR: Record<string, string> = { planners: '#0078d4', journals: '#8764b8' };
+const MODULE_COLOR: Record<string, string> = {
+  planners: '#0078d4',
+  journals: '#8764b8',
+  // Sprints are a third kind of thing on the same grid — a committed block of work rather than an
+  // entry — so they get their own colour and their own border style (see eventStyle).
+  sprints: '#107c41',
+};
 
 /**
  * An event's block styling. Colour comes from the entry's own TYPE (the same chip colour configured
  * on the Parameters page), so the calendar reads by category rather than by module. Journal and
  * planner types are separate lookups that can share a name/colour, so module identity is carried by
- * a second, non-colour channel instead: planners get a dashed border, journals a solid one.
+ * a second, non-colour channel instead: planners get a dashed border, journals a solid one, and
+ * sprints a doubled one. Sprints have no type lookup, so they always take their module colour.
  */
 function eventStyle(ev: CalendarEvent) {
   const typed = ev.typeName ? lookupStyle({ id: ev.typeId ?? 0, name: ev.typeName, style: ev.typeStyle }) : {};
@@ -58,7 +66,7 @@ function eventStyle(ev: CalendarEvent) {
     // saturated module fallback.
     color: typed.backgroundColor ? (typed.color ?? 'rgba(0,0,0,0.82)') : '#fff',
     border: '2px',
-    borderStyle: ev.module === 'planners' ? 'dashed' : 'solid',
+    borderStyle: ev.module === 'planners' ? 'dashed' : ev.module === 'sprints' ? 'double' : 'solid',
     borderColor: 'rgba(0,0,0,0.38)',
   };
 }
@@ -116,6 +124,7 @@ interface ResizeState {
 export function CalendarPage() {
   const qc = useQueryClient();
   const { canWriteContent } = useAuth();
+  const navigate = useNavigate();
   const { prefs, update } = useCalendarPrefs();
   const [anchor, setAnchor] = useState<Date>(new Date());
   const [slot, setSlot] = useState<{ start: Date; end: Date } | null>(null);
@@ -462,6 +471,12 @@ export function CalendarPage() {
                         preview={isResizing}
                         onResizeStart={(edge, e) => startEventResize(edge, day, ev, e)}
                         onClick={async () => {
+                          // A sprint has no /read page — it isn't a record you read, it's a board
+                          // you work, so it opens on the Sprints page instead.
+                          if (ev.module === 'sprints') {
+                            navigate('/sprints');
+                            return;
+                          }
                           // Opening a virtual occurrence gives it a record — /read needs an id, and
                           // opening one is a deliberate act, not incidental browsing.
                           const id = await resolveId(ev);

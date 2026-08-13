@@ -1,4 +1,4 @@
-import { MouseEvent as ReactMouseEvent, ReactNode, useEffect, useState } from 'react';
+import { MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
@@ -33,6 +33,7 @@ import CalendarMonth from '@mui/icons-material/CalendarMonth';
 import ViewKanban from '@mui/icons-material/ViewKanban';
 import Dashboard from '@mui/icons-material/Dashboard';
 import InsightsIcon from '@mui/icons-material/Insights';
+import DirectionsRun from '@mui/icons-material/DirectionsRun';
 import StarIcon from '@mui/icons-material/Star';
 import AdminPanelSettings from '@mui/icons-material/AdminPanelSettings';
 import Tune from '@mui/icons-material/Tune';
@@ -88,6 +89,7 @@ const TOOLS: { path: string; label: string; icon: typeof Flag; perm?: Permission
   { path: '/kanban', label: 'Kanban', icon: ViewKanban },
   { path: '/dashboards', label: 'Dashboards', icon: Dashboard },
   { path: '/insights', label: 'Insights', icon: InsightsIcon },
+  { path: '/sprints', label: 'Sprints', icon: DirectionsRun },
   { path: '/bookmarks', label: 'All bookmarks', icon: StarIcon },
   { path: '/parameters', label: 'Parameters', icon: Tune, perm: 'params.write' },
   { path: '/admin', label: 'Admin', icon: AdminPanelSettings, perm: 'tools.admin' },
@@ -101,6 +103,71 @@ const TOOLS: { path: string; label: string; icon: typeof Flag; perm?: Permission
   { path: '/settings', label: 'Settings', icon: Settings, perm: 'tools.settings' },
   { path: '/help', label: 'Help & shortcuts', icon: HelpOutline },
 ];
+
+/** A tool button as the rail draws it, in either mode. */
+interface ToolEntry {
+  path: string;
+  label: string;
+  icon: typeof Flag;
+}
+
+/** Height of one labelled tool row: a dense ListItemButton, py 0.1, around a 20px icon. */
+const LABELLED_ROW_PX = 30;
+
+/**
+ * Should the tool buttons show their names, or shrink to bare icons?
+ *
+ * "The rail is mostly empty" is a claim about the REPORTS region: it is the only part that grows
+ * with your data (the module report shortcuts, then however many saved searches you have), and it
+ * is the part that gives way — it is the flex child, so the rail never overflows, it just squeezes
+ * that box.
+ *
+ * The subtlety is that the obvious measurement flaps. Ask "does the reports box have slack for
+ * the extra height?" and the answer changes the moment you act on it: labels appear, the flex box
+ * shrinks by exactly that much, slack is gone, labels come off, the box grows back. Every render,
+ * forever.
+ *
+ * So measure the quantity that does NOT depend on the current answer — the space the reports box
+ * and the tool block occupy TOGETHER. Whichever way the tools are drawn, that total is the same,
+ * because the box absorbs whatever the tools give up. The test then reads directly: would the
+ * reports content still fit if the tools took `labelsPx`?
+ *
+ * A ResizeObserver on all three elements re-decides on a window resize, a rail drag, the calendar
+ * opening to a full month, a saved search being added, or a module switch that changes the report
+ * list — every one of which moves the free space.
+ */
+function useRoomForLabels(
+  boxRef: React.RefObject<HTMLDivElement | null>,
+  contentRef: React.RefObject<HTMLDivElement | null>,
+  toolsRef: React.RefObject<HTMLDivElement | null>,
+  toolCount: number,
+): boolean {
+  const [roomy, setRoomy] = useState(false);
+
+  useEffect(() => {
+    const box = boxRef.current;
+    const content = contentRef.current;
+    const tools = toolsRef.current;
+    if (!box || !content || !tools || toolCount === 0) return;
+
+    const measure = () => {
+      const shared = box.clientHeight + tools.offsetHeight;   // same in either mode
+      const needed = content.offsetHeight + toolCount * LABELLED_ROW_PX;
+      // The 8px is hysteresis, not a fudge: a rail sitting exactly on the boundary would otherwise
+      // toggle as sub-pixel layout rounding moved it either side.
+      setRoomy(shared >= needed + 8);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    observer.observe(content);
+    observer.observe(tools);
+    return () => observer.disconnect();
+  }, [boxRef, contentRef, toolsRef, toolCount]);
+
+  return roomy;
+}
 
 /** Outlook-style rail: search · calendar · reports for the active module · module + tool buttons. */
 export function SideNav({
@@ -146,6 +213,7 @@ export function SideNav({
   });
   const showModuleReports = featureEnabled(featureSettings, 'moduleReports');
   const showRss = featureEnabled(featureSettings, 'rss');
+  const showCodename = featureEnabled(featureSettings, 'codename');
   const [q, setQ] = useState('');
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('nibras.railCollapsed') === '1');
   const [width, setWidth] = useState(() => {
@@ -155,6 +223,12 @@ export function SideNav({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // The tool buttons draw as labelled rows when the rail has room, and as a wrapped strip of bare
+  // icons when it hasn't. See useRoomForLabels.
+  const reportsBoxRef = useRef<HTMLDivElement | null>(null);
+  const reportsContentRef = useRef<HTMLDivElement | null>(null);
+  const toolsRef = useRef<HTMLDivElement | null>(null);
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => setMobileOpen(false), [pathname, search]);
@@ -200,6 +274,22 @@ export function SideNav({
     })),
   });
 
+  // One list for both render modes, so a tool can never appear in one and not the other. The two
+  // admin entries used to be hand-written after the loop; they are ordinary tools with a capability.
+  const tools: ToolEntry[] = useMemo(() => {
+    const list: ToolEntry[] = TOOLS
+      .filter((t) => (!t.perm || can(t.perm)) && pageEnabled(pageSettings, t.path.slice(1)))
+      .map(({ path, label, icon }) => ({ path, label, icon }));
+    if (can('users.manage')) {
+      list.push({ path: '/users', label: 'Users', icon: People });
+      list.push({ path: '/permissions', label: 'Roles & permissions', icon: Security });
+    }
+    return list;
+    // `can` closes over the user's permissions, which change when the matrix is edited.
+  }, [pageSettings, user]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const labelledTools = useRoomForLabels(reportsBoxRef, reportsContentRef, toolsRef, tools.length);
+
   const runReport = (params: Record<string, string>) =>
     navigate(`/${activeModule}?${new URLSearchParams(params).toString()}`);
 
@@ -226,7 +316,10 @@ export function SideNav({
           variant="caption"
           sx={{ color: 'text.secondary', alignSelf: 'flex-end', mb: 0.5, whiteSpace: 'nowrap' }}
         >
-          v{__APP_VERSION__}.b{__BUILD_NUMBER__} &quot;{__APP_CODENAME__}&quot;
+          {/* Version and build number always; the codename only when Settings → Features says so
+              — the same switch the status bar reads, so the two never disagree. */}
+          v{__APP_VERSION__}.b{__BUILD_NUMBER__}
+          {showCodename && ` "${__APP_CODENAME__}"`}
         </Typography>
         <Box sx={{ flex: 1 }} />
         {!isMobile && (
@@ -270,7 +363,8 @@ export function SideNav({
       {/* Reports for the active module. The built-in shortcuts and the RSS link are each behind
           their own Settings feature toggle; saved searches below are always shown, since those are
           the user's own and nobody would look in Settings for why they vanished. */}
-      <Box sx={{ flex: 1, overflow: 'auto', px: 1, py: 0.5 }}>
+      <Box ref={reportsBoxRef} sx={{ flex: 1, overflow: 'auto', px: 1, py: 0.5 }}>
+        <Box ref={reportsContentRef}>
         {showModuleReports && (
           <Stack direction="row" alignItems="center" spacing={0.5} sx={{ px: 1, py: 0.5 }}>
             <AssessmentIcon fontSize="small" color="action" />
@@ -323,6 +417,7 @@ export function SideNav({
           onRunForm={(query) => navigate(`/${activeModule}?${query}`)}
           onRecords={onSearchRecords}
         />
+        </Box>
       </Box>
 
       <Divider />
@@ -354,48 +449,49 @@ export function SideNav({
 
       <Divider />
 
-      {/* Tool pages */}
-      <Stack direction="row" flexWrap="wrap" sx={{ p: 0.5, justifyContent: 'center' }}>
-        {TOOLS.filter((t) => (!t.perm || can(t.perm)) && pageEnabled(pageSettings, t.path.slice(1))).map((t) => {
-          const Icon = t.icon;
-          return (
-            <Tooltip key={t.path} title={t.label}>
-              <IconButton
-                size="small"
-                color="primary"
+      {/* Tool pages — directly under the enabled modules. Labelled rows when the rail has the
+          room for them, a wrapped strip of bare icons when it hasn't; useRoomForLabels re-decides
+          on every resize, so widening the window or dragging the rail brings the names back. */}
+      <Box ref={toolsRef}>
+      {labelledTools ? (
+        <List dense disablePadding sx={{ px: 1, py: 0.25 }}>
+          {tools.map((t) => {
+            const Icon = t.icon;
+            return (
+              <ListItemButton
+                key={t.path}
+                selected={pathname === t.path}
                 onClick={() => goTool(t.path)}
-                sx={{ bgcolor: pathname === t.path ? 'action.selected' : undefined }}
+                sx={{ py: 0.1, borderRadius: 1 }}
               >
-                <Icon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          );
-        })}
-        {can('users.manage') && (
-          <>
-            <Tooltip title="Users">
-              <IconButton
-                size="small"
-                color="primary"
-                onClick={() => goTool('/users')}
-                sx={{ bgcolor: pathname === '/users' ? 'action.selected' : undefined }}
-              >
-                <People fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Roles & permissions">
-              <IconButton
-                size="small"
-                color="primary"
-                onClick={() => goTool('/permissions')}
-                sx={{ bgcolor: pathname === '/permissions' ? 'action.selected' : undefined }}
-              >
-                <Security fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </>
-        )}
-      </Stack>
+                <ListItemIcon sx={{ minWidth: 32, color: 'primary.main' }}>
+                  <Icon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary={t.label} primaryTypographyProps={{ fontSize: 13 }} />
+              </ListItemButton>
+            );
+          })}
+        </List>
+      ) : (
+        <Stack direction="row" flexWrap="wrap" sx={{ p: 0.5, justifyContent: 'center' }}>
+          {tools.map((t) => {
+            const Icon = t.icon;
+            return (
+              <Tooltip key={t.path} title={t.label}>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  onClick={() => goTool(t.path)}
+                  sx={{ bgcolor: pathname === t.path ? 'action.selected' : undefined }}
+                >
+                  <Icon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            );
+          })}
+        </Stack>
+      )}
+      </Box>
 
       {/* Signed-in user + sign out */}
       {user && (

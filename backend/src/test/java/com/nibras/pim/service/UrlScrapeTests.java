@@ -152,6 +152,75 @@ class UrlScrapeTests {
         assertThat(s.title()).isEqualTo("Café & Co. Continued");
     }
 
+    // ------------------------------------------------------------------ cover image
+
+    @Test
+    void takesTheSocialPreviewImageAsTheCover() {
+        var s = parse("""
+                <html><head>
+                  <meta property="og:image" content="https://cdn.example.com/lead.jpg">
+                </head><body><article><p>Prose.</p><img src="/inline.png"></article></body></html>
+                """);
+
+        // og:image is the publisher's own answer to "which picture represents this page", so it
+        // beats anything found by scanning the body.
+        assertThat(s.imageUrl()).isEqualTo("https://cdn.example.com/lead.jpg");
+        assertThat(s.warnings()).noneSatisfy(w -> assertThat(w).contains("cover image"));
+    }
+
+    @Test
+    void resolvesRelativeAndProtocolRelativeImageUrls() {
+        assertThat(parse("""
+                <html><head><meta property="og:image" content="/img/lead.jpg"></head>
+                <body><p>x</p></body></html>""").imageUrl())
+                .isEqualTo("https://example.com/img/lead.jpg");
+
+        // URI.resolve leaves "//host/path" schemeless, which is unusable outside a browser.
+        assertThat(parse("""
+                <html><head><meta name="twitter:image" content="//cdn.example.com/lead.jpg"></head>
+                <body><p>x</p></body></html>""").imageUrl())
+                .isEqualTo("https://cdn.example.com/lead.jpg");
+    }
+
+    /**
+     * With no preview metadata the body is scanned — and most {@code <img>} tags in a page are not
+     * illustrations. The junk has to be stepped over rather than taken because it comes first.
+     */
+    @Test
+    void skipsSpritesAvatarsAndTinyImagesWhenScanningTheArticle() {
+        var s = parse("""
+                <html><body><article>
+                  <img src="/assets/logo.png">
+                  <img src="/i/avatar-42.jpg">
+                  <img src="/t/thumb.jpg" width="80" height="60">
+                  <img data-src="/photos/the-real-one.jpg" width="1200">
+                  <p>Prose long enough to make this the article element.</p>
+                </article></body></html>
+                """);
+
+        assertThat(s.imageUrl()).isEqualTo("https://example.com/photos/the-real-one.jpg");
+    }
+
+    @Test
+    void readsTheFirstSrcsetCandidateWhenThereIsNoPlainSrc() {
+        var s = parse("""
+                <html><body><article>
+                  <img srcset="/p/small.jpg 480w, /p/large.jpg 1200w">
+                  <p>Prose long enough to make this the article element.</p>
+                </article></body></html>
+                """);
+
+        assertThat(s.imageUrl()).isEqualTo("https://example.com/p/small.jpg");
+    }
+
+    @Test
+    void saysWhenThereIsNoCoverImageRatherThanLeavingItUnexplained() {
+        var s = parse("<html><head><title>T</title></head><body><p>text</p></body></html>");
+
+        assertThat(s.imageUrl()).isEmpty();
+        assertThat(s.warnings()).anySatisfy(w -> assertThat(w).contains("No cover image"));
+    }
+
     // ------------------------------------------------------------------ SSRF guard
 
     /**

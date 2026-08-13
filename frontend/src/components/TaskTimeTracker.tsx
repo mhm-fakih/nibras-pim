@@ -1,36 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Box, Button, TextField, Tooltip, Typography } from '@mui/material';
 import PlayArrow from '@mui/icons-material/PlayArrow';
 import Stop from '@mui/icons-material/Stop';
-import { createEntity, linkRecord, reportTimerStart, reportTimerStop, EntityRecord } from '../api/client';
-import { useTimerPrefs } from '../hooks/useTimerPrefs';
-
-/** Local-time ISO (no timezone) matching the backend LocalDateTime — same shape EntityForm uses. */
-function toLocalIso(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(
-    d.getMinutes(),
-  )}:${p(d.getSeconds())}`;
-}
-
-const storageKey = (taskId: number) => `nibras.timer.task.${taskId}`;
+import { startTimer, stopTimer, useRunningTimer } from '../hooks/useRunningTimer';
 
 /**
  * Time-tracking control for a task. Play captures the start; Stop (or an auto-fire after the
- * configured max slot, default 1h) captures the end and creates a Journal record linked to the task,
- * with an optional summary. The running start is persisted in localStorage so a page reload doesn't
- * lose an in-progress session.
+ * configured max slot, default 1h) captures the end and creates a Journal record linked to the
+ * task, with an optional summary.
+ *
+ * The running session lives in [useRunningTimer], not here, so **only one timer can run at a
+ * time**: starting this one stops and saves whichever was running before. That matters as soon as
+ * the control appears in more than one place — a task's record page and its row in a sprint are two
+ * views of the same task, and two different tasks in one sprint are one tap apart.
  */
 export function TaskTimeTracker({ taskId }: { taskId: number }) {
   const qc = useQueryClient();
-  const { prefs } = useTimerPrefs();
 
-  const [startMs, setStartMs] = useState<number | null>(() => {
-    const raw = localStorage.getItem(storageKey(taskId));
-    const n = raw ? Number(raw) : NaN;
-    return Number.isFinite(n) ? n : null;
-  });
+  const running = useRunningTimer();
+  const startMs = running?.taskId === taskId ? running.startMs : null;
+
   const [summary, setSummary] = useState('');
   const summaryRef = useRef('');
   useEffect(() => {
@@ -38,47 +28,33 @@ export function TaskTimeTracker({ taskId }: { taskId: number }) {
   }, [summary]);
 
   const [now, setNow] = useState(() => Date.now());
+  const [busy, setBusy] = useState(false);
 
-  // Re-flag an already-running session on mount (it may predate a reload or an app update —
-  // the server-side probe flag is best-effort and would have missed the original start).
-  useEffect(() => {
-    if (startMs != null) reportTimerStart(taskId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const save = useMutation({
-    mutationFn: async ({ start, end, note }: { start: Date; end: Date; note: string }) => {
-      const j = (await createEntity('journals', {
-        startDate: toLocalIso(start),
-        endDate: toLocalIso(end),
-        summary: note.trim() || null,
-      })) as EntityRecord;
-      await linkRecord('journals', j.id, 'task', taskId);
-      return j;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['related', 'tasks', taskId] });
-      qc.invalidateQueries({ queryKey: ['list', 'journals'] });
-    },
-  });
-
-  const start = () => {
-    const ms = Date.now();
-    localStorage.setItem(storageKey(taskId), String(ms));
-    setStartMs(ms);
-    setNow(ms);
-    reportTimerStart(taskId); // server-side flag for external probes (status bar)
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['related', 'tasks', taskId] });
+    qc.invalidateQueries({ queryKey: ['list', 'journals'] });
   };
 
-  const stop = () => {
-    if (startMs == null) return;
-    const startDate = new Date(startMs);
-    const endDate = new Date();
-    localStorage.removeItem(storageKey(taskId));
-    setStartMs(null);
-    save.mutate({ start: startDate, end: endDate, note: summaryRef.current });
-    setSummary('');
-    reportTimerStop();
+  const start = async () => {
+    setBusy(true);
+    try {
+      await startTimer(taskId);   // stops + saves any other running timer first
+      setNow(Date.now());
+    } finally {
+      setBusy(false);
+      refresh();
+    }
+  };
+
+  const stop = async () => {
+    setBusy(true);
+    try {
+      await stopTimer(summaryRef.current);
+      setSummary('');
+    } finally {
+      setBusy(false);
+      refresh();
+    }
   };
 
   // Tick once a second while running (drives the elapsed display).
@@ -88,18 +64,11 @@ export function TaskTimeTracker({ taskId }: { taskId: number }) {
     return () => window.clearInterval(t);
   }, [startMs]);
 
-  // Auto-stop at the configured max slot.
-  useEffect(() => {
-    if (startMs == null) return;
-    const delay = startMs + prefs.maxSlotMinutes * 60_000 - Date.now();
-    if (delay <= 0) {
-      stop();
-      return;
-    }
-    const t = window.setTimeout(() => stop(), delay);
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startMs, prefs.maxSlotMinutes]);
+  // The auto-stop is NOT here. It lives in useRunningTimer, armed once per session, so it survives
+  // navigating away from whichever row started it — a component-scoped timeout died with the
+  // component and left the session running. Keeping a copy here would also mean two cut-offs
+  // racing, on two different values: this one read a per-browser preference, the store reads the
+  // server setting.
 
   if (startMs == null) {
     return (
@@ -110,7 +79,7 @@ export function TaskTimeTracker({ taskId }: { taskId: number }) {
             startIcon={<PlayArrow />}
             variant="outlined"
             onClick={start}
-            disabled={save.isPending}
+            disabled={busy}
           >
             Track
           </Button>
@@ -141,7 +110,7 @@ export function TaskTimeTracker({ taskId }: { taskId: number }) {
         variant="contained"
         startIcon={<Stop />}
         onClick={stop}
-        disabled={save.isPending}
+        disabled={busy}
       >
         Stop
       </Button>

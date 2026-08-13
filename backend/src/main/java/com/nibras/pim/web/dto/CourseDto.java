@@ -15,5 +15,5 @@ public record CourseDto(
         LookupDto department,
         Boolean hasCover,
         LocalDateTime dateCreated,
-        LocalDateTime lastUpdated) {
+        LocalDateTime lastUpdated) implements Versioned {
 }

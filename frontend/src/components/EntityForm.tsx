@@ -25,6 +25,7 @@ import {
   Lookup,
 } from '../api/client';
 import { EntityConfig, FieldDef } from '../config/entities';
+import { useFeatureFlags } from '../hooks/useFeature';
 
 interface Props {
   config: EntityConfig;
@@ -80,8 +81,17 @@ export function EntityForm({ config, recordId, initial, onClose, onSaved }: Prop
 
   const set = (name: string, value: unknown) => setForm((f) => ({ ...f, [name]: value }));
 
+  // Fields a Settings → Features switch has hidden are not drawn...
+  const featureOn = useFeatureFlags();
+  const visibleFields = config.fields.filter((f) => featureOn(f.feature));
+
   const save = useMutation({
     mutationFn: () => {
+      // ...but the payload is still built from EVERY field, deliberately. The form is seeded from
+      // the whole record, so a hidden field still holds its loaded value and is written back
+      // untouched. Building from `visibleFields` instead would omit those keys, and the server's
+      // apply() writes every DTO field — a missing key arrives as null. Hiding "Full text" in
+      // Settings would then blank it on the next save of any resource that had one.
       const body = buildPayload(config.fields, form);
       return isEdit ? updateEntity(config.key, recordId!, body) : createEntity(config.key, body);
     },
@@ -116,7 +126,8 @@ export function EntityForm({ config, recordId, initial, onClose, onSaved }: Prop
       </Typography>
 
       <Stack spacing={2}>
-        {config.fields.map((f) => (
+        {/* Drawn from the VISIBLE fields, saved from all of them — see the note on buildPayload. */}
+        {visibleFields.map((f) => (
           <FieldInput
             key={f.name}
             field={f}

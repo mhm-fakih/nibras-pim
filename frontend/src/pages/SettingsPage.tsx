@@ -7,6 +7,7 @@ import {
   Button,
   FormControlLabel,
   Paper,
+  MenuItem,
   Stack,
   Switch,
   Table,
@@ -21,6 +22,7 @@ import {
   AppModule,
   RepoSettings,
   getRepoSettings,
+  getLookups,
   getSetting,
   getSettingsMulti,
   setSetting,
@@ -28,6 +30,7 @@ import {
   updateRepoSettings,
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
+import { DEFAULT_MAX_SLOT_MINUTES } from '../hooks/useRunningTimer';
 import { useModules } from '../hooks/useModules';
 import {
   FEATURE_SETTING_KEYS,
@@ -97,6 +100,10 @@ export function SettingsPage() {
         <RepositoriesSection />
 
         <ExportSection />
+
+        <BookmarkSection />
+
+        <TaskCompletionSection />
       </Box>
     </Box>
   );
@@ -453,6 +460,195 @@ function ExportSection() {
           label="Open the file after a new calendar-day journal is auto-exported"
         />
       </Stack>
+    </Box>
+  );
+}
+
+
+/**
+ * What bookmarking a record should DO, beyond flagging it.
+ *
+ * Both are off by default and always have to be asked for. Bookmarking is a note to self — on its
+ * own it has no business writing to the filesystem or launching a desktop app, and an editor window
+ * appearing because you clicked a star is startling rather than helpful.
+ *
+ * Combo boxes rather than switches, because these two are unlike the visibility toggles above:
+ * those hide bits of the interface, these make something happen on your disk. Having to pick "On"
+ * from a list is a slightly deliberate act, which suits them.
+ */
+function BookmarkSection() {
+  const qc = useQueryClient();
+
+  // Two plain useQuery calls rather than a `readSetting(key)` helper: a helper that calls a hook is
+  // a hook, and one that isn't named useSomething slips straight past the lint rule that keeps hook
+  // order honest. Two keys don't justify the risk.
+  const { data: linkValue } = useQuery({
+    queryKey: ['setting', 'bookmark.symlink'],
+    queryFn: () => getSetting('bookmark.symlink', 'false'),
+  });
+  const { data: openValue } = useQuery({
+    queryKey: ['setting', 'bookmark.open-checkout'],
+    queryFn: () => getSetting('bookmark.open-checkout', 'false'),
+  });
+  const link = linkValue === 'true';
+  const open = openValue === 'true';
+
+  const save = useMutation({
+    mutationFn: ({ key, on }: { key: string; on: boolean }) => setSetting(key, on ? 'true' : 'false'),
+    onSuccess: (_r, { key }) => qc.invalidateQueries({ queryKey: ['setting', key] }),
+  });
+
+  const combo = (key: string, value: boolean, label: string, help: string) => (
+    <Stack direction="row" alignItems="flex-start" spacing={2} sx={{ mb: 1.5 }}>
+      <TextField
+        select
+        size="small"
+        value={value ? 'true' : 'false'}
+        onChange={(e) => save.mutate({ key, on: e.target.value === 'true' })}
+        sx={{ width: 96, flexShrink: 0 }}
+      >
+        <MenuItem value="false">Off</MenuItem>
+        <MenuItem value="true">On</MenuItem>
+      </TextField>
+      <Box sx={{ pt: 0.5 }}>
+        <Typography variant="body2">{label}</Typography>
+        <Typography variant="caption" color="text.secondary">
+          {help}
+        </Typography>
+      </Box>
+    </Stack>
+  );
+
+  return (
+    <Box sx={{ mt: 5 }}>
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        On bookmarking
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+        Extra things a bookmark can trigger. Both are off unless you turn them on; removing a
+        bookmark always removes its symlink, whatever these say, so nothing is left stranded.
+      </Typography>
+      {combo(
+        'bookmark.symlink',
+        link,
+        'Create a symbolic link in the checkout folder',
+        'A link per bookmarked record, pointing at its repository-1 folder. Its checkout text is written at the same time, so the folder isn\u2019t empty.',
+      )}
+      {combo(
+        'bookmark.open-checkout',
+        open,
+        'Open the record\u2019s checkout text',
+        'Writes the record\u2019s _record.md and opens it (xdg-open). Independent of the Export setting above, which governs the manual \u201cExport to file\u201d button.',
+      )}
+    </Box>
+  );
+}
+
+
+/**
+ * Which status a task takes when its completion checkbox is ticked.
+ *
+ * Completing a task used to mean different things depending on where you did it: the mobile push
+ * set the status by a hardcoded "done" code, while the web checkmark and the sprint review stamped
+ * the completion date and left the status alone — so the same task read as finished on one screen
+ * and open on another. Now all three apply whatever is chosen here.
+ *
+ * The list is the task form's own status list, so the choice can only ever be a status that
+ * actually exists. "Leave unchanged" is a real option: an instance with no notion of "done" should
+ * record the completion date and touch nothing else rather than have one invented for it.
+ */
+function TaskCompletionSection() {
+  const qc = useQueryClient();
+  const KEY = 'task.done-status-id';
+
+  const { data: lookups } = useQuery({
+    queryKey: ['lookups', 'tasks'],
+    queryFn: () => getLookups('tasks'),
+    staleTime: 300_000,
+  });
+  const { data: current } = useQuery({
+    queryKey: ['setting', KEY],
+    queryFn: () => getSetting(KEY, ''),
+  });
+
+  const save = useMutation({
+    mutationFn: (id: string) => setSetting(KEY, id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setting', KEY] }),
+  });
+
+  const statuses = lookups?.statuses ?? [];
+
+  return (
+    <Box sx={{ mt: 5 }}>
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        Tasks
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+        The status a task moves to when you tick its completion checkbox — on the record, in a
+        sprint review, or from the phone. A status you set yourself on the same save still wins.
+      </Typography>
+      <TimerTimeoutField />
+
+      <TextField
+        select
+        size="small"
+        label="Status on completion"
+        value={current ?? ''}
+        onChange={(e) => save.mutate(e.target.value)}
+        sx={{ minWidth: 260 }}
+      >
+        <MenuItem value="">
+          <em>Leave unchanged</em>
+        </MenuItem>
+        {statuses.map((s) => (
+          <MenuItem key={s.id} value={String(s.id)}>
+            {s.name}
+            {s.code ? ` (${s.code})` : ''}
+          </MenuItem>
+        ))}
+      </TextField>
+    </Box>
+  );
+}
+
+/**
+ * How long a time-tracking session may run before it stops itself.
+ *
+ * There has always been a 60-minute cut-off, but it lived in a per-browser localStorage preference
+ * with no UI at all — a hidden default nobody could change. It is a server setting now, so the
+ * answer is the same on every machine, and blank still means 60.
+ */
+function TimerTimeoutField() {
+  const qc = useQueryClient();
+  const KEY = 'timer.max-slot-minutes';
+  const { data } = useQuery({
+    queryKey: ['setting', KEY],
+    queryFn: () => getSetting(KEY, String(DEFAULT_MAX_SLOT_MINUTES)),
+  });
+  const [value, setValue] = useState('');
+  useEffect(() => {
+    if (data != null) setValue(data);
+  }, [data]);
+
+  const save = useMutation({
+    mutationFn: (v: string) => setSetting(KEY, v),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setting', KEY] }),
+  });
+
+  return (
+    <Box sx={{ mb: 2 }}>
+      <TextField
+        size="small"
+        type="number"
+        label="Auto-stop a timer after (minutes)"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => value !== data && save.mutate(value)}
+        onKeyDown={(e) => e.key === 'Enter' && save.mutate(value)}
+        inputProps={{ min: 1 }}
+        sx={{ width: 260 }}
+        helperText={`Blank or invalid falls back to ${DEFAULT_MAX_SLOT_MINUTES}. The session is saved ending at the cut-off, not when the browser noticed.`}
+      />
     </Box>
   );
 }

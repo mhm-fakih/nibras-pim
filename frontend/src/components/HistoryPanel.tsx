@@ -9,6 +9,7 @@ import {
   Typography,
 } from '@mui/material';
 import { AuditEntry, getRecordHistory } from '../api/client';
+import { useAuth } from '../hooks/useAuth';
 
 const OP_COLOR: Record<string, 'success' | 'info' | 'error' | 'default'> = {
   INSERT: 'success',
@@ -16,12 +17,32 @@ const OP_COLOR: Record<string, 'success' | 'info' | 'error' | 'default'> = {
   DELETE: 'error',
 };
 
-/** Per-record change history (drawn from the audit trail). `entityClass` is e.g. "Task". */
+/**
+ * Per-record change history (drawn from the audit trail). `entityClass` is e.g. "Task".
+ *
+ * Renders nothing at all for a role without `tools.audit`, rather than an empty panel. The data
+ * comes from `/api/audit/{entity}/{id}`, which SecurityConfig gates on that capability, and a 403
+ * is indistinguishable here from an empty result — so the panel used to tell people who weren't
+ * allowed to see the history that the record had none. Saying "no changes" to someone who simply
+ * isn't permitted to know is worse than saying nothing.
+ *
+ * Gated here rather than at the call site so the rule travels with the component, and so the
+ * request is never made in the first place: an ordinary record view would otherwise fire a 403 on
+ * every open for most of the roles in the matrix.
+ */
 export function HistoryPanel({ entityClass, id }: { entityClass: string; id: number }) {
+  const { can } = useAuth();
+  const allowed = can('tools.audit');
+
   const { data } = useQuery({
     queryKey: ['history', entityClass, id],
     queryFn: () => getRecordHistory(entityClass, id),
+    enabled: allowed,
   });
+
+  if (!allowed) {
+    return null;
+  }
 
   const entries = data ?? [];
 

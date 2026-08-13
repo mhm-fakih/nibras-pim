@@ -108,9 +108,10 @@
             android:name=".status.ChimeReceiver"
             android:exported="false" />
 
-        <!-- Runs a full sync when tapped from the KPI/upcoming-plans widget titles. -->
+        <!-- Widget title taps: redraw the home-screen widgets, optionally pulling from
+             the server first. See WidgetTapReceiver. -->
         <receiver
-            android:name=".nibras.SyncNowReceiver"
+            android:name=".reminder.WidgetTapReceiver"
             android:exported="false" />
 
         <!-- Reminder alarm receiver (also handles the Dismiss action). -->

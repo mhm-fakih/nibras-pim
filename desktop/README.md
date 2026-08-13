@@ -84,6 +84,19 @@ There's no `Alt`-based or bare-`Delete` shortcut — every note-editing shortcut
 
 - **Filter sidebar (`Ctrl+B`).** A collapsible left nav bar that filters the board, with **the
   number of notes behind every option** shown next to it:
+  - **Tags** — a cloud of the `#hashtags` written in note **bodies**, each sized by how often it is
+    used and carrying its count. Free-form, unlike the single type/category codes in the file name:
+    nothing has to be declared before use and a note can carry any number, which is what a cloud
+    suits and a fixed row list doesn't. Clicking one narrows the board to the notes carrying it —
+    **one tag at a time**, so a second click moves the selection rather than intersecting. A
+    `## Markdown heading` and a `http://…#fragment` are not tags.
+
+    It sits **first**, above the calendar, and that is deliberate. Seven expanded sections come to
+    roughly twice a laptop sidebar's height, so whatever lands fifth is invisible without a long
+    scroll — and the tag cloud is the one dimension you go *looking* for rather than pick from a
+    list already on screen. It is also the most compact of them. A folder whose notes carry no
+    hashtags hides the section entirely, header and all, rather than spending that slot on an
+    empty box.
   - a **calendar heat map** — one cell per day, shaded by how many notes that day has, so a month
     of note-taking is legible at a glance. A **Created / Updated** switch drives both the shading
     and what a clicked day means: *Created* uses the note's **file-name timestamp** (never the
@@ -102,12 +115,6 @@ There's no `Alt`-based or bare-`Delete` shortcut — every note-editing shortcut
     into it: `…~T~p3~Dev.md` is standard even where `Dev` isn't a configured category — that shows
     up as a foreign-code row instead. "Only" is the clean-up queue; select an item and
     `Ctrl+Shift+<code>` files it in.
-  - **Tags** — a cloud of the `#hashtags` written in note **bodies**, each sized by how often it is
-    used and carrying its count. Free-form, unlike the single type/category codes in the file name:
-    nothing has to be declared before use and a note can carry any number, which is what a cloud
-    suits and a fixed row list doesn't. Clicking one narrows the board to the notes carrying it —
-    **one tag at a time**, so a second click moves the selection rather than intersecting. A
-    `## Markdown heading` and a `http://…#fragment` are not tags.
   - **Bad taxonomy** — include / hide / **only**. The *other* clean-up queue, and deliberately
     separate from Non-standard: that one is about the file name's **shape**, this one about its
     **values**. `2026_08_08-101500~Y~p3~A.md` is perfectly well-formed but invisible to every type

@@ -72,8 +72,8 @@ class PhoneStatusWidget : AppWidgetProvider() {
         private fun build(context: Context): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_phone_status)
 
-            // Volume levels (read-only): bars only, coloured by level (green / >60% orange /
-            // >80% red). (Free space lives on the KPI widget now — this widget is volumes-only.)
+            // Volume levels (read-only): bars only, coloured by headroom (see levelColor).
+            // (Free space lives on the KPI widget now — this widget is volumes-only.)
             val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             setVolume(views, am, R.id.ps_bar_ring, AudioManager.STREAM_RING)
             setVolume(views, am, R.id.ps_bar_notif, AudioManager.STREAM_NOTIFICATION)
@@ -102,19 +102,36 @@ class PhoneStatusWidget : AppWidgetProvider() {
             val max = am.getStreamMaxVolume(stream).coerceAtLeast(1)
             val cur = am.getStreamVolume(stream)
             views.setProgressBar(barId, max, cur, false)
-            // Level colour: green, orange over 60%, red over 80%. Runtime tinting of a
-            // RemoteViews ProgressBar needs API 31+; older devices keep the layout's green.
+            // Runtime tinting of a RemoteViews ProgressBar needs API 31+; older devices keep the
+            // layout's green.
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                val pct = cur * 100 / max
-                val color = when {
-                    pct > 80 -> 0xFFE57373.toInt()   // red
-                    pct > 60 -> 0xFFFFB74D.toInt()   // orange
-                    else -> 0xFF81C784.toInt()       // green
-                }
                 views.setColorStateList(
                     barId, "setProgressTintList",
-                    android.content.res.ColorStateList.valueOf(color),
+                    android.content.res.ColorStateList.valueOf(levelColor(cur, max)),
                 )
+            }
+        }
+
+        /**
+         * Bar colour: green normally, orange **near the top**, red **at the top**.
+         *
+         * Measured as headroom left rather than fraction filled, because Android's streams do not
+         * share a scale — a phone typically gives the ring stream 7 steps and music 15. The old
+         * rule ("orange over 60% of max") therefore coloured them by different yardsticks: one
+         * notch above the middle is 5/7 = 71% on the ring, which went orange, while the visually
+         * equivalent 9/15 = 60% on music stayed green. That is why the ringtone bar sat orange at a
+         * level nobody would call high — a 7-step scale has no step between 57% and 71%, so it
+         * skips the green band's top half entirely.
+         *
+         * Headroom has no such problem: "one notch below maximum" is 1/7 or 1/15 of the way down,
+         * and both read as near the top, which is what the colour is trying to say.
+         */
+        internal fun levelColor(cur: Int, max: Int): Int {
+            val headroomPct = (max - cur) * 100 / max.coerceAtLeast(1)
+            return when {
+                headroomPct <= 0 -> 0xFFE57373.toInt()    // red — maxed out
+                headroomPct <= 20 -> 0xFFFFB74D.toInt()   // orange — within a fifth of the top
+                else -> 0xFF81C784.toInt()                // green
             }
         }
     }

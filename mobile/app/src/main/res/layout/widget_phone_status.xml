@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- "Volumes" widget: every user-facing volume stream (Ring, Notif, Alarm, Music, Call, System) as icon + read-only bar (no numeric values), in three columns. Bars are coloured
-     by level (green / >60% orange / >80% red). Frame/typography match the bookmarks widget. -->
+     by headroom (green / orange within 20% of the top / red at maximum) so streams with
+     different step counts colour alike — see PhoneStatusWidget.levelColor. Frame/typography match the bookmarks widget. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"

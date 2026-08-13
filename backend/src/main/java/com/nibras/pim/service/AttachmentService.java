@@ -152,6 +152,29 @@ public class AttachmentService {
         }
     }
 
+    /**
+     * Write {@code cover.<ext>} into the record's repo-1 folder (created if needed).
+     *
+     * <p>Refuses when the record already has a cover rather than replacing it. Nothing here is a
+     * user's considered choice of picture — it's a guess made from someone else's markup — so it
+     * may only fill an empty slot. Replacing a cover is what the ordinary file upload is for.
+     */
+    public void storeCover(String module, long id, byte[] bytes, String ext) {
+        if (!COVER_EXTS.contains(ext)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Unsupported cover image type: " + ext);
+        }
+        if (cover(module, id).isPresent()) {
+            throw new ResponseStatusException(BAD_REQUEST, "This record already has a cover image.");
+        }
+        Path target = resolveInRepo(module, id, 1, "cover." + ext);
+        try {
+            Files.createDirectories(target.getParent());
+            Files.write(target, bytes);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
     /** Index of the extension in {@link #COVER_EXTS} if {@code name} is {@code cover.<ext>}
      *  (case-insensitive), else -1. */
     private static int coverExtIndex(String name) {

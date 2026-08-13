@@ -106,6 +106,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
     var defType by remember { mutableStateOf(current.defaultType) }
     var defCategory by remember { mutableStateOf(current.defaultCategory) }
     var defPriority by remember { mutableStateOf(current.defaultPriority.toString()) }
+    var topPriority by remember { mutableStateOf(current.topPriority.toString()) }
 
     val context = LocalContext.current
     val ringtonePicker = rememberLauncherForActivityResult(
@@ -199,6 +200,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 defaultType = defType,
                 defaultCategory = defCategory,
                 defaultPriority = defPriority.toIntOrNull() ?: 2,
+                topPriority = topPriority.toIntOrNull() ?: 4,
             ),
         )
         onBack()
@@ -262,11 +264,21 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            OutlinedTextField(
+                value = topPriority,
+                onValueChange = { topPriority = it.filter { c -> c.isDigit() } },
+                label = { Text("Top priority (widgets)") },
+                supportingText = { Text("Which priority the Top priority widget lists and the KPI widget counts.") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
             FolderField(
                 value = dir,
                 onValueChange = { dir = it },
                 label = "Notes directory",
-                supportingText = "Absolute path, e.g. /storage/emulated/0/knotes",
+                supportingText = "Absolute path, e.g. /storage/emulated/0/Notes",
                 onPick = { pickFolder { path -> dir = path } },
             )
 

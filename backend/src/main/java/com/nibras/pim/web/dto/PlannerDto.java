@@ -42,5 +42,5 @@ public record PlannerDto(
         List<TagDto> tags,
         Boolean hasCover,
         LocalDateTime dateCreated,
-        LocalDateTime lastUpdated) {
+        LocalDateTime lastUpdated) implements Versioned {
 }

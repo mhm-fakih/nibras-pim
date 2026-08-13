@@ -44,6 +44,10 @@ fun CollectScreen(
     sourceDirs: List<String>,
     newDir: String,
     timestampFormat: String,
+    /** Tags the collection's note is filed under — the same defaults a quick note gets. */
+    noteType: String?,
+    notePriority: Int,
+    noteCategory: String?,
     onBack: () -> Unit,
 ) {
     val vm: CollectViewModel = viewModel()
@@ -130,7 +134,7 @@ fun CollectScreen(
                 Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.Center) {
                     when (status) {
                         CollectStatus.Ready -> Button(
-                            onClick = { vm.collect(newDir, timestampFormat) },
+                            onClick = { vm.collect(newDir, timestampFormat, noteType, notePriority, noteCategory) },
                             enabled = found.isNotEmpty(),
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(if (found.isEmpty()) "No files found" else "Collect ${found.size} files") }

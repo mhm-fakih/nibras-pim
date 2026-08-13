@@ -1,5 +1,7 @@
 package com.knotes.collect
 
+import com.knotes.NoteFiles
+import com.knotes.companionDirOf
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -110,13 +112,42 @@ object FileCollector {
     }
 
     /**
-     * Moves [found] files into `newDir/<runStamp>/`. Returns the destination folder and a
-     * per-file result. Files are moved (removed from the source); rename is used when possible,
-     * falling back to copy+delete across volumes.
+     * Moves [found] files into a collection, and writes the note that owns them.
+     *
+     * The destination is a **companion folder** — `<timestamp>~<type>~p<priority>~<category>.d` —
+     * with a matching `.md` beside it carrying the same stem. That is the layout the desktop, the
+     * backend importer and this app already agree on for "a note plus its attachments", so a
+     * collection stops being a loose folder of files and becomes an ordinary note that happens to
+     * have things attached: readable, editable, importable, with no special case anywhere.
+     *
+     * It used to be `newDir/<timestamp>/` — a bare folder no tool recognised as anything.
+     *
+     * Returns the companion folder and a per-file result. Files are moved (removed from the
+     * source); rename is used when possible, falling back to copy+delete across volumes.
      */
-    fun collect(found: List<FoundFile>, newDir: String, format: String): Pair<File, List<CollectedFile>> {
-        val runStamp = SimpleDateFormat(format, Locale.US).format(Date())
-        val target = File(newDir, runStamp)
+    fun collect(
+        found: List<FoundFile>,
+        newDir: String,
+        format: String,
+        type: String?,
+        priority: Int,
+        category: String?,
+    ): Pair<File, List<CollectedFile>> {
+        val parent = File(newDir)
+        parent.mkdirs()
+
+        // The note name decides the folder name, not the other way round: the folder is defined as
+        // "the note's stem + .d", so they can never drift apart.
+        var token = SimpleDateFormat(format, Locale.US).format(Date())
+        var noteFile = File(parent, NoteFiles.buildName(token, type, priority, category))
+        var counter = 2
+        while (noteFile.exists() || companionDirOf(noteFile).exists()) {
+            // Same de-dup convention as NoteRepository.saveNew — two collections in one second.
+            token = SimpleDateFormat(format, Locale.US).format(Date()) + "-" + counter++
+            noteFile = File(parent, NoteFiles.buildName(token, type, priority, category))
+        }
+
+        val target = companionDirOf(noteFile)
         target.mkdirs()
         val taken = HashSet<String>()
         val results = found.map { f ->
@@ -129,6 +160,20 @@ object FileCollector {
                 error = if (moved) null else "move failed",
             )
         }
+        // The note itself, written after the moves so it can say what actually landed. A failed
+        // move is listed too — a collection that silently dropped a file would be worse than one
+        // that admits it.
+        val ok = results.count { it.ok }
+        val body = buildString {
+            append("Collected ").append(ok).append(if (ok == 1) " file" else " files").append("\n\n")
+            results.forEach { r ->
+                append("- ").append(r.newName)
+                if (!r.ok) append("  (failed: ").append(r.error ?: "unknown").append(")")
+                append("\n")
+            }
+        }
+        runCatching { noteFile.writeText(body) }
+
         return target to results
     }
 

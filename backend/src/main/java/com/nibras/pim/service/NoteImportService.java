@@ -65,6 +65,7 @@ public class NoteImportService {
     private final AppModuleRepository modules;
     private final DepartmentRepository departments;
     private final AttachmentService attachments;
+    private final LookupDefaultsService lookupDefaults;
 
     @PersistenceContext
     private EntityManager em;
@@ -72,11 +73,13 @@ public class NoteImportService {
     public NoteImportService(SettingService settings,
                              AppModuleRepository modules,
                              DepartmentRepository departments,
-                             AttachmentService attachments) {
+                             AttachmentService attachments,
+                             LookupDefaultsService lookupDefaults) {
         this.settings = settings;
         this.modules = modules;
         this.departments = departments;
         this.attachments = attachments;
+        this.lookupDefaults = lookupDefaults;
     }
 
     /** The configured import folder — from settings, defaulting to {@code $HOME/new/knotes}. */
@@ -152,6 +155,12 @@ public class NoteImportService {
         }
 
         BaseEntity entity = createEntity(draft, resourceTypeId);
+        // Fill the blank parameters — journal type, planner type, work status … — from the
+        // admin-configured defaults, the same thing AbstractCrudService.create() does for a record
+        // made through the form. This importer persists straight through the EntityManager rather
+        // than going via that service, so without this call an imported record arrives untyped: a
+        // 'J' knote became a Journal with no type at all, invisible to every type filter.
+        lookupDefaults.applyDefaults(entity);
         em.persist(entity);
         em.flush();   // assign id + fire the audit listener before we move the file
 

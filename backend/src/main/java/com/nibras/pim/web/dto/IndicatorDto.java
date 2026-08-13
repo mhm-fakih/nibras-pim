@@ -28,5 +28,5 @@ public record IndicatorDto(
         LocalDateTime endDate,
         Boolean hasCover,
         LocalDateTime dateCreated,
-        LocalDateTime lastUpdated) {
+        LocalDateTime lastUpdated) implements Versioned {
 }
