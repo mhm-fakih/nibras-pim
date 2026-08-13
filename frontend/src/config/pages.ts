@@ -14,6 +14,7 @@ export const TOGGLEABLE_PAGES: ToolPage[] = [
   { key: 'bookmarks', label: 'All bookmarks' },
   { key: 'indicators', label: 'Indicators' },
   { key: 'insights', label: 'Insights' },
+  { key: 'sprints', label: 'Sprints' },
   { key: 'parameters', label: 'Parameters' },
   { key: 'admin', label: 'Admin' },
   { key: 'batch', label: 'Batch entry' },
@@ -56,6 +57,24 @@ export const TOGGLEABLE_FEATURES: ToolFeature[] = [
     label: 'Standard reports per module',
     description:
       'The built-in report shortcuts in the sidebar (Top priority, Without department, …). Your own saved searches are unaffected.',
+  },
+  {
+    key: 'codename',
+    label: 'Release codename',
+    description:
+      'The release’s nickname — “Dastgheib” — beside the version number in the sidebar header and the status bar. The version itself is always shown; this hides only the name.',
+  },
+  {
+    key: 'resourceExtras',
+    label: 'Resource detail fields',
+    description:
+      'Full text, Highlights, Comments, URL and Read-on on the Resources form and record. Turning them off only hides them — nothing already written is changed or lost.',
+  },
+  {
+    key: 'resourceFromUrl',
+    label: 'New resource from a URL',
+    description:
+      'The link button beside “New” on Resources: paste an article’s address and the server reads the page to fill in the form, cover image included.',
   },
 ];
 

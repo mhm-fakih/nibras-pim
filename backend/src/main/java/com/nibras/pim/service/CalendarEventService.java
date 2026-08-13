@@ -2,6 +2,7 @@ package com.nibras.pim.service;
 
 import com.nibras.pim.domain.Journal;
 import com.nibras.pim.domain.Planner;
+import com.nibras.pim.domain.Sprint;
 import com.nibras.pim.repo.JournalRepository;
 import com.nibras.pim.repo.PlannerRepository;
 import com.nibras.pim.web.dto.CalendarEventDto;
@@ -29,12 +30,14 @@ public class CalendarEventService {
     private final JournalRepository journals;
     private final PlannerRepository planners;
     private final PlannerSeriesService series;
+    private final SprintService sprints;
 
     public CalendarEventService(JournalRepository journals, PlannerRepository planners,
-                                PlannerSeriesService series) {
+                                PlannerSeriesService series, SprintService sprints) {
         this.journals = journals;
         this.planners = planners;
         this.series = series;
+        this.sprints = sprints;
     }
 
     public List<CalendarEventDto> events(LocalDateTime from, LocalDateTime to, Set<String> modules) {
@@ -58,6 +61,19 @@ public class CalendarEventService {
                 String typeStyle = j.getType() == null ? null : j.getType().getStyle();
                 out.add(CalendarEventDto.plain("journals", j.getId(), j.feedTitle(), j.getDescription(),
                         start, j.getEndDate(), typeName, typeId, typeStyle));
+            }
+        }
+        // Sprints are blocks, not entries: one bar from start to end, so a day's committed work is
+        // visible against the day it was committed to. Deliberately outside the `typeFilter` branch
+        // below — a sprint has no type lookup to filter on, and dropping it whenever a dashboard
+        // asked for one type of planner event would make it vanish for no stated reason.
+        if (modules.contains("sprints") && wanted == null) {
+            for (Sprint s : sprints.inRange(from, to)) {
+                int done = (int) s.getItems().stream()
+                        .filter(it -> Boolean.TRUE.equals(it.getCompleted())).count();
+                String title = s.feedTitle() + "  " + done + "/" + s.getItems().size();
+                out.add(CalendarEventDto.plain("sprints", s.getId(), title, s.getNotes(),
+                        s.getStartDate(), s.getEndDate(), null, null, null));
             }
         }
         if (modules.contains("planners")) {

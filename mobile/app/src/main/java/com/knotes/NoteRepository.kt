@@ -27,6 +27,34 @@ const val COMPANION_SUFFIX = ".d"
  */
 private val AUX_DIR_STEMS = setOf("deleted", "merged", "imported", "trash", "trashed")
 
+/**
+ * Extensions whose contents are shown as a note's text. Deliberately just these two: the note
+ * format is `.md`, and `.txt` is what the older captures used. Anything else in the folder is a
+ * file that happens to live there, not a note.
+ */
+private val PLAIN_TEXT_EXT = setOf("md", "txt")
+
+/** Whether a file's contents should be read and previewed as note text. */
+fun isPlainTextNote(name: String): Boolean = com.knotes.util.FileNames.ext(name) in PLAIN_TEXT_EXT
+
+/**
+ * Sidecar files that live in the notes folder but are not notes and never will be — the app's own
+ * SQLite database and its write-ahead/shared-memory/journal companions.
+ *
+ * Matched on the PREFIX, case-insensitively, so `notes.sqlite`, `notes.sqlite-wal`,
+ * `notes.sqlite-shm`, `notes.sqlite-journal` and `Notes.SQLite` are all covered by one rule — and
+ * so are any future companions SQLite invents, which it does. Treated exactly like a dotfile:
+ * invisible to the board, uncounted, never offered as a "needs metadata" item.
+ *
+ * A real note can never collide with this: notes are `<timestamp>~…~p<n>~….md`, which cannot begin
+ * with a letter.
+ */
+private const val SQLITE_PREFIX = "notes.sqlite"
+
+/** True for files the notes folder holds but which are not, and never will be, notes. */
+fun isIgnoredSidecar(name: String): Boolean =
+    name.lowercase(java.util.Locale.ROOT).startsWith(SQLITE_PREFIX)
+
 fun isAuxDir(name: String): Boolean = name.trimStart('.').lowercase() in AUX_DIR_STEMS
 
 /** A file missing its final newline shows as a spurious change on every future line ('No newline
@@ -50,6 +78,21 @@ class NoteRepository(private val settings: SettingsStore) {
     }
 
     /**
+     * How many notes carry [priority], from the FILE NAMES alone — one directory listing and a
+     * regex per entry.
+     *
+     * Deliberately not `listNotes().count { … }`, which is the same answer at a far higher price:
+     * that reads every note's full text and lists every note's companion folder, and this runs on
+     * the widget-redraw path (see TopPriorityWidget's title count), including the system's own
+     * `onUpdate` on the main thread. The priority is encoded in the name, so none of that reading
+     * is needed to count.
+     */
+    fun countByPriority(priority: Int): Int =
+        (dir().listFiles() ?: emptyArray()).count {
+            it.isFile && isFormattedNote(it.name) && NoteFiles.parse(it.name).priority == priority
+        }
+
+    /**
      * Files and folders sitting in the notes directory that aren't canonical notes — surfaced as
      * "needs metadata" placeholders (type/priority/category all null) rather than silently ignored,
      * matching desktop's `NoteRepository.list_unrecognized`.
@@ -71,6 +114,7 @@ class NoteRepository(private val settings: SettingsStore) {
             .filter { f ->
                 !f.name.startsWith(".") &&
                     !isAuxDir(f.name) &&
+                    !isIgnoredSidecar(f.name) &&
                     if (f.isDirectory) !f.name.endsWith(COMPANION_SUFFIX) else !isFormattedNote(f.name)
             }
             .map(::toPlaceholder)
@@ -79,12 +123,18 @@ class NoteRepository(private val settings: SettingsStore) {
 
     /**
      * A non-conforming file/folder wrapped as a [Note] with blank tags, so it slots into the
-     * existing card rendering and grouping with no changes there. A directory reads as empty
-     * content; a file is read as text, best-effort — a binary drop-in simply shows no preview
-     * rather than failing the whole listing.
+     * existing card rendering and grouping with no changes there.
+     *
+     * Only a `.md` or `.txt` file has its CONTENT read. Everything else — a directory, an `.xml`,
+     * a `.json`, a `.csv` — is listed but previewed blank. It used to read whatever it was handed,
+     * which meant a config file Syncthing dropped into the folder appeared as a note with a screen
+     * of raw markup in it. "Is this text?" is not the question; a file being decodable as text
+     * doesn't make it something you wrote.
      */
     private fun toPlaceholder(file: File): Note {
-        val content = if (file.isDirectory) "" else runCatching { file.readText() }.getOrDefault("")
+        val content = if (file.isDirectory || !isPlainTextNote(file.name)) "" else {
+            runCatching { file.readText() }.getOrDefault("")
+        }
         return Note(
             file = file,
             timestamp = "",

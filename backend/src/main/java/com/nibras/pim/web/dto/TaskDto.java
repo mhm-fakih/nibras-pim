@@ -17,6 +17,8 @@ public record TaskDto(
         Boolean bookmarked,
         Boolean isPrivate,
         Integer percentCompleted,
+        /** Expected duration in MINUTES (legacy `planned_duration`, narrowed by V6). */
+        Integer plannedDuration,
         LocalDateTime startDate,
         LocalDateTime endDate,
         Long statusId,
@@ -40,5 +42,5 @@ public record TaskDto(
         Boolean hasCover,
         LocalDateTime completedOn,
         LocalDateTime dateCreated,
-        LocalDateTime lastUpdated) {
+        LocalDateTime lastUpdated) implements Versioned {
 }

@@ -74,7 +74,8 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
                 null, null, null,
                 // summary, name, description, mainHighlights, notes
                 summary, null, null, null, null,
-                parent.getPriority(), null, null, null, null, null,
+                // priority, bookmarked, isPrivate, percentCompleted, plannedDuration, start, end
+                parent.getPriority(), null, null, null, null, null, null,
                 null,
                 parent.getDepartment() == null ? null : parent.getDepartment().getId(),
                 parent.getCourse() == null ? null : parent.getCourse().getId(),
@@ -114,6 +115,7 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
                 t.getBookmarked(),
                 t.getIsPrivate(),
                 t.getPercentCompleted(),
+                t.getPlannedDuration(),
                 t.getStartDate(),
                 t.getEndDate(),
                 t.getStatus() == null ? null : t.getStatus().getId(),
@@ -146,8 +148,15 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
         return t;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private DoneStatusService doneStatus;
+
     @Override
     protected void apply(TaskDto dto, Task t) {
+        // Captured before the DTO is applied over the entity: `t` still holds what was in the
+        // database, so this is the only point where the transition can be seen.
+        boolean wasComplete = t.getCompletedOn() != null;
+        Long statusWas = t.getStatus() == null ? null : t.getStatus().getId();
         t.setSummary(dto.summary());
         // Legacy column not on the web form — don't wipe it when the payload omits it.
         if (dto.name() != null) {
@@ -164,10 +173,39 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
         t.setBookmarked(dto.bookmarked());
         t.setIsPrivate(dto.isPrivate());
         t.setPercentCompleted(dto.percentCompleted());
+        t.setPlannedDuration(dto.plannedDuration());
         t.setStartDate(dto.startDate());
         t.setEndDate(dto.endDate());
         t.setCompletedOn(dto.completedOn());
         t.setStatus(ref(WorkStatus.class, dto.statusId()));
+
+        // Did this save CHOOSE a status, or merely echo the one already stored?
+        //
+        // Every client sends the whole record back — the detail pane spreads `...record` into its
+        // patch — so `statusId != null` says nothing about intent: a task that already had a status
+        // always carries it. Testing for null therefore made this whole feature inert for exactly
+        // the records most likely to have one. What marks a real choice is the value DIFFERING from
+        // what was stored.
+        boolean statusChosenNow = !java.util.Objects.equals(dto.statusId(), statusWas);
+
+        // Completing a task moves it to the configured status (Settings → Tasks). Only on the
+        // TRANSITION, and only when this save didn't pick a status itself — an explicit choice is a
+        // decision, and this must not overrule it.
+        if (!wasComplete && t.getCompletedOn() != null && !statusChosenNow && doneStatus != null) {
+            var done = doneStatus.resolve();
+            if (done != null) {
+                t.setStatus(done);
+            }
+        }
+        // Un-completing puts the status back to what it was before the completion, read out of the
+        // audit trail — the record itself doesn't remember, but the change that set it was logged
+        // with its old value. Only when that change is still in place; see statusBeforeCompletion.
+        if (wasComplete && t.getCompletedOn() == null && !statusChosenNow && doneStatus != null) {
+            var previous = doneStatus.statusBeforeCompletion("Task", t.getId(), t.getStatus());
+            if (previous.restore()) {
+                t.setStatus(previous.status());
+            }
+        }
         t.setDepartment(ref(Department.class, dto.departmentId()));
         t.setCourse(ref(Course.class, dto.courseId()));
         t.setGoal(ref(Goal.class, dto.goalId()));

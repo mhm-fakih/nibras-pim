@@ -17,7 +17,7 @@ import com.knotes.nibras.NibrasLocalStore
 /**
  * Home-screen widget listing the records the user bookmarked. Backed by a scrollable ListView
  * (a RemoteViews collection served by [BookmarksWidgetService]) so every bookmark is reachable —
- * not a fixed, clipped column.
+ * not a fixed, clipped column. Tapping the title pulls from the server and redraws.
  */
 class BookmarksWidget : AppWidgetProvider() {
 
@@ -76,6 +76,13 @@ class BookmarksWidget : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or mutable,
             )
             views.setPendingIntentTemplate(R.id.widget_list_view, template)
+
+            // The title is the manual "bring this up to date" handle: these rows are the server's
+            // bookmarks, so it pulls and redraws. See WidgetTapReceiver.
+            views.setOnClickPendingIntent(
+                R.id.widget_title,
+                WidgetTapReceiver.pendingIntent(context, "bookmarks_refresh".hashCode(), sync = true),
+            )
             return views
         }
     }

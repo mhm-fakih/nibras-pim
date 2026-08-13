@@ -32,6 +32,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -45,6 +48,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import com.knotes.player.LibraryTrack
+import com.knotes.player.MediaLibrary
+import com.knotes.player.UNKNOWN_ALBUM
+import com.knotes.player.UNKNOWN_ARTIST
+import com.knotes.player.UNKNOWN_GENRE
+import kotlinx.coroutines.launch
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.filled.Refresh
+import com.knotes.util.autoDirection
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.knotes.player.BookmarkedFile
 import com.knotes.player.MediaMetaBadge
 import com.knotes.player.RecentBookmarks
@@ -55,12 +72,6 @@ import com.knotes.player.mediaTags
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-
-private const val UNKNOWN_GENRE = "Unknown genre"
-private const val UNKNOWN_ARTIST = "Unknown artist"
-private const val UNKNOWN_ALBUM = "Unknown album"
-
-private data class LibraryTrack(val file: File, val genre: String, val artist: String, val album: String)
 
 private enum class LibraryMode { LIBRARY, FOLDERS, BOOKMARKED }
 
@@ -77,30 +88,56 @@ private enum class LibraryMode { LIBRARY, FOLDERS, BOOKMARKED }
 fun AudiobookScreen(roots: List<String>, lastPlayedPath: String?, onPlayMedia: (File) -> Unit) {
     var mode by remember { mutableStateOf(LibraryMode.LIBRARY) }
     val rootFiles = remember(roots) { roots.map(::File) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
-    // Full recursive tag scan, shared by both tabs (Folders doesn't need genre/artist/album, but
-    // scanning once and reusing it there too costs nothing extra and keeps this the single source
-    // of "what media exists under the configured roots").
-    val tracks by produceState<List<LibraryTrack>?>(initialValue = null, roots) {
-        value = withContext(Dispatchers.IO) {
-            rootFiles.filter { it.exists() }
-                .flatMap { root -> root.walkTopDown().filter { it.isFile && isMediaFile(it.name) } }
-                .map { f ->
-                    val tags = mediaTags(f)
-                    LibraryTrack(
-                        file = f,
-                        genre = tags.genre ?: UNKNOWN_GENRE,
-                        artist = tags.artist ?: UNKNOWN_ARTIST,
-                        album = tags.album ?: UNKNOWN_ALBUM,
-                    )
-                }
-        }
-    }
+    // The scan lives in MediaLibrary, not in this composable. Held here it died with the
+    // composition, so every visit to this page reset the list to null and re-walked the whole tree
+    // reading tags from every file again — which is what made the page slow to open, every time.
+    // MediaLibrary keeps it for the life of the process and only re-reads files that changed.
+    var query by rememberSaveable { mutableStateOf("") }
+    val tracks by MediaLibrary.tracks.collectAsState()
+    val scanning by MediaLibrary.scanning.collectAsState()
+    LaunchedEffect(roots) { MediaLibrary.ensureLoaded(context, roots) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Audiobooks") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Media") },
+                actions = {
+                    // The library no longer rebuilds itself on every visit, so picking up a file
+                    // Syncthing dropped in needs an explicit ask. It is cheap: the walk skips the
+                    // hidden folders and only genuinely new or changed files have their tags read.
+                    IconButton(
+                        onClick = { scope.launch { MediaLibrary.refresh(context, roots) } },
+                        enabled = !scanning,
+                    ) {
+                        if (scanning) {
+                            CircularProgressIndicator(modifier = Modifier.width(18.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Filled.Refresh, contentDescription = "Rescan the library")
+                        }
+                    }
+                },
+            )
+        },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text("Filter by name…") },
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Clear the filter")
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
+            )
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -132,6 +169,11 @@ fun AudiobookScreen(roots: List<String>, lastPlayedPath: String?, onPlayMedia: (
                     CircularProgressIndicator()
                 }
                 t.isEmpty() -> EmptyState(roots)
+                // A filled filter overrides the tab. "Regardless of where I am in the navigation"
+                // is the requirement: three folders deep in an album, typing a name should find it
+                // anywhere in the library rather than searching only what's on screen. The tab
+                // selection is kept, so clearing the box puts you back exactly where you were.
+                query.isNotBlank() -> FilteredTab(t, query, lastPlayedPath, onPlayMedia)
                 mode == LibraryMode.LIBRARY -> LibraryTab(t, lastPlayedPath, onPlayMedia)
                 mode == LibraryMode.BOOKMARKED -> BookmarkedTab(rootFiles, lastPlayedPath, onPlayMedia)
                 else -> FoldersTab(rootFiles, lastPlayedPath, onPlayMedia)
@@ -170,7 +212,7 @@ private fun Breadcrumb(segments: List<Pair<String, () -> Unit>>) {
             val isLast = i == segments.lastIndex
             Text(
                 label,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelLarge.autoDirection(),
                 color = if (isLast) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
                 fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
                 maxLines = 1,
@@ -233,7 +275,7 @@ private fun GroupList(groups: List<Pair<String, Int>>, onSelect: (String) -> Uni
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f),
+                    name, style = MaterialTheme.typography.bodyLarge.autoDirection(), modifier = Modifier.weight(1f),
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text("$count", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -314,7 +356,7 @@ private fun BookmarkedRow(entry: BookmarkedFile, isLast: Boolean, onPlayMedia: (
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 entry.file.name,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyLarge.autoDirection(),
                 fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
                 color = if (isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
@@ -378,7 +420,15 @@ private fun FoldersTab(roots: List<File>, lastPlayedPath: String?, onPlayMedia: 
         return
     }
 
-    val subfolders = remember(dir) { dir.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() } ?: emptyList() }
+    // Only folders that actually lead somewhere. A subtree with no media in it is a dead end you
+    // can only discover by opening it, and the notes folder is full of them (.d companion folders,
+    // Syncthing's own directories, plain document folders). Checked recursively but lazily —
+    // hasMedia stops at the first hit rather than counting.
+    val subfolders = remember(dir) {
+        dir.listFiles { f -> f.isDirectory }
+            ?.filter { !it.name.startsWith(".") && hasMedia(it) }
+            ?.sortedBy { it.name.lowercase() } ?: emptyList()
+    }
     val files = remember(dir) { dir.listFiles { f -> f.isFile && isMediaFile(f.name) }?.sortedBy { it.name.lowercase() } ?: emptyList() }
     // The bookmarked files in THIS folder, pinned above the alphabetical listing. A folder of 40
     // numbered chapters sorts the one you were on into the middle of the list; this puts it first.
@@ -409,10 +459,119 @@ private fun FoldersTab(roots: List<File>, lastPlayedPath: String?, onPlayMedia: 
         }
         items(subfolders, key = { "d:" + it.absolutePath }) { f ->
             FolderEntryRow(f.name, exists = true) { currentDir = f }
+            // The first few tracks, playable from here. A folder of chapters otherwise costs a tap
+            // in and a tap back just to find out what is in it, and starting the first one is the
+            // commonest reason for going in at all.
+            FolderPeek(f, lastPlayedPath, onPlayMedia) { currentDir = f }
             HorizontalDivider()
         }
         items(files, key = { "f:" + it.absolutePath }) { f ->
             FileRow(f, f.absolutePath == lastPlayedPath, onPlayMedia)
+        }
+    }
+}
+
+/** The number of tracks shown under a folder before "…and N more". */
+private const val FOLDER_PEEK_LIMIT = 5
+
+/**
+ * True when [dir] contains a media file at any depth. Depth-first and short-circuiting: the answer
+ * is only ever "is there at least one", so a folder with a track in its first subfolder costs one
+ * directory read, not a full walk. Hidden folders don't count — nothing in them is browsable.
+ */
+private fun hasMedia(dir: File): Boolean {
+    val stack = ArrayDeque<File>()
+    stack.add(dir)
+    var visited = 0
+    while (stack.isNotEmpty()) {
+        // A guard against pathological trees: a folder that needs more than this many directory
+        // reads to prove it holds nothing is shown rather than stalling the list to be sure.
+        if (visited++ > 400) return true
+        val children = stack.removeLast().listFiles() ?: continue
+        for (c in children) {
+            if (c.isDirectory) {
+                if (!c.name.startsWith(".")) stack.add(c)
+            } else if (isMediaFile(c.name)) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+/** Up to [FOLDER_PEEK_LIMIT] of a folder's own tracks, tappable to play without opening it. */
+@Composable
+private fun FolderPeek(
+    dir: File,
+    lastPlayedPath: String?,
+    onPlayMedia: (File) -> Unit,
+    onOpen: () -> Unit,
+) {
+    val peek = remember(dir) {
+        dir.listFiles { f -> f.isFile && isMediaFile(f.name) }
+            ?.sortedBy { it.name.lowercase() } ?: emptyList()
+    }
+    if (peek.isEmpty()) return   // media is deeper in; the folder row itself is the way in
+    Column(modifier = Modifier.padding(start = 26.dp)) {
+        peek.take(FOLDER_PEEK_LIMIT).forEach { f ->
+            FileRow(f, f.absolutePath == lastPlayedPath, onPlayMedia)
+        }
+        if (peek.size > FOLDER_PEEK_LIMIT) {
+            Text(
+                "…and ${peek.size - FOLDER_PEEK_LIMIT} more",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clickable { onOpen() }
+                    .padding(start = 14.dp, top = 2.dp, bottom = 8.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Every track matching the filter, from anywhere in the library — a flat list, deliberately not
+ * grouped by genre or folder. When you are looking for one file by name, the hierarchy is the thing
+ * getting in the way.
+ *
+ * Matches the FILE NAME and the cached tags (artist, album, genre), all case-insensitively. Note
+ * what isn't searched: a file's embedded TITLE tag. The library caches genre/artist/album and
+ * nothing else, so indexing titles would mean re-reading every file — the exact cost the cache
+ * exists to avoid. For these files the name on disk is the title in practice.
+ */
+@Composable
+private fun FilteredTab(
+    tracks: List<LibraryTrack>,
+    query: String,
+    lastPlayedPath: String?,
+    onPlayMedia: (File) -> Unit,
+) {
+    val matches = remember(tracks, query) {
+        val needle = query.trim().lowercase()
+        tracks.filter {
+            it.file.name.lowercase().contains(needle) ||
+                it.artist.lowercase().contains(needle) ||
+                it.album.lowercase().contains(needle) ||
+                it.genre.lowercase().contains(needle)
+        }
+    }
+    if (matches.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Nothing matches that", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
+    Column(modifier = Modifier.fillMaxSize()) {
+        Text(
+            "${matches.size} of ${tracks.size}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
+        )
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            items(matches, key = { it.file.absolutePath }) { t ->
+                FileRow(t.file, t.file.absolutePath == lastPlayedPath, onPlayMedia)
+            }
         }
     }
 }
@@ -426,7 +585,7 @@ private fun FolderEntryRow(name: String, exists: Boolean, onClick: () -> Unit) {
         Icon(Icons.Filled.Folder, null, tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(10.dp))
         Text(
-            name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f),
+            name, style = MaterialTheme.typography.bodyLarge.autoDirection(), modifier = Modifier.weight(1f),
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             color = if (exists) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -461,7 +620,7 @@ private fun FileRow(file: File, isLast: Boolean, onPlayMedia: (File) -> Unit) {
         Spacer(Modifier.width(10.dp))
         Text(
             file.name,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyLarge.autoDirection(),
             fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
             color = if (isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             maxLines = 2,

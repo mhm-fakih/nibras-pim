@@ -59,6 +59,9 @@ import java.util.Optional;
 @Service
 public class SyncService {
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private DoneStatusService doneStatus;
+
     private static final DateTimeFormatter DMY_HM = DateTimeFormatter.ofPattern("dd-MM-yyyy-HH-mm");
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd-MM-yyyy");
     private static final DateTimeFormatter TEXT_DATE = DateTimeFormatter.ofPattern("EEE dd, HH-mm", Locale.ENGLISH);
@@ -709,7 +712,9 @@ public class SyncService {
         }
         if ("G".equals(ecode) || "T".equals(ecode) || "P".equals(ecode)) {
             LocalDateTime now = LocalDateTime.now();
-            var done = workStatusRepo.findFirstByCode("done").orElse(null);
+            // Was findFirstByCode("done") — the magic string this setting replaced. The
+            // resolver still falls back to that code, so nothing changes until it is set.
+            var done = doneStatus.resolve();
             if (e instanceof Task t) {
                 t.setCompletedOn(now);
                 t.setStatus(done);

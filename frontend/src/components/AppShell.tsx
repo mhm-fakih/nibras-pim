@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Alert, Box, Button, Snackbar, Typography, useMediaQuery, useTheme } from '@mui/material';
 import ChevronLeft from '@mui/icons-material/ChevronLeft';
-import { batchEdit, createJournalDay, exportFulltext, getSetting, openRecordFolder, EntityRecord, SavedSearchRecordRef } from '../api/client';
+import { batchEdit, createJournalDay, exportFulltext, getSetting, listEntities, listModules, openRecordFolder, setCoverFromUrl, EntityRecord, SavedSearchRecordRef } from '../api/client';
 import { ENTITY_BY_KEY } from '../config/entities';
 import { SearchResultsList } from './SearchResultsList';
 import { ShortcutContext } from './ShortcutsProvider';
@@ -19,6 +19,13 @@ import { QuickNoteBar } from './QuickNoteBar';
 import { useAuth } from '../hooks/useAuth';
 
 export type PaneMode = 'view' | 'edit' | 'create';
+
+/**
+ * Records fetched per module for a day's cross-module view. A cap rather than every page: the
+ * results pane fetches each card's body individually, so an unbounded day would fire a request per
+ * record. SearchResultsList pages what it draws on top of this.
+ */
+const DAY_RECORD_LIMIT = 50;
 
 export function AppShell() {
   const { entity } = useParams();
@@ -37,8 +44,11 @@ export function AppShell() {
   // (results can be a different entity than the current route, so the detail pane uses its config).
   const [searchResults, setSearchResults] = useState<{ title: string; records: SavedSearchRecordRef[] } | null>(null);
   // Fields pulled off a URL, waiting to prefill the New-resource form (see ListPane.ScrapeFromUrl).
-  // Cleared whenever the form closes so a later plain "New" starts blank.
-  const [scraped, setScraped] = useState<{ fields: Record<string, unknown>; warnings: string[] } | null>(null);
+  // Cleared whenever the form closes so a later plain "New" starts blank. `coverUrl` rides along
+  // unfetched: it can only be stored once the record exists and has an id — see onSaved below.
+  const [scraped, setScraped] = useState<
+    { fields: Record<string, unknown>; warnings: string[]; coverUrl: string } | null
+  >(null);
   const [resultModule, setResultModule] = useState<string | null>(null);
   // Resizable middle (list) pane — width persisted per browser (dragged via the divider handle).
   const [listWidth, setListWidth] = useState(() => {
@@ -186,21 +196,105 @@ export function AppShell() {
     window.addEventListener('mouseup', onUp);
   };
 
-  // Shared by the one-line date field and the full mini-calendar in its popover (SideNav), so
-  // picking a day does the same thing (open/create that day's journal) either way.
+  /**
+   * Fetch the scraped page's main image and store it as the new record's cover. Fire-and-forget by
+   * design: the record is already saved, so this can only add or fail to add a picture, and it says
+   * which. The backend does the download — the browser can't read a cross-origin image as bytes.
+   */
+  const importCover = (module: string, id: number, url: string) => {
+    setCoverFromUrl(module, id, url)
+      .then(() => {
+        // The cover is fetched by URL, so anything already showing one needs to look again.
+        qc.invalidateQueries({ queryKey: ['repo-files', module, id] });
+        setToast('Cover image imported from the page.');
+      })
+      .catch((e: unknown) => {
+        const detail = (e as { response?: { data?: { detail?: string; message?: string } } })?.response?.data;
+        setToast(`Saved — but the cover image could not be imported: ${detail?.detail ?? detail?.message ?? 'download failed'}`);
+      });
+  };
+
+  /**
+   * The enabled modules, read through the query cache.
+   *
+   * Deliberately not `useModules()`: that hook falls back to "everything enabled" while its query
+   * is in flight, and the caller below decides whether to CREATE a record on that answer. A wrong
+   * default for a few hundred milliseconds would silently write a journal into a folder whose
+   * owner switched journals off. `fetchQuery` returns the cache when it is fresh (it almost always
+   * is — SideNav mounts the same query on every page) and waits for the server when it isn't, so
+   * the answer is never a guess.
+   */
+  const enabledModules = () =>
+    qc.fetchQuery({ queryKey: ['modules'], queryFn: listModules, staleTime: 60_000 })
+      .then((mods) => mods.filter((m) => m.enabled));
+
+  /**
+   * Every record the enabled modules hold for one day, shown as cards in the middle pane.
+   *
+   * Each module answers for its own idea of "on that day" — journals and planners by their own
+   * date field, everything else by when it was created (see AbstractCrudService.dayField) — which
+   * is what makes one date meaningful across modules that don't share a calendar.
+   */
+  const showRecordsOn = async (day: string, label: string) => {
+    const mods = await enabledModules();
+    const perModule = await Promise.all(
+      mods.map((m) =>
+        listEntities(m.moduleKey, { onDay: day, size: DAY_RECORD_LIMIT })
+          .then((page) =>
+            page.content.map((r) => ({
+              module: m.moduleKey,
+              id: r.id,
+              title: r.displayTitle || (r.summary as string) || `#${r.id}`,
+            })),
+          )
+          // One module being unhappy shouldn't cost you the other six.
+          .catch(() => []),
+      ),
+    );
+    const records = perModule.flat();
+    if (!records.length) {
+      setToast(`Nothing recorded on ${label}.`);
+      return;
+    }
+    setSearchResults({ title: `${label} · ${records.length} record(s)`, records });
+    setResultModule(null);
+    setSelectedId(null);
+    setMode('view');
+  };
+
+  /**
+   * Shared by the one-line date field and the full mini-calendar in its popover (SideNav), so
+   * picking a day does the same thing either way.
+   *
+   * With **journals enabled** a day is a journal entry, so clicking one opens it — creating it
+   * first if it doesn't exist yet, which is the whole point of a day journal.
+   *
+   * With **journals disabled** clicking a day creates nothing at all. A module that has been
+   * switched off must not be written to from a side door, and a day journal is the only record in
+   * the app that gets created by navigating rather than by asking. What a date still means in that
+   * case is "what did I put in on that day", so it shows exactly that, from the modules that are
+   * on.
+   */
   const handleDateSelect = (d: Date) => {
     setSelectedDate(d);
     const day = formatLocalDate(d);
-    createJournalDay(day)
-      .then(async (j) => {
-        // A brand-new day journal: export its _record.md to repo 1 right away. Whether the file is
-        // opened afterwards is controlled by its own setting (calendar.journalDay.open), independent
-        // of the manual-export 'export.open'.
-        if (j.created) {
-          const open = (await getSetting('calendar.journalDay.open', 'false')) === 'true';
-          exportFulltext(j.module, j.id, open).catch(() => {});
+    const label = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+
+    enabledModules()
+      .then((mods) => {
+        if (!mods.some((m) => m.moduleKey === 'journals')) {
+          return showRecordsOn(day, label);
         }
-        navigate(`/journals?select=${j.id}&onDay=${day}`);
+        return createJournalDay(day).then(async (j) => {
+          // A brand-new day journal: export its _record.md to repo 1 right away. Whether the file
+          // is opened afterwards is controlled by its own setting (calendar.journalDay.open),
+          // independent of the manual-export 'export.open'.
+          if (j.created) {
+            const open = (await getSetting('calendar.journalDay.open', 'false')) === 'true';
+            exportFulltext(j.module, j.id, open).catch(() => {});
+          }
+          navigate(`/journals?select=${j.id}&onDay=${day}`);
+        });
       })
       .catch(() => {});
   };
@@ -266,8 +360,8 @@ export function AppShell() {
             // Resources only: everything else has no URL to build itself from.
             onScraped={
               config.key === 'resources'
-                ? (fields, warnings) => {
-                    setScraped({ fields, warnings });
+                ? (fields, warnings, coverUrl) => {
+                    setScraped({ fields, warnings, coverUrl });
                     setSelectedId(null);
                     setMode('create');
                   }
@@ -321,6 +415,9 @@ export function AppShell() {
             {scraped.warnings.length
               ? `Filled in from the page — check these: ${scraped.warnings.join(' ')}`
               : 'Filled in from the page. Review the fields before saving.'}
+            {/* Said up front because it happens on save, not now, and it isn't visible in any
+                field — nothing else on this form would hint that a file is about to arrive. */}
+            {scraped.coverUrl && ' The page’s main image will be saved as the cover.'}
           </Alert>
         )}
         {mode === 'create' && (
@@ -332,10 +429,16 @@ export function AppShell() {
               setMode('view');
             }}
             onSaved={(saved) => {
+              // Read before the state is cleared — the fetch below outlives this handler.
+              const coverFrom = scraped?.coverUrl;
               setScraped(null);
               setJustSaved(saved);       // show a card of what was just created
               setSelectedId(saved.id);
               setMode('view');
+              // The record now has an id, so the page's main image finally has somewhere to go.
+              // Deliberately after the save and not part of it: a picture that won't download is
+              // no reason to lose a resource that saved perfectly well, so it only ever reports.
+              if (coverFrom) importCover(config.key, saved.id, coverFrom);
             }}
           />
         )}

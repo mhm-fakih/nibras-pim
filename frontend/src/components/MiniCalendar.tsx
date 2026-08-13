@@ -7,6 +7,7 @@ import ExpandLess from '@mui/icons-material/ExpandLess';
 import { DateCalendar } from '@mui/x-date-pickers/DateCalendar';
 import { PickersDay, PickersDayProps } from '@mui/x-date-pickers/PickersDay';
 import { getCalendar, getCalendarEvents } from '../api/client';
+import { useModules } from '../hooks/useModules';
 
 interface Props {
   entity: string;
@@ -70,14 +71,20 @@ export function MiniCalendar({ entity, selectedDate, onSelect }: Props) {
     return m;
   }, [data]);
 
-  // Days that have a Journal entry (by its startDate) — marked with a bolder day number.
+  // Days that have a Journal entry (by its startDate) — marked with a bolder day number. Skipped
+  // entirely when journals are switched off: the mark would be a promise the click no longer keeps
+  // (see AppShell.handleDateSelect — with journals off, a day opens what the enabled modules hold
+  // that day and creates nothing), and there is no reason to query a module that isn't in use.
+  const { enabled: enabledModules } = useModules();
+  const journalsEnabled = enabledModules.some((m) => m.moduleKey === 'journals');
   const { data: journalEvents } = useQuery({
     queryKey: ['calendar-journals', ymd(from), ymd(to)],
     queryFn: () => getCalendarEvents(ymd(from), ymd(to), 'journals'),
+    enabled: journalsEnabled,
   });
   const journalDays = useMemo(
-    () => new Set((journalEvents ?? []).map((e) => e.start.slice(0, 10))),
-    [journalEvents],
+    () => (journalsEnabled ? new Set((journalEvents ?? []).map((e) => e.start.slice(0, 10))) : new Set<string>()),
+    [journalEvents, journalsEnabled],
   );
 
   const toggle = () => {

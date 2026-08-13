@@ -1,6 +1,7 @@
 package com.nibras.pim.web;
 
 import com.nibras.pim.service.AttachmentService;
+import com.nibras.pim.service.UrlScrapeService;
 import com.nibras.pim.web.dto.RepoFileDto;
 import org.springframework.core.io.PathResource;
 import org.springframework.core.io.Resource;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -36,9 +38,11 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class AttachmentController {
 
     private final AttachmentService service;
+    private final UrlScrapeService scraper;
 
-    public AttachmentController(AttachmentService service) {
+    public AttachmentController(AttachmentService service, UrlScrapeService scraper) {
         this.service = service;
+        this.scraper = scraper;
     }
 
     /** Files in the record's folder across all three repositories. */
@@ -82,6 +86,31 @@ public class AttachmentController {
         Path file = service.cover(module, id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No cover for this record."));
         return stream(file);
+    }
+
+    public record CoverFromUrl(String url) {
+    }
+
+    /**
+     * Download an image from {@code url} and save it as this record's cover.
+     *
+     * <p>The companion to {@code POST /api/scrape}: that reads a page's fields before the record
+     * exists, this attaches its picture once it does. The download has to happen server-side for
+     * the same reason the scrape does — a browser cannot read a cross-origin image as bytes — and
+     * carries the same SSRF guard, in {@link UrlScrapeService#fetchImage}.
+     */
+    @PostMapping("/cover-from-url")
+    public ResponseEntity<Void> coverFromUrl(@PathVariable String module, @PathVariable long id,
+                                             @RequestBody CoverFromUrl body) {
+        UrlScrapeService.FetchedImage image;
+        try {
+            image = scraper.fetchImage(body == null ? null : body.url());
+        } catch (IllegalArgumentException e) {
+            // Every rejection is written for a person — a bad URL, a private address, a non-image.
+            throw new ResponseStatusException(BAD_REQUEST, e.getMessage(), e);
+        }
+        service.storeCover(module, id, image.bytes(), image.extension());
+        return ResponseEntity.noContent().build();
     }
 
     private static ResponseEntity<Resource> stream(Path file) {

@@ -35,6 +35,7 @@ class NoteFiltersTest {
         syncEnabled = false, syncCheckIntervalSec = 60, syncIntervalSec = 900,
         chimeEnabled = false, chimeSoundUri = "", chimeStartHour = 8, chimeEndHour = 20,
         appName = "knotes", defaultType = "W", defaultCategory = "A", defaultPriority = 3,
+        topPriority = 4,
     )
 
     private fun note(

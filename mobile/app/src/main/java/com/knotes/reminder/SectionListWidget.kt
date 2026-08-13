@@ -30,8 +30,16 @@ abstract class SectionListWidget : AppWidgetProvider() {
     /** The section segment [PlansWidgetService] switches on. */
     protected abstract val section: String
 
-    /** The static title above the list. */
+    /** The title above the list. */
     protected abstract val title: String
+
+    /**
+     * The title as drawn, recomputed on every redraw. Override to put a live number in it; the
+     * default is the plain [title]. Runs during `build`, i.e. on whatever thread called the
+     * refresh — see [WidgetTapReceiver], which does its redraws off the main thread for this
+     * reason.
+     */
+    protected open fun titleFor(context: Context): String = title
 
     /** Shown in place of the list when the section has no rows. */
     protected abstract val emptyText: String
@@ -56,7 +64,7 @@ abstract class SectionListWidget : AppWidgetProvider() {
 
     private fun build(context: Context, widgetId: Int): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_single_list)
-        views.setTextViewText(R.id.widget_title, title)
+        views.setTextViewText(R.id.widget_title, titleFor(context))
         views.setTextViewText(R.id.widget_empty, emptyText)
         views.setRemoteAdapter(R.id.widget_list_view, sectionIntent(context, widgetId))
         views.setEmptyView(R.id.widget_list_view, R.id.widget_empty)

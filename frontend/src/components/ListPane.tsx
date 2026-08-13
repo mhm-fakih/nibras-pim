@@ -37,6 +37,7 @@ import {
   scrapeUrl,
 } from '../api/client';
 import DownloadIcon from '@mui/icons-material/CloudDownload';
+import LinkIcon from '@mui/icons-material/AddLink';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { EntityConfig, MERGEABLE_MODULES } from '../config/entities';
 import { activeReportLabel } from '../config/reports';
@@ -44,6 +45,7 @@ import { statusStyle } from './statusStyle';
 import { dirOf } from '../util/rtl';
 import { useModules } from '../hooks/useModules';
 import { useAuth } from '../hooks/useAuth';
+import { useFeature } from '../hooks/useFeature';
 import { AuthImage } from './AuthImage';
 import { ModuleBar } from './ModuleBar';
 import { MergeDialog, MergeDraft } from './MergeDialog';
@@ -53,8 +55,15 @@ interface Props {
   selectedId: number | null;
   onSelect: (id: number) => void;
   onNew: () => void;
-  /** Resources only: fetch a URL server-side and open the New form prefilled from the page. */
-  onScraped?: (fields: Record<string, unknown>, warnings: string[]) => void;
+  /**
+   * Resources only: fetch a URL server-side and open the New form prefilled from the page.
+   * `coverUrl` is the page's main image, still un-fetched — the record has no id yet.
+   */
+  onScraped?: (
+    fields: Record<string, unknown>,
+    warnings: string[],
+    coverUrl: string,
+  ) => void;
   /** Reports the currently-loaded record ids (in order) for keyboard j/k navigation. */
   onItems?: (ids: number[]) => void;
 }
@@ -85,6 +94,12 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
   const [batchMsg, setBatchMsg] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<number | null>(null);
   const [mergeDraft, setMergeDraft] = useState<MergeDraft | null>(null);
+  // "New from a URL" is folded behind the link button beside New: it's an occasional way in, and a
+  // permanently-open URL box above the search box read as though it were part of the search.
+  const [fromUrlOpen, setFromUrlOpen] = useState(false);
+  // Called unconditionally — `a && useFeature(…)` would skip the hook whenever `a` is false.
+  const fromUrlEnabled = useFeature('resourceFromUrl');
+  const showFromUrl = canWriteContent && Boolean(onScraped) && fromUrlEnabled;
 
   // Report presets come from the URL (set by the SideNav reports panel).
   const reportParams = useMemo(() => {
@@ -200,8 +215,29 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
               New
             </Button>
           )}
+          {showFromUrl && (
+            <Tooltip title={`New ${config.label.toLowerCase().replace(/s$/, '')} from a URL`}>
+              <IconButton
+                size="small"
+                color={fromUrlOpen ? 'primary' : 'default'}
+                onClick={() => setFromUrlOpen((o) => !o)}
+                aria-label="New from a URL"
+                aria-expanded={fromUrlOpen}
+              >
+                <LinkIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Stack>
-        {canWriteContent && onScraped && <ScrapeFromUrl onScraped={onScraped} />}
+        {showFromUrl && fromUrlOpen && (
+          <ScrapeFromUrl
+            onScraped={(fields, warnings, cover) => {
+              setFromUrlOpen(false);
+              onScraped!(fields, warnings, cover);
+            }}
+            onCancel={() => setFromUrlOpen(false)}
+          />
+        )}
         <TextField
           fullWidth
           size="small"
@@ -516,7 +552,7 @@ function formatDate(iso: string): string {
 }
 
 /**
- * URL → prefilled New-resource form.
+ * URL → prefilled New-resource form. Revealed by the link button beside New, not always on screen.
  *
  * The fetch happens on the SERVER: a browser cannot read an arbitrary cross-origin page, so this
  * could not be done client-side even in principle. What comes back is a best-effort guess at each
@@ -525,8 +561,10 @@ function formatDate(iso: string): string {
  */
 function ScrapeFromUrl({
   onScraped,
+  onCancel,
 }: {
-  onScraped: (fields: Record<string, unknown>, warnings: string[]) => void;
+  onScraped: (fields: Record<string, unknown>, warnings: string[], coverUrl: string) => void;
+  onCancel: () => void;
 }) {
   const [url, setUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -547,6 +585,9 @@ function ScrapeFromUrl({
           fullText: s.fullText,
         },
         s.warnings ?? [],
+        // Kept out of the field set above: it isn't a Resource field, it's a file to fetch once
+        // the record has an id to hang it on.
+        s.imageUrl ?? '',
       );
     },
     // The backend's rejections are all written for a person — a bad URL, a private address, a dead
@@ -562,14 +603,19 @@ function ScrapeFromUrl({
   };
 
   return (
-    <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ px: 1.5, pb: 1 }}>
+    <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ pb: 1 }}>
       <TextField
         size="small"
         fullWidth
+        autoFocus
         placeholder="Paste a URL to build a resource from it…"
         value={url}
         onChange={(e) => setUrl(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && go()}
+        // Escape backs out of a control that was opened on purpose, so it should close it.
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') go();
+          if (e.key === 'Escape') onCancel();
+        }}
         error={Boolean(error)}
         helperText={error ?? undefined}
         disabled={scrape.isPending}
@@ -584,6 +630,11 @@ function ScrapeFromUrl({
       >
         {scrape.isPending ? 'Fetching…' : 'Fetch'}
       </Button>
+      <Tooltip title="Cancel">
+        <IconButton size="small" onClick={onCancel} sx={{ mt: 0.25 }} aria-label="Cancel">
+          <Close fontSize="small" />
+        </IconButton>
+      </Tooltip>
     </Stack>
   );
 }

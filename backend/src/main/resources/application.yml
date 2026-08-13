@@ -42,6 +42,15 @@ spring:
         format_sql: false
         jdbc:
           time_zone: Africa/Cairo
+  mvc:
+    # RFC 7807 error bodies, so a ResponseStatusException's reason actually reaches the client as
+    # `detail`. Without this Boot returns {timestamp,status,error,path} and the reason is dropped —
+    # every carefully-worded message ("Refusing to fetch … it resolves to a private address", "This
+    # record was changed by someone else") arrived at the UI as an empty body, and the frontend fell
+    # back to its generic string. It has read `data.detail` in five places all along; this is what
+    # makes that true.
+    problemdetails:
+      enabled: true
   jackson:
     default-property-inclusion: non_null
     time-zone: Africa/Cairo

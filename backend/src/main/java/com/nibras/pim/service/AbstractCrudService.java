@@ -5,6 +5,7 @@ import com.nibras.pim.domain.Tag;
 import com.nibras.pim.repo.BaseRepository;
 import com.nibras.pim.web.dto.FilterParams;
 import com.nibras.pim.web.dto.LookupDto;
+import com.nibras.pim.web.dto.Versioned;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.PersistenceContext;
@@ -31,7 +32,7 @@ import java.util.Set;
  * to/from their DTO, the searchable column names, and the available lookups.
  */
 @Transactional
-public abstract class AbstractCrudService<E extends BaseEntity, D> {
+public abstract class AbstractCrudService<E extends BaseEntity, D extends Versioned> {
 
     private static final Logger log = LoggerFactory.getLogger(AbstractCrudService.class);
 
@@ -64,6 +65,10 @@ public abstract class AbstractCrudService<E extends BaseEntity, D> {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     @org.springframework.context.annotation.Lazy
     private FulltextService fulltext;
+
+    /** Reads the two bookmark side-effect switches — see {@link #syncCheckoutLink}. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SettingService settings;
 
     protected AbstractCrudService(BaseRepository<E> repo) {
         this.repo = repo;
@@ -111,12 +116,39 @@ public abstract class AbstractCrudService<E extends BaseEntity, D> {
 
     public D update(Long id, D dto) {
         E entity = load(id);
+        requireCurrentVersion(entity, dto);
         boolean wasBookmarked = isBookmarked(entity);
         apply(dto, entity);
         entity = repo.saveAndFlush(entity);
         reindex(entity);
         syncCheckoutLink(entity, wasBookmarked);
         return toDto(entity);
+    }
+
+    /**
+     * Refuse a write built on a stale copy of the record.
+     *
+     * <p>Hibernate's own {@code @Version} check only covers the window INSIDE this transaction: it
+     * issues {@code update … where id = ? and version = ?} with the version it just loaded, so it
+     * catches a concurrent commit while we work. It cannot catch the case that actually bites — a
+     * client that read the record minutes ago, or seconds ago and before a refetch landed, and is
+     * now sending every field back including the ones someone else changed. The row and our copy of
+     * it agree perfectly; it is the CLIENT's copy that is out of date.
+     *
+     * <p>So the version the client read is compared against the row's current one, and a mismatch
+     * is a 409 rather than a silent overwrite. A DTO with no version is left alone — that is a
+     * caller with no baseline to be stale against, not a caller skipping the check.
+     */
+    private void requireCurrentVersion(E entity, D dto) {
+        Long seen = dto == null ? null : dto.version();
+        Long actual = entity.getVersion();
+        if (seen == null || actual == null || seen.equals(actual)) {
+            return;
+        }
+        throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.CONFLICT,
+                "This record was changed by someone else (or in another tab) since you opened it. "
+                        + "Reload it and reapply your change.");
     }
 
     /**
@@ -297,10 +329,31 @@ public abstract class AbstractCrudService<E extends BaseEntity, D> {
                 && Boolean.TRUE.equals(bw.getPropertyValue("bookmarked"));
     }
 
+    /** Create the checkout-folder symlink when a record is bookmarked. Off unless switched on. */
+    public static final String SETTING_LINK = "bookmark.symlink";
+    /** Open the record's checkout text when it is bookmarked. Off unless switched on. */
+    public static final String SETTING_OPEN = "bookmark.open-checkout";
+
+    /** A bookmark side-effect switch. Both default OFF — bookmarking is a note to self, and on its
+     *  own it should not touch the filesystem or launch anything. */
+    private boolean bookmarkSideEffect(String key) {
+        return settings != null && Boolean.parseBoolean(settings.get(key, "false"));
+    }
+
     /**
-     * Keep the "checkout folder" symlink (repo-1 folder, one per bookmarked record) in sync with
-     * a bookmark toggle: create it on false -> true, remove it on true -> false. No-op for
-     * entities without a {@code bookmarked} column.
+     * The two things that can happen when a record's bookmark is turned on: a symlink into the
+     * checkout folder ({@link #SETTING_LINK}), and the record's checkout text being opened in the
+     * desktop editor ({@link #SETTING_OPEN}). Both are off by default and switched independently in
+     * Settings. No-op for entities without a {@code bookmarked} column.
+     *
+     * <p>Removal is deliberately NOT gated. A symlink made while the setting was on must not
+     * outlive the bookmark that justified it — otherwise switching the feature off would strand
+     * every existing link. Deleting one that isn't there is a no-op anyway.
+     *
+     * <p>The export is passed an explicit {@code open} rather than {@code null}: the two-argument
+     * form falls back to the {@code export.open} setting, which defaults to TRUE and is meant for
+     * the manual Export button. Inheriting it is exactly how bookmarking came to pop an editor
+     * open without anyone asking it to.
      */
     private void syncCheckoutLink(E entity, boolean wasBookmarked) {
         if (repositories == null) {
@@ -310,20 +363,27 @@ public abstract class AbstractCrudService<E extends BaseEntity, D> {
         if (nowBookmarked == wasBookmarked) {
             return;
         }
-        if (nowBookmarked) {
-            repositories.linkCheckout(name(), entity.getId(), typeCodeOf(entity));
-            // Without this, the checkout symlink points at an empty folder until someone thinks to
-            // hit "Export" — write the record's checkout .md right away so there's actually
-            // something to look at.
-            if (fulltext != null && fulltext.supports(name())) {
-                try {
-                    fulltext.export(name(), entity.getId());
-                } catch (RuntimeException e) {
-                    log.warn("Could not write checkout export for {} {}: {}", name(), entity.getId(), e.toString());
-                }
-            }
-        } else {
+        if (!nowBookmarked) {
             repositories.unlinkCheckout(name(), entity.getId(), typeCodeOf(entity));
+            return;
+        }
+
+        boolean link = bookmarkSideEffect(SETTING_LINK);
+        boolean open = bookmarkSideEffect(SETTING_OPEN);
+        if (!link && !open) {
+            return;
+        }
+        if (link) {
+            repositories.linkCheckout(name(), entity.getId(), typeCodeOf(entity));
+        }
+        // Written whichever switch is on: the symlink would otherwise point at a folder with no
+        // checkout file in it, and there is nothing to open if the text was never written.
+        if (fulltext != null && fulltext.supports(name())) {
+            try {
+                fulltext.export(name(), entity.getId(), open);
+            } catch (RuntimeException e) {
+                log.warn("Could not write checkout export for {} {}: {}", name(), entity.getId(), e.toString());
+            }
         }
     }
 

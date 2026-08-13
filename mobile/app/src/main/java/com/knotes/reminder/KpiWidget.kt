@@ -11,11 +11,11 @@ import android.widget.RemoteViews
 import com.knotes.MainActivity
 import com.knotes.R
 import com.knotes.SettingsStore
-import com.knotes.nibras.SyncNowReceiver
 import com.knotes.status.NoteCount
 
 /**
- * Small at-a-glance KPI widget. Tapping the title runs a sync now; tapping elsewhere opens the app.
+ * Small at-a-glance KPI widget. Tapping the title refreshes it (and pulls from the server);
+ * tapping elsewhere opens the app.
  *
  * Two columns, two lines each, with the label abbreviated into the value so it fits a 3x1 cell:
  *
@@ -26,7 +26,7 @@ import com.knotes.status.NoteCount
  *
  * * `nt. td. / <n>` — notes written today / notes in total
  * * `gb f.` — gigabytes free on the main storage
- * * `f.` — files in shared-storage `/knotes` (recursive, hidden ignored)
+ * * `f.` — files in the configured notes folder (recursive, hidden ignored)
  * * `f. td.` — how many of those were written today
  *
  * The `/new` inbox count that used to sit in a third column is gone; the second column now tracks
@@ -45,25 +45,75 @@ class KpiWidget : AppWidgetProvider() {
             ids.forEach { manager.updateAppWidget(it, build(context)) }
         }
 
+        /** Green when the number is where it should be, red when it isn't. */
+        private const val GOOD = 0xFF81C995.toInt()
+        private const val BAD = 0xFFF28B82.toInt()
+
+        /** Above this many notes — today's, or at the top priority — the number turns red. */
+        const val TOO_MANY_NOTES = 20
+        /** Below this many upcoming plans the number turns red: an empty week is the warning. */
+        const val TOO_FEW_PLANS = 10
+
+        /**
+         * Colour a value by whether it passes its threshold. Colour rather than styling because the
+         * widget is read at a glance from a home screen — bold-vs-normal at 13sp says nothing from
+         * arm's length, while red against green needs no reading at all.
+         */
+        private fun setThreshold(views: RemoteViews, id: Int, text: String, good: Boolean) {
+            views.setTextViewText(id, text)
+            views.setTextColor(id, if (good) GOOD else BAD)
+        }
+
         private fun build(context: Context): RemoteViews {
-            val notes = NoteCount.read(SettingsStore(context))
+            val settings = SettingsStore(context)
+            val notes = NoteCount.read(settings)
 
             // Free space on the main (internal) storage, in GB.
             val stat = StatFs(Environment.getDataDirectory().absolutePath)
             val freeGb = stat.availableBlocksLong * stat.blockSizeLong / 1_000_000_000.0
 
-            // File counts (recursive, hidden ignored) in shared-storage /knotes: the whole folder,
-            // and how much of it arrived today.
-            val shared = Environment.getExternalStorageDirectory()
-            val knotesDir = java.io.File(shared, "knotes")
+            // File counts (recursive, hidden ignored) in the CONFIGURED notes folder: the whole
+            // folder, and how much of it arrived today. Read from settings rather than hardcoded —
+            // it used to be a literal "knotes", which counted the wrong folder the moment anyone
+            // moved their notes, and would have counted a non-existent one once the default became
+            // /Notes.
+            val knotesDir = java.io.File(SettingsStore(context).value.notesDir)
             val knotesCount = countFiles(knotesDir)
             val knotesToday = countFiles(knotesDir, since = startOfToday())
 
             val views = RemoteViews(context.packageName, R.layout.widget_kpi)
-            views.setTextViewText(R.id.kpi_notes_value, "${notes.today} nt. td. / ${notes.total}")
+            setThreshold(
+                views, R.id.kpi_notes_value,
+                "${notes.today} nt. td. / ${notes.total}",
+                notes.today <= TOO_MANY_NOTES,
+            )
             views.setTextViewText(R.id.kpi_free_value, "%.1f gb f.".format(freeGb))
             views.setTextViewText(R.id.kpi_folders_value, "$knotesCount f.")
             views.setTextViewText(R.id.kpi_folders_today_value, "$knotesToday f. td.")
+
+            // Top-priority notes: how big the "do this first" pile has grown. The priority is a
+            // setting because which number means "top" is a matter of how someone uses the scale.
+            val topPriority = settings.value.topPriority
+            val topCount = runCatching {
+                com.knotes.NoteRepository(settings).countByPriority(topPriority)
+            }.getOrDefault(0)
+            setThreshold(
+                views, R.id.kpi_top_priority_value,
+                "$topCount p$topPriority",
+                topCount <= TOO_MANY_NOTES,
+            )
+
+            // Upcoming plans: here a LOW number is the problem — nothing planned ahead — so the
+            // comparison runs the other way from the two above.
+            val now = System.currentTimeMillis()
+            val upcoming = runCatching {
+                com.knotes.reminder.PlansStore.read(context).count { it.endMillis > now }
+            }.getOrDefault(0)
+            setThreshold(
+                views, R.id.kpi_plans_value,
+                "$upcoming pl.",
+                upcoming >= TOO_FEW_PLANS,
+            )
 
             val intent = Intent(context, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -73,7 +123,10 @@ class KpiWidget : AppWidgetProvider() {
                 android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
             )
             views.setOnClickPendingIntent(R.id.widget_root, open)
-            views.setOnClickPendingIntent(R.id.kpi_title, SyncNowReceiver.pendingIntent(context, "kpi_sync".hashCode()))
+            views.setOnClickPendingIntent(
+                R.id.kpi_title,
+                WidgetTapReceiver.pendingIntent(context, "kpi_refresh".hashCode(), sync = true),
+            )
             return views
         }
 

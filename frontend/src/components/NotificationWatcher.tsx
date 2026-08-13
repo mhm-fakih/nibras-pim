@@ -3,8 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { getSetting, listEntities } from '../api/client';
 import { useNotificationPrefs } from '../hooks/useNotificationPrefs';
 import { useNotificationDedup } from '../hooks/useNotificationDedup';
+import { useRunningTimer } from '../hooks/useRunningTimer';
 
 const POLL_MS = 5 * 60 * 1000; // 5 minutes — due-date checks
+/** How often to nudge when no time-tracking session is running. */
+const IDLE_TIMER_NUDGE_MS = 15 * 60 * 1000;
 const JOURNAL_POLL_MS = 60 * 60 * 1000; // hourly is plenty for an hour-granularity threshold
 
 function notify(title: string, body: string, tag: string) {
@@ -28,6 +31,25 @@ export function NotificationWatcher() {
   const { state, markNotified, markJournalReminderShown } = useNotificationDedup();
   const supported = typeof Notification !== 'undefined';
   const active = supported && prefs.enabled && Notification.permission === 'granted';
+
+  // "Nothing is being tracked" — every 15 minutes, and only while nothing is.
+  //
+  // The interval is deliberately re-armed from scratch whenever a timer starts or stops rather than
+  // running always and checking: an interval that keeps ticking through a tracked session would
+  // fire the moment you stopped, which reads as nagging rather than reminding. Tied to the shared
+  // store, so a timer started anywhere — a record page, a sprint row, another tab — silences it.
+  const running = useRunningTimer();
+  useEffect(() => {
+    if (!active || running) return;
+    const id = window.setInterval(() => {
+      notify(
+        'No timer running',
+        'Nothing is being tracked at the moment. Start one on a task or from the sprint board.',
+        'nibras-timer-idle',
+      );
+    }, IDLE_TIMER_NUDGE_MS);
+    return () => window.clearInterval(id);
+  }, [active, running]);
 
   const overdueUrgentTasks = useQuery({
     queryKey: ['notify', 'tasks-overdue-urgent'],

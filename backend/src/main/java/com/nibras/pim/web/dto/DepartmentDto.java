@@ -14,5 +14,5 @@ public record DepartmentDto(
         Boolean bookmarked,
         Boolean hasCover,
         LocalDateTime dateCreated,
-        LocalDateTime lastUpdated) {
+        LocalDateTime lastUpdated) implements Versioned {
 }

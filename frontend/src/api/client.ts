@@ -483,6 +483,12 @@ export interface ScrapedResource {
   shortDescription: string;
   resourceYear: string;
   fullText: string;
+  /**
+   * Absolute URL of the page's main image, or "" — a candidate cover, not a fetched one. The
+   * record doesn't exist yet when this is scraped, so there is nowhere to put the file until it
+   * has been saved; see [setCoverFromUrl].
+   */
+  imageUrl: string;
   /** Non-fatal notes: what couldn't be extracted, and why. */
   warnings: string[];
 }
@@ -499,8 +505,18 @@ export async function scrapeUrl(url: string): Promise<ScrapedResource> {
   return data;
 }
 
+/**
+ * Download an image server-side and save it as the record's cover (`cover.<ext>` in repository 1).
+ *
+ * The scrape's other half: it can only run once the record has an id, and only fills an empty
+ * cover slot — the backend refuses rather than replacing a picture that is already there.
+ */
+export async function setCoverFromUrl(module: string, id: number, url: string): Promise<void> {
+  await http.post(`/attachments/${module}/${id}/cover-from-url`, { url });
+}
+
 export interface CalendarEvent {
-  module: 'journals' | 'planners';
+  module: 'journals' | 'planners' | 'sprints';
   /** Null on a virtual occurrence — there is no record behind it yet. See `virtual`. */
   id: number | null;
   title: string;
@@ -542,7 +558,7 @@ export async function skipOccurrence(seriesId: number, recurrenceId: string): Pr
 export async function getCalendarEvents(
   from: string,
   to: string,
-  modules = 'journals,planners',
+  modules = 'journals,planners,sprints',
   type?: string,
 ): Promise<CalendarEvent[]> {
   const { data } = await http.get('/calendar/events', { params: clean({ from, to, modules, type }) });
@@ -1417,5 +1433,109 @@ export interface PublicDashboardSnapshot {
  * Backs the chrome-free dashboard view meant for a TV/kiosk with no session at all. */
 export async function getPublicDashboard(id: number): Promise<PublicDashboardSnapshot> {
   const { data } = await http.get(`/public/custom-dashboards/${id}`);
+  return data;
+}
+
+// ---- Sprints ---------------------------------------------------------------
+
+/** One task's membership of one sprint (also used for the candidate list, where `id` is null). */
+export interface SprintItem {
+  id: number | null;
+  taskId: number;
+  title: string;
+  completed: boolean;
+  completedOn?: string;
+  /** Snapshot of the estimate at commit time, in minutes. */
+  plannedMinutes: number;
+  /** True when plannedMinutes is the fallback, not the task's own estimate. */
+  estimateAssumed: boolean;
+  /** Times this task was committed to a CLOSED sprint and not finished, excluding this one. */
+  previousMisses: number;
+  sortOrder?: number;
+}
+
+export interface Sprint {
+  id: number;
+  summary?: string;
+  notes?: string;
+  startDate?: string;
+  endDate?: string;
+  /** Absent while the sprint is open — the API omits nulls. */
+  closedOn?: string;
+  items: SprintItem[];
+  plannedMinutes: number;
+  /** Minutes between start and end, or absent when either is unset. */
+  windowMinutes?: number;
+  /** Titles of the tasks counted at the fallback because they carry no estimate. */
+  unestimated: string[];
+  completedCount: number;
+}
+
+export async function listSprints(): Promise<Sprint[]> {
+  const { data } = await http.get('/sprints');
+  return data;
+}
+
+export async function getSprint(id: number): Promise<Sprint> {
+  const { data } = await http.get(`/sprints/${id}`);
+  return data;
+}
+
+/** Bookmarked, unfinished tasks not already in `sprintId`, each with its miss count. */
+export async function sprintCandidates(sprintId?: number): Promise<SprintItem[]> {
+  const { data } = await http.get('/sprints/candidates', { params: clean({ sprintId }) });
+  return data;
+}
+
+export async function sprintDefaultMinutes(): Promise<number> {
+  const { data } = await http.get('/sprints/default-minutes');
+  return data;
+}
+
+export async function createSprint(body: {
+  summary?: string;
+  startDate?: string;
+  endDate?: string;
+  taskIds?: number[];
+}): Promise<Sprint> {
+  const { data } = await http.post('/sprints', body);
+  return data;
+}
+
+export async function updateSprint(
+  id: number,
+  body: { summary?: string; notes?: string; startDate?: string; endDate?: string },
+): Promise<Sprint> {
+  const { data } = await http.put(`/sprints/${id}`, body);
+  return data;
+}
+
+export async function deleteSprint(id: number): Promise<void> {
+  await http.delete(`/sprints/${id}`);
+}
+
+export async function commitToSprint(id: number, taskIds: number[]): Promise<Sprint> {
+  const { data } = await http.post(`/sprints/${id}/tasks`, { taskIds });
+  return data;
+}
+
+export async function uncommitFromSprint(id: number, taskId: number): Promise<Sprint> {
+  const { data } = await http.delete(`/sprints/${id}/tasks/${taskId}`);
+  return data;
+}
+
+/** The review: tick a task done (or undo). Also completes the task itself, server-side. */
+export async function setSprintTaskCompleted(
+  id: number,
+  taskId: number,
+  completed: boolean,
+): Promise<Sprint> {
+  const { data } = await http.put(`/sprints/${id}/tasks/${taskId}`, { completed });
+  return data;
+}
+
+/** Close the review (or re-open it). Only a closed sprint's misses count against a task. */
+export async function setSprintClosed(id: number, closed: boolean): Promise<Sprint> {
+  const { data } = await http.put(`/sprints/${id}/closed`, { completed: closed });
   return data;
 }

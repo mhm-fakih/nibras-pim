@@ -93,12 +93,14 @@ import com.knotes.MainViewModel
 import com.knotes.Note
 import com.knotes.NoteFiles
 import com.knotes.NoteFilterState
+import com.knotes.player.isMediaFile
 import com.knotes.computeFacets
 import com.knotes.nibras.PushCenter
 import com.knotes.nibras.RecordOutbox
 import com.knotes.nibras.SyncCenter
 import com.knotes.nibras.SyncStatusStore
 import com.knotes.util.FriendlyTime
+import java.time.LocalDate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.knotes.reminder.PlansStore
@@ -141,6 +143,8 @@ fun MainScreen(
     vm: MainViewModel,
     sharedText: String?,
     onSharedTextConsumed: () -> Unit,
+    /** Hands a media attachment to the app's own player instead of an external app. */
+    onPlayMedia: (File) -> Unit,
 ) {
     val notes by vm.notes.collectAsState()
     // Foreign files Syncthing put in the folder, shown as "needs metadata" placeholders alongside
@@ -224,8 +228,19 @@ fun MainScreen(
     // Everything the collapsible filter panel edits (see NoteFilterPanel). Held as one immutable
     // value so the panel can be a pure function of it, exactly as the desktop sidebar is of
     // filters.FilterState. Saveable so a rotation doesn't silently clear the filters.
+    //
+    // Starts on TODAY: the phone is where notes get captured rather than browsed, so the useful
+    // default view is "what I've put down today", not the whole folder. It is an ordinary day
+    // selection, identical to tapping today on the two-week strip — the strip shows it highlighted,
+    // the panel's badge counts it, and Clear drops it like any other filter. An empty list on a day
+    // you haven't written anything is the honest answer to that question, not a fault.
+    //
+    // Set in the initial-value lambda, so it applies once at startup and is NOT re-imposed on a
+    // rotation or a return from the background, where rememberSaveable restores whatever the user
+    // last chose. (The corollary: a session left open across midnight keeps yesterday selected,
+    // exactly as it would had the day been tapped by hand.)
     var filterState by rememberSaveable(stateSaver = noteFilterSaver) {
-        mutableStateOf(NoteFilterState())
+        mutableStateOf(NoteFilterState(days = setOf(LocalDate.now().toEpochDay())))
     }
     var filterPanelOpen by rememberSaveable { mutableStateOf(false) }
 
@@ -433,6 +448,7 @@ fun MainScreen(
                                 note = note,
                                 settings = settings,
                                 isEditing = editing?.file == note.file,
+                                onPlayMedia = onPlayMedia,
                                 onClick = {
                                     editing = note
                                     input = note.content
@@ -589,6 +605,8 @@ private fun NoteCard(
     isEditing: Boolean,
     onClick: () -> Unit,
     onDelete: () -> Unit,
+    /** Plays a media attachment in the app's player; non-media still goes to the external chooser. */
+    onPlayMedia: (File) -> Unit = {},
     pushState: PushState? = null,
     onPush: () -> Unit = {},
 ) {
@@ -624,7 +642,15 @@ private fun NoteCard(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { openLocalFile(context, File(note.companionDir(), name)) }
+                            .clickable {
+                                // Media plays in the app's own player; anything else goes out to
+                                // whatever app handles it. This row used to send EVERYTHING to the
+                                // external chooser, which is why a note's audio would open in some
+                                // other player but never in this one — there was no in-app path
+                                // from a note at all.
+                                val f = File(note.companionDir(), name)
+                                if (isMediaFile(f.name)) onPlayMedia(f) else openLocalFile(context, f)
+                            }
                             .padding(vertical = 1.dp),
                     ) {
                         Icon(
@@ -741,13 +767,16 @@ private fun UpcomingPlansPanel() {
     // The cache may hold recently-expired plans (for the widget); the panel shows upcoming only.
     val plans = allPlans.filter { it.startMillis > System.currentTimeMillis() }
     if (plans.isEmpty()) return
-    var expanded by rememberSaveable { mutableStateOf(true) }
+    var expanded by rememberSaveable { mutableStateOf(PlansStore.panelExpanded(context)) }
 
     Surface(tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+                modifier = Modifier.fillMaxWidth().clickable {
+                    expanded = !expanded
+                    PlansStore.setPanelExpanded(context, expanded)
+                },
             ) {
                 Icon(Icons.Filled.Event, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))

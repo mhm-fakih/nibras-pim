@@ -38,9 +38,16 @@ data class Note(
     /** Names of the files in the note's companion folder (attachments), sorted. */
     val fileNames: List<String> = emptyList(),
 ) {
+    /**
+     * The card's body text. Falls back to the FILE NAME when there is nothing to show — a folder,
+     * or a file whose contents aren't read because it isn't a `.md`/`.txt` note (see
+     * NoteRepository.toPlaceholder). A card with nothing on it tells you a file is there but not
+     * which one, which is worse than useless when the whole point of listing it is to go and deal
+     * with it.
+     */
     fun preview(maxLines: Int): String {
         val text = content.lineSequence().take(maxLines.coerceAtLeast(1)).joinToString("\n").trimEnd()
-        return text.ifBlank { content.take(120) }
+        return text.ifBlank { content.take(120).ifBlank { file.name } }
     }
 
     fun timeText(): String =

@@ -30,6 +30,16 @@ export interface FieldDef {
    *   instead, which a chain has no use for since it only ever has one future instance.
    */
   recurrenceMode?: 'chain' | 'series';
+  /**
+   * Settings → Features key that must be on for this field to be drawn (see TOGGLEABLE_FEATURES).
+   * Omitted on all but a handful of fields — the default is that a field a module defines is a
+   * field you see.
+   *
+   * Affects DISPLAY only. A hidden field is still loaded into the form and still written back
+   * unchanged on save: the payload builder works from the full field list precisely so that
+   * turning a field off never quietly empties it. See EntityForm.
+   */
+  feature?: string;
 }
 
 export interface EntityConfig {
@@ -66,6 +76,10 @@ export const ENTITIES: EntityConfig[] = [
       { name: 'status', label: 'Status', type: 'status' },
       { name: 'goal', label: 'Goal', type: 'goal' },
       { name: 'percentCompleted', label: '% complete', type: 'number' },
+      // Minutes, whole numbers — 10, 20, 30, 45, 60. Feeds a sprint's planned total; without it
+      // the sprint counts the task at its configured default and says which tasks those were. The
+      // unit is the point: a task you can't estimate in minutes is too big to commit to a sprint.
+      { name: 'plannedDuration', label: 'Planned duration (min)', type: 'number' },
       { name: 'startDate', label: 'Start', type: 'datetime' },
       { name: 'endDate', label: 'End', type: 'datetime' },
       { name: 'urgent', label: 'Urgent', type: 'switch' },
@@ -133,15 +147,20 @@ export const ENTITIES: EntityConfig[] = [
       { name: 'isbn', label: 'ISBN', type: 'text' },
       { name: 'shortDescription', label: 'Short description', type: 'textarea' },
       { name: 'description', label: 'Description', type: 'richtext' },
-      { name: 'fullText', label: 'Full text', type: 'markdown' },
-      { name: 'highlights', label: 'Highlights', type: 'markdown' },
-      { name: 'comments', label: 'Comments', type: 'textarea' },
+      // The long tail of a resource: the text itself, what you pulled out of it, what you thought
+      // of it, where it came from, and when you finished it. All real fields, but between them
+      // they make the form several screens long for someone who only ever fills in title/author —
+      // hence the single switch (Settings → Features → "Resource detail fields").
+      { name: 'fullText', label: 'Full text', type: 'markdown', feature: 'resourceExtras' },
+      { name: 'highlights', label: 'Highlights', type: 'markdown', feature: 'resourceExtras' },
+      { name: 'comments', label: 'Comments', type: 'textarea', feature: 'resourceExtras' },
       { name: 'notes', label: 'Notes', type: 'textarea' },
-      { name: 'url', label: 'URL', type: 'url' },
+      { name: 'url', label: 'URL', type: 'url', feature: 'resourceExtras' },
       { name: 'status', label: 'Status', type: 'status' },
       { name: 'resourceYear', label: 'Year', type: 'text' },
       { name: 'pages', label: 'Pages', type: 'text' },
       { name: 'isRead', label: 'Read', type: 'switch' },
+      { name: 'readOn', label: 'Read on', type: 'datetime', feature: 'resourceExtras' },
       { name: 'percentCompleted', label: '% complete', type: 'number' },
       ...common,
     ],

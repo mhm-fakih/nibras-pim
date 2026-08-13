@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Alert,
   Box,
   Checkbox,
   Paper,
@@ -45,15 +47,25 @@ export function PermissionsPage() {
   const { user, setUser } = useAuth();
   const { data } = useQuery({ queryKey: ['permissions'], queryFn: getPermissionMatrix });
 
+  const [error, setError] = useState<string | null>(null);
+
   const save = useMutation({
     mutationFn: ({ role, permissions }: { role: Role; permissions: Permission[] }) =>
       setRolePermissions(role, permissions),
     onSuccess: (matrix: PermissionMatrix) => {
+      setError(null);
       qc.setQueryData(['permissions'], matrix);
       // If the signed-in user's own role changed, refresh their capabilities so the UI updates live.
       if (user && matrix.roles[user.role]) {
         setUser({ ...user, permissions: matrix.roles[user.role] });
       }
+    },
+    // A checkbox here is drawn from the SERVER's matrix, so a failed save leaves it exactly where
+    // it was — which reads as the box refusing the click rather than as an error. Say so out loud:
+    // this screen has no other way to tell the difference between "didn't save" and "didn't move".
+    onError: (e: unknown) => {
+      const detail = (e as { response?: { data?: { detail?: string; message?: string } } })?.response?.data;
+      setError(detail?.detail ?? detail?.message ?? 'The change could not be saved.');
     },
   });
 
@@ -80,6 +92,12 @@ export function PermissionsPage() {
           Tick a capability to grant it to a role. Changes take effect immediately. The Admin role always
           has every capability and can&apos;t be changed.
         </Typography>
+
+        {error && (
+          <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
 
         <Paper sx={{ overflow: 'auto' }}>
           <Table size="small">

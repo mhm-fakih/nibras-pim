@@ -24,7 +24,8 @@ import java.util.Map;
  * REST CRUD shared by every entity. Concrete controllers only add
  * {@code @RestController} + {@code @RequestMapping("/api/<name>")} and inject the service.
  */
-public abstract class AbstractCrudController<E extends com.nibras.pim.domain.BaseEntity, D> {
+public abstract class AbstractCrudController<E extends com.nibras.pim.domain.BaseEntity,
+        D extends com.nibras.pim.web.dto.Versioned> {
 
     protected final AbstractCrudService<E, D> service;
 

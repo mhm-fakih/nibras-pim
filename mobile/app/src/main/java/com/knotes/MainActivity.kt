@@ -338,11 +338,17 @@ private fun AppShell(
                             vm = vm,
                             sharedText = sharedText,
                             onSharedTextConsumed = onSharedTextConsumed,
+                            onPlayMedia = onPlayMedia,
                         )
                         COLLECT_DEST -> CollectScreen(
                             sourceDirs = settings.collectSourceDirs,
                             newDir = settings.collectNewDir,
                             timestampFormat = settings.timestampFormat,
+                            // The same defaults a quick note gets, so a collection is filed like
+                            // anything else captured on the phone rather than under its own scheme.
+                            noteType = settings.effectiveDefaultType,
+                            notePriority = settings.effectiveDefaultPriority,
+                            noteCategory = settings.effectiveDefaultCategory,
                             onBack = { onDest(HOME_DEST) },
                         )
                         SETTINGS_DEST -> SettingsScreen(vm.settingsStore, onBack = { onDest(HOME_DEST) })

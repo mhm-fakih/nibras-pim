@@ -58,6 +58,7 @@ import { MarkdownView } from './MarkdownView';
 import { FulltextPanel } from './FulltextPanel';
 import { isRtlText } from '../util/rtl';
 import { useAuth } from '../hooks/useAuth';
+import { useFeatureFlags } from '../hooks/useFeature';
 import { AuthImage } from './AuthImage';
 import { TaskTimeTracker } from './TaskTimeTracker';
 import { GoalHabits } from './HabitHeatmap';
@@ -73,6 +74,7 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { canWriteContent } = useAuth();
+  const featureOn = useFeatureFlags();
   const [confirm, setConfirm] = useState(false);
 
   const { data: record, isLoading } = useQuery({
@@ -281,15 +283,18 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
       <Divider sx={{ my: 2 }} />
 
       <Stack spacing={2}>
-        {config.fields.map((f) => (
+        {/* Same Settings → Features switches the form obeys, so a field turned off is off in both
+            places. Nothing is deleted by hiding it — see FieldDef.feature. */}
+        {config.fields.filter((f) => featureOn(f.feature)).map((f) => (
           <Box key={f.name}>
             <FieldView label={f.label} type={f.type} value={record[f.name]} record={record} />
-            {f.name === 'description' && canWriteContent && (
+            {(f.name === 'description' || f.name === 'notes') && canWriteContent && (
               <AppendToDescriptionBar
-                key={record.id}
+                key={`${record.id}-${f.name}`}
                 module={config.key}
                 id={id}
                 record={record}
+                field={f.name}
                 fieldLabel={f.label}
               />
             )}
@@ -447,11 +452,14 @@ function AppendToDescriptionBar({
   module,
   id,
   record,
+  field,
   fieldLabel,
 }: {
   module: string;
   id: number;
   record: EntityRecord;
+  /** The record property appended to — `description` or `notes`. */
+  field: string;
   fieldLabel: string;
 }) {
   const qc = useQueryClient();
@@ -470,10 +478,25 @@ function AppendToDescriptionBar({
   const interp = (s: string) => s.replace(/\\n/g, '\n');
 
   const append = useMutation({
-    mutationFn: () => {
-      const current = String(record.description ?? '');
+    mutationFn: async () => {
+      // Re-read the record at submit time rather than appending to the copy this component was
+      // rendered with.
+      //
+      // Description and Notes each have one of these bars, both fed by the same cached record.
+      // Appending to Description writes, invalidates and refetches — and if you append to Notes
+      // before that refetch lands, the stale copy still holds the OLD description. The PUT has to
+      // send the whole record (the generic update applies every DTO field, so a partial body nulls
+      // the rest), so that stale description would be written back and the first append silently
+      // undone.
+      //
+      // Nothing else catches it: every entity carries an @Version column, but no service applies
+      // the version from the DTO — update() loads the row and compares it against itself — so a
+      // stale write raises no conflict at all. Reading fresh here narrows the window to the
+      // milliseconds between this GET and the PUT below.
+      const fresh = await getEntity(module, id);
+      const current = String(fresh[field] ?? '');
       const next = current + interp(wrap?.prefix ?? '') + text.trim() + interp(wrap?.suffix ?? '');
-      return updateEntity(module, id, { ...record, description: next });
+      return updateEntity(module, id, { ...fresh, [field]: next });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['record', module, id] });
@@ -484,22 +507,44 @@ function AppendToDescriptionBar({
 
   return (
     <Box sx={{ mt: 0.5 }}>
+      {/* Deliberately NOT autoFocus. This bar is rendered inline on every record you open, so
+          focusing it stole the keyboard the moment a record was selected — and the shell's key
+          handler stands down whenever an input has focus (see AppShell.onKey), which killed j/k
+          to move, e to edit, o to open, f1/f2/f3 for the folders, every one of them, on every
+          record. A field you have to click into costs one click; one that grabs focus by itself
+          costs every shortcut on the page. (The subtask dialog above keeps its autoFocus: a dialog
+          you opened on purpose should be ready to type into.) */}
       <TextField
         size="small"
         fullWidth
-        autoFocus
-        placeholder={`Append to ${fieldLabel}… (Enter to add)`}
+        multiline
+        minRows={1}
+        // Grows with what you type and then scrolls. Appending a paragraph used to mean typing it
+        // blind through a one-line slot, or writing it elsewhere and pasting.
+        maxRows={7}
+        placeholder={`Append to ${fieldLabel}… (Ctrl+Enter to add)`}
         value={text}
         onChange={(e) => setText(e.target.value)}
         inputProps={{ dir: 'auto' }}
         disabled={append.isPending}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && text.trim() && !append.isPending) append.mutate();
+          // Enter is a newline now that the field is multiline, so submitting moves to
+          // Ctrl/Cmd+Enter. Binding plain Enter here would make it impossible to type the second
+          // line of anything.
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && text.trim() && !append.isPending) {
+            e.preventDefault();
+            append.mutate();
+          }
         }}
       />
       {append.isError && (
-        <Typography variant="caption" color="error">
-          Could not append.
+        <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
+          {/* Show the server's own words. A 409 here means someone else changed the record and
+              says to reload — "Could not append." would hide the one thing worth knowing. */}
+          {(append.error as { response?: { data?: { detail?: string; message?: string } } })
+            ?.response?.data?.detail ??
+            (append.error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+            'Could not append.'}
         </Typography>
       )}
     </Box>

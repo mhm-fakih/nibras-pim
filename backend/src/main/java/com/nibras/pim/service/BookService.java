@@ -33,9 +33,14 @@ public class BookService extends AbstractCrudService<Book, BookDto> {
         return b.getType() == null ? null : b.getType().getCode();
     }
 
+    /**
+     * {@code notes} is in here because on a resource that is where your own words live — the
+     * description is usually the publisher's blurb, scraped or pasted, while the note is what you
+     * wrote about it. Searching only the blurb finds books by how they were advertised.
+     */
     @Override
     protected List<String> searchFields() {
-        return List.of("title", "author", "description");
+        return List.of("title", "author", "description", "notes");
     }
 
     @Override
@@ -45,7 +50,7 @@ public class BookService extends AbstractCrudService<Book, BookDto> {
                 b.getTitle(), b.getAuthor(), b.getPublisher(), b.getEdition(), b.getIsbn(),
                 b.getDescription(), b.getShortDescription(), b.getNotes(), b.getComments(), b.getUrl(),
                 b.getFullText(), b.getHighlights(),
-                b.getPriority(), b.getBookmarked(), b.getIsPrivate(), b.getIsRead(),
+                b.getPriority(), b.getBookmarked(), b.getIsPrivate(), b.getIsRead(), b.getReadOn(),
                 b.getPercentCompleted(), b.getResourceYear(), b.getPages(),
                 b.getStatus() == null ? null : b.getStatus().getId(),
                 b.getType() == null ? null : b.getType().getId(),
@@ -85,6 +90,7 @@ public class BookService extends AbstractCrudService<Book, BookDto> {
         b.setBookmarked(dto.bookmarked());
         b.setIsPrivate(dto.isPrivate());
         b.setIsRead(dto.isRead());
+        b.setReadOn(dto.readOn());
         b.setPercentCompleted(dto.percentCompleted());
         b.setResourceYear(dto.resourceYear());
         b.setPages(dto.pages());

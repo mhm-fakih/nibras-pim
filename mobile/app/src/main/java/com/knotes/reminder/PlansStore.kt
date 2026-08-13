@@ -29,6 +29,7 @@ object PlansStore {
 
     private const val PREFS = "knotes_plans"
     private const val K_ITEMS = "items"
+    private const val K_PANEL_EXPANDED = "panel_expanded"
 
     private val _items = MutableStateFlow<List<PlanItem>>(emptyList())
     val items: StateFlow<List<PlanItem>> = _items
@@ -39,6 +40,21 @@ object PlansStore {
     /** Load persisted items into the observable flow (call once at startup / panel mount). */
     fun seed(context: Context) {
         _items.value = read(context)
+    }
+
+    /**
+     * Whether the home screen's "Upcoming plans" panel is open. Persisted rather than remembered:
+     * `rememberSaveable` survives a rotation but dies with the process, so the panel reopened itself
+     * on every cold start regardless of how it was left.
+     *
+     * Collapsed by default — the panel sits above the note list, and the header already carries the
+     * count, which is the part worth seeing at a glance.
+     */
+    fun panelExpanded(context: Context): Boolean =
+        prefs(context).getBoolean(K_PANEL_EXPANDED, false)
+
+    fun setPanelExpanded(context: Context, expanded: Boolean) {
+        prefs(context).edit().putBoolean(K_PANEL_EXPANDED, expanded).apply()
     }
 
     fun read(context: Context): List<PlanItem> = decode(prefs(context).getString(K_ITEMS, null))

@@ -3,10 +3,15 @@ import { useQuery } from '@tanstack/react-query';
 import { Link as RouterLink } from 'react-router-dom';
 import { Box, CircularProgress, Link as MuiLink, Tooltip, Typography } from '@mui/material';
 import { checkUpdates, getInfo, UpdateInfo } from '../api/client';
+import { useFeature } from '../hooks/useFeature';
 
 /** Thin small-font status bar (server IP, DB, version, update check, help). */
 export function StatusBar() {
   const { data } = useQuery({ queryKey: ['info'], queryFn: getInfo, staleTime: 600_000 });
+  // Only the CODENAME is toggleable (Settings → Features), not the version: the number is what you
+  // quote when something is wrong, so it stays. The same switch governs the sidebar header, so the
+  // two places that carry it agree.
+  const showCodename = useFeature('codename');
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -67,7 +72,7 @@ export function StatusBar() {
         {cell('App', data?.app)}
         {cell(
           'Version',
-          data ? `v${data.version}${data.codename ? ` "${data.codename}"` : ''}` : '…',
+          data ? `v${data.version}${showCodename && data.codename ? ` "${data.codename}"` : ''}` : '…',
         )}
       </Typography>
 

@@ -33,5 +33,5 @@ public record IndexCardDto(
         List<TagDto> tags,
         Boolean hasCover,
         LocalDateTime dateCreated,
-        LocalDateTime lastUpdated) {
+        LocalDateTime lastUpdated) implements Versioned {
 }

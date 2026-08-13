@@ -13,6 +13,12 @@ data class AppSettings(
     val previewLines: Int,
     val priorityMin: Int,
     val priorityMax: Int,
+    /**
+     * Which priority counts as "top" — the number the Top priority widget lists and the KPI widget
+     * counts. Configurable because which end of the scale means urgent is a matter of how someone
+     * uses it; 4 is what this app has always assumed.
+     */
+    val topPriority: Int,
     val types: List<Tag>,
     val categories: List<Tag>,
     val nibrasBaseUrl: String,
@@ -23,7 +29,7 @@ data class AppSettings(
     val collectNewDir: String,
     /** Font-size multiplier for the Resources full-text view (1.0 = default). */
     val fulltextScale: Float,
-    /** Root folders scanned by the Audiobooks page's Library (genre/artist/album) and Folders tabs. */
+    /** Root folders scanned by the Media page's Library (genre/artist/album) and Folders tabs. */
     val audioLibraryRoots: List<String>,
     /** Folder shown by the Gallery page. */
     val galleryDir: String,
@@ -92,6 +98,7 @@ class SettingsStore(context: Context) {
         notesDir = prefs.getString(K_DIR, defaultDir()) ?: defaultDir(),
         timestampFormat = prefs.getString(K_FMT, DEFAULT_FORMAT) ?: DEFAULT_FORMAT,
         previewLines = prefs.getInt(K_PREVIEW, 3),
+        topPriority = prefs.getInt(K_TOP_PRIORITY, 4),
         priorityMin = prefs.getInt(K_PMIN, 1),
         priorityMax = prefs.getInt(K_PMAX, 5),
         types = decodeTags(prefs.getString(K_TYPES, DEFAULT_TYPES) ?: DEFAULT_TYPES),
@@ -137,6 +144,7 @@ class SettingsStore(context: Context) {
             .putString(K_DIR, settings.notesDir.trim().ifBlank { defaultDir() })
             .putString(K_FMT, settings.timestampFormat.trim().ifBlank { DEFAULT_FORMAT })
             .putInt(K_PREVIEW, settings.previewLines.coerceIn(1, 20))
+            .putInt(K_TOP_PRIORITY, settings.topPriority.coerceIn(1, 99))
             .putInt(K_PMIN, min)
             .putInt(K_PMAX, max)
             .putString(K_TYPES, encodeTags(settings.types))
@@ -181,6 +189,7 @@ class SettingsStore(context: Context) {
         private const val K_DIR = "notes_dir"
         private const val K_FMT = "timestamp_format"
         private const val K_PREVIEW = "preview_lines"
+        private const val K_TOP_PRIORITY = "top_priority"
         private const val K_PMIN = "priority_min"
         private const val K_PMAX = "priority_max"
 
@@ -231,11 +240,21 @@ class SettingsStore(context: Context) {
         private const val DEFAULT_TYPES = "W:Work|H:Home|I:Ideas|T:Todo"
         private const val DEFAULT_CATEGORIES = "P:Personal|W:Work|M:Misc"
 
+        /**
+         * Where notes live, and where collected files land — the SAME folder by default.
+         *
+         * They used to default apart (`/knotes` and `/New`), which quietly broke the thing
+         * collections are for: a collection writes a note plus its `.d` companion folder, and the
+         * desktop only reads those as a note if they sit in the notes folder. Defaulting them
+         * together means a fresh install works without anyone having to notice that.
+         *
+         * Only fresh installs are affected. An existing install has both keys written to
+         * SharedPreferences already, so whatever is configured there stays put.
+         */
         fun defaultDir(): String =
-            Environment.getExternalStorageDirectory().absolutePath + "/knotes"
+            Environment.getExternalStorageDirectory().absolutePath + "/Notes"
 
-        fun defaultNewDir(): String =
-            Environment.getExternalStorageDirectory().absolutePath + "/New"
+        fun defaultNewDir(): String = defaultDir()
 
         fun defaultNibrasFilesDir(): String =
             Environment.getExternalStorageDirectory().absolutePath + "/Nibras"

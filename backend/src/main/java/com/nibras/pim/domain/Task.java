@@ -50,6 +50,15 @@ public class Task extends BaseEntity implements SyncMutable, Taggable {
     @Column(name = "percent_completed")
     private Integer percentCompleted;
 
+    /**
+     * How long the task is expected to take, in MINUTES. A legacy column that predates this app and
+     * was never mapped until sprints needed it; narrowed from float to int by V6, which is also
+     * where the choice of unit is argued. Drives a sprint's planned duration; a task without one
+     * falls back to the configured default and is named in the plan's warning.
+     */
+    @Column(name = "planned_duration")
+    private Integer plannedDuration;
+
     @Column(name = "start_date")
     private LocalDateTime startDate;
 

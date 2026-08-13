@@ -34,6 +34,7 @@ import { SearchPage } from './pages/SearchPage';
 import { BookmarksPage } from './pages/BookmarksPage';
 import { IndicatorsPage } from './pages/IndicatorsPage';
 import { InsightsPage } from './pages/InsightsPage';
+import { SprintsPage } from './pages/SprintsPage';
 import { ParametersPage } from './pages/ParametersPage';
 import { HelpPage } from './pages/HelpPage';
 import { TrashPage } from './pages/TrashPage';
@@ -85,6 +86,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                         <Route path="/bookmarks" element={<BookmarksPage />} />
                         <Route path="/indicators" element={<IndicatorsPage />} />
                         <Route path="/insights" element={<InsightsPage />} />
+                        <Route path="/sprints" element={<SprintsPage />} />
                         <Route
                           path="/admin"
                           element={

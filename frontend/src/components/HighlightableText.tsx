@@ -129,18 +129,51 @@ export function HighlightableText({
   }, [markedTexts]);
   const chunks = useMemo(() => splitChunks(plain, mode), [plain, mode]);
 
+  /**
+   * The chunks with the ORIGINAL text between them put back.
+   *
+   * The splitters trim each chunk, which is right — a highlight has to match the same string
+   * whichever client made it, and trailing whitespace would break that. But it means the newlines
+   * are gone by the time anything is rendered, and joining the chunks with a space (as this used
+   * to) turned every paragraph break into a space: the whole record read as one run-on line, with
+   * `pre-wrap` set on a container that had no newlines left to honour.
+   *
+   * So the gaps are recovered from `plain` by position rather than reconstructed. Whatever was
+   * between two chunks — a space, a newline, a blank line — is emitted verbatim, and the chunks
+   * stay trimmed for matching.
+   */
+  const pieces = useMemo(() => {
+    const out: Array<{ text: string; chunk: boolean }> = [];
+    let pos = 0;
+    for (const c of chunks) {
+      const i = plain.indexOf(c, pos);
+      if (i < 0) {
+        out.push({ text: c, chunk: true });   // shouldn't happen; render it rather than drop it
+        continue;
+      }
+      if (i > pos) out.push({ text: plain.slice(pos, i), chunk: false });
+      out.push({ text: c, chunk: true });
+      pos = i + c.length;
+    }
+    if (pos < plain.length) out.push({ text: plain.slice(pos), chunk: false });
+    return out;
+  }, [plain, chunks]);
+
   return (
     <Box
       dir={rtl ? 'rtl' : 'ltr'}
       sx={{ textAlign: rtl ? 'right' : 'left', whiteSpace: 'pre-wrap', lineHeight: 1.9 }}
     >
-      {chunks.map((c, i) => {
-        const marked = isMarked(c);
+      {pieces.map((p, i) => {
+        if (!p.chunk) {
+          return <span key={i}>{p.text}</span>;
+        }
+        const marked = isMarked(p.text);
         return (
           <Box
             component="span"
             key={i}
-            onClick={disabled ? undefined : () => onToggle(c, marked)}
+            onClick={disabled ? undefined : () => onToggle(p.text, marked)}
             sx={{
               bgcolor: marked ? 'warning.light' : undefined,
               borderRadius: 0.5,
@@ -148,7 +181,7 @@ export function HighlightableText({
               '&:hover': disabled ? undefined : { bgcolor: marked ? 'warning.main' : 'action.hover' },
             }}
           >
-            {c}{' '}
+            {p.text}
           </Box>
         );
       })}
