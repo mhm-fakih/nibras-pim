@@ -91,6 +91,8 @@ import com.knotes.nibras.NibrasRecord
 import com.knotes.nibras.htmlToPlain
 import com.knotes.nibras.NibrasViewModel
 import com.knotes.nibras.RESOURCES_CODE
+import com.knotes.util.Bidi
+import com.knotes.util.Clauses
 import java.io.File
 import kotlin.math.abs
 import kotlinx.coroutines.launch
@@ -494,6 +496,7 @@ private fun NibrasRow(
     var menuOpen by remember { mutableStateOf(false) }
     val align = if (record.isRtl) TextAlign.Right else TextAlign.Start
     val textDir = if (record.isRtl) TextDirection.Rtl else TextDirection.Ltr
+    // Body/notes below use Bidi.directional: one Arabic word must not flip an English record.
     // Scale the record's body text (title + description) by the font-size setting.
     val body = MaterialTheme.typography.bodyMedium
     val bodyScaled = body.copy(
@@ -681,9 +684,9 @@ private fun NibrasRow(
                         Text(
                             note,
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                textDirection = if (NoteFiles.isRtl(note)) TextDirection.Rtl else TextDirection.Ltr,
+
                             ),
-                            textAlign = if (NoteFiles.isRtl(note)) TextAlign.Right else TextAlign.Start,
+
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -721,8 +724,7 @@ private fun NoteAdder(onAddNote: (String) -> Unit) {
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
                     color = MaterialTheme.colorScheme.onSurface,
                     // Flip to right-to-left automatically when Arabic is typed (like the home field).
-                    textAlign = if (NoteFiles.isRtl(note)) TextAlign.Right else TextAlign.Start,
-                    textDirection = if (NoteFiles.isRtl(note)) TextDirection.Rtl else TextDirection.Ltr,
+
                 ),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 maxLines = 4,
@@ -749,7 +751,7 @@ private fun NoteAdder(onAddNote: (String) -> Unit) {
     }
 }
 
-/** Resources full text rendered as tappable sentences; tapping highlights (bold) + queues a sync. */
+/** Resources full text rendered as tappable clauses; tapping highlights (bold) + queues a sync. */
 @Composable
 private fun ResourcesHighlighter(vm: NibrasViewModel, record: NibrasRecord, baseUrl: String, fulltextScale: Float) {
     val highlighted by vm.store.highlighted.collectAsState()
@@ -757,24 +759,40 @@ private fun ResourcesHighlighter(vm: NibrasViewModel, record: NibrasRecord, base
     // within it so a tap can highlight just the tapped sentence (a text highlight that wraps with
     // the lines, not a rectangular box).
     val plain = remember(record.id, record.fulltext) { htmlToPlain(record.fulltext) }
-    val sentences = remember(plain) { splitSentenceSpans(plain) }
-    if (sentences.isEmpty()) return
+    // Clause, not sentence: a sentence here routinely runs a whole paragraph, so sentence-level
+    // tapping highlights a block at a time. Same boundaries as the web client and the note reader.
+    val clauses = remember(plain) { Clauses.clauseSpans(plain) }
+    // Highlights saved before this changed are keyed by the whole SENTENCE they were made on, and
+    // no clause key will ever match one. Kept so a record already worked through doesn't come back
+    // looking untouched — a clause inside a highlighted sentence still shows as highlighted.
+    val legacySentences = remember(plain) { Clauses.sentenceSpans(plain) }
+    if (clauses.isEmpty()) return
     val textDir = if (record.isRtl) TextDirection.Rtl else TextDirection.Ltr
     val base = MaterialTheme.typography.bodyMedium
     val fullStyle = base.copy(
-        textDirection = textDir,
         fontSize = base.fontSize * fulltextScale,
         // Roomier line spacing (1.6×) for comfortable long-form reading.
         lineHeight = base.fontSize * fulltextScale * 1.6f,
     )
     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
 
-    val annotated = remember(plain, sentences, highlighted, record.id, highlightColor) {
+    val annotated = remember(plain, clauses, legacySentences, highlighted, record.id, highlightColor) {
+        val style = SpanStyle(background = highlightColor, fontWeight = FontWeight.Bold)
         buildAnnotatedString {
             append(plain)
-            sentences.forEach { s ->
+            // Direction decided per line from its first strong letter, and justified — a mostly
+            // English article quoting one Arabic line used to flip the whole body.
+            Bidi.lines(plain, fallbackRtl = record.isRtl).forEach {
+                addStyle(Bidi.paragraphStyle(it.rtl), it.start, it.end)
+            }
+            clauses.forEach { c ->
+                if (vm.store.highlightKey(record.id, c.text) in highlighted) {
+                    addStyle(style, c.start, c.end)
+                }
+            }
+            legacySentences.forEach { s ->
                 if (vm.store.highlightKey(record.id, s.text) in highlighted) {
-                    addStyle(SpanStyle(background = highlightColor, fontWeight = FontWeight.Bold), s.start, s.end)
+                    addStyle(style, s.start, s.end)
                 }
             }
         }
@@ -784,53 +802,34 @@ private fun ResourcesHighlighter(vm: NibrasViewModel, record: NibrasRecord, base
     Spacer(Modifier.size(8.dp))
     HorizontalDivider()
     Spacer(Modifier.size(6.dp))
-    Text("Full text — tap a sentence to highlight", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+    Text("Full text — tap a clause to highlight", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
     Spacer(Modifier.size(4.dp))
     Text(
         text = annotated,
         style = fullStyle,
-        textAlign = TextAlign.Justify,
         onTextLayout = { layout = it },
         modifier = Modifier
             .fillMaxWidth()
             // Side padding (before pointerInput so tap coordinates still match the text layout).
             .padding(horizontal = 12.dp)
-            .pointerInput(sentences) {
+            .pointerInput(clauses) {
                 detectTapGestures { pos ->
                     val lr = layout ?: return@detectTapGestures
                     val offset = lr.getOffsetForPosition(pos)
-                    val hit = sentences.firstOrNull { offset in it.start until it.end }
-                        ?: sentences.minByOrNull { minOf(abs(offset - it.start), abs(offset - (it.end - 1))) }
-                    if (hit != null) vm.toggleHighlight(baseUrl, record, hit.text)
+                    val hit = clauses.firstOrNull { offset in it.start until it.end }
+                        ?: clauses.minByOrNull { minOf(abs(offset - it.start), abs(offset - (it.end - 1))) }
+                        ?: return@detectTapGestures
+                    // Tapping inside a sentence highlighted before the switch to clauses removes
+                    // that whole sentence, rather than adding a clause on top of it and leaving two
+                    // overlapping highlights the second tap can't undo.
+                    val enclosing = legacySentences.firstOrNull {
+                        it.start <= hit.start && it.end >= hit.end && it.text != hit.text &&
+                            vm.store.highlightKey(record.id, it.text) in highlighted
+                    }
+                    vm.toggleHighlight(baseUrl, record, (enclosing ?: hit).text)
                 }
             },
     )
     Spacer(Modifier.size(8.dp))
 }
 
-/** A sentence as a trimmed character range within the full text. */
-private data class SentenceSpan(val start: Int, val end: Int, val text: String)
-
-/** Splits the full text into sentence ranges (on . ! ? ؟ ؛ and line breaks), keeping their offsets. */
-private fun splitSentenceSpans(plain: String): List<SentenceSpan> {
-    val out = mutableListOf<SentenceSpan>()
-    var start = 0
-    for (i in plain.indices) {
-        val ch = plain[i]
-        if (ch == '.' || ch == '!' || ch == '?' || ch == '؟' || ch == '؛' || ch == '\n') {
-            addSentenceSpan(plain, start, i + 1, out)
-            start = i + 1
-        }
-    }
-    addSentenceSpan(plain, start, plain.length, out)
-    return out
-}
-
-private fun addSentenceSpan(plain: String, from: Int, to: Int, out: MutableList<SentenceSpan>) {
-    if (to <= from) return
-    var s = from
-    var e = to
-    while (s < e && plain[s].isWhitespace()) s++
-    while (e > s && plain[e - 1].isWhitespace()) e--
-    if (e > s) out.add(SentenceSpan(s, e, plain.substring(s, e)))
-}

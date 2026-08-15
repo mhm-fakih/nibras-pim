@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -55,6 +56,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -152,6 +155,10 @@ fun MainScreen(
     // the counted set behind the header and the widgets.
     val unrecognized by vm.unrecognized.collectAsState()
     val settings by vm.settingsStore.state.collectAsState()
+    // The note being read, if any. Held here rather than as an app-level destination because the
+    // reader is a mode of this screen: backing out returns to the list exactly as it was, filters,
+    // scroll position and half-typed input included.
+    var reading by remember { mutableStateOf<Pair<Note, Boolean>?>(null) }
     // Backend push-outbox state, so each card can show queued/synced and offer "Push to Nibras".
     val pushContext = LocalContext.current
     LaunchedEffect(Unit) { RecordOutbox.seed(pushContext) }
@@ -173,11 +180,13 @@ fun MainScreen(
         val ago = FriendlyTime.ago(lastSyncMillis)
         if (syncOnline == false) "offline · last synced $ago" else "synced $ago"
     }
-    // Note counts shown under the app title: total, and how many were touched today.
+    // Note counts shown under the app title: total, and how many were WRITTEN today.
+    // createdMillis (from the file name), not lastModified: a Syncthing pass rewrites files it did
+    // not change, and counting mtimes reported a few hundred synced notes as all written today.
     val todayCount = remember(notes) {
         val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
         val today = fmt.format(java.util.Date())
-        notes.count { fmt.format(java.util.Date(it.lastModified)) == today }
+        notes.count { fmt.format(java.util.Date(it.createdMillis)) == today }
     }
 
     var query by rememberSaveable { mutableStateOf("") }
@@ -251,7 +260,7 @@ fun MainScreen(
     val searched = remember(allNotes, query) {
         if (query.isBlank()) allNotes
         else allNotes.filter { n ->
-            n.content.contains(query, ignoreCase = true) ||
+            n.searchText().contains(query, ignoreCase = true) ||
                 n.type?.contains(query, ignoreCase = true) == true ||
                 n.category?.contains(query, ignoreCase = true) == true
         }
@@ -300,6 +309,27 @@ fun MainScreen(
         if (sortMode == SortMode.DATE && groupMode == GroupMode.NONE && sorted.isNotEmpty()) {
             listState.scrollToItem(sorted.lastIndex)
         }
+    }
+
+    // The reader/editor takes over the whole screen; backing out lands on the list untouched.
+    reading?.let { (note, startInEdit) ->
+        NoteReadScreen(
+            note = note,
+            settings = settings,
+            startInEdit = startInEdit,
+            onSave = { vm.saveBody(note, it) },
+            // Changing a tag renames the file, so the screen has to adopt the note that comes
+            // back — holding the old one would write the body to a path that no longer exists and
+            // leave two notes where there was one.
+            onTags = { body, type, prio, cat ->
+                vm.retag(note, body, type, prio, cat) { fresh ->
+                    reading = (fresh ?: note) to startInEdit
+                }
+            },
+            onModeChange = { nowEditing -> reading = note to nowEditing },
+            onBack = { reading = null },
+        )
+        return
     }
 
     Scaffold(
@@ -449,7 +479,9 @@ fun MainScreen(
                                 settings = settings,
                                 isEditing = editing?.file == note.file,
                                 onPlayMedia = onPlayMedia,
-                                onClick = {
+                                onRead = { reading = note to false },
+                                onEdit = { reading = note to true },
+                                onEditTags = {
                                     editing = note
                                     input = note.content
                                     selectedType = note.type
@@ -603,8 +635,14 @@ private fun NoteCard(
     note: Note,
     settings: AppSettings,
     isEditing: Boolean,
-    onClick: () -> Unit,
+    /** Opens the full-screen editor. Reached from the Edit button, never from the card body:
+     *  reading is the common act and the one that can't lose anything. */
+    onEdit: () -> Unit,
+    /** Loads the note into the composer below, where the type/priority/category pickers are. */
+    onEditTags: () -> Unit = {},
     onDelete: () -> Unit,
+    /** Opens the note in the reader — what tapping the card does. */
+    onRead: () -> Unit = {},
     /** Plays a media attachment in the app's player; non-media still goes to the external chooser. */
     onPlayMedia: (File) -> Unit = {},
     pushState: PushState? = null,
@@ -613,7 +651,7 @@ private fun NoteCard(
     var menuOpen by remember { mutableStateOf(false) }
 
     Card(
-        onClick = onClick,
+        onClick = onRead,
         modifier = Modifier.fillMaxWidth(),
         colors = if (isEditing) {
             CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
@@ -622,14 +660,15 @@ private fun NoteCard(
         },
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 2.dp)) {
+            // Direction per line, from its first strong letter: a note whose text is English but
+            // which mentions one Arabic word used to render entirely right-to-left.
             Text(
-                text = note.preview(settings.previewLines),
+                text = com.knotes.util.Bidi.directional(
+                    note.preview(settings.previewLines), fallbackRtl = note.isRtl,
+                ),
                 maxLines = settings.previewLines,
                 overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    textDirection = if (note.isRtl) TextDirection.Rtl else TextDirection.Ltr,
-                ),
-                textAlign = if (note.isRtl) TextAlign.Right else TextAlign.Start,
+                style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.fillMaxWidth(),
             )
             // Attached files (companion .d folder) — same overview as the desktop cards: up to 5
@@ -713,6 +752,18 @@ private fun NoteCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                // Labelled and filled, not a bare icon: tapping the card now reads, so editing has
+                // to announce itself rather than hide among the metadata as a glyph.
+                FilledTonalButton(
+                    onClick = onEdit,
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                    modifier = Modifier.height(30.dp),
+                ) {
+                    Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Edit", style = MaterialTheme.typography.labelMedium)
+                }
+                Spacer(Modifier.width(2.dp))
                 Box {
                     IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
                         Icon(Icons.Filled.MoreVert, contentDescription = "More", modifier = Modifier.size(18.dp))
@@ -744,6 +795,15 @@ private fun NoteCard(
                                 },
                             )
                         }
+                        DropdownMenuItem(
+                            // Still offered: the composer edits text and tags together in the
+                            // list, without leaving it. The reader/editor is the other way in.
+                            text = { Text("Edit in the composer below") },
+                            onClick = {
+                                menuOpen = false
+                                onEditTags()
+                            },
+                        )
                         DropdownMenuItem(
                             text = { Text("Delete") },
                             onClick = {
@@ -835,7 +895,7 @@ private fun Badge(text: String, container: Color, content: Color) {
 
 /** A small pill-shaped single-select toggle, sized to fit many per line. */
 @Composable
-private fun CompactChip(text: String, selected: Boolean, onClick: () -> Unit) {
+internal fun CompactChip(text: String, selected: Boolean, onClick: () -> Unit) {
     Surface(
         shape = RoundedCornerShape(50),
         color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
@@ -847,25 +907,6 @@ private fun CompactChip(text: String, selected: Boolean, onClick: () -> Unit) {
             style = MaterialTheme.typography.labelMedium,
             maxLines = 1,
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-        )
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TagRow(label: String, content: @Composable FlowRowScope.() -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(34.dp),
-        )
-        FlowRow(
-            modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            content = content,
         )
     }
 }

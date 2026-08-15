@@ -20,9 +20,12 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
+import com.knotes.SettingsStore
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Activity-scoped client of [PlaybackService]. The actual ExoPlayer lives in the (foreground) service
@@ -68,6 +71,14 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
 
     // Player options. [autoBookmarkOnPause] persists; the sleep timer is intentionally transient.
     var autoBookmarkOnPause by mutableStateOf(prefs.getBoolean(K_AUTO_BOOKMARK, false))
+        private set
+
+    /** What follows the file that just finished — see [PlayNextMode]. */
+    var playNextMode by mutableStateOf(PlayNextMode.from(prefs.getString(K_PLAY_NEXT, null)))
+        private set
+
+    /** True while the library is being walked for a RANDOM_OLD pick, so the UI can say so. */
+    var pickingNext by mutableStateOf(false)
         private set
 
     /** Audio-only mode: disable the video track so nothing plays on screen (e.g. while driving). */
@@ -241,6 +252,11 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         prefs.edit().putInt(K_BOOKMARK_DOUBLE, bookmarkDoubleSecs).apply()
     }
 
+    fun changePlayNextMode(mode: PlayNextMode) {
+        playNextMode = mode
+        prefs.edit().putString(K_PLAY_NEXT, mode.name).apply()
+    }
+
     fun changeAutoBookmark(enabled: Boolean) {
         autoBookmarkOnPause = enabled
         prefs.edit().putBoolean(K_AUTO_BOOKMARK, enabled).apply()
@@ -248,34 +264,61 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
     }
 
     /** Files in the same folder, sorted alphabetically (case-insensitive), used for "play next". */
-    fun siblings(): List<File> =
-        currentFile?.parentFile?.listFiles { f -> f.isFile && isMediaFile(f.name) }
-            ?.sortedBy { it.name.lowercase() }?.toList() ?: emptyList()
+    fun siblings(): List<File> = currentFile?.let(NextTrack::siblings) ?: emptyList()
 
-    /** The next sibling after the current file, or null if it's the last one. */
-    private fun nextSibling(): File? {
-        val cur = currentFile ?: return null
-        val sibs = siblings()
-        val i = sibs.indexOfFirst { it.absolutePath == cur.absolutePath }
-        return if (i in 0 until sibs.size - 1) sibs[i + 1] else null
-    }
+    private fun nextSibling(): File? = currentFile?.let(NextTrack::nextSibling)
 
+    /**
+     * The ⏭ button. Follows [playNextMode] so "next" means one thing everywhere — except under
+     * [PlayNextMode.NONE], where asking for the next file is still an explicit request and gets the
+     * next one in the folder. NONE governs what happens *by itself*, not what happens when asked.
+     */
     fun playNext() {
-        nextSibling()?.let { open(it) }
+        if (playNextMode == PlayNextMode.RANDOM_OLD) pickRandomOld { open(it) }
+        else nextSibling()?.let { open(it) }
     }
 
     /**
-     * Called when a file plays to the end: cue up the next file in the folder **paused at its start**
-     * (so a single tap on play continues), instead of leaving the finished file sitting at its end.
+     * Called when a file plays to the end.
+     *
+     * Under [PlayNextMode.NONE] the next file in the folder is cued **paused at its start** (so a
+     * single tap continues) rather than leaving the finished file sitting at its end — the
+     * behaviour the player has always had. The other modes actually start something.
      */
     private fun advanceToNextPaused() {
         val finished = currentFile
         // The finished file should restart from the beginning next time, not resume at its end.
         if (finished != null) prefs.edit().remove(posKey(finished)).apply()
-        val next = nextSibling() ?: return
+        when (playNextMode) {
+            PlayNextMode.NONE -> nextSibling()?.let { cuePaused(it) }
+            PlayNextMode.SAME_FOLDER -> nextSibling()?.let { open(it) }
+            PlayNextMode.RANDOM_OLD -> pickRandomOld { open(it) }
+        }
+    }
+
+    /** Load [next] paused at its start and remember it as the file the player is sitting on. */
+    private fun cuePaused(next: File) {
         pushRecent(next)
         prefs.edit().putString(K_LAST_FILE, next.absolutePath).apply()
         openPaused(next, 0L)
+    }
+
+    /**
+     * Walk the library off the main thread and hand the pick back on it.
+     *
+     * The current file and the recents are excluded so "random" can't serve up what was just
+     * heard — with a small library, uniform random would do that often enough to feel broken.
+     */
+    private fun pickRandomOld(then: (File) -> Unit) {
+        if (pickingNext) return
+        pickingNext = true
+        viewModelScope.launch {
+            val roots = SettingsStore(getApplication()).state.value.audioLibraryRoots.map(::File)
+            val skip = (recents.map { it.absolutePath } + listOfNotNull(currentFile?.absolutePath)).toSet()
+            val pick = withContext(Dispatchers.IO) { NextTrack.randomOldUnbookmarked(roots, skip) }
+            pickingNext = false
+            pick?.let(then)
+        }
     }
 
     private fun loadRecents(): List<File> =
@@ -324,6 +367,7 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val K_AUTO_BOOKMARK = "auto_bookmark_on_pause"
+        const val K_PLAY_NEXT = "play_next_mode"
         const val K_VIDEO_DISABLED = "video_disabled"
         // PlaybackService reads this one too (auto-bookmark on pause rewinds by it).
         const val K_BOOKMARK_REWIND = PlaybackService.PREF_BOOKMARK_REWIND

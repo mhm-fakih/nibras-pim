@@ -11,6 +11,7 @@ Needs:        PyGObject + GTK 3  (Debian/Ubuntu: sudo apt install python3-gi gir
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import subprocess
@@ -23,19 +24,27 @@ from datetime import datetime
 import gi
 
 gi.require_version("Gtk", "3.0")
+import cairo  # noqa: E402  (pycairo — ships with PyGObject; used to draw the highlighter cursor)
 from gi.repository import Gtk, Gdk, GLib, Pango, Gio  # noqa: E402
 
 from config import Settings, RepoConfig, parse_tag_block, format_tag_block  # noqa: E402
-from notes import NoteRepository, Note, is_rtl, companion_dir, parse_created  # noqa: E402
+from notes import (NoteRepository, Note, is_rtl, companion_dir, parse_created,  # noqa: E402
+                   fmt_count, split_highlights, apply_highlights, clause_bounds)
 from backend import fetch_taxonomy  # noqa: E402
 from filters import FilterState, Taxonomy  # noqa: E402
+import tagbank  # noqa: E402
 from sidebar import FilterSidebar  # noqa: E402
 
 APP_ID = "org.knotes.desktop"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-VERSION = "1.2.32"
-CODENAME = "Dastgheib"
+# Platform switches for the handful of places that shell out (open a file / reveal a folder).
+IS_WINDOWS = os.name == "nt"
+IS_MACOS = sys.platform == "darwin"
+DEFAULT_OPENER = "start" if IS_WINDOWS else ("open" if IS_MACOS else "xdg-open")
+
+VERSION = "1.3.33"
+CODENAME = "Gratitude"
 
 
 def _data_dir() -> str:
@@ -72,8 +81,11 @@ TAG_COLOR_TYPE = "#268bd2"  # accent
 TAG_COLOR_CAT = "#2aa198"   # cyan
 TAG_COLOR_HASH = "#859900"  # green — inline #hashtags pulled from the note body
 
-# A #hashtag: a '#' (not mid-word) followed by word characters (Unicode, so Arabic tags work too).
-_HASHTAG_RE = re.compile(r"(?<!\w)#(\w+)", re.UNICODE)
+# A #hashtag: a '#' (not mid-word) followed by word characters (Unicode, so Arabic tags work too),
+# then any run of word characters, dots and hyphens — the tag bank's vocabulary is dotted
+# (`A.quran`) and its aliases hyphenated (`آية-اليوم`), and a tag the completer inserts has to be
+# one the board can see. Kept in step with filters.TAG_RE, which does the same job for the sidebar.
+_HASHTAG_RE = re.compile(r"(?<!\w)#(\w[\w.\-]*)", re.UNICODE)
 
 
 def _hashtags(text: str) -> list[str]:
@@ -81,8 +93,10 @@ def _hashtags(text: str) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
     for m in _HASHTAG_RE.finditer(text):
-        tag = m.group(1)
-        if tag.lower() not in seen:
+        # Trailing dots/hyphens belong to the sentence, not the tag: "…see #A.quran." ends in a
+        # full stop, and "#A.quran" and "#A.quran." must not become two different tags.
+        tag = m.group(1).rstrip(".-")
+        if tag and tag.lower() not in seen:
             seen.add(tag.lower())
             out.append(tag)
     return out
@@ -101,6 +115,278 @@ SCROLLBAR_ALLOWANCE = 16
 # The note editor grows with its content between these heights (px), then scrolls vertically.
 EDITOR_MIN_HEIGHT = 36
 EDITOR_MAX_HEIGHT = 180
+
+class TagCompleter:
+    """Hashtag autocomplete for one Gtk.TextView, offering the tag bank after a ``#``.
+
+    A borderless popup window under the caret, listing matches from ``tagbank``. It never takes the
+    keyboard (``set_accept_focus(False)``): the keystrokes must keep reaching the text view, so the
+    list follows along beside the typing rather than taking the input for itself.
+
+    A GtkPopover would be the modern spelling and was tried first — it reports itself visible and
+    mapped, with a sensible allocation, and then draws nothing at all when its ``relative_to`` is a
+    GtkTextView nested this deep. A POPUP window is its own X window: it is either on the screen or
+    it is not, which is also what makes it verifiable from a screenshot.
+
+    Picking a match replaces what was typed with the **canonical** tag — an alias is a way to find
+    a tag, never a tag to write. That, and not the saved keystrokes, is what stops a vocabulary
+    fraying into three spellings of the same idea.
+
+    The keys are not handled here: this window's own key handler runs before the focused widget's
+    (see _on_key_press), so it drives the list and calls in here. One class per view, so the pane's
+    editor and the add field each get their own popup and their own state.
+    """
+
+    ROW_LIMIT = 12
+
+    def __init__(self, window: "KnotesWindow", view: Gtk.TextView):
+        self.window = window
+        self.view = view
+        self.matches: list[tagbank.Match] = []
+        self.start_offset: int | None = None   # offset of the '#', while a completion is open
+
+        self.list = Gtk.ListBox()
+        self.list.set_selection_mode(Gtk.SelectionMode.BROWSE)
+        self.list.get_style_context().add_class("tag-complete")
+        self.list.connect("row-activated", lambda _l, row: self.accept(row.get_index()))
+        self.scroller = scroller = Gtk.ScrolledWindow()
+        scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroller.set_max_content_height(240)
+        scroller.set_propagate_natural_height(True)
+        scroller.add(self.list)
+        frame = Gtk.Frame()
+        frame.get_style_context().add_class("tag-complete-frame")
+        frame.add(scroller)
+        self.popup = Gtk.Window(type=Gtk.WindowType.POPUP)
+        self.popup.set_type_hint(Gdk.WindowTypeHint.COMBO)
+        self.popup.set_accept_focus(False)   # the caret stays in the note being written
+        self.popup.set_transient_for(window)
+        self.popup.set_default_size(POPUP_WIDTH, -1)
+        self.popup.add(frame)
+
+        view.get_buffer().connect("changed", lambda *_a: self.refresh())
+        view.connect("focus-out-event", lambda *_a: (self.hide(), False)[1])
+
+    # ------------------------------------------------------------ state
+
+    @property
+    def active(self) -> bool:
+        return self.start_offset is not None
+
+    def hide(self) -> None:
+        self.start_offset = None
+        self.matches = []
+        self.popup.hide()
+
+    def refresh(self) -> None:
+        """Re-read what's being typed and show, update, or hide the list. Driven by the buffer's
+        own "changed", so it tracks deletions and pastes as well as typing."""
+        typed = self._typed()
+        if typed is None:
+            self.hide()
+            return
+        offset, prefix = typed
+        self.matches = tagbank.suggest(self.window.tag_bank(), prefix, self.ROW_LIMIT)
+        if not self.matches:
+            self.hide()
+            return
+        self.start_offset = offset
+        self._fill()
+        self.popup.show_all()
+        # Shrink back to what the rows actually need. A GtkWindow keeps whatever size it was last
+        # given, so without this the list stays as tall as the longest match set it has ever shown
+        # — twelve rows' worth of empty box under the two that are left as the query narrows.
+        self.popup.resize(POPUP_WIDTH, 1)
+        self._place()
+
+    def _typed(self) -> tuple[int, str] | None:
+        """``(offset of the '#', text typed after it)`` when the caret sits in a hashtag being
+        written, else None.
+
+        Only the current line is examined, and only back to the last ``#``. A ``#`` in the middle
+        of a word (``C#``, ``rgb#fff``) doesn't start a tag, and neither does one with whitespace
+        after it — that's a markdown heading, or a tag already finished.
+        """
+        buffer = self.view.get_buffer()
+        caret = buffer.get_iter_at_mark(buffer.get_insert())
+        line_start = caret.copy()
+        line_start.set_line_offset(0)
+        text = buffer.get_text(line_start, caret, False)
+        hash_at = text.rfind("#")
+        if hash_at == -1:
+            return None
+        if hash_at > 0 and (text[hash_at - 1].isalnum() or text[hash_at - 1] == "#"):
+            return None
+        prefix = text[hash_at + 1:]
+        if len(prefix) > 40 or any(c.isspace() for c in prefix):
+            return None
+        return caret.get_offset() - len(prefix) - 1, prefix
+
+    # ------------------------------------------------------------ view
+
+    def _fill(self) -> None:
+        for child in self.list.get_children():
+            self.list.remove(child)
+        for match in self.matches:
+            label = Gtk.Label(xalign=0)
+            shown = GLib.markup_escape_text(match.canonical)
+            if match.via:
+                # The alias is what the user typed; showing it is what explains why a Latin
+                # canonical tag turned up under an Arabic query.
+                shown += f'   <span alpha="55%">{GLib.markup_escape_text(match.via)}</span>'
+            label.set_markup(shown)
+            row = Gtk.ListBoxRow()
+            row.add(label)
+            self.list.add(row)
+        self.list.show_all()
+        first = self.list.get_row_at_index(0)
+        if first is not None:
+            self.list.select_row(first)
+
+    def _place(self) -> None:
+        """Move the popup just under the caret, in root coordinates.
+
+        Three spaces are involved and they are easy to confuse: the caret's position is in BUFFER
+        coordinates, which scroll; converting to TEXT-window coordinates undoes the scrolling; and
+        the window's own origin turns that into the screen position the popup needs. Flipped above
+        the caret when it would otherwise run off the bottom of the screen.
+        """
+        text_window = self.view.get_window(Gtk.TextWindowType.TEXT)
+        if text_window is None:
+            return
+        buffer = self.view.get_buffer()
+        caret = self.view.get_iter_location(buffer.get_iter_at_mark(buffer.get_insert()))
+        wx, wy = self.view.buffer_to_window_coords(Gtk.TextWindowType.TEXT, caret.x, caret.y)
+        _ok, origin_x, origin_y = text_window.get_origin()
+        x, y = origin_x + wx, origin_y + wy + max(caret.height, 16)
+
+        _min, natural = self.popup.get_preferred_height()
+        screen = self.view.get_display().get_monitor_at_window(text_window).get_workarea()
+        if y + natural > screen.y + screen.height:
+            y = max(screen.y, origin_y + wy - natural)     # no room below — sit above the caret
+        x = min(x, screen.x + screen.width - POPUP_WIDTH)
+        self.popup.move(x, y)
+        # Raised explicitly. An override-redirect window is normally stacked on top when it maps,
+        # but this one maps while the main window is being clicked and typed into, and the window
+        # manager raises *that* — leaving the list mapped, correctly sized, correctly placed, and
+        # entirely behind the note it belongs to. It looks exactly like a list that never appeared.
+        gdk_window = self.popup.get_window()
+        if gdk_window is not None:
+            gdk_window.raise_()
+
+    # ------------------------------------------------------------ keys
+
+    def move(self, delta: int) -> None:
+        row = self.list.get_selected_row()
+        index = (row.get_index() if row is not None else 0) + delta
+        index = max(0, min(index, len(self.matches) - 1))
+        target = self.list.get_row_at_index(index)
+        if target is None:
+            return
+        self.list.select_row(target)
+        # Scrolled by hand rather than with grab_focus: focus has to stay in the text view, or the
+        # next character typed goes into the list instead of the note.
+        adjustment = self.scroller.get_vadjustment()
+        if adjustment is None:
+            return
+        box = target.get_allocation()
+        if box.y < adjustment.get_value():
+            adjustment.set_value(box.y)
+        elif box.y + box.height > adjustment.get_value() + adjustment.get_page_size():
+            adjustment.set_value(box.y + box.height - adjustment.get_page_size())
+
+    def accept(self, index: int | None = None) -> None:
+        """Replace the typed ``#prefix`` with the canonical tag, and a space to carry on after."""
+        if not self.active:
+            return
+        if index is None:
+            row = self.list.get_selected_row()
+            index = row.get_index() if row is not None else 0
+        if not 0 <= index < len(self.matches):
+            self.hide()
+            return
+        canonical = self.matches[index].canonical
+        buffer = self.view.get_buffer()
+        start = buffer.get_iter_at_offset(self.start_offset)
+        self.hide()          # before the edit: the resulting "changed" must not reopen the list
+        buffer.delete(start, buffer.get_iter_at_mark(buffer.get_insert()))
+        buffer.insert_at_cursor(f"#{canonical} ")
+
+
+# The highlighter-pen cursor used in the pane's reading mode: canvas size (px, logical) and the
+# hotspot, which is the nib tip — the point that will be "written" with, not the middle of the icon.
+# Width (px) of the '#' completer's popup list.
+POPUP_WIDTH = 280
+
+# A card shows when the note was created and when it was last touched. When those drift apart the
+# modification date is coloured: a note still being edited a week after it was captured is either
+# a live document or something that quietly outgrew being a note, and either way it's worth seeing
+# from across the board. Solarized orange/red, matching the tag palette above.
+STALE_WARN_DAYS = 3    # more than this many days apart → orange
+STALE_ALERT_DAYS = 7   # more than this → red
+STALE_WARN_COLOR = "#cb4b16"
+STALE_ALERT_COLOR = "#dc322f"
+
+PEN_SIZE = 28
+PEN_HOTSPOT = (5, 23)
+
+
+def _draw_highlighter(cr: cairo.Context, nib: Gdk.RGBA) -> None:
+    """Draw a marker pen leaning up-and-right from its nib at PEN_HOTSPOT.
+
+    The nib (and a band on the barrel) is painted in the colour the click will apply, so the pointer
+    answers "what will this do, and in what colour" without anything having to be clicked. Every
+    shape is laid down over a heavy dark outline first, which is what keeps the pen visible against
+    a light page and a dark one alike — a cursor has no control over what it will be seen on.
+    """
+    cr.translate(*PEN_HOTSPOT)
+    cr.rotate(math.pi / 4)
+
+    def nib_path() -> None:
+        cr.move_to(0, 0)
+        cr.line_to(-3.2, -4.5)
+        cr.line_to(3.2, -4.5)
+        cr.close_path()
+
+    def body_path() -> None:
+        cr.rectangle(-3.6, -17.5, 7.2, 13.0)
+
+    cr.set_source_rgba(0, 0, 0, 0.85)
+    cr.set_line_width(2.6)
+    nib_path()
+    cr.stroke()
+    body_path()
+    cr.stroke()
+
+    cr.set_line_width(1.0)
+    cr.set_source_rgb(nib.red, nib.green, nib.blue)
+    nib_path()
+    cr.fill()
+    cr.set_source_rgb(0.93, 0.93, 0.95)
+    body_path()
+    cr.fill()
+    cr.set_source_rgba(0, 0, 0, 0.55)
+    body_path()
+    cr.stroke()
+    cr.set_source_rgb(nib.red, nib.green, nib.blue)
+    cr.rectangle(-3.6, -8.5, 7.2, 3.0)
+    cr.fill()
+    cr.set_source_rgba(0, 0, 0, 0.55)
+    cr.rectangle(-3.6, -8.5, 7.2, 3.0)
+    cr.stroke()
+
+
+def _rgba_hex(colour: Gdk.RGBA) -> str:
+    """A Gdk.RGBA as ``#rrggbb`` — the one colour spelling both Pango markup and Gdk accept."""
+    return "#{:02x}{:02x}{:02x}".format(
+        round(colour.red * 255), round(colour.green * 255), round(colour.blue * 255))
+
+
+# Narrowest the side editor pane may be dragged (px) — below this a wrapped note is unreadable.
+EDITOR_PANE_MIN = 240
+# How long (ms) the pane's remembered width is enforced as a size request before being relaxed back
+# to EDITOR_PANE_MIN. Only has to outlast the layout pass that follows showing the pane.
+EDITOR_PANE_SETTLE_MS = 300
 
 # How long (ms) a restored scroll offset is held against the layout that follows a board rebuild
 # (see _pin_scroll). Long enough to outlast measuring + the focus scroll, short enough that it can
@@ -222,6 +508,11 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # the sidebar widget only drives it. Which options are picked is per-session (see
         # Settings.sidebar_visible for what IS persisted) — only the heat-map metric is restored.
         self.filters = FilterState(date_field=self.settings.heatmap_metric)
+        # Open on today's captures (Settings.start_filter_today) — the same state a click on today
+        # in the calendar produces, so the day reads as selected in the sidebar and the sidebar's
+        # "Clear all filters" drops back to the whole board.
+        if self.settings.start_filter_today:
+            self.filters.days = {datetime.now().date()}
         self.tax = Taxonomy()                    # the active folder's options, see _refresh_taxonomy
         # "columns" view: how many columns the last render laid out, so a resize can re-flow.
         self._columns_ncols = 0
@@ -237,6 +528,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.reload_notes()
         self._apply_defaults()
         self._apply_minimal_mode()
+        # Restore the pane's open/closed state without re-saving it or taking the cursor — the add
+        # field keeps the focus on launch whether the pane is up or not.
+        self._set_editor_pane(self.settings.editor_pane_visible, persist=False, focus=False)
         self._setup_layout_watch()
         self._setup_note_dir_watch()
         self._sync_backend_taxonomy()  # best-effort; offline/misconfigured → keeps current codes
@@ -310,6 +604,15 @@ class KnotesWindow(Gtk.ApplicationWindow):
             mode_box.pack_start(btn, False, False, 0)
         self.toolbar.pack_start(mode_box, False, False, 0)
 
+        # Right-hand editor pane. Its own toggle rather than a member of the view-mode group above:
+        # it's orthogonal to how the board is laid out, and stays put across kanban/list/columns.
+        self.editor_button = Gtk.ToggleButton()
+        self.editor_button.add(Gtk.Image.new_from_icon_name("document-edit-symbolic", Gtk.IconSize.BUTTON))
+        self.editor_button.set_tooltip_text(
+            "Edit the selected note in the side pane (Ctrl+E) — saved as you type")
+        self.editor_button.connect("toggled", self._on_editor_button)
+        self.toolbar.pack_start(self.editor_button, False, False, 0)
+
         # Manual refresh — re-reads the folder from disk, for changes another machine wrote via
         # Syncthing (also auto-detected; see _setup_note_dir_watch). A spinning-icon click target
         # rather than text keeps the toolbar compact.
@@ -324,9 +627,10 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # for a mass-tagging pass so cards don't relocate as you go.
         self.sort_selector = Gtk.ComboBoxText()
         for code, label in (("datetime", "Last updated"), ("created", "Date created"),
-                            ("category", "Category"), ("type", "Type"), ("priority", "Priority")):
+                            ("category", "Category"), ("type", "Type"), ("priority", "Priority"),
+                            ("length", "Note length")):
             self.sort_selector.append(code, label)
-        SORT_CODES = ("datetime", "created", "category", "type", "priority")
+        SORT_CODES = ("datetime", "created", "category", "type", "priority", "length")
         self.sort_selector.set_active_id(
             self.settings.sort_by if self.settings.sort_by in SORT_CODES else "datetime")
         self.sort_selector.set_tooltip_text("Sort cards by")
@@ -352,7 +656,13 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.sidebar = FilterSidebar(self.filters, self.settings, self._on_filters_changed)
         content.pack_start(self.sidebar, False, False, 0)
         right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        content.pack_start(right, True, True, 0)
+        # A GtkPaned so the editor pane can be dragged wider — it's a writing surface, and how much
+        # room a note needs is the user's call, not a number picked here. pack2(resize=False) keeps
+        # the split where they put it when the window is resized: the board absorbs the change.
+        self.main_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        self.main_paned.pack1(right, True, False)
+        self.main_paned.pack2(self._build_editor_pane(), False, False)
+        content.pack_start(self.main_paned, True, True, 0)
         root.pack_start(content, True, True, 0)
 
         # Search bar (hidden until toggled).
@@ -396,6 +706,464 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.statusbar.pack_end(self.status_key, False, False, 0)
         root.pack_start(self.statusbar, False, False, 0)
         self._refresh_status()
+
+        # Hashtag autocomplete on both writing surfaces — the note editor and the add field. They
+        # take the same kind of text and a '#' means the same thing in each, so it would be odd for
+        # one to offer the vocabulary and the other not.
+        self._completers = [TagCompleter(self, self.editor_view), TagCompleter(self, self.textview)]
+
+    # ------------------------------------------------------- editor pane
+
+    def _build_editor_pane(self) -> Gtk.Widget:
+        """The right-hand editing pane: the selected note's body, full height, saving itself.
+
+        It runs the height of the main split (beside the board, the "just added" strip *and* the add
+        form) rather than sitting above the form, so a long note gets the whole window to be read in
+        — which is the only reason to edit here instead of in the card's quick-append field.
+
+        Deliberately not a second way to create notes: it edits the note the board has selected and
+        nothing else. The add form below still owns "new", so there's never a question about where
+        what you're typing will end up.
+        """
+        pane = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        pane.get_style_context().add_class("editor-pane")
+        pane.set_size_request(EDITOR_PANE_MIN, -1)  # a floor; _apply_editor_width sets the width
+
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        header.set_border_width(8)
+        self.editor_title = Gtk.Label(xalign=0)
+        self.editor_title.set_ellipsize(1)  # MIDDLE — a note file name's ends both identify it
+        self.editor_title.get_style_context().add_class("editor-pane-title")
+        header.pack_start(self.editor_title, True, True, 0)
+
+        # Read / Edit, as a linked pair: which one you're in has to be readable at a glance, because
+        # in one a click highlights a clause and in the other it moves a cursor.
+        mode_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        mode_box.get_style_context().add_class("linked")
+        self.read_button = Gtk.ToggleButton(label="read")
+        self.read_button.set_tooltip_text(
+            "Reading mode — click a clause to highlight it (==like this== in the file)")
+        self.edit_button = Gtk.ToggleButton(label="edit")
+        self.edit_button.set_tooltip_text("Editing mode — type into the note, saved as you go")
+        for button, mode in ((self.read_button, "read"), (self.edit_button, "edit")):
+            button.get_style_context().add_class("pane-mode")
+            button.connect("toggled", self._on_pane_mode_button, mode)
+            mode_box.pack_start(button, False, False, 0)
+        header.pack_start(mode_box, False, False, 0)
+
+        close = Gtk.Button(relief=Gtk.ReliefStyle.NONE)
+        close.add(Gtk.Image.new_from_icon_name("window-close-symbolic", Gtk.IconSize.MENU))
+        close.get_style_context().add_class("iconbtn")
+        close.set_tooltip_text("Close the editor pane  (Ctrl+E)")
+        close.connect("clicked", lambda _b: self._set_editor_pane(False))
+        header.pack_end(close, False, False, 0)
+        pane.pack_start(header, False, False, 0)
+
+        self.editor_scroller = scroller = Gtk.ScrolledWindow()
+        scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        # Overlay scrolling off, as in the add field: an overlay scrollbar floats ON TOP of the text
+        # and covers the last few characters of every wrapped line it crosses. Off, it gets its own
+        # gutter and the text keeps its full width.
+        scroller.set_overlay_scrolling(False)
+        self.editor_view = Gtk.TextView()
+        self.editor_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        # Per-paragraph automatic direction, as in the add field: each line flips for Arabic vs.
+        # English on its own. The pane's *widget* direction is set per note in _editor_load — that's
+        # what decides lines with no strong character of their own (a bare number, a date, a blank
+        # line being typed into), which should follow the note, not the locale.
+        self.editor_view.set_left_margin(12)
+        self.editor_view.set_right_margin(12)
+        self.editor_view.set_top_margin(8)
+        self.editor_view.set_bottom_margin(8)
+        self.editor_buffer = self.editor_view.get_buffer()
+        self.editor_buffer.connect("changed", self._on_editor_changed)
+        self.editor_view.connect("button-release-event", self._on_editor_click)
+        # The text window doesn't exist until the view is realised, and GtkTextView sets its own
+        # cursor there when it does — so ours has to be (re)applied after that, not just on render.
+        self.editor_view.connect("realize", self._apply_editor_cursor)
+        # connect_AFTER: GtkTextView's own motion handler sets the cursor back to "text", so ours
+        # has to be re-asserted once that has run. See _apply_editor_cursor.
+        self.editor_view.connect_after("motion-notify-event", self._apply_editor_cursor)
+        scroller.add(self.editor_view)
+        pane.pack_start(scroller, True, True, 0)
+
+        self.editor_status = Gtk.Label(xalign=0)
+        self.editor_status.set_ellipsize(3)  # END
+        self.editor_status.get_style_context().add_class("editor-pane-status")
+        self.editor_status.set_margin_start(10)
+        self.editor_status.set_margin_end(10)
+        self.editor_status.set_margin_bottom(6)
+        pane.pack_start(self.editor_status, False, False, 0)
+
+        self.editor_pane = pane
+        # The window's show_all() must not reveal a pane the user left closed. no_show_all stops it
+        # — but it also makes show_all() on the pane itself a no-op, so the children are shown here,
+        # once, and the pane alone is what gets shown and hidden from then on.
+        pane.set_no_show_all(True)
+        for child in pane.get_children():
+            child.show_all()
+        # State: which note the buffer belongs to, the text as last written (so an edit that undoes
+        # itself doesn't cause a write), and the pending autosave timer.
+        self._editor_note: Note | None = None
+        self._editor_path: str | None = None
+        self._editor_saved_text = ""
+        self._editor_loading = False
+        self._editor_timer = 0
+        self._editor_mode = self.settings.editor_pane_mode
+        self._cursors: dict[str, Gdk.Cursor | None] = {}   # see _apply_editor_cursor
+        # One tag, recoloured in place whenever the setting changes — a buffer tag is looked up by
+        # name, so re-creating it on every render would throw on the second one.
+        self._hl_tag = self.editor_buffer.create_tag("clause-highlight")
+        self._refresh_highlight_tag()
+        self._sync_pane_mode_buttons()
+        self._editor_load(None)
+        return pane
+
+    def _refresh_highlight_tag(self) -> None:
+        """Point the highlight tag at the configured colour, with a foreground that survives it.
+
+        The note's own text colour is the theme's, which is near-white in dark mode — on a yellow
+        highlight that's unreadable. Rec. 601 luminance picks black or white per colour, so any pick
+        in the colour dialog stays legible instead of only the ones that happen to suit the theme.
+        """
+        background, foreground = self._highlight_colors()
+        self._hl_tag.set_property("background", background)
+        self._hl_tag.set_property("foreground", foreground)
+        self._cursors.pop("pen", None)   # its nib is this colour; redrawn on the next use
+
+    def _apply_editor_cursor(self, *_args) -> bool:
+        """Put the right pointer over the pane's text.
+
+        Reading mode gets a highlighter pen: a click there paints a clause, and that should be
+        legible from the pointer before anything is clicked. Editing mode gets the usual I-beam, and
+        a note that can't be written (an unsettled item) gets the plain arrow — a pen over text that
+        won't take a mark would be a promise the pane can't keep.
+
+        Also wired to motion-notify with connect_AFTER, because GtkTextView resets the cursor to
+        "text" from its own motion handler: set once and the pen survives exactly until the pointer
+        moves. Re-asserting is nearly free — the cursors are cached, and gdk_window_set_cursor
+        compares pointers, so the common case is setting the cursor that's already there.
+        """
+        window = self.editor_view.get_window(Gtk.TextWindowType.TEXT)
+        if window is None:
+            return False   # not realised yet; the realize handler calls back here
+        writable = (self._editor_note is not None
+                    and self._editor_note.path not in self._unrecognized_paths)
+        if self._editor_mode != "read":
+            cursor = self._named_cursor("text")
+        elif writable:
+            cursor = self._pen_cursor()
+        else:
+            cursor = self._named_cursor("default")
+        if cursor is not None:
+            window.set_cursor(cursor)
+        return False   # never claim the motion event — the view still needs it
+
+    def _named_cursor(self, name: str) -> Gdk.Cursor | None:
+        if name not in self._cursors:
+            self._cursors[name] = Gdk.Cursor.new_from_name(self.editor_view.get_display(), name)
+        return self._cursors[name]
+
+    def _pen_cursor(self) -> Gdk.Cursor | None:
+        """The highlighter cursor, drawn once per colour and cached. Drawn at the window's scale
+        factor so it isn't a blurry upscale on a HiDPI screen."""
+        if self._cursors.get("pen") is None:
+            scale = max(1, self.get_scale_factor())
+            surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, PEN_SIZE * scale, PEN_SIZE * scale)
+            surface.set_device_scale(scale, scale)
+            nib = Gdk.RGBA()
+            if not nib.parse(self._highlight_colors()[0]):
+                nib.parse(Settings.highlight_color)
+            _draw_highlighter(cairo.Context(surface), nib)
+            self._cursors["pen"] = Gdk.Cursor.new_from_surface(
+                self.editor_view.get_display(), surface, *PEN_HOTSPOT)
+        return self._cursors["pen"]
+
+    def _on_pane_mode_button(self, button: Gtk.ToggleButton, mode: str) -> None:
+        if button.get_active():
+            self._set_editor_mode(mode)
+        elif self._editor_mode == mode:
+            button.set_active(True)   # radio behaviour: the active one can't be switched off
+
+    def _set_editor_mode(self, mode: str) -> None:
+        if mode == self._editor_mode:
+            return
+        self._editor_flush()          # leaving edit mode with an unwritten change would lose it
+        self._editor_mode = mode
+        self.settings.editor_pane_mode = mode
+        self.settings.save()
+        self._sync_pane_mode_buttons()
+        self._editor_render(keep_scroll=True)   # same note, different view of it — stay put
+
+    def _sync_pane_mode_buttons(self) -> None:
+        for button, mode in ((self.read_button, "read"), (self.edit_button, "edit")):
+            button.handler_block_by_func(self._on_pane_mode_button)
+            button.set_active(self._editor_mode == mode)
+            button.handler_unblock_by_func(self._on_pane_mode_button)
+
+    def _on_editor_button(self, button: Gtk.ToggleButton) -> None:
+        self._set_editor_pane(button.get_active())
+
+    def _set_editor_pane(self, visible: bool, persist: bool = True, focus: bool = True) -> None:
+        """Show/hide the pane (Ctrl+E, the toolbar toggle, the pane's own ✕). Hiding flushes first —
+        a pending autosave must never be lost to closing the thing that was holding it.
+
+        ``persist=False`` is for applying the remembered state at startup, where writing the config
+        back out and stealing the cursor from the add field would both be wrong.
+        """
+        if not visible:
+            self._editor_flush()
+            width = self.editor_pane.get_allocated_width()
+            if width > 120:                       # remember the drag, ignore a not-yet-laid-out 1px
+                self.settings.editor_pane_width = width
+        self.settings.editor_pane_visible = visible
+        if persist:
+            self.settings.save()
+        # show/hide, not show_all: the children were shown once at build time (see the no_show_all
+        # note there), so the pane itself is the only thing that toggles.
+        if visible:
+            self.editor_pane.show()
+        else:
+            self.editor_pane.hide()
+        self.editor_button.handler_block_by_func(self._on_editor_button)
+        self.editor_button.set_active(visible)
+        self.editor_button.handler_unblock_by_func(self._on_editor_button)
+        if visible:
+            self._apply_editor_width()
+            self._editor_load(self.selected_note)
+            if focus:
+                self.editor_view.grab_focus()
+
+    def _apply_editor_width(self) -> None:
+        """Give the pane its remembered width — as a size REQUEST, not a splitter position.
+
+        A GtkPaned position is measured from the left, which makes it wrong twice over here: it
+        needs the split to already have a real allocation to subtract from, and it can't go below
+        the board's own minimum width. Ask for 420 on a window too narrow to grant it and GTK
+        clamps the position to the board's minimum, leaving the pane at its bare floor — where it
+        then stays, because pack1(resize=True) hands every later pixel to the board.
+
+        A size request has neither problem: with the position unset, GtkPaned allocates child2 its
+        requisition and gives the remainder to child1, at any window size. Once that layout has
+        happened _relax_editor_width hands the width over to the position and drops the request,
+        so the splitter is still free to be dragged narrower afterwards.
+        """
+        self.editor_pane.set_size_request(max(EDITOR_PANE_MIN, self.settings.editor_pane_width), -1)
+        self._editor_settle_tries = 20
+        GLib.timeout_add(EDITOR_PANE_SETTLE_MS, self._relax_editor_width)
+
+    def _relax_editor_width(self) -> bool:
+        total = self.main_paned.get_allocated_width()
+        width = self.editor_pane.get_allocated_width()
+        self._editor_settle_tries -= 1
+        if total <= 1 or width <= 1:
+            return self._editor_settle_tries > 0   # not laid out yet — look again
+        # Pin what the size request just achieved as the splitter position BEFORE dropping the
+        # request. Order matters: with no position set, GtkPaned recomputes the split from the
+        # children's requisitions on every allocation, so relaxing the request first would send the
+        # pane straight back to its floor. The position is what makes a width stick.
+        self.main_paned.set_position(total - width)
+        self.editor_pane.set_size_request(EDITOR_PANE_MIN, -1)
+        return False
+
+    def _editor_load(self, note: Note | None) -> None:
+        """Point the pane at a note (or at nothing). Flushes whatever was being edited first, so
+        moving the selection can't strand an unsaved change on the note you just left."""
+        if note is not None and note.path == self._editor_path:
+            return   # same note — never stomp on what's being typed (a reload lands here too)
+        self._editor_flush()
+        self._editor_note = note
+        self._editor_path = note.path if note is not None else None
+        self._editor_saved_text = note.content if note is not None else ""
+        self._editor_render()
+
+    def _editor_render(self, keep_scroll: bool = False) -> None:
+        """Fill the buffer from the current note in the current mode. Reading mode hides the ``==``
+        markers and paints the clauses they mark; editing mode shows the file's text as it is.
+
+        ``keep_scroll`` holds the view where it was, for a re-render of the note already on screen
+        (a mode switch, a new highlight colour). Loading a *different* note leaves it off, so a new
+        note opens at its beginning.
+        """
+        for completer in self._completers:
+            completer.hide()   # a list left pointing at text that just changed underneath it
+        note = self._editor_note
+        raw = note.content if note is not None else ""
+        reading = self._editor_mode == "read"
+        text, flags = split_highlights(raw) if reading else (raw, [])
+
+        vadj = self.editor_scroller.get_vadjustment()   # the view's own is deprecated in GTK3
+        offset = vadj.get_value() if (keep_scroll and vadj is not None) else None
+        self._editor_loading = True   # our own set_text must not look like a user edit
+        try:
+            self.editor_buffer.set_text(text)
+            if reading and any(flags):
+                self._paint_highlights(flags)
+        finally:
+            self._editor_loading = False
+        if offset is not None:
+            # After the buffer is refilled the view has to be laid out again before the adjustment
+            # has a range to be set within — restoring it now would clamp to zero.
+            GLib.idle_add(vadj.set_value, offset)
+
+        if note is None:
+            self.editor_title.set_text("No note selected")
+            self.editor_view.set_editable(False)
+            self.editor_view.set_cursor_visible(False)
+            self.editor_view.set_sensitive(False)
+            self._editor_say("Click a card to read or edit it here.")
+            self._apply_editor_cursor()
+            return
+        self.editor_view.set_sensitive(True)
+        self.editor_title.set_text(os.path.basename(note.path.rstrip(os.sep + "/")))
+        # An RTL note gets an RTL pane: GTK picks each paragraph's direction from its own text, and
+        # falls back to the widget's for a line with no strong character (a number, a date, the
+        # empty line you're about to type Arabic into). Following the note is what an Arabic writer
+        # expects; following the locale would put the cursor on the wrong side of every new line.
+        self.editor_view.set_direction(Gtk.TextDirection.RTL if note.is_rtl else Gtk.TextDirection.LTR)
+        # An unsettled item is shown but never written: repo.update would rename it into the
+        # canonical format — a silent promotion, from nothing but a keystroke or a stray click.
+        settled = note.path not in self._unrecognized_paths
+        self.editor_view.set_editable(settled and not reading)
+        self.editor_view.set_cursor_visible(settled and not reading)
+        if not settled:
+            self._editor_say("Read-only — needs metadata. Settle it with Ctrl+Shift+<key> first.")
+        elif reading:
+            self._editor_say("Reading — click a clause to highlight it.")
+        else:
+            self._editor_say("Editing — saved automatically as you type.")
+        self._apply_editor_cursor()
+
+    def _paint_highlights(self, flags: list[bool]) -> None:
+        """Apply the highlight tag over every run of True in ``flags`` (offsets into the buffer,
+        which in reading mode is the marker-free text those flags came from)."""
+        i, n = 0, len(flags)
+        while i < n:
+            if not flags[i]:
+                i += 1
+                continue
+            end = i
+            while end < n and flags[end]:
+                end += 1
+            self.editor_buffer.apply_tag(self._hl_tag,
+                                         self.editor_buffer.get_iter_at_offset(i),
+                                         self.editor_buffer.get_iter_at_offset(end))
+            i = end
+
+    def _on_editor_click(self, view: Gtk.TextView, event) -> bool:
+        """Reading mode: a left click toggles the highlight on the clause under the pointer.
+
+        Left button only, and only in reading mode — in editing mode a click is a click, placing the
+        cursor. Returns False either way so the view still gets its normal handling.
+        """
+        if self._editor_mode != "read" or event.button != 1 or self._editor_note is None:
+            return False
+        if not self.editor_view.get_sensitive() or self._editor_note.path in self._unrecognized_paths:
+            return False
+        bx, by = view.window_to_buffer_coords(Gtk.TextWindowType.TEXT, int(event.x), int(event.y))
+        # A click BELOW the text is not aimed at any clause — the pane is mostly empty space on a
+        # short note, and highlighting the last line from a click in the void would be a surprise.
+        last = view.get_iter_location(self.editor_buffer.get_end_iter())
+        if by > last.y + last.height:
+            return False
+        # The returned flag is deliberately ignored. get_iter_at_location reports False for a click
+        # past the END OF A LINE — landing in the empty run after a short line, which is an ordinary
+        # way to aim at that line — while still setting the iter to the right place. Honouring the
+        # flag made every such click do nothing at all.
+        _over_text, it = view.get_iter_at_location(bx, by)
+        plain, flags = split_highlights(self._editor_note.content)
+        start, end = clause_bounds(plain, it.get_offset())
+        if start >= end:
+            return False   # a click on a break or past the text — nothing to toggle
+        turning_on = not all(flags[start:end])
+        for i in range(start, end):
+            flags[i] = turning_on
+        if self._editor_write(apply_highlights(plain, flags)):
+            # Repaint, never re-render: toggling a highlight only moves ``==`` markers around in the
+            # FILE, and reading mode doesn't show those — the text on screen is character-for-
+            # character the same. Refilling the buffer would be a no-op the user still pays for, as
+            # set_text drops the insert mark to offset 0 and the view jumps to the top of the note.
+            self._repaint_highlights(flags)
+        return False
+
+    def _repaint_highlights(self, flags: list[bool]) -> None:
+        start, end = self.editor_buffer.get_bounds()
+        self.editor_buffer.remove_tag(self._hl_tag, start, end)
+        self._paint_highlights(flags)
+
+    def _editor_say(self, message: str) -> None:
+        self.editor_status.set_text(message)
+        self.editor_status.set_tooltip_text(message)
+
+    def _on_editor_changed(self, _buffer) -> None:
+        if self._editor_loading or self._editor_note is None or self._editor_mode != "edit":
+            return
+        self._editor_say("Editing…")
+        if self._editor_timer:
+            GLib.source_remove(self._editor_timer)
+        self._editor_timer = GLib.timeout_add(max(150, self.settings.editor_autosave_ms),
+                                              self._editor_timer_fired)
+
+    def _editor_timer_fired(self) -> bool:
+        self._editor_timer = 0
+        self._editor_flush()
+        return False  # one-shot
+
+    def _editor_text(self) -> str:
+        start, end = self.editor_buffer.get_bounds()
+        return self.editor_buffer.get_text(start, end, True)
+
+    def _editor_flush(self) -> None:
+        """Write the pane's buffer to disk if it differs from what's there. Safe to call at any
+        time, and called before anything that renames, reloads or closes — retagging, deleting,
+        merging, switching folders, quitting. Cheap when there's nothing to do.
+        """
+        if self._editor_timer:
+            GLib.source_remove(self._editor_timer)
+            self._editor_timer = 0
+        if self._editor_mode != "edit" or not self.editor_view.get_editable():
+            return   # reading mode never holds an unwritten edit — a clause toggle writes at once
+        self._editor_write(self._editor_text())
+
+    def _editor_write(self, text: str) -> bool:
+        """Write ``text`` as the note's new body if it differs from what's on disk. The single write
+        path for the pane, shared by the autosave and by a clause highlight. Returns True on a
+        successful write (False for "nothing to do" as well as for a failure — the caller only
+        re-renders when something actually changed)."""
+        note = self._editor_note
+        if note is None or note.path in self._unrecognized_paths or text == self._editor_saved_text:
+            return False
+        try:
+            self.repo.update(note, text, note.type, note.priority, note.category)
+        except OSError as exc:
+            # Never silently: the buffer is the only copy of the change at this point.
+            self._editor_say(f"Not saved — {exc.strerror or exc}")
+            return False
+        self._editor_saved_text = text
+        # Keep the in-memory note in step. Quick-append and the merge summary read note.content, and
+        # after an autosave the object the board is holding would otherwise describe the old file.
+        note.content = text
+        self._editor_say(f"Saved  {datetime.now().strftime('%H:%M:%S')}")
+        return True
+
+    def _editor_sync_after_reload(self, notes: list[Note]) -> None:
+        """Re-point the pane at the freshly built Note for the same path after a board rebuild.
+
+        The old object is about to be dropped, and it's the one _editor_flush would write through.
+        Matching on path only, so a rebuild triggered by the pane's own save (the folder watch sees
+        it) leaves the buffer — and the cursor — exactly where they were.
+        """
+        if self._editor_path is None:
+            return
+        for note in notes:
+            if note.path == self._editor_path:
+                self._editor_note = note
+                return
+        # The file is gone (deleted, merged away, or retagged into a new name). Nothing to write
+        # back to; follow the selection instead, which by now points at whatever replaced it.
+        self._editor_note = None
+        self._editor_path = None
+        self._editor_load(self.selected_note)
 
     def _build_input_bar(self) -> Gtk.Widget:
         bar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
@@ -664,7 +1432,14 @@ class KnotesWindow(Gtk.ApplicationWindow):
         notes = [n for n in searched if self.filters.matches(n, self.tax)]
         # Folder note count next to the app name (no subtitle, so the header bar stays one line tall).
         narrowed = bool(query) or self.filters.active()
-        count = f"{len(notes)} / {len(all_notes)} notes" if narrowed else f"{len(all_notes)} notes"
+        count = (f"{fmt_count(len(notes))} / {fmt_count(len(all_notes))} notes" if narrowed
+                 else f"{fmt_count(len(all_notes))} notes")
+        # The backlog, right after the total: how many items are sitting there un-settled. It's a
+        # work count, not a note count — every one is a file or folder waiting to be tagged — so it
+        # counts the WHOLE folder regardless of the filters, and disappears at zero rather than
+        # showing "0 to settle" on a folder that has nothing to do.
+        if unrecognized:
+            count += f" · {fmt_count(len(unrecognized))} to settle"
         self._base_title = f'knotes v{VERSION}.b{BUILD_NUMBER} "{CODENAME}" · {count}'
         self._apply_header_title()
         self._update_tags_summary(all_notes)
@@ -673,8 +1448,11 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self._render_last_note(notes[-1] if notes else None)
 
         if self.minimal_mode:
+            self._editor_sync_after_reload(all_notes)
             return   # side-note mode: the board is hidden, only the just-added card is shown
-        if self.settings.view_mode == "list":
+        if not notes:
+            self._render_empty(bool(all_notes), query)
+        elif self.settings.view_mode == "list":
             self._render_list(notes)
         elif self.settings.view_mode == "columns":
             self._render_columns(notes)
@@ -682,6 +1460,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self._render_kanban(notes)
         self.board.show_all()
         self._restore_selection()
+        # Last: _restore_selection may have re-pointed the pane already, and this only fixes up the
+        # stale Note object behind an unchanged path.
+        self._editor_sync_after_reload(all_notes)
 
     def _refresh_taxonomy(self) -> None:
         """Re-snapshot the ACTIVE folder's tag options for the filters. They're per-folder and the
@@ -699,7 +1480,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
     def _sorted(self, notes: list[Note]) -> list[Note]:
         """Order notes by the configured ``sort_by``: priority/category/type by their defined order,
         "created" by the note's original filename timestamp (stable across metadata edits — see
-        parse_created), "datetime" (default) by the file's own last-modified time."""
+        parse_created), "length" by how much text the note holds (longest first), "datetime"
+        (default) by the file's own last-modified time."""
         by = self.settings.sort_by
         if by == "priority":
             return sorted(notes, key=lambda n: (n.priority if n.priority is not None else -1, n.mtime),
@@ -710,6 +1492,12 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if by == "category":
             order = {c: i for i, (c, _) in enumerate(self.repo_cfg.categories)}
             return sorted(notes, key=lambda n: (order.get(n.category, len(order)), -n.mtime))
+        if by == "length":
+            # Longest first — the whole point is to surface the notes that have grown into
+            # something that should have been split, and those are at the top or nowhere.
+            # Measured on the note's text rather than the file size on disk, so the metadata in the
+            # name and any highlight markers don't count towards "how much have I written here".
+            return sorted(notes, key=lambda n: (len(n.content), n.mtime), reverse=True)
         if by == "created":
             # Ascending — newest last, same convention as "datetime" — but keyed on the note's
             # ORIGINAL creation token, which a metadata-only edit never changes, so retagging a
@@ -758,6 +1546,29 @@ class KnotesWindow(Gtk.ApplicationWindow):
                 row.pack_start(column, True, True, 0)  # expand+fill → columns share the row width
                 grid_row.append(col_cards)
             self._grid.append(grid_row)
+
+    def _render_empty(self, folder_has_notes: bool, query: str) -> None:
+        """A line of text where the cards would be, so a blank board always says WHY it's blank.
+
+        The case worth naming is the launch filter (Settings.start_filter_today) landing on a day
+        with nothing captured yet: that's a status line, not a dead end, and reading "No notes
+        entered today" beats staring at an empty board wondering where the notes went.
+        """
+        if not folder_has_notes:
+            text = "No notes in this folder yet"
+        elif not query and self.filters == FilterState(date_field=self.filters.date_field,
+                                                       days={datetime.now().date()}):
+            # Today, and nothing else — the state the app opens in.
+            text = "No notes entered today"
+        elif query:
+            text = "No notes match the search"
+        else:
+            text = "No notes match the filters"
+        self._grid = []   # nothing to walk with the arrow keys; a stale grid would point at dead cards
+        label = Gtk.Label(label=text)
+        label.get_style_context().add_class("empty-board")
+        label.set_valign(Gtk.Align.CENTER)
+        self.board.pack_start(label, True, True, 0)
 
     def _render_list(self, notes: list[Note]) -> None:
         # A single vertically scrolling column of cards, in the chosen sort order.
@@ -845,7 +1656,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
             return
         if not self.settings.show_tags_summary:
             self.tags_summary.set_markup(
-                f'<span alpha="70%">{occurrences} #tag use{"s" if occurrences != 1 else ""}</span>')
+                f'<span alpha="70%">{fmt_count(occurrences)} '
+                f'#tag use{"s" if occurrences != 1 else ""}</span>')
             self.tags_summary.set_tooltip_text(
                 "Turn on \"Show #hashtag index under the add field\" in Settings to list them.")
             self.tags_summary.show()
@@ -859,9 +1671,10 @@ class KnotesWindow(Gtk.ApplicationWindow):
                 label.setdefault(key, tag)
         items = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
         self.tags_summary.set_markup("   ".join(
-            f'{_tag_span("#" + label[k], TAG_COLOR_HASH)}<span alpha="55%"> {c}</span>'
+            f'{_tag_span("#" + label[k], TAG_COLOR_HASH)}<span alpha="55%"> {fmt_count(c)}</span>'
             for k, c in items))
-        self.tags_summary.set_tooltip_text("   ".join(f"#{label[k]} ({c})" for k, c in items))
+        self.tags_summary.set_tooltip_text(
+            "   ".join(f"#{label[k]} ({fmt_count(c)})" for k, c in items))
         self.tags_summary.show()
 
     @staticmethod
@@ -883,7 +1696,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         header = Gtk.Label(xalign=0)
         header.set_markup(
             f'{GLib.markup_escape_text(name)}  '
-            f'<span alpha="55%">{len(notes)}</span>')
+            f'<span alpha="55%">{fmt_count(len(notes))}</span>')
         header.get_style_context().add_class("column-header")
         column.pack_start(header, False, False, 0)
 
@@ -927,7 +1740,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
             "pan-end-symbolic" if collapsed else "pan-down-symbolic", Gtk.IconSize.MENU)
         hbox.pack_start(chevron, False, False, 0)
         label = Gtk.Label(xalign=0)
-        label.set_markup(f'{GLib.markup_escape_text(tname)}  <span alpha="55%">{len(recs)}</span>')
+        label.set_markup(f'{GLib.markup_escape_text(tname)}  '
+                         f'<span alpha="55%">{fmt_count(len(recs))}</span>')
         hbox.pack_start(label, True, True, 0)
         header.add(hbox)
         header.connect("clicked", lambda _b, key=(cat_code, type_code): self._toggle_group(key))
@@ -993,18 +1807,35 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # A "needs metadata" placeholder: show its actual file/folder name (note.title() would show
         # its raw content, or "(empty)" for a folder — neither identifies which item this is).
         if note.path in self._unrecognized_paths:
-            body = GLib.markup_escape_text(os.path.basename(note.path.rstrip(os.sep)))
+            head, rest = [(os.path.basename(note.path.rstrip(os.sep + "/")), False)], []
         else:
-            body = GLib.markup_escape_text(
-                note.title(self.settings.preview_chars, self.settings.preview_tail_chars))
+            head, rest = note.card_preview(self.settings.preview_chars,
+                                           self.settings.preview_tail_chars)
         wc = note.word_count()
-        # The count sits in its own LTR isolate: with the tags gone from this label, an Arabic note
-        # makes the paragraph RTL, and the bidi algorithm would render "(4 words)" as "(words 4)".
-        # The isolate fixes the run's internal order while still letting it fall at the text's end.
-        count = f'  <span alpha="55%">⁦({wc} word{"" if wc == 1 else "s"})⁩</span>'
+        parts = [f'{fmt_count(wc)} word{"" if wc == 1 else "s"}']
+        # Past a length (Settings: "Counts shown from"), a card also reports how much of the note has
+        # been worked through. The highlight count shows even at zero — on a long note that IS the
+        # signal, "nothing marked yet" — but the time-mark count only appears when there are .tmk
+        # files to count, since a note with no recording has no notion of one to be at zero of.
+        if len(note.content) >= self.settings.card_counts_min_chars:
+            hl = note.highlight_count()
+            parts.append(f'{fmt_count(hl)} highlight{"" if hl == 1 else "s"}')
+            marks = note.time_mark_count()
+            if marks:
+                parts.append(f'{fmt_count(marks)} time mark{"" if marks == 1 else "s"}')
+        # Rendered at the end of the action row rather than trailing the title: the title is what the
+        # eye lands on when scanning the board, and a parenthetical of three numbers in front of the
+        # note's own first words got in the way of reading it. Down with the actions it's a footer.
+        counts = " · ".join(parts)
+
+        # Line 1 bold, the rest beneath it at normal weight — see Note.card_preview for why the
+        # note's own line breaks are worth keeping.
+        markup = f"<b>{self._runs_markup(head)}</b>"
+        if rest:
+            markup += "\n" + self._runs_markup(rest)
 
         title = Gtk.Label(xalign=0)
-        title.set_markup(body + count)
+        title.set_markup(markup)
         title.set_line_wrap(True)
         title.set_lines(4)
         title.set_ellipsize(3)  # END — ellipsize after the wrap cap
@@ -1036,6 +1867,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
 
         # Attached files (companion folder): a quick overview — up to 5 names (each truncated to the
         # configured leading chars + its extension), then "…" if there are more, and the total count.
+        # Every name is a link that opens that file; the trailing "…" and the count reveal the folder.
         if note.file_names:
             chars = max(1, self.settings.card_file_chars)
 
@@ -1044,16 +1876,166 @@ class KnotesWindow(Gtk.ApplicationWindow):
                 trimmed = stem[:chars] + ("…" if len(stem) > chars else "")
                 return GLib.markup_escape_text(trimmed + ext)
 
-            shown = "   ".join(_short(f) for f in note.file_names[:5])
-            more = "   …" if note.n_files > 5 else ""
+            def _title(fn: str) -> str:
+                """A file name safe to put in a link's ``title``. Escaped TWICE: once for this
+                label's markup, and again because GtkLabel hands a title to gtk_tooltip_set_markup()
+                — a second parse, which a raw '&' in a name would fail, leaving an empty tooltip."""
+                return GLib.markup_escape_text(GLib.markup_escape_text(fn))
+
+            # The href is the file's INDEX, not its name: a name can hold '&', '"' or '%' and would
+            # need escaping on the way in and unescaping on the way out. _on_file_link resolves it.
+            # A link's `title` is GtkLabel's own per-link tooltip — the way to show the untruncated
+            # name, since the label handles link hit-testing internally and a query-tooltip handler
+            # of ours would never be asked.
+            shown = "   ".join(f'<a href="{i}" title="{_title(f)}">{_short(f)}</a>'
+                               for i, f in enumerate(note.file_names[:5]))
+            # The "…" and the count reveal the folder; their tooltip is the full list, the only
+            # place the names past the fifth are readable at all. The separator is a literal "&#10;"
+            # because a real newline in an XML attribute is normalised away to a space.
+            every = "&#10;".join(_title(f) for f in note.file_names)
+            folder_link = f'<a href="folder" title="{every}">'
+            more = f"   {folder_link}…</a>" if note.n_files > 5 else ""
             files = Gtk.Label(xalign=0)
-            files.set_markup(f'<span alpha="70%">📎 {shown}{more}  ({note.n_files})</span>')
+            files.set_markup(f'<span alpha="70%">📎 {shown}{more}  '
+                             f'{folder_link}({fmt_count(note.n_files)})</a></span>')
             files.set_line_wrap(True)
             files.set_xalign(1.0 if note.is_rtl else 0.0)
+            files.connect("activate-link", self._on_file_link, note)
             outer.pack_start(files, False, False, 0)
+
+        outer.pack_start(self._build_card_actions(note, counts), False, False, 0)
 
         card.add(outer)
         return card
+
+    def _date_markup(self, note: Note) -> str:
+        """``created → last modified`` for the action row, the second coloured when they diverge.
+
+        The two dates come from different places on purpose. Creation is read from the FILE NAME's
+        timestamp, which is fixed at capture and survives every later edit; modification is the
+        filesystem's mtime, which any edit bumps. Comparing the pair is the only way to see that a
+        note captured a fortnight ago is still being worked on — the mtime alone can't tell you
+        that, and neither can the name.
+
+        Coloured by whole calendar days apart, not elapsed hours: the user reads these as dates, so
+        "three days" should mean three dates on the calendar and not 72 hours to the minute.
+        """
+        created_epoch = parse_created(note.timestamp, self.settings.timestamp_format, note.mtime)
+        created = datetime.fromtimestamp(created_epoch)
+        modified = datetime.fromtimestamp(note.mtime)
+        drift = (modified.date() - created.date()).days
+        colour = ""
+        if drift > STALE_ALERT_DAYS:
+            colour = STALE_ALERT_COLOR
+        elif drift > STALE_WARN_DAYS:
+            colour = STALE_WARN_COLOR
+        shown = modified.strftime("%Y-%m-%d")
+        if colour:
+            shown = f'<span foreground="{colour}" weight="bold">{shown}</span>'
+        return f'{created.strftime("%Y-%m-%d %H:%M")}  →  {shown}'
+
+    def _runs_markup(self, runs) -> str:
+        """Pango markup for a line of note text, painting the clauses marked ``==like this==``.
+
+        Same colours as the reading pane, from the same setting, so a highlight looks the same
+        wherever the note is shown — and the markers themselves are never rendered anywhere.
+        """
+        out = []
+        for text, highlighted in runs:
+            escaped = GLib.markup_escape_text(text)
+            if highlighted:
+                bg, fg = self._highlight_colors()
+                escaped = f'<span background="{bg}" foreground="{fg}">{escaped}</span>'
+            out.append(escaped)
+        return "".join(out)
+
+    def _highlight_colors(self) -> tuple[str, str]:
+        """(background, foreground) for a highlighted clause, both as ``#rrggbb``.
+
+        Hex, not Gdk's own ``to_string()``: that gives ``rgb(242,199,68)``, which Gdk parses back
+        but **Pango does not** — and an unparseable colour in a span attribute makes the whole
+        markup invalid, which on a card means its text renders as nothing at all. Hex is the one
+        spelling both accept. See _refresh_highlight_tag for why the foreground is computed.
+        """
+        colour = Gdk.RGBA()
+        if not colour.parse(self.settings.highlight_color):
+            colour.parse(Settings.highlight_color)   # an unparseable setting falls back, not crashes
+        luminance = 0.299 * colour.red + 0.587 * colour.green + 0.114 * colour.blue
+        return _rgba_hex(colour), "#101010" if luminance > 0.55 else "#f5f5f5"
+
+    def _build_card_actions(self, note: Note, counts: str = "") -> Gtk.Widget:
+        """The row of visible actions under a card: open folder · open note · copy name · copy path,
+        with the note's counts (words, highlights, time marks) closing the row.
+
+        These all had shortcuts already (Ctrl+O, Enter) or no way in at all (the two copies), which
+        made them invisible unless you'd read the F1 list. Spelling them out on the card is the
+        point; each tooltip still names the shortcut, so the row teaches the keys rather than
+        replacing them.
+
+        The two "open" actions carry words as well as an icon — they're the ones reached for
+        constantly. The copies are icon-only with the exact value they'd copy in the tooltip, which
+        is also what keeps the pair from being confused with each other.
+        """
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
+        # LTR like the title row: an Arabic note makes its card's text RTL, and the actions would
+        # otherwise mirror into a different order on Arabic cards than on English ones.
+        row.set_direction(Gtk.TextDirection.LTR)
+        row.get_style_context().add_class("card-actions")
+
+        def add(icon: str, text: str, tooltip: str, action, enabled: bool = True) -> None:
+            button = Gtk.Button(relief=Gtk.ReliefStyle.NONE)
+            button.get_style_context().add_class("card-action")
+            button.set_tooltip_text(tooltip)
+            button.set_sensitive(enabled)
+            # Not a focus stop: the board's Tab order and arrow-key walk run over whole cards, and
+            # four focusable buttons per card would sit between one card and the next.
+            button.set_can_focus(False)
+            content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+            content.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU), False, False, 0)
+            if text:
+                content.pack_start(Gtk.Label(label=text), False, False, 0)
+            button.add(content)
+            # Selecting the card first keeps "clicking a card selects it" true for the whole card,
+            # and leaves the keyboard on the note you just acted on.
+            button.connect("clicked", lambda _b: (self._on_card_click(note), action()))
+            row.pack_start(button, False, False, 0)
+
+        # A "needs metadata" placeholder has no companion folder of its own (see _open_files_folder):
+        # shown but disabled, so the row doesn't change shape and the tooltip says why.
+        settled = note.path not in self._unrecognized_paths
+        add("folder-open-symbolic", "open folder",
+            "Open the note's files folder in the file manager — created on demand  (Ctrl+O)"
+            if settled else
+            "Needs metadata before it can have a files folder — retag it with Ctrl+Shift+<key> first",
+            lambda: self._reveal_folder(note.path), enabled=settled)
+        add("document-edit-symbolic", "open note",
+            "Open the note in your editor  (Enter)",
+            lambda: self._open_external(note))
+
+        name = os.path.basename(note.path.rstrip(os.sep + "/"))
+        add("edit-copy-symbolic", "", f"Copy the file name to the clipboard\n{name}",
+            lambda: self._copy_to_clipboard(name, "file name"))
+        add("insert-link-symbolic", "", f"Copy the full path to the clipboard\n{note.path}",
+            lambda: self._copy_to_clipboard(note.path, "path"))
+
+        dates = self._date_markup(note)
+        if dates:
+            # Pushed to the right-hand end: the buttons are what the row is for, and two timestamps
+            # in the middle of them would be read as another control.
+            stamp = Gtk.Label(xalign=1)
+            stamp.set_markup(dates)
+            stamp.get_style_context().add_class("card-counts")
+            row.pack_end(stamp, False, False, 0)
+
+        if counts:
+            # No LTR isolate needed here, unlike when this rode on the title: the row itself is
+            # forced LTR (above), so an Arabic note can't reverse "(4 words)" into "(words 4)".
+            label = Gtk.Label(xalign=0)
+            label.set_markup(f'<span alpha="60%">{GLib.markup_escape_text(counts)}</span>')
+            label.get_style_context().add_class("card-counts")
+            label.set_margin_start(8)
+            row.pack_start(label, False, False, 0)
+        return row
 
     # ------------------------------------------------ card selection / navigation
 
@@ -1070,6 +2052,24 @@ class KnotesWindow(Gtk.ApplicationWindow):
             elif event is not None and event.type == Gdk.EventType._2BUTTON_PRESS:
                 self._open_external(note)
         return True  # don't propagate
+
+    def _on_file_link(self, _label: Gtk.Label, href: str, note: Note) -> bool:
+        """A click on an attached file's name on a card: open that file.
+
+        ``href`` is the file's index in ``note.file_names`` (see _build_card), or "folder" for the
+        "…"/count, which reveals the companion folder instead — those files aren't listed, so
+        there's nothing to name. Always returns True: the href is an index, not a URI, and letting
+        GTK's default handler see it would just log a "no application for uri" warning.
+        """
+        if href == "folder":
+            self._reveal_folder(note.path)
+            return True
+        try:
+            name = note.file_names[int(href)]
+        except (ValueError, IndexError):
+            return True  # card rebuilt under the click; the next render has the right indices
+        self._open_attachment(os.path.join(companion_dir(note.path), name))
+        return True
 
     def _pos_of_path(self, path: str | None) -> tuple[int, int, int] | None:
         if not path:
@@ -1097,6 +2097,10 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.selected_note = note
         self._selected_widget = card
         card.get_style_context().add_class("selected")
+        # The pane follows the selection — clicking or arrowing to a card is what "open this note
+        # for editing" means, so there's no second gesture to learn.
+        if self.settings.editor_pane_visible:
+            self._editor_load(note)
         if grab:
             card.grab_focus()  # focusing scrolls it into view in both scrollers
 
@@ -1111,7 +2115,14 @@ class KnotesWindow(Gtk.ApplicationWindow):
 
     def _restore_selection(self) -> None:
         """After a rebuild, re-select the same note (by path); if it's gone but we're in board mode,
-        fall back to the first card."""
+        fall back to the first card.
+
+        The selection is re-applied, but the keyboard is only taken back if nobody is writing. The
+        pane's autosave writes the note, the folder watch sees the write and reloads the board a
+        moment later, and this runs — so re-grabbing unconditionally pulls the caret out of the note
+        roughly a second and a half into every sentence typed in the pane, which reads as the app
+        randomly refusing to be typed into.
+        """
         self._selected_widget = None
         self.selected_note = None
         self._sel = None
@@ -1121,7 +2132,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if pos is None:
             self._sel_path = None
             return
-        self._apply_select(*pos, grab=self._board_active)
+        writing = self.editor_view.has_focus() or self.textview.has_focus()
+        self._apply_select(*pos, grab=self._board_active and not writing)
 
     def _focus_board(self) -> None:
         """Enter board navigation (Esc from the text field). Re-selects the last card, else the first."""
@@ -1196,6 +2208,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
                 c += step
 
     def _delete_selected(self) -> None:
+        self._editor_flush()   # the pane may hold an unwritten edit to the note being confirmed
         note = self.selected_note
         minimal_card = self.minimal_mode and self._minimal_card_selected
         if note is None or (self._sel is None and not minimal_card):
@@ -1269,43 +2282,54 @@ class KnotesWindow(Gtk.ApplicationWindow):
             return
         self._reveal_folder(note.path)
 
-    # Cached answer to "does the installed Nemo understand --tabs?" — see _nemo_supports_tabs.
-    _nemo_tabs: bool | None = None
+    # Cached answer to "which tab flags does the installed Nemo understand?" — see _nemo_tab_flags.
+    _nemo_flags: list[str] | None = None
 
     @classmethod
-    def _nemo_supports_tabs(cls) -> bool:
-        """Whether ``nemo --tabs`` is understood, probed once per session and cached.
+    def _nemo_tab_flags(cls) -> list[str]:
+        """The flags this Nemo understands for "new tab in the window that's already open", probed
+        once per session and cached. Empty when Nemo is missing or too old for them.
 
         Worth the probe because Popen can't tell us: it only raises when the *binary* is missing, so
-        a Nemo too old for the flag would parse-error, exit, open nothing — and the fallback chain in
+        a Nemo too old for a flag would parse-error, exit, open nothing — and the fallback chain in
         _reveal_folder would never fire, leaving Ctrl+O silently doing nothing. ``--help`` parses
         locally and returns in milliseconds; the timeout is only a guard.
+
+        Both flags are needed. ``--tabs`` alone opens the URIs as tabs of a BRAND-NEW window;
+        ``--existing-window`` is what makes them land in the running one.
         """
-        if cls._nemo_tabs is None:
+        if cls._nemo_flags is None:
             try:
                 done = subprocess.run(["nemo", "--help"], capture_output=True, text=True, timeout=3)
-                cls._nemo_tabs = "--tabs" in (done.stdout + done.stderr)
+                help_text = done.stdout + done.stderr
+                cls._nemo_flags = [f for f in ("--existing-window", "--tabs") if f in help_text]
             except (OSError, subprocess.SubprocessError):
-                cls._nemo_tabs = False   # no Nemo, or it didn't answer — the fallbacks cover it
-        return cls._nemo_tabs
+                cls._nemo_flags = []   # no Nemo, or it didn't answer — the fallbacks cover it
+        return cls._nemo_flags
 
     def _reveal_folder(self, note_path: str) -> None:
         """Create (on demand) a note's companion folder and reveal it in the file manager.
 
         Opened as a new TAB in the Nemo window that's already up rather than yet another window:
         with auto-open-folder on, a capture session fires this on every save, and a window per note
-        buries the desktop within minutes. ``--tabs`` still opens a window when none exists, so the
-        first call behaves as before.
+        buries the desktop within minutes. ``--existing-window --tabs`` still opens a window when
+        none exists, so the first call behaves as before.
         """
         folder = companion_dir(note_path)
         try:
             os.makedirs(folder, exist_ok=True)
         except OSError:
             return
-        # Most specific first: Nemo in a tab, plain Nemo, then the freedesktop default.
-        commands = [["nemo", folder], ["xdg-open", folder]]
-        if self._nemo_supports_tabs():
-            commands.insert(0, ["nemo", "--tabs", folder])
+        if IS_WINDOWS:
+            commands = [["explorer", os.path.normpath(folder)]]
+        elif IS_MACOS:
+            commands = [["open", folder]]
+        else:
+            # Most specific first: a tab in the open Nemo, plain Nemo, then the freedesktop default.
+            commands = [["nemo", folder], ["xdg-open", folder]]
+            flags = self._nemo_tab_flags()
+            if flags:
+                commands.insert(0, ["nemo", *flags, folder])
         for cmd in commands:
             try:
                 subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1316,6 +2340,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
     def _quick_append(self) -> None:
         """Space on a selected card: open a one-line field under it to append a comment to the note,
         without opening the full editor. Enter appends + saves; Esc cancels."""
+        self._editor_flush()   # the append is built from note.content — flush before reading it
         note = self.selected_note
         if note is None or self._sel is None or self._append_entry is not None:
             return
@@ -1394,7 +2419,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         """Set the header title, appending a live merge hint while notes are marked so it's obvious
         the mark registered and how many are staged."""
         n = len(self._merge_marks)
-        hint = f"   ·   ⛓ {n} marked — Ctrl+Shift+M to merge, Esc to clear" if n else ""
+        hint = f"   ·   ⛓ {fmt_count(n)} marked — Ctrl+Shift+M to merge, Esc to clear" if n else ""
         self.header.set_title(getattr(self, "_base_title", "knotes") + hint)
 
     def _clear_merge_marks(self) -> None:
@@ -1406,6 +2431,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
     def _merge_marked(self) -> None:
         """Ctrl+Shift+M: fold the marked notes into the first-marked one and move the rest to the
         ``merged`` subfolder, keeping the view put."""
+        self._editor_flush()   # merge reads note.content — write the pane's edit through first
         by_path = {n.path: n for row in self._grid for col in row for (n, _c) in col}
         marked = [by_path[p] for p in self._merge_marks if p in by_path]
         if len(marked) < 2:
@@ -1422,7 +2448,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         dialog = Gtk.MessageDialog(
             transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION,
             buttons=Gtk.ButtonsType.YES_NO,
-            text=f"Merge {len(others)} note(s) into the survivor?")
+            text=f"Merge {fmt_count(len(others))} note(s) into the survivor?")
         dialog.format_secondary_text(self._merge_summary(survivor, others))
         dialog.set_default_response(Gtk.ResponseType.YES)
         yes_button = dialog.get_widget_for_response(Gtk.ResponseType.YES)
@@ -1451,6 +2477,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         renaming the file. Always sets (never clears) — safe to mass-apply the same tag across
         many notes without checking each one's current state first; un-setting a type/category
         still needs the full editor. Returns True if it matched a code."""
+        # Retagging RENAMES the file, so the pane's pending write has to land on the old name first;
+        # the rename then carries it, and the reload re-opens the note under its new name.
+        self._editor_flush()
         note = self.selected_note
         if note is None:
             return False
@@ -1489,7 +2518,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         return True
 
     def _save_draft(self) -> None:
-        """Persist whatever is in the add field (with the current tags) so a forgotten note isn't lost."""
+        """Persist whatever is in the add field (with the current tags) so a forgotten note isn't
+        lost — and write out the editor pane's pending edit for the same reason."""
+        self._editor_flush()
         start, end = self.buffer.get_bounds()
         text = self.buffer.get_text(start, end, True).strip()
         if text:
@@ -1559,7 +2590,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
     def _word_preview(self, note: Note) -> str:
         """First N + last M words of the note (both configurable) plus the word count — a compact
         'just added' preview, e.g. 'buy milk … the shop  (7w)'."""
-        words = note.content.split()
+        # Markers stripped like everywhere else the note is shown; this strip is a plain label with
+        # no markup, so the highlight itself isn't painted here — only its "==" kept out of sight.
+        words = split_highlights(note.content)[0].split()
         n = len(words)
         head = max(0, self.settings.preview_head_words)
         tail = max(0, self.settings.preview_tail_words)
@@ -1567,7 +2600,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
             preview = " ".join(words)
         else:
             preview = " ".join(words[:head]) + " … " + " ".join(words[-tail:])
-        return f"{preview}   ({n}w)" if preview else f"({n}w)"
+        return f"{preview}   ({fmt_count(n)}w)" if preview else f"({fmt_count(n)}w)"
 
     # ------------------------------------------------ minimal side-note mode
 
@@ -1854,6 +2887,65 @@ class KnotesWindow(Gtk.ApplicationWindow):
         lo, hi = self.repo_cfg.priority_min, max(self.repo_cfg.priority_max, self.repo_cfg.priority_min)
         self._set_priority(min(max(self.repo_cfg.priority_default, lo), hi))
 
+    # -------------------------------------------------------- tag bank
+
+    _completers: list[TagCompleter] = []
+    _bank: list[tagbank.Tag] = []
+    _bank_stamp: tuple[str, float] | None = None   # (path, mtime) the cache was read from
+
+    def tag_bank(self) -> list[tagbank.Tag]:
+        """The hashtag vocabulary, re-read whenever the file changes on disk.
+
+        Checked by mtime rather than watched: the completer asks for the bank on every keystroke
+        that could open it, a stat is far cheaper than the parse, and the file is one the user
+        edits by hand in another window — noticing that without a restart is the point.
+        """
+        path = tagbank.default_bank_path(HERE, self.settings.tag_bank_path)
+        # Written on first use rather than shipped: the bank is per-machine and never tracked, so a
+        # fresh checkout has none. Cheap to attempt — it returns immediately once the file exists.
+        tagbank.ensure_bank(path)
+        try:
+            stamp = (path, os.path.getmtime(path))
+        except OSError:
+            stamp = (path, 0.0)
+        if stamp != self._bank_stamp:
+            self._bank_stamp = stamp
+            self._bank = tagbank.load_bank(path)
+        return self._bank
+
+    def _completer_for(self, view: Gtk.TextView) -> TagCompleter | None:
+        """The completer attached to whichever view has the keyboard, or None."""
+        for completer in self._completers:
+            if completer.view is view:
+                return completer
+        return None
+
+    def _active_completer(self) -> TagCompleter | None:
+        return next((c for c in self._completers if c.active), None)
+
+    def _copy_to_clipboard(self, text: str, what: str) -> None:
+        """Put ``text`` on the clipboard and say so in the status bar. The message isn't decoration:
+        a copy that succeeds looks exactly like a click that missed the button."""
+        Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD).set_text(text, -1)
+        self._flash_status(f"Copied {what}:  {text}")
+
+    # GLib source id of the pending "put the folder path back" timeout, 0 when none is armed.
+    _status_flash: int = 0
+
+    def _flash_status(self, message: str) -> None:
+        """Show a transient message where the status bar's folder path is, then restore it. A second
+        flash restarts the clock rather than letting the first one's timeout cut it short."""
+        self.status_path.set_text(message)
+        self.status_path.set_tooltip_text(message)
+        if self._status_flash:
+            GLib.source_remove(self._status_flash)
+        self._status_flash = GLib.timeout_add_seconds(4, self._end_status_flash)
+
+    def _end_status_flash(self) -> bool:
+        self._status_flash = 0
+        self._refresh_status()
+        return False  # one-shot
+
     def _refresh_status(self) -> None:
         """Update the status bar (active folder path + save key) and the send button's tooltip."""
         keys = "Enter" if self.settings.save_on_enter else "Ctrl+Enter"
@@ -1897,6 +2989,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         being composed stays in the field, so the menu redirects where the current note will land."""
         if self._suppress_repo:
             return
+        self._editor_flush()   # the pane's note belongs to the folder being left
         code = combo.get_active_id()
         if not code or code == self.settings.active_repo_code():
             return
@@ -1937,15 +3030,29 @@ class KnotesWindow(Gtk.ApplicationWindow):
         return False  # don't repeat the idle callback
 
     def _open_external(self, note: Note) -> None:
-        """Open the note's file in the configured opener, or the system default (xdg-open)."""
-        opener = self.settings.opener.strip()
-        argv = ([opener] if opener else ["xdg-open"]) + [note.path]
+        """Open the note's .md in the configured opener, or the system default."""
+        self._open_path(note.path, "the note", self.settings.opener.strip())
+
+    def _open_attachment(self, path: str) -> None:
+        """Open one of a note's attached files (a click on its name on the card).
+
+        Always the system default handler, never the configured ``opener``: that setting exists to
+        pick a text editor for the .md (e.g. "xed"), and an attachment is just as likely to be a
+        PDF, an image or a spreadsheet — which that editor couldn't open.
+        """
+        self._open_path(path, os.path.basename(path), "")
+
+    def _open_path(self, path: str, what: str, opener: str) -> None:
+        argv = ([opener] if opener else [DEFAULT_OPENER]) + [path]
         try:
-            subprocess.Popen(argv)
+            if not opener and IS_WINDOWS:
+                os.startfile(os.path.normpath(path))  # no shell default binary to exec
+            else:
+                subprocess.Popen(argv)
         except OSError as exc:
             dialog = Gtk.MessageDialog(
                 transient_for=self, modal=True, message_type=Gtk.MessageType.ERROR,
-                buttons=Gtk.ButtonsType.OK, text=f"Couldn't open the note with '{argv[0]}'")
+                buttons=Gtk.ButtonsType.OK, text=f"Couldn't open {what} with '{argv[0]}'")
             dialog.format_secondary_text(str(exc))
             dialog.run()
             dialog.destroy()
@@ -1982,9 +3089,27 @@ class KnotesWindow(Gtk.ApplicationWindow):
                 self.layout_label.set_text("ع" if is_rtl(ch) else "EN")
 
         # Board mode = a card is selected and we're not typing in the text field / search.
+        # The editor pane counts as a text field: without it the arrow keys would walk the board
+        # instead of the cursor, and Ctrl+D would delete the note being typed into.
         in_text = (self.textview.has_focus() or self.search_entry.has_focus()
+                   or self.editor_view.has_focus()
                    or (self._append_entry is not None and self._append_entry.has_focus()))
         board = self._board_active and self.selected_note is not None and not in_text
+
+        # The tag completer owns the arrows, Enter/Tab and Esc while its list is up. Checked before
+        # anything else because every one of those keys is claimed further down — and because this
+        # window handler runs before the focused view's, so there is nowhere later to do it.
+        completer = self._active_completer()
+        if completer is not None and not ctrl and not alt:
+            if kv in (Gdk.KEY_Down, Gdk.KEY_Up):
+                completer.move(1 if kv == Gdk.KEY_Down else -1)
+                return True
+            if kv in (Gdk.KEY_Return, Gdk.KEY_KP_Enter, Gdk.KEY_Tab, Gdk.KEY_ISO_Left_Tab):
+                completer.accept()
+                return True
+            if kv == Gdk.KEY_Escape:
+                completer.hide()
+                return True
 
         if kv == Gdk.KEY_F1:
             self._show_help()
@@ -1997,6 +3122,14 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # field saves too (and Shift+Enter then inserts a newline). The board's own Enter — open the
         # selected note — is handled below and only fires when the text field isn't focused.
         if kv in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) and not alt:
+            # In the side pane Ctrl+Enter means "done with this note" — save it and hand the
+            # keyboard back to the board. Checked here, not in a handler on the pane itself: this
+            # window-level handler runs BEFORE the event reaches the focused widget, so a pane
+            # handler would never see it and the chord would file a spurious NEW note instead.
+            if ctrl and self.editor_view.has_focus():
+                self._editor_flush()
+                self._focus_board()
+                return True
             if ctrl:
                 self._send()
                 return True
@@ -2011,6 +3144,11 @@ class KnotesWindow(Gtk.ApplicationWindow):
                 self._clear_merge_marks()  # a pending merge set: first Esc just clears it
             elif self.search_bar.get_search_mode():
                 self._set_search(False)
+            elif self.editor_view.has_focus():
+                # Out of the side pane and back to the cards — saving on the way, so the next
+                # keystroke (a retag, a delete) can't get ahead of a pending autosave.
+                self._editor_flush()
+                self._focus_board()
             elif self.textview.has_focus():
                 self._focus_board()
             else:
@@ -2067,6 +3205,10 @@ class KnotesWindow(Gtk.ApplicationWindow):
 
         if ctrl and not shift and not alt and kv in (Gdk.KEY_f, Gdk.KEY_F):
             self._set_search(not self.search_bar.get_search_mode())
+            return True
+        # Ctrl+E ("edit"): the side editor pane. Layout-independent via _base_char.
+        if ctrl and not shift and not alt and self._base_char(event).lower() == "e":
+            self._set_editor_pane(not self.settings.editor_pane_visible)
             return True
         if ctrl and not shift and not alt and kv in (Gdk.KEY_q, Gdk.KEY_Q):
             self._save_draft()
@@ -2168,6 +3310,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self._apply_defaults()
             self._populate_repo_combo()
             self._refresh_status()
+            self._refresh_highlight_tag()  # a new highlight colour shows without reopening the pane
+            self._editor_render(keep_scroll=True)
             self.reload_notes()
             self._sync_backend_taxonomy()  # a newly-entered backend URL takes effect right away
         dialog.destroy()
@@ -2187,6 +3331,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
             ("Space (card selected)", "Quick-append a comment to the note (inline field · Enter adds · Esc cancels)"),
             ("Ctrl+O (card selected)", "Open the note's files folder in the file manager (created on demand)"),
             ("Ctrl+1 … Ctrl+9", "Switch to the 1st … 9th note folder"),
+            ("Ctrl+E", "Side editor pane — edit the selected note in place, saved as you type"),
             ("Ctrl+F", "Toggle search"),
             ("Ctrl+B", "Show / hide the filter sidebar (calendar heat map, tags, counts)"),
             ("Ctrl+R", "Refresh from disk (pick up notes synced from another machine)"),
@@ -2247,7 +3392,7 @@ class SettingsDialog(Gtk.Dialog):
         add("Timestamp format", self.format_entry)
 
         self.opener_entry = Gtk.Entry(text=settings.opener)
-        self.opener_entry.set_placeholder_text("system default (xdg-open)")
+        self.opener_entry.set_placeholder_text(f"system default ({DEFAULT_OPENER})")
         self.opener_entry.set_tooltip_text("Command used to open a note on click, e.g. xed. Blank = system default.")
         add("Open notes with", self.opener_entry)
 
@@ -2255,6 +3400,25 @@ class SettingsDialog(Gtk.Dialog):
         self.preview_spin.set_value(settings.preview_chars)
         self.preview_spin.set_tooltip_text("Characters shown from the start of a note on its card.")
         add("Preview characters (head)", self.preview_spin)
+
+        self.counts_min_spin = Gtk.SpinButton.new_with_range(0, 5000, 20)
+        self.counts_min_spin.set_value(settings.card_counts_min_chars)
+        self.counts_min_spin.set_tooltip_text(
+            "Notes at least this many characters long also show their highlight count on the card "
+            "(and their time-mark count, if the companion folder holds any .tmk files). Short "
+            "captures don't need it — the whole note is already on the card. 0 = every card.")
+        add("Counts shown from", self.counts_min_spin)
+
+        # The side pane opens in whichever mode it was last switched to; this is what a fresh
+        # window (and a fresh install) starts in, for people who always want one or the other.
+        self.pane_mode_combo = Gtk.ComboBoxText()
+        for code, label in (("read", "Read (highlights, no editing)"), ("edit", "Edit (type straight in)")):
+            self.pane_mode_combo.append(code, label)
+        self.pane_mode_combo.set_active_id(settings.editor_pane_mode if settings.editor_pane_mode in ("read", "edit") else "read")
+        self.pane_mode_combo.set_tooltip_text(
+            "Which mode the side editor pane (Ctrl+E) starts in. Switching mode in the pane itself "
+            "still sticks — this is the starting point.")
+        add("Editor pane starts in", self.pane_mode_combo)
 
         self.head_words_spin = Gtk.SpinButton.new_with_range(0, 20, 1)
         self.head_words_spin.set_value(settings.preview_head_words)
@@ -2284,6 +3448,28 @@ class SettingsDialog(Gtk.Dialog):
             "On: every #hashtag in use, with how many notes use each. Off: just a compact "
             "total-uses count in its place — the strip stays, but without spelling out every tag.")
         add("Tags", self.show_tags_summary_check)
+
+        self.start_today_check = Gtk.CheckButton(label="Open filtered to today's notes")
+        self.start_today_check.set_active(settings.start_filter_today)
+        self.start_today_check.set_tooltip_text(
+            "On: launch with today selected in the calendar, so the board opens on what you've "
+            "captured today — or says \"No notes entered today\" if that's nothing yet. \"Clear "
+            "all filters\" at the foot of the sidebar shows everything. Off: the whole board.")
+        add("Startup", self.start_today_check)
+
+        # Colour of a ==highlighted== clause in the side pane's reading mode. A colour button rather
+        # than a hex field: the point of the setting is to pick something that reads well against
+        # the theme, which is a thing you judge by eye.
+        highlight = Gdk.RGBA()
+        if not highlight.parse(settings.highlight_color):
+            highlight.parse("#f2c744")
+        self.highlight_button = Gtk.ColorButton.new_with_rgba(highlight)
+        self.highlight_button.set_halign(Gtk.Align.START)
+        self.highlight_button.set_tooltip_text(
+            "Background painted behind a clause highlighted in the side pane's reading mode "
+            "(stored in the note as ==clause==). The text on top switches between black and white "
+            "to stay readable, so a dark colour works as well as a light one.")
+        add("Highlight colour", self.highlight_button)
 
         self.append_template_entry = Gtk.Entry(text=settings.append_template)
         self.append_template_entry.set_tooltip_text(
@@ -2411,10 +3597,16 @@ class SettingsDialog(Gtk.Dialog):
         settings.opener = self.opener_entry.get_text().strip()
         settings.preview_chars = int(self.preview_spin.get_value())
         settings.preview_tail_chars = int(self.preview_tail_spin.get_value())
+        settings.card_counts_min_chars = int(self.counts_min_spin.get_value())
+        settings.editor_pane_mode = self.pane_mode_combo.get_active_id() or "read"
         settings.preview_head_words = int(self.head_words_spin.get_value())
         settings.preview_tail_words = int(self.tail_words_spin.get_value())
         settings.save_on_enter = self.save_enter_check.get_active()
         settings.show_tags_summary = self.show_tags_summary_check.get_active()
+        settings.start_filter_today = self.start_today_check.get_active()
+        # Stored as #rrggbb rather than Gdk's "rgb(r,g,b)": Pango markup can't parse the latter (see
+        # _highlight_colors), and hex is what a hand-edited config.json is expected to hold anyway.
+        settings.highlight_color = _rgba_hex(self.highlight_button.get_rgba())
         settings.append_template = self.append_template_entry.get_text()
         settings.append_date_format = self.append_date_format_entry.get_text().strip() or settings.append_date_format
         settings.kanban_rows = int(self.rows_spin.get_value())

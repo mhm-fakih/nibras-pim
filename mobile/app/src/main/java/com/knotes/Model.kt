@@ -46,9 +46,17 @@ data class Note(
      * with it.
      */
     fun preview(maxLines: Int): String {
-        val text = content.lineSequence().take(maxLines.coerceAtLeast(1)).joinToString("\n").trimEnd()
-        return text.ifBlank { content.take(120).ifBlank { file.name } }
+        // Highlight markers stripped, as everywhere a note is SHOWN rather than edited (the desktop
+        // does the same) — a card is a plain label with no markup, so leaving the "==" in would put
+        // punctuation on screen that means nothing to the reader.
+        val shown = com.knotes.util.Highlights.strip(content)
+        val text = shown.lineSequence().take(maxLines.coerceAtLeast(1)).joinToString("\n").trimEnd()
+        return text.ifBlank { shown.take(120).ifBlank { file.name } }
     }
+
+    /** The body without highlight markers — what searching should look at, so a query can match
+     *  across a highlighted clause instead of tripping over its "==". */
+    fun searchText(): String = com.knotes.util.Highlights.strip(content)
 
     fun timeText(): String =
         SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(lastModified))
@@ -78,11 +86,22 @@ fun companionFileNames(noteFile: File): List<String> =
  */
 object NoteFiles {
 
-    // Arabic, Arabic Supplement, Arabic Extended-A, and the presentation forms.
-    private val RTL = Regex("[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\uFB50-\\uFDFF\\uFE70-\\uFEFF]")
     private val PRIORITY = Regex("^p(\\d+)$")
 
-    fun isRtl(text: String): Boolean = RTL.containsMatchIn(text)
+    /**
+     * Whether [text] reads right-to-left, from its FIRST strong letter.
+     *
+     * It used to be "contains an Arabic character anywhere", which meant one quoted Arabic word,
+     * one Arabic name, or an `'ar` tag laid an entire English title out right-to-left with its
+     * punctuation thrown to the wrong end. The first strong letter is what a reader would answer
+     * if asked what language a line is written in.
+     *
+     * Delegates to [com.knotes.util.Bidi] so there is one rule: this answers for a whole string
+     * (a title, a file name, a card heading), and `Bidi.lines` answers per line for a body of text
+     * that mixes the two. Text with no strong letter at all — digits, punctuation — is left-to-right,
+     * which is only ever a tie-break.
+     */
+    fun isRtl(text: String): Boolean = com.knotes.util.Bidi.isRtlLine(text) ?: false
 
     fun nowToken(format: String): String =
         runCatching { SimpleDateFormat(format, Locale.US).format(Date()) }
@@ -96,6 +115,24 @@ object NoteFiles {
      * The de-dup suffix (`…-2`, added when two notes land in the same second) is stripped first:
      * it is part of the file name, not of the time, and `SimpleDateFormat` would reject it.
      */
+    /**
+     * When a note file was WRITTEN, from its name — falling back to the file's mtime only when the
+     * name carries no usable timestamp.
+     *
+     * <h4>Why the name, and not the mtime</h4>
+     * The mtime says when the bytes last changed, which is a different question and frequently the
+     * wrong one. Retagging rewrites and renames the file. Syncthing rewrites it on every device it
+     * reaches. Editing one word rewrites it. Any of those would move the note to "today" — and a
+     * sync of a few hundred old notes makes every one of them today's, which is exactly what the
+     * counters used to report. The name is written once and never changes, so it is the only
+     * timestamp that answers "when was this note made".
+     *
+     * This is the single definition all the counters and the calendar strip go through, so they
+     * cannot drift apart again.
+     */
+    fun createdMillisOf(file: java.io.File, format: String): Long =
+        parseCreated(parse(file.name).timestamp, format, file.lastModified())
+
     fun parseCreated(timestamp: String, format: String, fallbackMillis: Long): Long {
         val token = timestamp.substringBeforeLast('-', timestamp).takeIf {
             // Only treat a trailing "-N" as the de-dup suffix; the format itself contains dashes.

@@ -28,7 +28,7 @@ function buildNumber(command: string): number {
 const backend = `http://127.0.0.1:${process.env.BACKEND_PORT ?? 8081}`;
 
 // This release's Mint-style nickname (bump alongside the version in package.json).
-const APP_CODENAME = 'Dastgheib';
+const APP_CODENAME = 'Gratitude';
 
 export default defineConfig(({ command }) => ({
   base: './',

@@ -43,7 +43,7 @@ from gi.repository import Gtk, Gdk, GLib  # noqa: E402
 
 import filters as F  # noqa: E402
 from filters import FilterState, Taxonomy  # noqa: E402
-from notes import Note  # noqa: E402
+from notes import Note, fmt_count  # noqa: E402
 
 PANEL_WIDTH = 250
 RAIL_WIDTH = 26
@@ -172,10 +172,13 @@ class FilterSidebar(Gtk.Box):
         # It costs nothing when unused: a folder with no #hashtags hides the section outright
         # (header and all, see _sync_tag_cloud) rather than parking an empty box in the best spot.
         self._tag_cloud = Gtk.FlowBox()
+        self._tag_cloud.get_style_context().add_class("tag-cloud")
         self._tag_cloud.set_selection_mode(Gtk.SelectionMode.NONE)
         self._tag_cloud.set_max_children_per_line(99)   # let width, not a count, decide the wrap
-        self._tag_cloud.set_row_spacing(2)
-        self._tag_cloud.set_column_spacing(2)
+        # Wider gaps than the old chips needed: with the button frames gone (see .tag-chip) it's the
+        # whitespace, not a border, that tells one tag from the next.
+        self._tag_cloud.set_row_spacing(3)
+        self._tag_cloud.set_column_spacing(10)
         self._tag_cloud.set_no_show_all(True)
         self._tag_buttons: dict[str, Gtk.ToggleButton] = {}
         self._tag_section = self._section(F.DIM_TAG, "Tags", self._tag_cloud)
@@ -369,12 +372,12 @@ class FilterSidebar(Gtk.Box):
             number.get_style_context().add_class("cal-day-num")
             inner.pack_start(number, False, False, 0)
             # The per-day count — the calendar is a filter like any other, so it shows its numbers.
-            tally = Gtk.Label(label=str(count) if count else "·")
+            tally = Gtk.Label(label=fmt_count(count) if count else "·")
             tally.get_style_context().add_class("cal-day-count")
             inner.pack_start(tally, False, False, 0)
             button.add(inner)
             button.set_tooltip_text(
-                f"{day:%a %d %b %Y}\n{n_created} created · {n_updated} updated"
+                f"{day:%a %d %b %Y}\n{fmt_count(n_created)} created · {fmt_count(n_updated)} updated"
                 "\nClick to filter · Shift+click for a range")
             button.connect("button-press-event", self._remember_day_mods)
             button.connect("clicked", lambda _b, d=day: self._on_day(d))
@@ -508,15 +511,22 @@ class FilterSidebar(Gtk.Box):
         peak = max(counts.values(), default=0)
         for tag, button in self._tag_buttons.items():
             n = counts.get(tag, 0)
+            picked = tag in self.state.tags
             step = 0 if peak <= 1 else int((n - 1) / max(1, peak - 1) * (len(self._TAG_SCALE) - 1))
             label = button.get_child()
+            # The picked tag's underline comes from Pango, not CSS: GTK3 ignores
+            # text-decoration-line on a button label, so .tag-chip:checked can only carry the colour
+            # and the weight. It underlines the WORD alone, not the count trailing it.
+            underline = ' underline="single"' if picked else ""
             label.set_markup(
-                f'<span size="{int(self._TAG_SCALE[min(step, len(self._TAG_SCALE) - 1)] * 100)}%">'
-                f'#{GLib.markup_escape_text(tag)}</span> '
-                f'<span size="80%" alpha="60%">{n}</span>')
-            button.set_tooltip_text(f"{n} note(s) tagged #{tag}")
+                f'<span size="{int(self._TAG_SCALE[min(step, len(self._TAG_SCALE) - 1)] * 100)}%"'
+                f'{underline}>#{GLib.markup_escape_text(tag)}</span> '
+                # weight="normal" so a picked tag bolds the WORD only — .tag-chip:checked bolds the
+                # whole label, and a bold count next to a bold tag reads as part of the tag.
+                f'<span size="80%" alpha="60%" weight="normal">{fmt_count(n)}</span>')
+            button.set_tooltip_text(f"{fmt_count(n)} note(s) tagged #{tag}")
             self._suppress = True
-            button.set_active(tag in self.state.tags)
+            button.set_active(picked)
             self._suppress = False
             # A picked tag stays clickable at 0 so it can be switched off; see FacetCounts.tags.
             button.set_sensitive(n > 0 or tag in self.state.tags)
@@ -662,7 +672,7 @@ class FilterSidebar(Gtk.Box):
             selection = self.state.selection(dim)
             for key, (button, count) in self._rows[dim].items():
                 n = table.get(key, 0)
-                count.set_text(str(n))
+                count.set_text(fmt_count(n))
                 button.set_active(key in selection)
                 # An option no remaining note could match is dead weight — grey it out, unless it's
                 # the one currently selected (which must stay clickable to switch off).
@@ -671,7 +681,7 @@ class FilterSidebar(Gtk.Box):
         for dim, table, picked in ((F.DIM_NONSTANDARD, counts.nonstandard, self.state.nonstandard),
                                    (F.DIM_TAXONOMY, counts.taxonomy, self.state.taxonomy)):
             for mode, (button, count) in self._rows[dim].items():
-                count.set_text(str(table.get(mode, 0)))
+                count.set_text(fmt_count(table.get(mode, 0)))
                 button.set_active(picked == mode)
 
         self._sync_tag_cloud(counts.tags)
@@ -683,22 +693,23 @@ class FilterSidebar(Gtk.Box):
         counts = self._counts
         active = self.state.active()
         self.shown_label.set_markup(
-            f'<b>{counts.shown}</b>/{counts.total}' if active else f'{counts.total}')
+            f'<b>{fmt_count(counts.shown)}</b>/{fmt_count(counts.total)}' if active
+            else fmt_count(counts.total))
         self.shown_label.set_tooltip_text(
-            f"{counts.shown} of {counts.total} notes pass the filters" if active
-            else f"{counts.total} notes — no filters set")
+            f"{fmt_count(counts.shown)} of {fmt_count(counts.total)} notes pass the filters" if active
+            else f"{fmt_count(counts.total)} notes — no filters set")
         self.clear_button.set_sensitive(active)
         self.clear_days_button.set_sensitive(bool(self.state.days))
 
         for key, (_chevron, _content, badge) in self._sections.items():
             dim = F.DIM_DAY if key == SEC_CALENDAR else key
             picked = self.state.active_count(dim)
-            badge.set_text(str(picked) if picked else "")
+            badge.set_text(fmt_count(picked) if picked else "")
 
         picked_total = sum(self.state.active_count(d) for d in
                            (F.DIM_TYPE, F.DIM_CATEGORY, F.DIM_PRIORITY, F.DIM_DAY,
                             F.DIM_NONSTANDARD, F.DIM_TAXONOMY, F.DIM_TAG))
-        self.rail_badge.set_text(f"FILTERS {picked_total}" if picked_total else "FILTERS")
+        self.rail_badge.set_text(f"FILTERS {fmt_count(picked_total)}" if picked_total else "FILTERS")
 
     # --------------------------------------------------------------- plumbing
 

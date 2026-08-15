@@ -67,12 +67,18 @@ class Settings:
     # On a card, a note's attached files are listed (up to 5, then "…") with each name truncated to
     # this many leading characters plus its extension — a quick overview of what the note contains.
     card_file_chars: int = 12
+    # A card carries its highlight count (and its time-mark count, if it has any) once the note is
+    # at least this many characters long. Short captures don't need the bookkeeping — the whole note
+    # is on the card already — but on a long one the counts are what say whether it's been worked
+    # through yet. 0 puts them on every card.
+    card_counts_min_chars: int = 120
     # The "just added" card preview shows the first N + last M WORDS of the note (with a word count).
     preview_head_words: int = 2
     preview_tail_words: int = 2
     # Characters of the note shown in the terminal dashboard's per-repo "last note" preview.
     terminal_preview_chars: int = 60
-    # Command used to open a note on click; blank means the system default (xdg-open). e.g. "xed".
+    # Command used to open a note on click; blank means the system default (xdg-open on Linux,
+    # the file's associated app on Windows, `open` on macOS). e.g. "xed".
     opener: str = ""
     priority_min: int = 1
     priority_max: int = 5
@@ -114,7 +120,36 @@ class Settings:
     # ("created", read from the note's file name, or "updated", the file's mtime).
     sidebar_visible: bool = True
     heatmap_metric: str = "created"
+    # Start on today's captures: the one deliberate exception to "no filter is restored". It isn't
+    # a restored selection but a fixed one (today, by `heatmap_metric`), so it can't go stale — and
+    # a day with nothing on it says so ("No notes entered today", see _render_empty) instead of
+    # showing a blank board. The calendar shows the day picked, so the sidebar's "Clear all
+    # filters" gets the whole board back.
+    start_filter_today: bool = True
     sidebar_sections_collapsed: list[str] = field(default_factory=list)
+    # Right-hand editor pane (Ctrl+E): a full-height panel that edits the selected note's body in
+    # place and saves itself, for the fix-a-typo / flesh-out-a-line edits that aren't worth a round
+    # trip through an external editor. Only whether it's open and how wide is remembered — WHICH
+    # note it shows always comes from the current selection, never from last time.
+    editor_pane_visible: bool = True
+    editor_pane_width: int = 420
+    # Which of the pane's two modes it opens in. "read" (the default) lays the note out for reading
+    # — the ``==`` markers hidden, the marked clauses painted, and a click on a clause toggling its
+    # highlight. "edit" is the raw text, typed into and saved as you go. Reading is the default
+    # because re-reading a capture is the commoner act, and because a mode that can only ever change
+    # a highlight is the safer one to land in.
+    editor_pane_mode: str = "read"
+    # The hashtag vocabulary offered after a "#" while writing a note. Blank means ``tag-bank.md``
+    # next to the program; set a path to keep the bank in a synced folder instead, so the same
+    # vocabulary reaches every machine. Missing file → the completer simply never appears.
+    tag_bank_path: str = ""
+    # Background painted behind a ==highlighted== clause, and behind the colour button in Settings.
+    # Any Gdk-parseable colour string. The text on top is switched between black and white by
+    # luminance, so a dark pick stays readable instead of vanishing into the theme's foreground.
+    highlight_color: str = "#f2c744"
+    # Idle time (ms) after the last keystroke before the pane writes the note. Long enough that a
+    # normal typing burst is one write, short enough that a glance at the card shows the new text.
+    editor_autosave_ms: int = 900
     # Quick-append (Space on a selected card) inserts this between the note's existing content and
     # the newly appended text. "$date" is substituted with now, formatted per append_date_format.
     # Literal "\n" (backslash-n, not an actual newline — this is a single-line settings field) is
@@ -182,6 +217,7 @@ class Settings:
         s.preview_chars = int(raw.get("preview_chars", s.preview_chars))
         s.preview_tail_chars = int(raw.get("preview_tail_chars", s.preview_tail_chars))
         s.card_file_chars = int(raw.get("card_file_chars", s.card_file_chars))
+        s.card_counts_min_chars = int(raw.get("card_counts_min_chars", s.card_counts_min_chars))
         s.preview_head_words = int(raw.get("preview_head_words", s.preview_head_words))
         s.preview_tail_words = int(raw.get("preview_tail_words", s.preview_tail_words))
         s.terminal_preview_chars = int(raw.get("terminal_preview_chars", s.terminal_preview_chars))
@@ -202,8 +238,16 @@ class Settings:
         s.show_tags_summary = bool(raw.get("show_tags_summary", s.show_tags_summary))
         s.sidebar_visible = bool(raw.get("sidebar_visible", s.sidebar_visible))
         s.heatmap_metric = raw.get("heatmap_metric", s.heatmap_metric)
+        s.start_filter_today = bool(raw.get("start_filter_today", s.start_filter_today))
         s.sidebar_sections_collapsed = [
             str(k) for k in raw.get("sidebar_sections_collapsed", s.sidebar_sections_collapsed)]
+        s.editor_pane_visible = bool(raw.get("editor_pane_visible", s.editor_pane_visible))
+        s.editor_pane_width = int(raw.get("editor_pane_width", s.editor_pane_width))
+        s.editor_autosave_ms = int(raw.get("editor_autosave_ms", s.editor_autosave_ms))
+        mode = str(raw.get("editor_pane_mode", s.editor_pane_mode))
+        s.editor_pane_mode = mode if mode in ("read", "edit") else "read"
+        s.highlight_color = str(raw.get("highlight_color", s.highlight_color))
+        s.tag_bank_path = str(raw.get("tag_bank_path", s.tag_bank_path))
         s.append_template = raw.get("append_template", s.append_template)
         s.append_date_format = raw.get("append_date_format", s.append_date_format)
         s.backend_url = str(raw.get("backend_url", s.backend_url)).strip()

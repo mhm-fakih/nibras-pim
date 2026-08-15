@@ -15,6 +15,7 @@ import android.os.Build
 object ReminderScheduler {
 
     const val ACTION_FIRE = "com.knotes.reminder.FIRE"
+    const val EXTRA_KEY = "key"
     const val EXTRA_SUMMARY = "summary"
     const val EXTRA_START = "start"
     const val EXTRA_OFFSET = "offset"
@@ -42,14 +43,20 @@ object ReminderScheduler {
         }
 
         val now = System.currentTimeMillis()
+        SilencedReminders.prune(context, now)
         val live = mutableSetOf<String>()
         items.forEach { item ->
+            // "Stop reminders" has to be honoured HERE, not just by cancelling the pending alarms:
+            // this method re-arms everything from scratch on every sync, so a cancelled alarm would
+            // be back within minutes.
+            if (SilencedReminders.isSilenced(context, item.key, item.startMillis)) return@forEach
             offsetsMin.filter { it >= 0 }.forEach { off ->
                 val triggerAt = item.startMillis - off * 60_000L
                 if (triggerAt <= now) return@forEach
                 val code = (item.key + "@" + off).hashCode()
                 val intent = Intent(context, ReminderReceiver::class.java).apply {
                     action = ACTION_FIRE
+                    putExtra(EXTRA_KEY, item.key)
                     putExtra(EXTRA_SUMMARY, item.summary)
                     putExtra(EXTRA_START, item.startMillis)
                     putExtra(EXTRA_OFFSET, off)
@@ -67,6 +74,20 @@ object ReminderScheduler {
             }
         }
         prefs.edit().putStringSet(K_CODES, live).apply()
+    }
+
+    /**
+     * Cancel every still-pending alarm for one event, across all reminder offsets.
+     *
+     * Used the moment "Stop reminders" is tapped, so the next reminder doesn't fire in the minutes
+     * before the next sync gets round to re-scheduling. The durable half of the job is
+     * [SilencedReminders]; this is just the immediate part.
+     */
+    fun cancelFor(context: Context, key: String, offsetsMin: List<Int>) {
+        val am = context.getSystemService(AlarmManager::class.java) ?: return
+        offsetsMin.forEach { off ->
+            am.cancel(bareIntent(context, (key + "@" + off).hashCode()))
+        }
     }
 
     private fun bareIntent(context: Context, code: Int): PendingIntent =

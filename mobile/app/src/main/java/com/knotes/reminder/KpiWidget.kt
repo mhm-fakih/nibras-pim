@@ -10,6 +10,7 @@ import android.os.StatFs
 import android.widget.RemoteViews
 import com.knotes.MainActivity
 import com.knotes.R
+import com.knotes.NoteFiles
 import com.knotes.SettingsStore
 import com.knotes.status.NoteCount
 
@@ -77,9 +78,10 @@ class KpiWidget : AppWidgetProvider() {
             // it used to be a literal "knotes", which counted the wrong folder the moment anyone
             // moved their notes, and would have counted a non-existent one once the default became
             // /Notes.
-            val knotesDir = java.io.File(SettingsStore(context).value.notesDir)
+            val knotesDir = java.io.File(settings.value.notesDir)
             val knotesCount = countFiles(knotesDir)
-            val knotesToday = countFiles(knotesDir, since = startOfToday())
+            val knotesToday =
+                countFiles(knotesDir, since = startOfToday(), format = settings.value.timestampFormat)
 
             val views = RemoteViews(context.packageName, R.layout.widget_kpi)
             setThreshold(
@@ -140,15 +142,23 @@ class KpiWidget : AppWidgetProvider() {
 
         /**
          * Recursive file count, skipping hidden files/folders (dot-prefixed). 0 for a missing dir.
-         * With [since], counts only files modified at or after that instant — folders are still
-         * descended into regardless, since an old folder can hold a new file.
+         *
+         * With [since], counts only files WRITTEN at or after that instant, read from the note's
+         * file name via [NoteFiles.createdMillisOf] — not from its mtime. Syncthing rewrites files
+         * it hasn't changed, so an mtime cut-off reported every synced note as written today.
+         * Folders are descended into regardless, since an old folder can hold a new file.
          */
-        private fun countFiles(dir: java.io.File, since: Long = 0L): Int = runCatching {
+        private fun countFiles(dir: java.io.File, since: Long = 0L, format: String = ""): Int = runCatching {
             if (!dir.isDirectory || dir.name.startsWith(".")) return@runCatching 0
             var n = 0
             dir.listFiles()?.forEach { f ->
                 if (f.name.startsWith(".")) return@forEach
-                n += if (f.isDirectory) countFiles(f, since) else if (f.lastModified() >= since) 1 else 0
+                n += when {
+                    f.isDirectory -> countFiles(f, since, format)
+                    since <= 0L -> 1
+                    NoteFiles.createdMillisOf(f, format) >= since -> 1
+                    else -> 0
+                }
             }
             n
         }.getOrDefault(0)

@@ -34,6 +34,165 @@ _PRIORITY = re.compile(r"^p(\d+)$")
 _NOTE_NAME = re.compile(r"^\d{4}_\d{2}_\d{2}-\d{6}(-\d+)?~[^~]*~[pP]\d+~[^~]*\.md$")
 
 
+def fmt_count(n: int) -> str:
+    """A count for display, grouped in threes: ``19123`` → ``"19,123"``.
+
+    Always a comma, never the locale's separator. The app's numbers sit inches from tag codes and
+    file-name timestamps that are locale-independent by design, and under a locale that groups with
+    a full stop "19.123" reads as a decimal — a folder of nineteen thousand notes would look like
+    nineteen. Every user-visible count goes through here so they can't drift apart.
+    """
+    return f"{n:,}"
+
+
+def _cap(text: str, max_chars: int, tail_chars: int = 0) -> str:
+    """Shorten ``text`` to fit a card. With ``tail_chars`` > 0 the last ``tail_chars`` characters are
+    kept too, joined to the head by an ellipsis, so the start *and* the end stay visible — a long
+    note's conclusion is often the part worth seeing. Shared by ``Note.title`` and
+    ``Note.card_preview`` so the two settings mean exactly the same thing in both."""
+    if tail_chars > 0:
+        if len(text) > max_chars + tail_chars + 1:
+            return text[:max_chars].rstrip() + " … " + text[-tail_chars:].lstrip()
+        return text
+    if len(text) > max_chars:
+        return text[:max_chars].rstrip() + "…"
+    return text
+
+
+# ---------------------------------------------------------------- clause highlighting
+#
+# A note marks a highlighted clause the way Obsidian and GitHub-flavoured markdown do, ``==like
+# this==``, so the marking is just text: it survives Syncthing, reads fine in any editor, and means
+# the same thing on the phone. The desktop's reading mode hides the markers and paints the run
+# instead — see KnotesWindow._editor_render.
+HIGHLIGHT_MARK = "=="
+
+# Companion file holding time marks — one timestamp per line, e.g. "[0:43]" — written beside the
+# media it belongs to (``talk.mp3`` → ``talk.tmk``). See Note.time_mark_count.
+TIME_MARK_EXT = ".tmk"
+
+# What ends a clause. Sentence punctuation plus its Arabic equivalents (، ؛ ؟ — different code
+# points from the Latin ones, and a note is as likely to be in Arabic as in English) and the line
+# break, which ends a clause whatever precedes it. Dashes are deliberately absent: "- call Sara" is
+# a bullet, and splitting there would make the marker its own clause.
+CLAUSE_BREAKS = frozenset(".,;:!?…\n" + "،؛؟")
+
+
+def split_highlights(text: str) -> tuple[str, list[bool]]:
+    """Split ``text`` into its plain reading form and a per-character "is highlighted" flag.
+
+    An unpaired ``==`` is left as literal text — a note is allowed to contain one, and eating it
+    would silently change what the file says. This is the exact inverse of :func:`apply_highlights`
+    for any text that round-trips through it.
+    """
+    plain: list[str] = []
+    flags: list[bool] = []
+    i, n = 0, len(text)
+    while i < n:
+        if text.startswith(HIGHLIGHT_MARK, i):
+            close = text.find(HIGHLIGHT_MARK, i + len(HIGHLIGHT_MARK) + 1)  # +1: never empty
+            if close != -1:
+                body = text[i + len(HIGHLIGHT_MARK):close]
+                plain.append(body)
+                flags.extend([True] * len(body))
+                i = close + len(HIGHLIGHT_MARK)
+                continue
+        plain.append(text[i])
+        flags.append(False)
+        i += 1
+    return "".join(plain), flags
+
+
+def apply_highlights(plain: str, flags: list[bool]) -> str:
+    """Put the ``==`` markers back around each highlighted run.
+
+    Whitespace at the edges of a run is pushed OUTSIDE the markers: ``== text ==`` isn't recognised
+    as a highlight by the markdown renderers this notation is borrowed from, so a clause that picked
+    up a trailing space would come back as literal text next time it was read.
+    """
+    out: list[str] = []
+    i, n = 0, len(plain)
+    while i < n:
+        if not flags[i]:
+            out.append(plain[i])
+            i += 1
+            continue
+        run_end = i
+        while run_end < n and flags[run_end]:
+            run_end += 1
+        start, end = i, run_end
+        while start < end and plain[start].isspace():
+            out.append(plain[start])
+            start += 1
+        tail = ""
+        while end > start and plain[end - 1].isspace():
+            end -= 1
+            tail = plain[end] + tail
+        if start < end:
+            out.append(HIGHLIGHT_MARK + plain[start:end] + HIGHLIGHT_MARK)
+        out.append(tail)
+        i = run_end
+    return "".join(out)
+
+
+# A stretch of note text split into ``(text, highlighted)`` runs — what a view needs to render a
+# note: the words, and which of them are marked.
+Runs = list[tuple[str, bool]]
+
+
+def _group_runs(chars: list[tuple[str, bool]]) -> Runs:
+    """Collapse per-character ``(char, highlighted)`` pairs into runs of the same flag."""
+    runs: Runs = []
+    for char, hot in chars:
+        if runs and runs[-1][1] == hot:
+            runs[-1] = (runs[-1][0] + char, hot)
+        else:
+            runs.append((char, hot))
+    return runs
+
+
+def clause_bounds(plain: str, offset: int) -> tuple[int, int]:
+    """The clause containing ``offset``, as a ``[start, end)`` range of ``plain``.
+
+    Empty when there's no clause there (a click on the blank line between two paragraphs) — the
+    caller treats that as "nothing to highlight" rather than guessing at a neighbour.
+    """
+    n = len(plain)
+    if n == 0:
+        return 0, 0
+    offset = min(max(offset, 0), n)
+    # A click lands on the character to the RIGHT of the caret, so landing on a break means the user
+    # aimed at the clause that just ended — walk back to it. Several breaks can sit together and all
+    # have to be crossed: clicking in the empty space past the end of a line (the commonest way to
+    # aim at a short line) puts the caret on that line's "\n", right after the sentence's ".".
+    #
+    # Crossing a SECOND newline is where it stops, and that's what keeps a click on a blank line
+    # from reaching back into the paragraph above it and marking a clause the user wasn't pointing
+    # at. Empty is the honest answer there.
+    if offset >= n:
+        offset = n - 1
+    newlines = 0
+    while offset >= 0 and plain[offset] in CLAUSE_BREAKS:
+        if plain[offset] == "\n":
+            newlines += 1
+            if newlines > 1:
+                return 0, 0
+        offset -= 1
+    if offset < 0:
+        return 0, 0
+    start = offset
+    while start > 0 and plain[start - 1] not in CLAUSE_BREAKS:
+        start -= 1
+    end = offset
+    while end < n and plain[end] not in CLAUSE_BREAKS:
+        end += 1
+    while start < end and plain[start].isspace():   # hug the words, not the gap before them
+        start += 1
+    while end > start and plain[end - 1].isspace():
+        end -= 1
+    return start, end
+
+
 def is_rtl(text: str) -> bool:
     return bool(_RTL.search(text))
 
@@ -41,6 +200,21 @@ def is_rtl(text: str) -> bool:
 def is_note_file(name: str) -> bool:
     """True only for `.md` files whose name matches the canonical note format."""
     return bool(_NOTE_NAME.match(name))
+
+
+# Extensions whose CONTENT is prose we can adopt as a note body. Anything else — a .drawio, a PDF,
+# an image, a spreadsheet — is an artifact, not text: promoting it attaches the file to a new note
+# instead of reinterpreting its bytes as the body (see NoteRepository.promote).
+#
+# Extension, deliberately, and not "does it decode as UTF-8": a .drawio is valid XML and an .svg or
+# a .csv is plain ASCII, so a decode test waves all of them through and lands their markup in a
+# note body. The question isn't whether the bytes are text, it's whether they're *the note*.
+PLAIN_TEXT_EXTS = (".md", ".txt")
+
+
+def is_plain_text(name: str) -> bool:
+    """Whether a file's content can stand as a note body — judged by extension only."""
+    return os.path.splitext(name)[1].lower() in PLAIN_TEXT_EXTS
 
 
 # A note's attached files live in a sibling folder named after the note's stem with this suffix
@@ -81,23 +255,37 @@ def mtime_token(path: str, fmt: str) -> str:
         return datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y_%m_%d-%H%M%S")
 
 
+# The "-2", "-3", … build_name appends when a name is already taken (see _NOTE_NAME's optional
+# group). Only ever stripped as a fallback — see parse_created.
+_DEDUP_SUFFIX = re.compile(r"-\d+$")
+
+
 def parse_created(timestamp: str, fmt: str, fallback_epoch: float) -> float:
     """A note's creation time (its filename timestamp token, parsed as ``fmt``) as a Unix epoch —
     for sorting by "date created" independent of the file's own mtime (which a metadata-only edit
     still bumps, since the note file gets rewritten/renamed). Falls back to ``fallback_epoch``
     (the note's mtime) when the token doesn't match ``fmt`` — a foreign note, or one written before
-    the format was last changed."""
-    try:
-        return datetime.strptime(timestamp, fmt).timestamp()
-    except (ValueError, TypeError):
-        return fallback_epoch
+    the format was last changed.
+
+    A ``-N`` de-dup suffix (build_name adds one when two notes would take the same name) is retried
+    without the suffix, or every de-duplicated note would fall back to its mtime and report the day
+    it was last *written* as the day it was created. The retry happens only after the whole token
+    has already failed, so a ``fmt`` whose own final field is numeric — ``%Y-%m-%d-%H-%M-%S`` — is
+    never mistaken for a suffixed one.
+    """
+    for token in (timestamp, _DEDUP_SUFFIX.sub("", timestamp or "")):
+        try:
+            return datetime.strptime(token, fmt).timestamp()
+        except (ValueError, TypeError):
+            continue
+    return fallback_epoch
 
 
 def is_companion_dir(dir_path: str) -> bool:
     """True if `dir_path` is *already* a real companion folder — i.e. its name ends in
     :data:`COMPANION_SUFFIX` and a matching ``<stem>.md`` note sits next to it. There's no reverse
     index from folder to note (companion_dir() only goes note → folder), so this re-derives it."""
-    name = os.path.basename(dir_path.rstrip(os.sep))
+    name = os.path.basename(dir_path.rstrip(os.sep + "/"))
     if not name.endswith(COMPANION_SUFFIX):
         return False
     sibling = os.path.join(os.path.dirname(dir_path), name[: -len(COMPANION_SUFFIX)] + ".md")
@@ -169,6 +357,10 @@ class Note:
     mtime: float
     is_rtl: bool
     file_names: list[str] = field(default_factory=list)  # basenames in the note's companion folder
+    # Memoised time-mark total (see time_mark_count). Out of equality and repr: it's a cache of
+    # what's on disk, not part of what the note IS — two notes don't differ because one has been
+    # counted and the other hasn't.
+    _time_marks: int | None = field(default=None, repr=False, compare=False)
 
     @property
     def n_files(self) -> int:
@@ -183,20 +375,105 @@ class Note:
         """A one-line, length-capped summary for the compact list (whitespace collapsed). With
         ``tail_chars`` > 0, long notes keep their first ``max_chars`` and last ``tail_chars``
         characters, joined by an ellipsis, so the start *and* the end stay visible."""
-        text = " ".join(self.content.split())
-        if not text:
-            return "(empty)"
+        plain, _flags = split_highlights(self.content)
+        return _cap(" ".join(plain.split()), max_chars, tail_chars) or "(empty)"
+
+    def card_preview(self, max_chars: int, tail_chars: int = 0) -> tuple[Runs, Runs]:
+        """The body of a board card, as ``(first line, the rest)`` — the caller renders the first
+        line bold. Each is a list of ``(text, highlighted)`` runs, so a clause marked ``==like
+        this==`` is painted on the card as well as in the reading pane, and the markers themselves
+        are never shown: the app writes them, so it owes every view a clean rendering of them.
+
+        A knotes note's line 1 *is* its title in practice: that's how they're written, it's what a
+        settled file names itself after, and it's the line the phone side shows. Flattening the
+        whole note into one run of text (what ``title`` does) buries it — so the breaks stay and the
+        card is read like the note.
+
+        Blank lines are dropped outright and each line is stripped. A card shows about four lines,
+        and the usual markdown shape "title, blank, body" would spend one of them on nothing — the card
+        is a preview, not the document. Stripping also keeps a stray leading space out of the bold
+        title, where it reads as a rendering bug. The length cap is the same as ``title``'s and
+        applies to the whole text, so the two settings still mean what they say in both.
+
+        Everything below works on a list of ``(character, highlighted)`` pairs rather than on a
+        string: tidying and capping then move the flags with the text automatically, instead of the
+        two being kept in step by hand through every slice and strip.
+        """
+        plain, flags = split_highlights(self.content)
+        chars: list[tuple[str, bool]] = []
+        at = 0
+        for line in plain.split("\n"):
+            pairs = list(zip(line, flags[at:at + len(line)]))
+            at += len(line) + 1     # the "\n" that split() consumed
+            while pairs and pairs[0][0].isspace():
+                pairs.pop(0)
+            while pairs and pairs[-1][0].isspace():
+                pairs.pop()
+            if not pairs:
+                continue
+            if chars:
+                chars.append(("\n", False))
+            chars.extend(pairs)
+        if not chars:
+            return [("(empty)", False)], []
+
+        def _trim_end(seq: list[tuple[str, bool]]) -> None:
+            while seq and seq[-1][0].isspace():
+                seq.pop()
+
         if tail_chars > 0:
-            if len(text) > max_chars + tail_chars + 1:
-                return text[:max_chars].rstrip() + " … " + text[-tail_chars:].lstrip()
-            return text
-        if len(text) > max_chars:
-            text = text[:max_chars].rstrip() + "…"
-        return text
+            if len(chars) > max_chars + tail_chars + 1:
+                head, tail = chars[:max_chars], chars[-tail_chars:]
+                _trim_end(head)
+                while tail and tail[0][0].isspace():
+                    tail.pop(0)
+                chars = head + [(c, False) for c in " … "] + tail
+        elif len(chars) > max_chars:
+            chars = chars[:max_chars]
+            _trim_end(chars)
+            chars.append(("…", False))
+
+        split = next((i for i, (c, _f) in enumerate(chars) if c == "\n"), len(chars))
+        return _group_runs(chars[:split]), _group_runs(chars[split + 1:])
 
     def word_count(self) -> int:
         """Number of whitespace-separated words in the note body."""
         return len(self.content.split())
+
+    def highlight_count(self) -> int:
+        """How many ``==marked==`` clauses the note has — runs, not characters, so one long
+        highlighted sentence counts once."""
+        _plain, flags = split_highlights(self.content)
+        return sum(1 for i, on in enumerate(flags) if on and (i == 0 or not flags[i - 1]))
+
+    def time_mark_count(self) -> int:
+        """How many time marks are recorded against this note: one per non-blank line across every
+        ``.tmk`` file in its companion folder.
+
+        A ``.tmk`` sits beside the media it belongs to (``talk.mp3`` → ``talk.tmk``) and holds one
+        timestamp per line, ``[0:43]`` — a position marked while listening. Counted, never parsed:
+        the count is the whole signal on a card, and being incurious about the line format means a
+        hand-edited or differently-stamped file still counts correctly.
+
+        Read lazily and memoised on the instance. The files are tiny, but a board of thousands of
+        notes would otherwise open a companion folder for every one of them on every reload — so
+        the ``.tmk`` check runs against ``file_names``, which is already in memory, and the disk is
+        touched only for the notes that actually have one.
+        """
+        if self._time_marks is None:
+            folder = companion_dir(self.path)
+            total = 0
+            for name in self.file_names:
+                if not name.lower().endswith(TIME_MARK_EXT):
+                    continue
+                try:
+                    with open(os.path.join(folder, name), "r", encoding="utf-8",
+                              errors="replace") as f:
+                        total += sum(1 for line in f if line.strip())
+                except OSError:
+                    continue   # deleted or unreadable mid-reload — just don't count it
+            self._time_marks = total
+        return self._time_marks
 
     def time_text(self) -> str:
         return time.strftime("%Y-%m-%d %H:%M", time.localtime(self.mtime))
@@ -217,6 +494,26 @@ class NoteRepository:
         """True for any auxiliary/housekeeping folder — its bare stem (leading dots stripped, case
         folded) is one of AUX_DIR_STEMS. Catches ``.deleted``, ``Deleted``, ``Trash``, ``.imported`` …"""
         return name.lstrip(".").casefold() in cls.AUX_DIR_STEMS
+
+    # Sidecar files that live among the notes but aren't notes: an index/database the sync or import
+    # side keeps next to them. Not dotted, so nothing else would hide them — without this each one
+    # lands on the board as a "needs metadata" card dated today, asking to be settled, which is
+    # exactly what it must never be (promoting it would rename the live database).
+    # ``claude.md`` is here for the same reason as the database: it's an instruction file for a
+    # tool that reads the folder, not a note, and it isn't dotted, so nothing else would hide it.
+    IGNORED_FILE_STEMS = frozenset({"notes.sqlite", "claude.md"})
+
+    # What SQLite writes alongside an open database. They appear and vanish as the DB is used, so
+    # ignoring only the .sqlite itself would still let two mystery cards blink onto the board.
+    _DB_SIDECAR_SUFFIXES = ("-wal", "-shm", "-journal")
+
+    @classmethod
+    def is_ignored_file(cls, name: str) -> bool:
+        """True for a sidecar file to hide as if it were dotted — no card, nothing to promote.
+        Case-folded, so ``Notes.sqlite`` from another platform is caught too."""
+        lower = name.casefold()
+        return any(lower == stem or lower.startswith(stem) and lower[len(stem):] in cls._DB_SIDECAR_SUFFIXES
+                   for stem in cls.IGNORED_FILE_STEMS)
 
     def __init__(self, directory: str):
         self.directory = directory
@@ -239,12 +536,13 @@ class NoteRepository:
     def list_unrecognized(self) -> list[Note]:
         """Files and folders sitting in the directory that aren't a canonical note, a real
         companion folder, a dotfile (``.knotes.json``, Syncthing's ``.stfolder``/``.stversions``,
-        …), or one of the app's own special folders — shown to the user as "needs metadata"
+        …), an ignored sidecar (``notes.sqlite`` and friends, see is_ignored_file), or one of the
+        app's own special folders (see is_aux_dir) — shown to the user as "needs metadata"
         placeholders (type/priority/category all ``None``) rather than silently ignored."""
         d = self._dir()
         items = []
         for name in os.listdir(d):
-            if name.startswith(".") or self.is_aux_dir(name):
+            if name.startswith(".") or self.is_aux_dir(name) or self.is_ignored_file(name):
                 continue
             path = os.path.join(d, name)
             if os.path.isfile(path):
@@ -264,12 +562,18 @@ class NoteRepository:
         if os.path.isdir(path):
             content = ""
             file_names = sorted(os.listdir(path))
-        else:
+        elif is_plain_text(os.path.basename(path)):
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     content = f.read()
             except (OSError, UnicodeDecodeError):
                 content = ""
+            file_names = []
+        else:
+            # Not a note body (see is_plain_text), so don't pull it in: the card shows the file's
+            # NAME for a placeholder anyway, and reading e.g. a 20 MB .drawio only to scan it for
+            # #hashtags and word-count it would be work spent on markup nobody asked to see.
+            content = ""
             file_names = []
         return Note(
             path=path,
@@ -331,34 +635,61 @@ class NoteRepository:
             f.write(_with_trailing_newline(text))
         return target
 
+    def _free_path(self, parent: str, timestamp: str, type_: str | None, priority: int,
+                   category: str | None) -> str:
+        """A canonical note path in [parent] that nothing occupies yet, de-duplicated with a ``-N``
+        suffix on the timestamp."""
+        target = os.path.join(parent, build_name(timestamp, type_, priority, category))
+        counter = 2
+        while os.path.exists(target):
+            target = os.path.join(parent, build_name(f"{timestamp}-{counter}", type_, priority, category))
+            counter += 1
+        return target
+
     def promote(self, note: Note, type_: str | None, priority: int, category: str | None,
                 fmt: str) -> str:
         """Turn a `list_unrecognized()` placeholder into a real note, once the user has supplied
-        at least one tag. Two cases, told apart by `os.path.isdir(note.path)`:
+        at least one tag. Three cases:
 
-        - **File**: renamed into the canonical format, timestamped from the file's own mtime (its
-          real chronological position, not "now"); its original filename becomes the first line
-          of the body so that info isn't lost once the name turns opaque.
         - **Folder**: a brand-new note is created (via `save_new`, timestamped "now" — there's no
           prior content to anchor it to), with the folder's original name as its first line; the
           folder itself is then renamed to become that new note's companion folder.
+        - **Plain-text file** (`.md`/`.txt`, see :func:`is_plain_text`): renamed into the canonical
+          format, timestamped from the file's own mtime (its real chronological position, not
+          "now"); its original filename becomes the first line of the body so that info isn't lost
+          once the name turns opaque.
+        - **Any other file**: its bytes are an artifact, not a note body, so nothing is
+          reinterpreted — a NEW note is written whose only line is the original file name, and the
+          file is moved into that note's companion folder as an **attachment**, keeping its own
+          name. A `diagram.drawio` becomes a note reading "diagram.drawio" with the .drawio
+          attached, not a note whose body is a screenful of XML.
+
+        Both file cases take their timestamp from the file's mtime, so a promoted item lands at its
+        real chronological position rather than jumping to the head of the board.
         """
         if os.path.isdir(note.path):
-            original_name = os.path.basename(note.path.rstrip(os.sep))
+            original_name = os.path.basename(note.path.rstrip(os.sep + "/"))
             new_path = self.save_new(original_name + "\n", type_, priority, category, fmt)
             target_dir = companion_dir(new_path)
             os.rename(note.path, target_dir)  # target_dir can't already exist: new_path is fresh
             return new_path
 
         original_name = os.path.basename(note.path)
+        target = self._free_path(os.path.dirname(note.path), mtime_token(note.path, fmt),
+                                 type_, priority, category)
+
+        if not is_plain_text(original_name):
+            # The note is written FIRST: its path is what names the companion folder the file moves
+            # into. Both the folder and the name inside it are fresh (target is), so neither move
+            # can collide with something already there.
+            with open(target, "w", encoding="utf-8") as f:
+                f.write(_with_trailing_newline(original_name))
+            folder = companion_dir(target)
+            os.makedirs(folder, exist_ok=True)
+            os.rename(note.path, os.path.join(folder, original_name))
+            return target
+
         new_body = original_name + "\n" + note.content
-        parent = os.path.dirname(note.path)
-        timestamp = mtime_token(note.path, fmt)
-        target = os.path.join(parent, build_name(timestamp, type_, priority, category))
-        counter = 2
-        while os.path.exists(target):
-            target = os.path.join(parent, build_name(f"{timestamp}-{counter}", type_, priority, category))
-            counter += 1
         os.rename(note.path, target)
         with open(target, "w", encoding="utf-8") as f:
             f.write(_with_trailing_newline(new_body))

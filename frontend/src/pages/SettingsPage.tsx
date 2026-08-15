@@ -588,6 +588,7 @@ function TaskCompletionSection() {
         sprint review, or from the phone. A status you set yourself on the same save still wins.
       </Typography>
       <TimerTimeoutField />
+      <LanguageCodesField />
 
       <TextField
         select
@@ -648,6 +649,47 @@ function TimerTimeoutField() {
         inputProps={{ min: 1 }}
         sx={{ width: 260 }}
         helperText={`Blank or invalid falls back to ${DEFAULT_MAX_SLOT_MINUTES}. The session is saved ending at the cut-off, not when the browser noticed.`}
+      />
+    </Box>
+  );
+}
+
+/**
+ * The language codes the `'code` tag accepts.
+ *
+ * A whitelist rather than "any letters after an apostrophe": an unrecognised tag is far more likely
+ * to be a quoted word than a language nobody has configured, and accepting it would silently drop
+ * that word from a title or a search. Only what is listed here is treated as a language.
+ */
+function LanguageCodesField() {
+  const qc = useQueryClient();
+  const KEY = 'language.codes';
+  const DEFAULT = 'ar,en,fr,fa,de';
+  const { data } = useQuery({
+    queryKey: ['setting', KEY],
+    queryFn: () => getSetting(KEY, DEFAULT),
+  });
+  const [value, setValue] = useState('');
+  useEffect(() => {
+    if (data != null) setValue(data);
+  }, [data]);
+
+  const save = useMutation({
+    mutationFn: (v: string) => setSetting(KEY, v),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setting', KEY] }),
+  });
+
+  return (
+    <Box sx={{ mb: 2 }}>
+      <TextField
+        size="small"
+        label="Language codes"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => value !== data && save.mutate(value)}
+        onKeyDown={(e) => e.key === 'Enter' && save.mutate(value)}
+        sx={{ width: 380 }}
+        helperText={`Comma-separated. Typing an apostrophe and one of these — 'ar, 'en — sets a record's language when editing or importing, and filters by it when searching. Anything not listed stays ordinary text. Default: ${DEFAULT}.`}
       />
     </Box>
   );

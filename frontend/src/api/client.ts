@@ -1337,6 +1337,86 @@ export async function listMonitoredIndicators(): Promise<EntityRecord[]> {
   return data.content;
 }
 
+// ---- Saved reports (the report builder) ---------------------------------------
+
+/**
+ * A saved report: which record type, which columns, which filters. The point-and-click equivalent
+ * of a saved search — you pick fields from a list instead of writing a query.
+ *
+ * `columns` are field names in display order. `"cover"` is a pseudo-field: not a property of the
+ * record, it renders the record's cover image in that column.
+ */
+export interface Report {
+  id?: number;
+  name: string;
+  /** Module slug: 'resources', 'tasks', … */
+  moduleKey: string;
+  columns: string[];
+  /** Same shape as ListParams — the report's filters are the list endpoint's filters. */
+  filters: ListParams;
+  /**
+   * HQL naming the rows, e.g. `from Book where type.code = 'art' order by id desc`.
+   *
+   * When set it REPLACES `filters`, `sortField` and `sortDesc`: the query already says which
+   * records appear and in what order, and a second answer stored beside it could only disagree.
+   */
+  query?: string | null;
+  sortField?: string | null;
+  sortDesc?: boolean;
+  pageSize?: number;
+  notes?: string | null;
+  dateCreated?: string;
+  lastUpdated?: string;
+}
+
+export async function listReports(module?: string): Promise<Report[]> {
+  const { data } = await http.get('/reports', { params: clean({ module }) });
+  return data;
+}
+
+export async function getReport(id: number): Promise<Report> {
+  const { data } = await http.get(`/reports/${id}`);
+  return data;
+}
+
+export async function createReport(body: Report): Promise<Report> {
+  const { data } = await http.post('/reports', body);
+  return data;
+}
+
+export async function updateReport(id: number, body: Report): Promise<Report> {
+  const { data } = await http.put(`/reports/${id}`, body);
+  return data;
+}
+
+export async function deleteReport(id: number): Promise<void> {
+  await http.delete(`/reports/${id}`);
+}
+
+/**
+ * Run a saved report. The rows are the module's ordinary records, so every lookup arrives as
+ * `{id, name, code}` — which is why a type column can show "Article" rather than "art".
+ */
+export async function runReport(
+  id: number,
+  page = 0,
+  size?: number,
+): Promise<PageResponse<EntityRecord>> {
+  const { data } = await http.get(`/reports/${id}/run`, { params: clean({ page, size }) });
+  return data;
+}
+
+/**
+ * Run a definition that hasn't been saved yet — the builder's live preview.
+ *
+ * Goes through the very same server code as a saved run, so what the preview shows is what the
+ * report will show. A POST because it carries the definition in the body; it changes nothing.
+ */
+export async function previewReport(body: Report, size = 5): Promise<PageResponse<EntityRecord>> {
+  const { data } = await http.post('/reports/preview', body, { params: { size } });
+  return data;
+}
+
 // ---- Custom dashboards (the dashboard builder) --------------------------------
 
 /** A region's `config` is a JSON string whose shape depends on componentType — see

@@ -66,6 +66,8 @@ public class NoteImportService {
     private final DepartmentRepository departments;
     private final AttachmentService attachments;
     private final LookupDefaultsService lookupDefaults;
+    /** For the {@code 'code} language tag — one grammar, shared with batch edit and search. */
+    private final CommandParser commands;
 
     @PersistenceContext
     private EntityManager em;
@@ -74,12 +76,14 @@ public class NoteImportService {
                              AppModuleRepository modules,
                              DepartmentRepository departments,
                              AttachmentService attachments,
-                             LookupDefaultsService lookupDefaults) {
+                             LookupDefaultsService lookupDefaults,
+                             CommandParser commands) {
         this.settings = settings;
         this.modules = modules;
         this.departments = departments;
         this.attachments = attachments;
         this.lookupDefaults = lookupDefaults;
+        this.commands = commands;
     }
 
     /** The configured import folder — from settings, defaulting to {@code $HOME/new/knotes}. */
@@ -155,6 +159,10 @@ public class NoteImportService {
         }
 
         BaseEntity entity = createEntity(draft, resourceTypeId);
+        // A 'code token in the note's first line sets the record's language. Applied here rather
+        // than inside createEntity's per-module switch: every module has the column, so one
+        // reflective set beats repeating a line in seven branches and forgetting it in the eighth.
+        applyLanguage(entity, commands.languageIn(splitSummary(readBody(file)).summary()));
         // Fill the blank parameters — journal type, planner type, work status … — from the
         // admin-configured defaults, the same thing AbstractCrudService.create() does for a record
         // made through the form. This importer persists straight through the EntityManager rather
@@ -171,6 +179,18 @@ public class NoteImportService {
 
         archive(file);
         return new CreatedRecord(draft.moduleKey(), entity.getId(), entity.feedTitle());
+    }
+
+    /** Set {@code language} when the note declared one. Silently skipped if a module lacks the
+     *  property — the import must not fail over a tag. */
+    private static void applyLanguage(BaseEntity entity, String language) {
+        if (language == null) {
+            return;
+        }
+        org.springframework.beans.BeanWrapper bw = new org.springframework.beans.BeanWrapperImpl(entity);
+        if (bw.isWritableProperty("language")) {
+            bw.setPropertyValue("language", language);
+        }
     }
 
     /** Copy a note's companion-folder files into the record's repo folder, then archive the folder. */
@@ -211,6 +231,7 @@ public class NoteImportService {
         String filename = file.getFileName().toString();
         String body = readBody(file);
         SummaryAndDescription sd = splitSummary(body);
+        sd = new SummaryAndDescription(commands.stripLanguageTokens(sd.summary()), sd.description());
 
         Matcher m = NAME.matcher(filename);
         if (!m.matches()) {

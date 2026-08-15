@@ -51,8 +51,8 @@ except ImportError:
     )
     raise SystemExit(1)
 
-VERSION = "1.2.32"
-CODENAME = "Dastgheib"
+VERSION = "1.3.33"
+CODENAME = "Gratitude"
 
 # Local, non-hidden config file, right next to this program — the terminal app owns it.
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")

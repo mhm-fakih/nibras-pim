@@ -297,8 +297,14 @@ nginx, and a Caddy-based HTTPS setup.
   etc.); the list shows an active-report chip.
 - **Batch edit** (`POST /api/{module}/batch {ids, command}`): multi-select records in the list, then
   a compact command — `p3` priority, `#code` type, `?code` status, `@code` department, `=code` code
-  field, `*` bookmark, `*-` un-bookmark, `!` urgent, `!-` un-urgent — applies to all selected
-  (audit-tracked).
+  field, `'en` / `'ar` language, `*` bookmark, `*-` un-bookmark, `!` urgent, `!-` un-urgent —
+  applies to all selected (audit-tracked).
+- **Language: a leading apostrophe** (`'en`, `'ar`, `'pt-br`). One convention across batch edit,
+  batch entry, **search** (there it filters: `prayer 'ar` finds Arabic records matching "prayer")
+  and **note import** (a tag in a captured note's first line sets the record's language and is
+  dropped from the title). Case-insensitive, so `'AR` and `'ar` are one language. It needs at
+  least one letter after the apostrophe and lets nothing but letters and a dash follow, so ordinary
+  prose — `don't`, `'quoted'`, a bare `'` — is never mistaken for a language tag.
 - **Covers**: a `cover.{jpg,png,webp,…}` in a record's folder shows as a thumbnail in list rows and
   larger in the detail pane (`GET /api/attachments/{module}/{id}/cover`).
 - **Indicators** (`/indicators` · module over the `indicators` table + `indicator_data` series):

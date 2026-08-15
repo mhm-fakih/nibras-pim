@@ -98,6 +98,18 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
         return repo.findAll(spec(f), pageable).map(this::toDto);
     }
 
+    /**
+     * This module's DTO for one of its entities.
+     *
+     * <p>Exists for the report runner: a report query hands back entities, and they have to be
+     * rendered exactly as the list endpoint would render them — same nested lookups, same computed
+     * fields — or a report and a list of the same records would disagree.
+     */
+    @SuppressWarnings("unchecked")
+    public D dtoOf(BaseEntity entity) {
+        return toDto((E) entity);
+    }
+
     @Transactional(readOnly = true)
     public D get(Long id) {
         return toDto(load(id));

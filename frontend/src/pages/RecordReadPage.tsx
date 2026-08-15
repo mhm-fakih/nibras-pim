@@ -74,11 +74,14 @@ export function RecordReadPage() {
   const config = entity ? ENTITY_BY_KEY[entity] : undefined;
   const recordId = Number(id);
 
+  // Clause by default: a sentence in this material routinely runs the length of a paragraph, so
+  // sentence mode highlights an entire block at a time — technically correct and useless in
+  // practice. Per-record choices already saved keep winning; only the default moved.
   const [mode, setMode] = useState<HighlightMode>(
     () =>
       (entity && Number.isFinite(recordId)
         ? (localStorage.getItem(modeKey(entity, recordId)) as HighlightMode | null)
-        : null) || 'sentence',
+        : null) || 'clause',
   );
   const [highlighting, setHighlighting] = useState(false);
 

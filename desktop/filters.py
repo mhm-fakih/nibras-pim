@@ -65,12 +65,17 @@ DIM_TAG = "tag"
 # `\w` under Python 3 is Unicode-aware, so Arabic hashtags work without a separate alternative. The
 # leading (?:^|[^\w#/]) keeps `#` from matching inside a URL fragment, a C preprocessor line, or a
 # Markdown heading (`## Heading` — the second # fails the lookbehind class).
-TAG_RE = re.compile(r"(?:^|[^\w#/])#(\w[\w-]{0,48})", re.UNICODE | re.MULTILINE)
+#
+# Dots and hyphens are allowed after the first character because the tag bank's vocabulary uses
+# them — `A.quran` is one tag, not `A`, and `آية-اليوم` is one tag too. A trailing run of them is
+# trimmed off by the caller: `#A.quran.` at the end of a sentence must not swallow the full stop.
+TAG_RE = re.compile(r"(?:^|[^\w#/])#(\w[\w.\-]{0,48})", re.UNICODE | re.MULTILINE)
 
 
 def tags_of(note: Note) -> set[str]:
     """The distinct hashtags in a note's body, lower-cased so `#Work` and `#work` are one tag."""
-    return {m.group(1).lower() for m in TAG_RE.finditer(note.content or "")}
+    return {tag for tag in (m.group(1).rstrip(".-").lower()
+                            for m in TAG_RE.finditer(note.content or "")) if tag}
 
 
 def is_standard(note: Note) -> bool:
@@ -87,7 +92,22 @@ def is_standard(note: Note) -> bool:
     A note named ``…~T~p3~Dev.md`` is perfectly standard even where ``Dev`` isn't a configured
     category — that case shows up as a *foreign code* row in the type/category facets instead.
     """
-    return is_note_file(os.path.basename(note.path.rstrip(os.sep)))
+    return is_note_file(os.path.basename(note.path.rstrip(os.sep + "/")))
+
+
+def _today_if_unsettled() -> date:
+    """The day a non-standard item is filed under: **today**, on both date metrics.
+
+    It has no date of its own to be placed by — there's no file-name timestamp to read, and its
+    mtime is whatever the copy/sync/download that dropped it there happened to set, which may be
+    months old. Filed on that mtime it would sit on a day nobody visits, and the board's default
+    view (today, see Settings.start_filter_today) would never surface it.
+
+    Pinning it to today makes it outstanding work that keeps presenting itself: it stays on today,
+    every day, until `NoteRepository.promote` settles it into a real note — at which point it gets a
+    genuine timestamp and moves to its rightful day.
+    """
+    return date.today()
 
 
 @dataclass(frozen=True)
@@ -125,12 +145,19 @@ class Taxonomy:
     def created_on(self, note: Note) -> date:
         """The day the note was written, from its FILE-NAME timestamp — stable across metadata
         edits (which rewrite the file and would otherwise move it to today). Falls back to the
-        file's mtime when the name doesn't parse; see notes.parse_created."""
+        file's mtime when the name doesn't parse; see notes.parse_created.
+
+        A non-standard item is pinned to TODAY — see _today_if_unsettled."""
+        if not is_standard(note):
+            return _today_if_unsettled()
         return date.fromtimestamp(parse_created(note.timestamp, self.timestamp_format, note.mtime))
 
     @staticmethod
     def updated_on(note: Note) -> date:
-        """The day the note's file was last written — the "revisited it" signal."""
+        """The day the note's file was last written — the "revisited it" signal. A non-standard item
+        is pinned to TODAY on this metric too, so the Created/Updated switch can't hide it."""
+        if not is_standard(note):
+            return _today_if_unsettled()
         return date.fromtimestamp(note.mtime)
 
     def day_of(self, note: Note, date_field: str) -> date:
