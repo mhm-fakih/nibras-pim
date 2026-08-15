@@ -1,5 +1,338 @@
 # Changelog
 
+## 2026-08-15 — 1.3.33 "Gratitude"
+
+Version bumped to **1.3.33** and the release codename changed to **Gratitude**, across all six
+components (backend, frontend, mobile, desktop, terminal, audio player).
+
+### Added — a language convention: `'code`
+
+- **A leading apostrophe sets or filters the language**: `'en`, `'ar`, `'pt-br`. One rule in one
+  place (`CommandParser`), so it means the same thing in batch edit, batch entry, search and note
+  import. In search it filters rather than assigns — `prayer 'ar` finds Arabic records matching
+  "prayer" — and on import a tag in the note's first line sets the record's language and is
+  stripped from the title, since it is metadata and not part of what you wrote.
+
+  The apostrophe was free: no other token starts with one. The risk with a punctuation prefix is
+  not failing to match but matching too much, so it is guarded twice:
+
+  - **It must be its own word** — preceded by a space or starting the text. Without that, anything
+    ending in a code matches: `rabi'ar` would be read as Arabic.
+  - **The code must be one you configured** (Settings → "Language codes", default
+    `ar,en,fr,fa,de`). Checking a list rather than accepting any letters is what stops a quoted
+    word being eaten: an unrecognised `'xyz` stays ordinary text instead of vanishing from a title
+    or a search. `don't`, `'quoted'` and a bare `'` were never candidates either way.
+
+  Codes are lower-cased, so `'AR` and `'ar` are one language.
+
+### Changed — repositories 2 and 3
+
+- **The repo buttons read `Repo1` / `Repo2` / `Repo3`** instead of `R1`/`R2`/`R3`, which collided
+  with the `R` of Resources.
+- **Repos 2 and 3 can be hidden** (Settings → Features). Repo 1 stays: it is where checkouts and
+  bookmarks live, so every record has one. Hiding a button changes nothing on disk and the
+  `f`→`2`/`3` shortcut still works — this is about a toolbar that fits.
+
+### Changed — desktop
+
+- **The side editor pane's starting mode is a setting** (Settings → "Editor pane starts in":
+  read or edit). Switching mode in the pane still sticks, as before; this is what a fresh window
+  starts in.
+- **Sort cards by note length**, longest first — for finding the notes that have quietly grown into
+  something that should be split. Measured on the note's text, not the file size, so the metadata
+  in the name and any highlight markers don't count towards "how much have I written here".
+
+### Changed — desktop
+
+- **The tag bank is per-machine and no longer tracked** (`.gitignore`). The desktop app writes a
+  starter `tag-bank.md` wherever one is missing, holding `tag1`, `tag2`, `tag3` and a comment block
+  explaining the format. Placeholders rather than a curated vocabulary on purpose: the bank is the
+  user's own writing, and seeding it with someone else's taxonomy means every install begins by
+  deleting tags it never asked for. An existing bank — including one deliberately emptied — is
+  never touched, and an unwritable location is not worth failing over.
+
+- **Merged the w335 editor-pane / autocomplete update** from the other machine: a reworked editor
+  pane (read/edit modes, configurable width, autosave), a tag bank with autocomplete
+  (`tagbank.py` + `tag-bank.md`, both new), per-card counts, and a start-on-today filter.
+  `knotes.py` grows by 313 lines; build number 62 → 81.
+
+  `config.json` was **not** overwritten — it holds this machine's repository paths and its backend
+  password. The seven new settings the incoming code reads (`editor_pane_mode`,
+  `editor_pane_width`, `editor_pane_visible`, `editor_autosave_ms`, `highlight_color`,
+  `card_counts_min_chars`, `start_filter_today`) were merged in as keys, leaving every existing
+  local value alone.
+
+### Changed — audio player
+
+- **Play/pause is Ctrl+Space, not Ctrl+P** — and it now works while a bookmark label is being
+  typed, which is what was actually broken. A letter key's keyval is layout-dependent: on an Arabic
+  layout the P key does not produce `Gdk.KEY_p`, so the shortcut silently did nothing exactly when
+  you were typing an Arabic label and worked fine everywhere else. Space carries the same keyval in
+  every layout. Plain Space still types a space while you're in a text field, as it must.
+
+- **Bookmark ticks are painted on the waveform strip, and are actually visible now.** They were
+  `Gtk.Scale` marks, which the theme draws as a one-pixel hairline in the trough — lost against a
+  44px waveform, which is exactly where they need to be read. They now get the full height of the
+  strip, a solid colour, a flag at the top, and a translucent halo so a tick stays legible over a
+  loud stretch (tall bars) and a silent one (flat) alike. They also draw when there is no waveform
+  at all — still decoding, or over the new size limit — which is when they matter most.
+
+- **The browser / playlist split can be dragged.** The genre-artist-album columns were packed at
+  their natural height, so the playlist and player below them could never be given more room, or
+  less, whatever the window size. There is a divider between them now, and its position is
+  remembered. Dragging it right down is allowed, for when the playlist is what you're working in.
+
+- **Waveforms are skipped above a configurable file size** (Settings → "Waveform limit (MB)",
+  default 10, 0 disables the limit). Drawing the envelope decodes the *whole* file, which for a
+  multi-hour recording is minutes of CPU and a large peak list — spent on a decorative strip, while
+  the seek bar, the bookmark ticks and playback itself never needed it. Over the limit the strip is
+  left empty and a one-line note says why.
+
+## 2026-08-14 — 1.2.33
+
+Version bumped to **1.2.33** across all six components (backend, frontend, mobile, desktop,
+terminal, audio player).
+
+### Fixed — mobile
+
+- **Today's-notes count was reading the file's modification time, not the note's own date.**
+  Syncthing rewrites files it hasn't changed, so yesterday's sync of a few hundred old notes set
+  every mtime to "now" and all of them counted as written today. Editing one word, or retagging
+  (which renames the file), did the same on a smaller scale.
+
+  A note's date is in its file name, written once and never changed — the only timestamp that
+  answers "when was this made". All three counters that got this wrong now go through one shared
+  `NoteFiles.createdMillisOf`: the homepage header, the status-bar notification, and the KPI widget.
+  Having three copies of the rule is why they could disagree; there is one now. A file whose name
+  carries no timestamp (a foreign file dropped in the folder) still falls back to its mtime, since
+  that is genuinely all there is.
+
+  The calendar strip and the date filters were already correct — they used the file-name date.
+
+### Changed — mobile note cards: read by default, edit full-screen
+
+- **Tapping a card now reads it.** Editing is a labelled **Edit** button on the card. Reading is the
+  common act and the one that cannot lose anything, so it is the one the whole card surface does.
+- **Editing is full-screen.** Read and Edit are two views of one screen — the same note, the same
+  full height, one chip apart, as on the desktop's side pane. A note long enough to be worth
+  reading was unworkable in the six-line bar at the bottom of the list.
+- **The text saves as you type**: once when you pause, and again when the editor leaves the screen.
+  Per-keystroke writes would rewrite the file dozens of times a sentence and Syncthing would
+  faithfully propagate every one; waiting only for Back would lose the text if the process were
+  killed. Both together cost one write per pause.
+- **Type / priority / category are pinned under the text, in both reading and editing.** Changing a
+  priority is a one-tap thought you have *while reading* — "this matters more than I thought". If
+  the chips scrolled away with the body, acting on that would mean scrolling a long note to its end
+  and back, which is enough friction that the priority simply doesn't get changed. Only the content
+  above scrolls. The composer keeps its own copy for new notes, and the same chips are used in both
+  so a code looks and means the same wherever it is set.
+
+  Changing a tag renames the file (the name encodes them), so the screen adopts the note that comes
+  back from the rename — holding the old one would write the body to a path that no longer exists
+  and leave two notes where there was one. Whatever is typed but not yet saved rides along with the
+  tag change rather than being lost to the rewrite.
+
+  Two further guards, because that rename makes every held reference stale and the resulting failure
+  is silent and duplicating rather than loud:
+
+  - The editor's save effects use the **current** commit callback, not the one captured when they
+    started. `DisposableEffect` never restarts, so on the way out it would otherwise have fired a
+    lambda pointing at the pre-rename path. The debounce had the same trap by a narrower door:
+    retagging without typing leaves the text byte-identical, so a `LaunchedEffect` keyed on it
+    doesn't restart either.
+  - A body-only save **skips when its file is gone** rather than recreating it. That holds whatever
+    the UI does, and there is nothing to lose by skipping — the rename already carried the body.
+
+### Fixed — mobile text direction
+
+- **English notes were rendering right-to-left.** Direction was a property of the whole note, set by
+  "does this text contain any Arabic character" — so one quoted Arabic word, one Arabic name, one
+  `'ar` tag, and the entire English note laid itself out right-to-left with its punctuation thrown
+  to the wrong end.
+
+  Direction is now decided **per line, by its first strong letter**, everywhere text is shown: the
+  note reader, the note cards, and the Nibras record/full-text views. A note that mixes an English
+  heading with an Arabic quotation now gets both halves right.
+
+  - **Digits, punctuation, brackets and emoji are neutral** — a line opening `1.` or `(` is decided
+    by the first real letter after it, which is what a reader would say the line is written in.
+  - **A line with nothing to judge by inherits the line above**, rather than snapping to a default,
+    so a numbered list doesn't alternate sides.
+  - **Everything is justified**, in both directions.
+
+  The same fix reaches card titles, calendar entries and the quick-note field, because the
+  underlying `NoteFiles.isRtl` — which every one of those calls — was changed at its definition
+  rather than at each call site. It now answers with the first strong letter too, so one rule
+  governs a whole string (a title, a file name) and its per-line sibling governs a body of text.
+
+### Added — mobile reminders
+
+- **"Stop reminders" beside Dismiss** on a plan reminder. Dismiss clears the one in front of you and
+  leaves the event's later reminders alone; Stop reminders switches off everything still to come for
+  that event — for when you're already at the venue and the 5-minutes-before nudge is just noise.
+
+  - **It silences one occurrence, not the plan.** The token stored is the event key *plus its start
+    time*: a repeating plan has the same key every week, so silencing by key alone would quietly
+    kill next week's reminder too.
+  - **It has to be recorded, not just cancelled.** Alarms are cancelled and re-armed from scratch on
+    every sync, so cancelling the pending ones would see them back within minutes. Both happen: the
+    pending alarms go immediately, and the scheduler skips the event from then on.
+  - Because a token names one occurrence, it expires — it stops meaning anything once that
+    occurrence has started, so the set stays the size of "events silenced today".
+
+### Added — reading and highlighting
+
+- **Note cards on the mobile homepage now have a Read action** (the 📖 button beside ⋮, and a Read
+  item in the menu). Tapping the card still opens it for editing, as before. Read opens the note
+  full-screen with comfortable line spacing and **tap-a-clause-to-highlight**, the local-file
+  counterpart of the Resources full-text reader. The reader has an Edit button, so read → spot
+  something → edit is one tap rather than a trip back to the list.
+
+  **Highlights are written into the note file itself** as `==…==`, not kept in a phone-local set.
+  That is the one real difference from the Nibras resource reader, and it follows from where the
+  thing being read lives: a resource is a server record the phone mirrors, so its highlight must be
+  queued and pushed. A note *is* a file in a synced folder — writing the marker into the file means
+  the highlight reaches the desktop and the backend by the same route the note does, with nothing
+  to sync, queue or reconcile. It is also the same markdown the web client writes, so a note
+  highlighted on the phone reads correctly in the browser.
+
+  Saving keeps the note's tags, so the filename doesn't change and a highlight can't drag the note
+  to a new position in the list.
+
+- **Highlighting is now clause-level, not sentence-level** — in the web reader (Resources full
+  text and every other record's reading page), in the mobile Resources reader, and in the new note
+  reader. A sentence in this material regularly runs a whole paragraph, so sentence mode highlighted
+  a block at a time: correct, and useless for picking out the line that mattered.
+
+  The web reader's Sentence/Clause toggle is unchanged and per-record choices already saved still
+  win — only the default moved.
+
+  Two details:
+
+  - **Clause boundaries are identical on every client.** The Kotlin splitter uses the same
+    terminator sets as the web's `HighlightableText.tsx` (`. ! ? ؟ ؛` and newlines for sentences,
+    then `، ؛ , ; : — –` within them). A highlight is stored *as text*, so a disagreement about
+    where a clause starts would mean the same tap saving a different string on each client.
+  - **Highlights made before this change still show.** They are keyed by the whole sentence they
+    were made on, which no clause key can ever match, so a record already worked through would have
+    come back looking untouched. A clause inside a highlighted sentence still renders highlighted,
+    and tapping it removes the old sentence highlight rather than layering a clause on top of one
+    the second tap couldn't undo.
+
+### Added — mobile player
+
+- **"Play next" now has three modes**, in the player's settings panel:
+
+  - **Off** — what the player has always done, unchanged: when a file ends the next one in the
+    folder is *cued paused*, so one tap continues, but nothing starts by itself.
+  - **Same folder** — the next file in the folder plays automatically.
+  - **Random old** — a file from anywhere in your configured library folders (all of them) that you
+    have never bookmarked and haven't touched in 90 days. For working through what was downloaded
+    and forgotten.
+
+  The mode also governs the ⏭ button, so "next" means one thing everywhere — except under **Off**,
+  where pressing ⏭ still gives you the next file in the folder. Off is about what happens *by
+  itself*, not about refusing to do what you asked.
+
+  Details that decide whether "random old" is usable rather than merely implemented:
+
+  - **A library filled last month has nothing 90 days old.** Rather than silently doing nothing —
+    which reads as broken — the pick then comes from the 25 oldest unbookmarked files: the same
+    "old end of the library", measured relatively instead of absolutely.
+  - **The current file and recent plays are excluded.** With a small library, uniform random hands
+    back what you just heard often enough to feel like a bug.
+  - **Bookmarked files are excluded outright**, not merely deprioritised — a bookmark marks
+    something already being worked through, and this mode is for what isn't.
+  - **An emptied sidecar counts as unbookmarked.** Deleting every bookmark on a file should put it
+    back in the pool.
+  - **The library walk shares the Media page's own folder pruning**, so it skips `.stversions` —
+    Syncthing's archive of every previous version of every file — rather than offering you a
+    three-year-old copy of something you already deleted.
+  - The walk runs off the main thread (the chips show "finding one…" while it does).
+
+### Fixed — audio player
+
+- **Pressing Enter after typing a bookmark label crashed the player.** Not a Python exception — a
+  segfault, preceded by `gtk_container_get_focus_child: assertion 'GTK_IS_CONTAINER' failed`.
+
+  Committing the label unparented the inline entry to put the static label back. Unparenting a
+  widget that *has focus* makes GTK emit `focus-out-event` synchronously, **during**
+  `holder.remove(entry)` — and the focus-out handler was the same restore function, which then
+  added the label to a container in the middle of having its child removed. The outer removal then
+  completed and orphaned the label it had just been handed.
+
+  The swap now happens on an idle callback, so the entry is never unparented while a signal is
+  being dispatched on it, and the entry's handlers are disconnected before it. A latch makes the
+  edit end exactly once (Enter is normally followed by a focus-out, which would otherwise commit
+  and swap a second time).
+
+- **A label typed and then clicked away from was thrown away. It autosaves now.** Focus-out used to
+  cancel the edit; it commits. Escape is the way to abandon an edit, which is what Escape is for.
+
+  The save also uses the file that was open when the edit *started*, not whichever file is open when
+  it ends — opening another file mid-edit would otherwise have written this file's bookmarks into
+  the new file's `.tmk` sidecar.
+
+- **Clicking a different file left the highlight on the previous one.** Two causes, both fixed:
+  playing rebuilds the playlist store, and the click handler did that *before* the tree view's own
+  handler had run, so the view was left selecting a row index against a model that had been
+  replaced underneath it. Playing is now deferred to an idle so the click finishes against the model
+  it was aimed at, and after any rebuild the now-playing row is selected explicitly rather than
+  left to whatever index the view happens to restore.
+
+### Added
+
+- **A report builder** (Tools → Reports): pick a record type, tick the columns you want, tick the
+  filters that decide which records appear, choose the order, save it. It is a saved search you
+  build by pointing at things rather than by writing a query, and the editor shows a live preview of
+  the first five matching rows as you build it — including changes you haven't saved yet.
+
+  - **`cover` is offered as a column** and renders the record's image inline, not a filename.
+  - **Values show their full name** — a resource's type reads "Article", never `art`. This needed no
+    resolution step: running a report hands its stored filters to *the module's own list service*,
+    so the rows come back as the module's ordinary records, and those already carry every lookup as
+    `{id, name, code}`. Projecting the columns on the server instead would have meant
+    re-implementing that resolution, and getting it subtly different.
+  - **Generic from the start.** Resources were the ask, but a report stores which module it is
+    over, so the same builder already works for tasks, journals, notes and the rest — the field list
+    comes from the same definitions the forms are built from, and every module's list endpoint
+    already accepts the same filters. Restricting it to resources would have been the *larger*
+    change, not the smaller one.
+
+  Two smaller decisions worth knowing:
+
+  - **Only real database columns are offered as sort keys.** An image isn't one, and neither is a
+    tag list — "sorted by tags" has no single meaning when a record has three. Offering them and
+    letting the query fail would be a worse answer than not offering them.
+  - **A report can be written as a query instead of ticked.** `from Book where type.code = 'art'
+    order by id desc`, in the same HQL a saved search takes. The query's own `order by` *is* the
+    sort — the stored sort field is ignored while a query is set, rather than being applied on top
+    of it, because two answers to "in what order" can only disagree. The sort controls say so
+    instead of sitting there looking editable.
+
+    Either way a report is a query, never a table: the filters become a `Specification` plus a
+    `Pageable`, so the WHERE, the ORDER BY and the LIMIT all reach the database and nothing is
+    fetched to be narrowed afterwards.
+
+    What the query path refuses, and why:
+
+    - **Anything that writes.** Checked on the text, because a read-only transaction does *not*
+      stop HQL bulk DML — Hibernate will happily run `delete from Book` inside one. Opening a
+      report must never be a way to change data.
+    - **Projections** (`select title, author from Book`). Rows have to be whole records or there is
+      nothing behind them to draw a cover or a status chip from. Columns are chosen with the column
+      picker, not in the select clause.
+    - **Another module's records**, which would render as a table of blanks. The error names the
+      type the query actually returns.
+
+    Rows still come back as the module's own DTOs — mapped inside the query's own transaction,
+    since that transaction closes on the way out and a lazily-loaded `tags` collection read
+    afterwards would fail on every record that has a tag.
+  - **A report opens even when it has gone stale.** A column whose field was since renamed is
+    dropped from the table rather than drawn as a blank column with a raw property name in its
+    header, and a sort on a field that no longer exists falls back to newest-first instead of
+    refusing to run.
+
 ## 2026-08-13
 
 ### Added

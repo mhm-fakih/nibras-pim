@@ -1,5 +1,6 @@
 package com.knotes.status
 
+import com.knotes.NoteFiles
 import com.knotes.SettingsStore
 import com.knotes.isFormattedNote
 import java.io.File
@@ -8,7 +9,12 @@ import java.util.Calendar
 /** Today's vs. total note counts for the status notification. */
 data class Counts(val today: Int, val total: Int)
 
-/** Counts notes in the notes folder: total note files, and those modified since local midnight. */
+/**
+ * Counts notes in the notes folder: total note files, and those *written* today.
+ *
+ * "Written" comes from the file name, never the mtime — see [NoteFiles.createdMillisOf]. Counting
+ * mtimes made every note Syncthing touched look like it was written today.
+ */
 object NoteCount {
 
     fun read(settingsStore: SettingsStore): Counts {
@@ -20,13 +26,14 @@ object NoteCount {
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
+        val format = settingsStore.value.timestampFormat
         var total = 0
         var today = 0
         (dir.listFiles() ?: emptyArray())
             .filter { it.isFile && isFormattedNote(it.name) }
             .forEach {
                 total++
-                if (it.lastModified() >= startOfDay) today++
+                if (NoteFiles.createdMillisOf(it, format) >= startOfDay) today++
             }
         return Counts(today, total)
     }

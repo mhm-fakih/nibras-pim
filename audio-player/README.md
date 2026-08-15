@@ -19,28 +19,36 @@ python3 player.py FILE    # open a specific file and play it
 **One unified window**
 
 ```
-┌───────────────┬─────────────────────────────────────────────┐
-│ FOLDERS       │  Genres │ Artists │ Albums   (3-pane browser) │
-│ (⚙ Root tree) ├──────────────────────┬──────────────────────┤
-│               │  PLAYLIST            │  PLAYER               │
-├───────────────┤  (sortable columns)  │  video · title · seek │
-│ RECENTLY      │                      │  transport · bookmarks│
-│ BOOKMARKED    │                      │  speed / gain / sleep │
-└───────────────┴──────────────────────┴──────────────────────┘
+┌───────────────┬───────────────────────────────────────────────────────┐
+│ FOLDERS       │  Genres │ Artists │ Albums      (3-pane browser)       │
+│ [go to path…] ├──────────────────────┬────────────────────┬───────────┤
+│ (⚙ Root tree) │  PLAYLIST            │  PLAYER            │ TRANSCRIPT│
+│               │  (sortable columns)  │  video·title·seek  │ editable, │
+├───────────────┤   playing row is     │  transport·bkmarks │ RTL-aware │
+│ RECENTLY      │   highlighted        │  speed/gain/sleep  │           │
+│ BOOKMARKED    │                      │  Transcript: ar 🗑 │           │
+└───────────────┴──────────────────────┴────────────────────┴───────────┘
                           status bar: Scanning… / N files found
 ```
 
-- **Folder library** — a permanent tree rooted at one **configurable folder** (default: home, not the
-  whole filesystem). Double-click a folder to scan it (recursively) for audio and video. A status
-  bar with a spinner shows progress and the final media count.
+- **Folder library** — a permanent tree rooted at one **configurable folder** (default:
+  `~/mdd/knotes-h`, falling back to home if that folder isn't there). Set it in Settings or with the
+  ⚙ button over the tree. Only folders with media **somewhere** beneath them are listed, so an
+  intermediate date folder still shows while a notes-only one doesn't. Double-click a folder to scan
+  it (recursively) for audio and video. A status bar with a spinner shows progress and the count.
+- **Location bar** — the field over the tree (`Ctrl+L`) takes a typed or pasted path — quotes,
+  `file://` URIs, `~` and `$VARS` all accepted — and Enter goes there: a folder is scanned, a media
+  file is played. Tab-completion offers matching subfolders.
 - **3-pane column browser** — Genres → Artists → Albums (iTunes/Rhythmbox style); selecting narrows
   the next pane and the playlist. An **Untagged** page lists files with no metadata.
 - **Playlist** — sortable, reorderable, persistent columns (`#`, Title, Artist, Album, Length, Bkm);
-  the **playing track is bold** and stays centered in view; the **Bkm** column shows each file's
-  bookmark count. Double-click to play (the list becomes the queue).
+  the **playing track is highlighted and bold** and stays centered in view; the **Bkm** column shows each file's
+  bookmark count. **A single click plays** a track (the list becomes the queue); `Enter` on the
+  selected row does the same.
 - **Player** — video renders **in-window**; an editable **Title** field; a **waveform seek bar with
   bookmark ticks**; wide transport buttons; `0.75–1.25×` pitch-preserving speed; per-file **resume**;
-  folder-as-queue **auto-advance**; gain up to 3×; an optional **sleep timer**.
+  gain up to 3×; an optional **sleep timer**. A file that ends **stops there** — no auto-advance;
+  the next track is one click away, in the playlist or on the next-track button.
 - **Waveform seek bar** — the track's **amplitude spectrum** is painted behind the seek bar (loud
   stretches show as tall bars, quiet ones stay flat), so you can *see* where the peaks are and scrub
   straight to them. The played portion is tinted as you go. The envelope is decoded in the background
@@ -53,9 +61,15 @@ python3 player.py FILE    # open a specific file and play it
 - **Subtitles** — sidecar `.srt` languages appear as chips; the active line shows over the video (or
   over the seek bar for audio).
 - **Transcripts ("lyrics")** — sidecar `.ai.txt` transcriptions (`x.ar.ai.txt` / `x.en.ai.txt`)
-  appear as `Transcript: Off/ar/en` chips; picking a language opens a scrollable side panel with
-  the whole text (no timestamps, unlike subtitles; Arabic right-aligned). A trash button deletes
-  the shown transcription file (with confirmation).
+  appear as `Transcript: ar/en` chips and open by themselves in a scrollable side panel — the
+  whole text, no timestamps, Arabic right-aligned. The language you last picked is reused for the
+  next file that has it. The panel is **editable**: fix what the transcriber got wrong and it saves
+  back to the `.ai.txt` a moment after you stop typing (or on `Ctrl+S`, and always before you switch
+  language, change file, or quit). Each chip carries its own trash button that moves that
+  transcription to the **Trash** immediately, no confirmation.
+  A **`+ ar` / `+ en`** button appears for whichever language the file doesn't have yet and starts an
+  empty `<base>.<lang>.ai.txt` to type into. The button you press decides the language and nothing
+  renames the file afterwards — the encoding is UTF-8 either way and says nothing about language.
 - **Delete to Trash** — the trash button / `Ctrl+Delete` moves the file (and its `.tmk`) to the
   freedesktop **Trash** (recoverable), after a confirm dialog.
 - **Persistence** — theme (light default), pane sizes, window size, column order, tree root, recents,
@@ -147,14 +161,17 @@ Parsed tolerantly (BOM, CRLF, inline `<i>`/`<b>` tags stripped).
 ### `.ai.txt` transcript sidecar
 
 `<base>.<lang>.ai.txt` → transcript chip (`260701_0624.ar.ai.txt` → **ar**); a plain
-`<base>.ai.txt` → **txt**. No timestamps — rendered whole in the side panel, like lyrics.
+`<base>.ai.txt` → **txt**. No timestamps — rendered whole in the side panel, like lyrics, and
+editable there (saved back as UTF-8, LF, no BOM, via a temp file + rename, so a save is never
+half-written). New ones are created as `<base>.<lang>.ai.txt` with `lang` from the `+` button you
+pressed (`ar` or `en`), and keep that name.
 
 ### Modules
 
 | File | Responsibility |
 |---|---|
 | `tmk.py` | The `.tmk` reader/writer — the interop contract. Pure Python, self-tested. |
-| `lyrics.py` | Sidecar `.ai.txt` transcript discovery/read/delete. Pure Python, self-tested. |
+| `lyrics.py` | Sidecar `.ai.txt` transcript discovery, reading, and atomic write-back. Pure Python, self-tested. |
 | `audio.py` | GStreamer `playbin` engine: play/seek/speed/gain, embeddable video widget. No GUI. |
 | `waveform.py` | Amplitude-envelope extraction for the seek bar spectrum: a background GStreamer `level` decode, cancellable. No GUI. |
 | `library.py` | Folder scan + tag read (`Discoverer`), aggregation, and tag write (`mutagen`). |
@@ -167,6 +184,9 @@ Parsed tolerantly (BOM, CRLF, inline `<i>`/`<b>` tags stripped).
 All settings persist to **`config.json`** beside the program: theme, skip/rewind seconds, sleep
 timer enable + presets, volume, tree root, column order, pane sizes, window size, recents, resume
 positions, and last-played file. Playback defaults mirror the phone.
+
+`library_root` blank means the built-in default (`~/mdd/knotes-h`, or home if that's missing), so
+leaving it empty keeps following the default rather than freezing today's path.
 
 ---
 
@@ -197,7 +217,8 @@ sudo pacman -S python-gobject gtk3 gstreamer gst-plugins-base python-mutagen \
 | `B` · `Ctrl+B` | Add bookmark (rewinds & plays from the mark) |
 | `N` | Focus the bookmark-note field |
 | `Ctrl+O` | Open a media file |
-| `Ctrl+L` | Focus the folder tree |
+| `Ctrl+S` | Save transcript edits now (they also autosave) |
+| `Ctrl+L` | Focus the location bar (go to a path) |
 | `Ctrl+Delete` | Move the playing file to Trash (confirms) |
 | `Ctrl+,` | Settings |
 | `Ctrl+T` | Toggle light / dark |
@@ -205,5 +226,6 @@ sudo pacman -S python-gobject gtk3 gstreamer gst-plugins-base python-mutagen \
 
 ## Settings (Ctrl+, or the ⚙ button)
 
-Skip seconds, bookmark-rewind seconds, and the sleep timer (off by default — enable it and set its
-preset minutes). The tree root, column order, theme, and window/pane layout persist automatically.
+The folder-tree root (blank = `~/mdd/knotes-h`; `~` allowed, or pick one with Browse…), skip seconds,
+bookmark-rewind seconds, and the sleep timer (off by default — enable it and set its preset
+minutes). Column order, theme, and window/pane layout persist automatically.

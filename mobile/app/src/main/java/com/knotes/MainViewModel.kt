@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -77,6 +78,55 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             repo.update(note, text, type, priority, category)
             _notes.value = repo.listNotes()
             _unrecognized.value = repo.listUnrecognized()
+        }
+    }
+
+    /**
+     * Rewrite a note's body only, keeping its type/priority/category — so the file keeps its name.
+     *
+     * Used by the reading screen, where every tap saves. The general [update] takes the tag fields
+     * because the editor can change them; passing the note's own values back through it is how a
+     * body-only save avoids renaming the file (the name encodes the tags) and so avoids dragging
+     * the note to a new position in the list on every highlight.
+     */
+    fun saveBody(note: Note, text: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // The note's file is gone: it was renamed under us, which is what a tag change does
+            // (the name encodes the tags). Writing anyway would recreate the pre-rename file and
+            // leave two notes. The rename already carried this body with it, so there is nothing
+            // to save — and guessing is worse than doing nothing.
+            if (!note.file.exists()) {
+                return@launch
+            }
+            repo.update(note, text, note.type, note.priority ?: 0, note.category)
+            _notes.value = repo.listNotes()
+            _unrecognized.value = repo.listUnrecognized()
+        }
+    }
+
+    /**
+     * Change a note's tags (and body) and hand back the note as it now exists.
+     *
+     * The callback matters: the file NAME encodes the tags, so changing a priority renames the
+     * file. A screen still holding the old [Note] would then write the body to a path that no
+     * longer exists — recreating the pre-rename file and leaving two notes where there was one.
+     * Callers must adopt the note this returns.
+     */
+    fun retag(
+        note: Note,
+        text: String,
+        type: String?,
+        priority: Int,
+        category: String?,
+        onDone: (Note?) -> Unit,
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val target = repo.update(note, text, type, priority, category)
+            val fresh = repo.listNotes()
+            _notes.value = fresh
+            _unrecognized.value = repo.listUnrecognized()
+            val updated = fresh.firstOrNull { it.file.absolutePath == target.absolutePath }
+            withContext(Dispatchers.Main) { onDone(updated) }
         }
     }
 

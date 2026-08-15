@@ -15,6 +15,7 @@ export const TOGGLEABLE_PAGES: ToolPage[] = [
   { key: 'indicators', label: 'Indicators' },
   { key: 'insights', label: 'Insights' },
   { key: 'sprints', label: 'Sprints' },
+  { key: 'reports', label: 'Reports' },
   { key: 'parameters', label: 'Parameters' },
   { key: 'admin', label: 'Admin' },
   { key: 'batch', label: 'Batch entry' },
@@ -62,13 +63,25 @@ export const TOGGLEABLE_FEATURES: ToolFeature[] = [
     key: 'codename',
     label: 'Release codename',
     description:
-      'The release’s nickname — “Dastgheib” — beside the version number in the sidebar header and the status bar. The version itself is always shown; this hides only the name.',
+      'The release’s nickname — “Gratitude” — beside the version number in the sidebar header and the status bar. The version itself is always shown; this hides only the name.',
   },
   {
     key: 'resourceExtras',
     label: 'Resource detail fields',
     description:
       'Full text, Highlights, Comments, URL and Read-on on the Resources form and record. Turning them off only hides them — nothing already written is changed or lost.',
+  },
+  {
+    key: 'repo2',
+    label: 'Repository 2',
+    description:
+      'The “Repo 2” button on a record. Turn it off if you keep everything in repository 1 — the folder still exists and the keyboard shortcut still works, this only hides the button.',
+  },
+  {
+    key: 'repo3',
+    label: 'Repository 3',
+    description:
+      'The “Repo 3” (dismissed) button on a record. Same as above: hiding the button changes nothing on disk.',
   },
   {
     key: 'resourceFromUrl',

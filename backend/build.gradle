@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'com.nibras'
-version = '1.2.32'
+version = '1.3.33'
 
 // io.spring.dependency-management's default Maven-exclusion-honoring pass misfires against Boot
 // 4.1's BOM: it globally excludes org.springframework:spring-web (and com.google.protobuf:
@@ -36,7 +36,7 @@ buildNumberFile.withOutputStream { buildNumberProps.store(it, 'Auto-incremented 
 springBoot {
     buildInfo {
         properties {
-            additional = [codename: 'Dastgheib', buildNumber: "$buildNumber"]
+            additional = [codename: 'Gratitude', buildNumber: "$buildNumber"]
         }
     }
 }

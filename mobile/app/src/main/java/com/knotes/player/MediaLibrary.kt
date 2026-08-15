@@ -136,6 +136,17 @@ object MediaLibrary {
     }
 
     /**
+     * Every media file under [roots], with the same pruning the library scan uses.
+     *
+     * Public so anything else walking the library — the "random old unbookmarked" next-track picker
+     * — descends into exactly the same folders. Two walkers with two ideas of which directories to
+     * skip would sooner or later disagree, and `.stversions` alone holds every previous version of
+     * every file. Call it off the main thread.
+     */
+    fun mediaFilesUnder(roots: List<File>): List<File> =
+        roots.filter { it.isDirectory }.flatMap(::collect)
+
+    /**
      * Every media file under [root], skipping hidden directories and the sync/system folders in
      * [SKIP_DIRS]. Hand-rolled rather than `walkTopDown().filter {}` because a filter runs AFTER
      * the walker has already descended — the cost being avoided here is the descent itself.

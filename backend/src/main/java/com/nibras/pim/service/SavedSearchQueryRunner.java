@@ -43,6 +43,12 @@ public class SavedSearchQueryRunner {
             Book.class, "resources", IndexCard.class, "notes", Goal.class, "goals",
             Writing.class, "writings", Course.class, "courses", Department.class, "departments");
 
+    /** Module key owning this entity class, or null if it isn't a record type. Shared with the
+     *  report runner, which has the same question about a user-written query's result rows. */
+    public static String moduleOf(Class<?> entityClass) {
+        return MODULE_OF.get(entityClass);
+    }
+
     /** A clickable result record: {@code {module, id, title}}. */
     public record RecordRef(String module, Long id, String title) {
     }

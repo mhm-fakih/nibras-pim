@@ -642,13 +642,18 @@ export function OpenFolderButtons({ module, id }: { module: string; id: number }
     queryFn: () => listRepoFiles(module, id),
   });
   const files = data ?? [];
+  // Repos 2 and 3 are hideable (Settings → Features). Repo 1 is not: it is where checkouts and
+  // bookmarks live, so a record always has one. Hiding a button changes nothing on disk, and the
+  // f→2 / f→3 shortcut still works — this is about a toolbar that fits, not about access.
+  const featureOn = useFeatureFlags();
+  const shown = ([1, 2, 3] as const).filter((r) => r === 1 || featureOn(`repo${r}`));
   const open = (repo: 1 | 2 | 3) =>
     openRecordFolder(module, id, repo).catch(() => {
       /* backend surfaces errors; ignore here */
     });
   return (
     <Stack direction="row" spacing={0.75} alignItems="center">
-      {([1, 2, 3] as const).map((r) => {
+      {shown.map((r) => {
         const count = files.filter((f) => f.repo === r && !f.directory).length;
         return (
           <Tooltip
@@ -663,7 +668,7 @@ export function OpenFolderButtons({ module, id }: { module: string; id: number }
               startIcon={<FolderOpen fontSize="small" />}
               onClick={() => open(r)}
             >
-              R{r}
+              Repo{r}
               <Box
                 component="span"
                 sx={{

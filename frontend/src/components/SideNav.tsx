@@ -33,6 +33,7 @@ import CalendarMonth from '@mui/icons-material/CalendarMonth';
 import ViewKanban from '@mui/icons-material/ViewKanban';
 import Dashboard from '@mui/icons-material/Dashboard';
 import InsightsIcon from '@mui/icons-material/Insights';
+import TableChart from '@mui/icons-material/TableChart';
 import DirectionsRun from '@mui/icons-material/DirectionsRun';
 import StarIcon from '@mui/icons-material/Star';
 import AdminPanelSettings from '@mui/icons-material/AdminPanelSettings';
@@ -90,6 +91,7 @@ const TOOLS: { path: string; label: string; icon: typeof Flag; perm?: Permission
   { path: '/dashboards', label: 'Dashboards', icon: Dashboard },
   { path: '/insights', label: 'Insights', icon: InsightsIcon },
   { path: '/sprints', label: 'Sprints', icon: DirectionsRun },
+  { path: '/reports', label: 'Reports', icon: TableChart },
   { path: '/bookmarks', label: 'All bookmarks', icon: StarIcon },
   { path: '/parameters', label: 'Parameters', icon: Tune, perm: 'params.write' },
   { path: '/admin', label: 'Admin', icon: AdminPanelSettings, perm: 'tools.admin' },

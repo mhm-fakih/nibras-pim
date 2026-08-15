@@ -14,6 +14,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.knotes.MainActivity
+import com.knotes.SettingsStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -25,6 +26,10 @@ import java.util.Locale
  * see [com.knotes.SettingsStore]) instead of just once. Either way the notification itself is
  * always ongoing (can't be swiped away) until Dismiss is tapped, so a reminder is never lost by
  * accident.
+ *
+ * Two ways out: **Dismiss** clears this reminder and leaves the event's later ones alone, and
+ * **Stop reminders** switches off everything still to come for that occurrence — for when you are
+ * already at the venue and the 5-minutes-before nudge would just be noise. See [SilencedReminders].
  */
 class ReminderReceiver : BroadcastReceiver() {
 
@@ -35,14 +40,36 @@ class ReminderReceiver : BroadcastReceiver() {
                 NotificationManagerCompat.from(context).cancel(NOTIF_ID)
                 return
             }
+            ACTION_SILENCE -> {
+                silence(context, intent)
+                return
+            }
             ReminderScheduler.ACTION_FIRE -> fire(context, intent)
         }
+    }
+
+    /**
+     * "Stop reminders": this event has served its purpose — you're already at the venue.
+     *
+     * Two halves, and both are needed. Cancelling the pending alarms stops the next reminder in the
+     * minutes before the next sync; recording the silence stops [ReminderScheduler.scheduleAll]
+     * from putting them straight back, which it would, because it re-arms everything from scratch.
+     */
+    private fun silence(context: Context, intent: Intent) {
+        stopSound()
+        NotificationManagerCompat.from(context).cancel(NOTIF_ID)
+        val key = intent.getStringExtra(ReminderScheduler.EXTRA_KEY).orEmpty()
+        val start = intent.getLongExtra(ReminderScheduler.EXTRA_START, 0L)
+        if (key.isBlank()) return
+        SilencedReminders.silence(context, key, start)
+        ReminderScheduler.cancelFor(context, key, SettingsStore(context).value.reminderOffsetsMin)
     }
 
     private fun fire(context: Context, intent: Intent) {
         val summary = intent.getStringExtra(ReminderScheduler.EXTRA_SUMMARY)?.takeIf { it.isNotBlank() }
             ?: "Upcoming plan"
         val startMillis = intent.getLongExtra(ReminderScheduler.EXTRA_START, 0L)
+        val key = intent.getStringExtra(ReminderScheduler.EXTRA_KEY).orEmpty()
         val offset = intent.getIntExtra(ReminderScheduler.EXTRA_OFFSET, 0)
         val requireDismiss = intent.getBooleanExtra(ReminderScheduler.EXTRA_REQUIRE_DISMISS, false)
         val soundUri = intent.getStringExtra(ReminderScheduler.EXTRA_SOUND).orEmpty()
@@ -66,6 +93,17 @@ class ReminderReceiver : BroadcastReceiver() {
             context, 1, Intent(context, ReminderReceiver::class.java).setAction(ACTION_DISMISS),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        // Carries the event so the receiver knows WHICH event to stop; FLAG_UPDATE_CURRENT so the
+        // extras follow the reminder currently on screen rather than the first one ever posted
+        // (one notification id is reused for all of them).
+        val silence = PendingIntent.getBroadcast(
+            context, 2,
+            Intent(context, ReminderReceiver::class.java)
+                .setAction(ACTION_SILENCE)
+                .putExtra(ReminderScheduler.EXTRA_KEY, key)
+                .putExtra(ReminderScheduler.EXTRA_START, startMillis),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
         val builder = NotificationCompat.Builder(context, channel)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setContentTitle(summary)
@@ -76,6 +114,11 @@ class ReminderReceiver : BroadcastReceiver() {
             .setOngoing(true)
             .setAutoCancel(false)
             .addAction(0, "Dismiss", dismiss)
+        // Only offered when the event is identifiable — with no key there is nothing to silence,
+        // and a button that quietly does nothing is worse than no button.
+        if (key.isNotBlank()) {
+            builder.addAction(0, "Stop reminders", silence)
+        }
         if (requireDismiss) {
             builder.setFullScreenIntent(openApp, true)
         }
@@ -104,6 +147,9 @@ class ReminderReceiver : BroadcastReceiver() {
 
     companion object {
         const val ACTION_DISMISS = "com.knotes.reminder.DISMISS"
+
+        /** Stop the remaining reminders for the event this notification is about. */
+        const val ACTION_SILENCE = "com.knotes.reminder.SILENCE"
         private const val CHANNEL_DEFAULT = "plan_reminders"
         private const val CHANNEL_ALARM = "plan_alarms"
         private const val NOTIF_ID = 4711

@@ -224,7 +224,8 @@ public class SearchService {
                     || (sq.statusCode() != null && !has(root, "status"))
                     || (sq.contextCode() != null && !has(root, "context"))
                     || (sq.departmentCode() != null && !has(root, "department"))
-                    || (sq.courseCode() != null && !has(root, "course"))) {
+                    || (sq.courseCode() != null && !has(root, "course"))
+                    || (sq.language() != null && !has(root, "language"))) {
                 continue;   // this module can't satisfy every requested filter — skip it entirely
             }
 
@@ -243,6 +244,11 @@ public class SearchService {
             addCodePredicate(root, cb, ps, "context", sq.contextCode());
             addCodePredicate(root, cb, ps, "department", sq.departmentCode());
             addCodePredicate(root, cb, ps, "course", sq.courseCode());
+            if (sq.language() != null) {
+                // A plain column, not an association — compared case-insensitively because the
+                // column is free text and older records may hold "AR" where newer ones hold "ar".
+                ps.add(cb.equal(cb.lower(root.get("language").as(String.class)), sq.language()));
+            }
             if (ps.isEmpty()) {
                 continue;   // no filter actually applies to this module — nothing to search here
             }
@@ -314,6 +320,12 @@ public class SearchService {
         }
         if (sq.urgent() != null && sq.urgent() != Boolean.TRUE.equals(read(bw, "urgent"))) {
             return false;
+        }
+        if (sq.language() != null) {
+            Object lang = read(bw, "language");
+            if (lang == null || !sq.language().equalsIgnoreCase(String.valueOf(lang))) {
+                return false;
+            }
         }
         return codeOk(bw, "status", sq.statusCode())
                 && codeOk(bw, "type", sq.typeCode())

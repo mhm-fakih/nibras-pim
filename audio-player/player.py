@@ -9,8 +9,8 @@ Two pages (switch in the header):
     track to play it.
   * **Player** — video renders in-window; an editable Title field writes the file's title tag;
     the seek bar shows bookmark ticks loaded from the file's ``.tmk`` sidecar; plus transport,
-    0.75–1.25× pitch-preserving speed, per-file resume, folder-as-queue auto-advance, sleep timer
-    and gain. Adding a bookmark creates/updates the ``.tmk`` sidecar so marks sync with the phone.
+    0.75–1.25× pitch-preserving speed, per-file resume, sleep timer and gain. A file that ends
+    stops there — advancing is always a deliberate act. Adding a bookmark creates/updates the ``.tmk`` sidecar so marks sync with the phone.
 
 Run:   python3 player.py [media-file]
 Needs: PyGObject + GTK 3 + GStreamer (+ python3-mutagen to write tags). See run.sh for the packages.
@@ -21,6 +21,7 @@ from __future__ import annotations
 import os
 import re
 import sys
+import urllib.parse
 import warnings
 
 import gi
@@ -33,17 +34,64 @@ import library  # noqa: E402
 import lyrics  # noqa: E402
 import subtitles  # noqa: E402
 import waveform  # noqa: E402
-from config import Settings  # noqa: E402
+from config import Settings, DEFAULT_LIBRARY_ROOT  # noqa: E402
 from audio import AudioPlayer, MIN_RATE, MAX_RATE  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-VERSION = "1.2.32"
-CODENAME = "Dastgheib"
+VERSION = "1.3.33"
+CODENAME = "Gratitude"
+
+# How many directories one "does this branch hold any media?" probe may visit before it stops
+# walking and just says yes. Keeps the folder tree responsive over a pathologically deep tree.
+_MEDIA_PROBE_LIMIT = 4000
+
+# Right-to-left scripts: Hebrew/Arabic/Syriac/Thaana/N'Ko (0590–08FF), the Arabic presentation
+# forms, and Arabic Mathematical Alphabetic Symbols. Used to pick a transcript's base direction.
+_RTL_RANGES = ((0x0590, 0x08FF), (0xFB1D, 0xFDFF), (0xFE70, 0xFEFF), (0x1EE00, 0x1EEFF))
+
+# How much of a transcript is weighed when choosing its direction. Plenty to settle the question,
+# and small enough that re-deciding on every keystroke costs nothing.
+_DIRECTION_SAMPLE = 4000
+
+# Language tags that mean right-to-left outright. A sidecar tagged with one of these is laid out
+# RTL whatever its text looks like — a garbled machine transcript full of Latin noise is still an
+# Arabic page. Anything else (en, txt, unknown) has its direction read from the content.
+_RTL_LANGS = {"ar", "he", "fa", "ur", "ps", "ckb", "yi", "dv", "sd", "ug"}
+
+
+def is_rtl_text(text: str) -> bool:
+    """Whether a transcript should be laid out right-to-left.
+
+    Unicode's rule for a paragraph is "the first strong character wins", but these are machine
+    transcripts: an Arabic one routinely opens with a stray Latin token — a mis-heard name, a
+    "PART 3" header, punctuation noise — and one such word must not flip a whole Arabic page to
+    LTR. So the *majority* script over the text decides, with the first strong character as the
+    tie-break. Digits, punctuation and whitespace are ignored throughout."""
+    rtl = ltr = 0
+    first_is_rtl: bool | None = None
+    for ch in text[:_DIRECTION_SAMPLE]:
+        if not ch.isalpha():
+            continue
+        this_rtl = any(lo <= ord(ch) <= hi for lo, hi in _RTL_RANGES)
+        if first_is_rtl is None:
+            first_is_rtl = this_rtl
+        if this_rtl:
+            rtl += 1
+        else:
+            ltr += 1
+    if rtl != ltr:
+        return rtl > ltr
+    return bool(first_is_rtl)
 
 # Playlist track-store layout: 6 visible columns (#, Title, Artist, Album, Length, Bkm) then two
 # hidden data columns — the file path and the Pango font weight used to bold the playing row.
 PATH_COL = 6
 WEIGHT_COL = 7
+BG_COL = 8       # per-row background: set on the playing track, None on the rest
+
+# Row highlight for the file currently loaded in the player, per theme (a tint of @accent that
+# still reads under the bold text).
+NOWPLAYING_BG = {"light": "#cfe3f2", "dark": "#0f4a5e"}
 
 THEMES = {
     "dark": """
@@ -116,6 +164,16 @@ STYLE = """
         font-size: 15px;
     }
     .foldertree { background: @bg_alt; }
+    /* The per-language trash button sits beside its chip, not welded to it: real padding and a
+       clear gap so it can't be hit while reaching for the language. */
+    .chiptrash {
+        padding: 2px 9px;
+        margin-left: 4px;
+        min-width: 0;
+        min-height: 0;
+        color: @fg_muted;
+    }
+    .chiptrash:hover { color: #dc322f; }   /* solarized red — it deletes, say so on hover */
 """
 
 
@@ -162,6 +220,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
         # Library state.
         self.tracks: list[library.Track] = []
         self.lib_folder: str = ""
+        self._media_cache: dict[str, bool] = {}   # folder -> "has media anywhere below it?"
         self.sel_genre: str | None = None     # None = "All"
         self.sel_artist: str | None = None
         self.sel_album: str | None = None
@@ -200,7 +259,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
 
         browse_btn = Gtk.Button()
         browse_btn.add(Gtk.Image.new_from_icon_name("folder-symbolic", Gtk.IconSize.BUTTON))
-        browse_btn.set_tooltip_text("Focus the folder tree (Ctrl+L)")
+        browse_btn.set_tooltip_text("Focus the folder tree")
         browse_btn.connect("clicked", lambda _b: self._focus_folder_tree())
         header.pack_start(browse_btn)
 
@@ -260,7 +319,6 @@ class PlayerWindow(Gtk.ApplicationWindow):
             sc.set_shadow_type(Gtk.ShadowType.NONE)
             sc.add(v)
             panes.pack_start(sc, True, True, 0)
-        right.pack_start(panes, False, False, 0)
 
         # The playlist and the player share the space below the browser, side by side. A lower split
         # position gives the player pane more room (wider by default).
@@ -271,12 +329,21 @@ class PlayerWindow(Gtk.ApplicationWindow):
         player_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         player_scroller.add(self._build_player_page())
         # The player and the lyrics side panel (sidecar .ai.txt transcriptions) share the right
-        # side; the panel is hidden until a transcription language is picked.
+        # side; the panel opens by itself for any file that has a transcription, else stays hidden.
         self.player_split = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         self.player_split.pack1(player_scroller, True, True)
         self.player_split.pack2(self._build_lyrics_panel(), False, True)
         self.split_paned.pack2(self.player_split, True, True)
-        right.pack_start(self.split_paned, True, True, 0)
+
+        # Browser columns above, playlist+player below, with a draggable divider — the browser used
+        # to be packed at its natural height, so the space below it could never be given more room
+        # (or less) whatever the window size. `shrink=True` on the top half means the columns can be
+        # dragged right down when the playlist is what you're working in.
+        self.browser_paned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
+        self.browser_paned.pack1(panes, False, True)
+        self.browser_paned.pack2(self.split_paned, True, True)
+        self.browser_paned.set_position(self.settings.pane_browser or 190)
+        right.pack_start(self.browser_paned, True, True, 0)
 
         # Bottom status bar: "Scanning…" during a scan, then the media-file count.
         root.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 0)
@@ -326,13 +393,13 @@ class PlayerWindow(Gtk.ApplicationWindow):
 
         # Columns 0-5 are shown; index 6 (path) and 7 (font weight, for bolding the playing row) are
         # hidden data columns. The weight column is bound to every visible cell's "weight" attribute.
-        self.track_store = Gtk.ListStore(str, str, str, str, str, str, str, int)
+        self.track_store = Gtk.ListStore(str, str, str, str, str, str, str, int, str)
         # Numeric / time columns sort by value, not by their displayed string.
         self.track_store.set_sort_func(0, self._cmp_int, 0)     # #
         self.track_store.set_sort_func(4, self._cmp_time, 4)    # Length
         self.track_store.set_sort_func(5, self._cmp_int, 5)     # Bkm
         self.track_view = Gtk.TreeView(model=self.track_store)
-        self.track_view.set_tooltip_text("Double-click a track to play it · click a header to sort")
+        self.track_view.set_tooltip_text("Click a track to play it · click a header to sort")
         for i, (title, expand) in enumerate(
                 [("#", False), ("Title", True), ("Artist", False), ("Album", False),
                  ("Length", False), ("Bkm", False)]):
@@ -341,13 +408,15 @@ class PlayerWindow(Gtk.ApplicationWindow):
                 r.set_property("ellipsize", 3)
             if title == "Bkm":
                 r.set_property("xalign", 1.0)  # right-align the count
-            col = Gtk.TreeViewColumn(title, r, text=i, weight=WEIGHT_COL)
+            col = Gtk.TreeViewColumn(title, r, text=i, weight=WEIGHT_COL,
+                                     cell_background=BG_COL)
             col.set_expand(expand)
             col.set_resizable(True)
             col.set_reorderable(True)     # drag column headers to reorder (e.g. Length before Title)
             col.set_sort_column_id(i)     # click a header to sort by that column
             self.track_view.append_column(col)
-        self.track_view.connect("row-activated", self._on_track_activated)
+        self.track_view.connect("button-press-event", self._on_track_click)  # single click plays
+        self.track_view.connect("row-activated", self._on_track_activated)   # Enter / double-click
         self._apply_column_order()                                   # restore saved header order
         self.track_view.connect("columns-changed", self._save_column_order)  # persist future drags
         tsc = Gtk.ScrolledWindow()
@@ -422,6 +491,10 @@ class PlayerWindow(Gtk.ApplicationWindow):
         box.get_style_context().add_class("pane")
         box.pack_start(self._pane_header("FOLDERS"), False, False, 0)
 
+        # Location bar (Ctrl+L): type or paste a path and press Enter — a folder is scanned into the
+        # library, a media file is opened. Beats the file chooser for pasted paths, which it fights.
+        box.pack_start(self._build_path_entry(), False, False, 0)
+
         # Root chooser: a symbolic gear icon + the current root name; click to point the tree elsewhere.
         self.root_btn = Gtk.Button()
         self.root_btn.set_relief(Gtk.ReliefStyle.NONE)
@@ -458,13 +531,120 @@ class PlayerWindow(Gtk.ApplicationWindow):
         self._populate_root()
         return box
 
+    # ----------------------------------------------------------- location bar
+
+    def _build_path_entry(self) -> Gtk.Widget:
+        """A location bar over the folder tree: paste or type a path, press Enter (or click the
+        arrow) to go there. Directories are scanned into the library; media files are opened.
+        Tab-completion offers the matching subdirectories as you type."""
+        self.path_entry = Gtk.Entry()
+        self.path_entry.set_placeholder_text("Go to path…")
+        self.path_entry.set_tooltip_text(
+            "Type or paste a folder or media-file path, then press Enter (Ctrl+L)")
+        self.path_entry.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY, "go-jump-symbolic")
+        self.path_entry.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, "Go to this path")
+        self.path_entry.set_activates_default(False)
+        self.path_entry.connect("activate", lambda _e: self._go_to_path())
+        self.path_entry.connect("icon-press", lambda _e, _p, _ev: self._go_to_path())
+        self.path_entry.connect("changed", self._on_path_entry_changed)
+
+        # Completion over directories in whatever folder the text currently names. The model is
+        # rebuilt on every keystroke, so the match function just accepts what's in it.
+        self._path_completion_store = Gtk.ListStore(str)
+        completion = Gtk.EntryCompletion()
+        completion.set_model(self._path_completion_store)
+        completion.set_text_column(0)
+        completion.set_inline_completion(False)   # inline edits fight pasting
+        completion.set_popup_single_match(False)
+        completion.set_match_func(lambda *_a: True)
+        self.path_entry.set_completion(completion)
+
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        row.set_border_width(4)
+        row.pack_start(self.path_entry, True, True, 0)
+        return row
+
+    @staticmethod
+    def _normalize_path_input(text: str) -> str:
+        """A pasted path, cleaned up: surrounding quotes dropped, ``file://`` URIs decoded, ``~``
+        and ``$VARS`` expanded. Returns "" for blank input."""
+        text = text.strip()
+        if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
+            text = text[1:-1].strip()
+        if text.startswith("file://"):
+            text = urllib.parse.unquote(urllib.parse.urlparse(text).path)
+        if not text:
+            return ""
+        return os.path.abspath(os.path.expanduser(os.path.expandvars(text)))
+
+    def _on_path_entry_changed(self, entry: Gtk.Entry) -> None:
+        """Clear the error styling and refresh the directory completions for the typed prefix."""
+        entry.get_style_context().remove_class("error")
+        text = entry.get_text().strip()
+        store = self._path_completion_store
+        store.clear()
+        if not text or text.startswith("file://"):
+            return
+        expanded = os.path.expanduser(os.path.expandvars(text))
+        # Split into "the folder being listed" and "the prefix typed inside it". A trailing slash
+        # means the folder itself is complete, so list all of its children.
+        if expanded.endswith(os.sep):
+            parent, prefix = expanded, ""
+        else:
+            parent, prefix = os.path.dirname(expanded), os.path.basename(expanded)
+        if not os.path.isdir(parent or "."):
+            return
+        keep_tilde = text.startswith("~")
+        for name in self._subdirs(parent or ".")[:200]:
+            if not name.lower().startswith(prefix.lower()):
+                continue
+            full = os.path.join(parent, name)
+            store.append([("~" + full[len(os.path.expanduser("~")):]) if keep_tilde else full])
+
+    def _go_to_path(self) -> None:
+        """Open whatever the location bar names: a folder is revealed in the tree and scanned, a
+        media file is played (with its folder as the queue), any other file reveals its folder.
+        A path that doesn't exist flags the entry red and says so in the status bar."""
+        path = self._normalize_path_input(self.path_entry.get_text())
+        if not path:
+            return
+        if os.path.isdir(path):
+            self.path_entry.set_text(path)
+            self.path_entry.set_position(-1)
+            self._reveal_and_select(path)
+            self._scan(path)
+            return
+        if os.path.isfile(path):
+            if os.path.splitext(path)[1].lower() in library.MEDIA_EXTS:
+                folder = os.path.dirname(path)
+                self._reveal_and_select(folder)
+                self._scan(folder)
+                self.open_media(path, autoplay=True)
+            else:
+                # Not playable (a sidecar .txt/.srt, say) — go to the folder holding it instead.
+                folder = os.path.dirname(path)
+                self.path_entry.set_text(folder)
+                self.path_entry.set_position(-1)
+                self._reveal_and_select(folder)
+                self._scan(folder)
+                self._flash(f"⚠ Not a media file: {os.path.basename(path)} — opened its folder")
+            return
+        self.path_entry.get_style_context().add_class("error")
+        self._flash(f"⚠ No such file or folder: {path}")
+
+    def _focus_path_entry(self) -> None:
+        """Ctrl+L: focus the location bar with its text selected, ready to be typed or pasted over."""
+        self.path_entry.grab_focus()
+        self.path_entry.select_region(0, -1)
+
     def _root_path(self) -> str:
-        """The configured tree root, expanded; a blank setting means the home directory."""
-        return os.path.expanduser(self.settings.library_root or "~")
+        """The configured tree root, expanded (see ``Settings.root_path``)."""
+        return self.settings.root_path()
 
     def _populate_root(self) -> None:
         """(Re)build the tree from a single root node at the configured folder."""
         self.folder_store.clear()
+        self._media_cache.clear()   # a new root means the old "has media?" answers are moot
         root = self._root_path()
         home = os.path.abspath(os.path.expanduser("~"))
         is_home = os.path.abspath(root) == home
@@ -489,21 +669,49 @@ class PlayerWindow(Gtk.ApplicationWindow):
         self._maybe_add_placeholder(it, path)
 
     def _maybe_add_placeholder(self, parent_it, path: str) -> None:
-        """Give a node an expander by seeding a dummy child, if the directory has any subdirectory."""
-        if self._first_subdir(path) is not None:
+        """Give a node an expander by seeding a dummy child, if it has any subdirectory worth
+        showing (i.e. one with media somewhere inside it)."""
+        if self._media_subdirs(path):
             self.folder_store.append(parent_it, ["", "", ""])  # placeholder, filled on expand
 
-    def _first_subdir(self, path: str):
-        try:
-            with os.scandir(path) as sc:
-                for e in sc:
-                    if not e.name.startswith(".") and e.is_dir(follow_symlinks=False):
-                        return e.name
-        except OSError:
-            pass
-        return None
+    def _has_media(self, path: str) -> bool:
+        """True if ``path`` holds a playable file *anywhere* beneath it. Answering for the whole
+        subtree (not just the folder itself) is what keeps intermediate folders — a date directory
+        whose recordings live one level down — navigable. Early-exits on the first media file and
+        the answer is cached, so expanding a branch doesn't re-walk it. Symlinked directories are
+        skipped (no loops), and a probe that grows past ``_MEDIA_PROBE_LIMIT`` directories gives up
+        and answers True: showing a folder needlessly beats hiding one that holds recordings."""
+        cached = self._media_cache.get(path)
+        if cached is not None:
+            return cached
+        stack, visited, found = [path], 0, False
+        while stack and not found:
+            visited += 1
+            if visited > _MEDIA_PROBE_LIMIT:
+                found = True
+                break
+            try:
+                with os.scandir(stack.pop()) as sc:
+                    for e in sc:
+                        if e.name.startswith("."):
+                            continue
+                        if e.is_dir(follow_symlinks=False):
+                            stack.append(e.path)
+                        elif os.path.splitext(e.name)[1].lower() in library.MEDIA_EXTS:
+                            found = True
+                            break
+            except OSError:
+                continue
+        self._media_cache[path] = found
+        return found
+
+    def _media_subdirs(self, path: str) -> list[str]:
+        """The subdirectories of ``path`` worth showing in the tree — those with media in them."""
+        return [n for n in self._subdirs(path) if self._has_media(os.path.join(path, n))]
 
     def _subdirs(self, path: str) -> list[str]:
+        """Every visible subdirectory of ``path``, unfiltered — the tree wants ``_media_subdirs``,
+        but the location bar's completion offers all of them."""
         try:
             with os.scandir(path) as sc:
                 names = [e.name for e in sc
@@ -518,7 +726,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
         if first is None or store[first][2] != "":  # no placeholder → already populated
             return
         parent_path = store[parent_it][2]
-        for name in self._subdirs(parent_path):
+        for name in self._media_subdirs(parent_path):
             full = os.path.join(parent_path, name)
             child = store.append(parent_it, ["folder-symbolic", name, full])
             self._maybe_add_placeholder(child, full)
@@ -600,6 +808,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
         self.lib_folder = folder
         self.tracks = []
         self.folder_label.set_text(folder)
+        self.path_entry.set_text(folder)   # the location bar always shows the scanned folder
         self.scan_status.set_text("Scanning…")
         self.scan_spinner.show()
         self.scan_spinner.start()   # animates on the GTK main loop while the scan runs off-thread
@@ -669,20 +878,31 @@ class PlayerWindow(Gtk.ApplicationWindow):
             n_bm = len(tmk.load(t.path))                       # bookmark count from the .tmk sidecar
             playing = cur is not None and os.path.abspath(t.path) == cur
             weight = int(Pango.Weight.BOLD if playing else Pango.Weight.NORMAL)
+            # The playing row is bold *and* tinted; every other row leaves the background unset.
+            bg = NOWPLAYING_BG.get(self.settings.theme) if playing else None
             self.track_store.append(
                 [num, t.display_title(), t.artist or "—", t.album or "—", fmt_time(t.duration_ms),
-                 str(n_bm) if n_bm else "", t.path, weight])
+                 str(n_bm) if n_bm else "", t.path, weight, bg])
         self.apply_tag_btn.set_label(f"Apply to {len(self._visible_tracks())} file(s)")
-        # Rebuilding the store resets the scroll to the top; keep the playing file in view instead.
-        GLib.idle_add(self._scroll_playlist_to_current)
+        # Rebuilding the store resets the scroll to the top and drops the selection; put both back
+        # on the playing file instead.
+        GLib.idle_add(self._focus_playlist_on_current)
 
-    def _scroll_playlist_to_current(self) -> bool:
+    def _focus_playlist_on_current(self) -> bool:
+        """Select the now-playing row and scroll it into view.
+
+        Selecting it explicitly is what keeps the highlight from being left behind on the previous
+        file: ``track_store.clear()`` drops the selection outright, and whatever the tree view puts
+        back afterwards is a row *index*, which after a rebuild need not be the same file.
+        """
         cur = os.path.abspath(self.audio.current_path) if self.audio.current_path else None
         if cur:
             for i, row in enumerate(self.track_store):
                 if os.path.abspath(row[PATH_COL]) == cur:
+                    path = Gtk.TreePath(i)
+                    self.track_view.set_cursor(path, None, False)
                     # use_align=True with row_align=0.5 centres the row vertically in the view.
-                    self.track_view.scroll_to_cell(Gtk.TreePath(i), None, True, 0.5, 0.0)
+                    self.track_view.scroll_to_cell(path, None, True, 0.5, 0.0)
                     break
         return False  # one-shot idle callback
 
@@ -726,10 +946,38 @@ class PlayerWindow(Gtk.ApplicationWindow):
         # only untagged files, which are the target of the bulk tag bar.
         self._refresh_track_list()
 
+    def _on_track_click(self, view, event) -> bool:
+        """A single left click on a row plays it — no double-click needed. Returns False so the
+        click still selects the row and reaches the tree view as usual.
+
+        Playing is deferred to an idle rather than done here, because playing rebuilds the playlist
+        store and this handler runs *before* the tree view's own: clearing the model out from under
+        an in-flight click leaves the view selecting by a row index that no longer means the same
+        file. Letting the click finish against the model it was aimed at avoids the whole question.
+        """
+        if event.type != Gdk.EventType.BUTTON_PRESS or event.button != 1:
+            return False   # ignore the 2BUTTON_PRESS half of a double-click, and right/middle clicks
+        hit = view.get_path_at_pos(int(event.x), int(event.y))
+        if hit is None:
+            return False   # empty space below the rows
+        media = self.track_store[self.track_store.get_iter(hit[0])][PATH_COL]
+        GLib.idle_add(self._play_track_idle, media)
+        return False
+
+    def _play_track_idle(self, media: str) -> bool:
+        self._play_track(media)
+        return False  # one-shot
+
     def _on_track_activated(self, view, path, _col) -> None:
-        it = self.track_store.get_iter(path)
-        media = self.track_store[it][PATH_COL]
-        # Queue becomes the tracks currently shown, so next/prev walk this view.
+        """Enter on the selected row (and the second click of a double-click, harmlessly)."""
+        self._play_track(self.track_store[self.track_store.get_iter(path)][PATH_COL])
+
+    def _play_track(self, media: str) -> None:
+        """Play a playlist row. The queue becomes the tracks currently shown, so next/prev walk
+        this view. Re-picking the track already loaded is ignored — otherwise the second click of a
+        double-click would restart the file the first click just started."""
+        if self.audio.current_path and os.path.abspath(media) == self.audio.current_path:
+            return
         self.open_media(media, autoplay=True, queue=[t.path for t in self._visible_tracks()])
 
     def _apply_folder_tags(self) -> None:
@@ -811,7 +1059,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
 
         # Transcription ("lyrics") language chips — sidecar .ai.txt files, e.g. x.ar.ai.txt.
         # Picking a language opens the scrollable side panel; the trash button deletes the file.
-        self.lyrics_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.lyrics_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
         self.lyrics_row.set_no_show_all(True)
         page.pack_start(self.lyrics_row, False, False, 0)
 
@@ -876,7 +1124,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
         # in Settings takes effect without a rebuild; they're the wide buttons.
         self.seek_back_btn = tbtn("media-seek-backward-symbolic", "",
                                   lambda: self._skip(-self.settings.skip_primary_secs), wide=True)
-        self.play_btn = tbtn("media-playback-start-symbolic", "Play / Pause (Space · Ctrl+P)",
+        self.play_btn = tbtn("media-playback-start-symbolic", "Play / Pause (Space · Ctrl+Space)",
                              self._toggle, wide=True)
         self.seek_fwd_btn = tbtn("media-seek-forward-symbolic", "",
                                  lambda: self._skip(self.settings.skip_primary_secs), wide=True)
@@ -1195,7 +1443,30 @@ class PlayerWindow(Gtk.ApplicationWindow):
         self.wave_area.queue_draw()
         if path is None or ms <= 0:
             return
+        if self._waveform_too_big(path):
+            return
         self._wave_job = waveform.compute(path, ms, self._on_waveform_ready)
+
+    def _waveform_too_big(self, path: str) -> bool:
+        """Whether ``path`` is over the configured waveform size limit.
+
+        Building the envelope decodes the entire file. For a long recording that is minutes of CPU
+        and a large peak list, all for a decorative strip — while the parts that matter (the seek
+        bar, the bookmark ticks, playback itself) never depended on it. Over the limit the strip is
+        simply left empty; nothing else changes.
+        """
+        limit_mb = getattr(self.settings, "waveform_max_mb", 0)
+        if limit_mb <= 0:
+            return False                      # 0 = no limit, decode whatever is opened
+        try:
+            size = os.path.getsize(path)
+        except OSError:
+            return False                      # unreadable size is not a reason to skip
+        if size <= limit_mb * 1024 * 1024:
+            return False
+        self._flash(f"Waveform skipped — file is {size / 1024 / 1024:.0f} MB "
+                    f"(limit {limit_mb} MB, change it in Settings)")
+        return True
 
     def _on_waveform_ready(self, path: str, peaks: list[float]) -> bool:
         """Store the finished envelope and repaint — but only if that file is still the one playing
@@ -1210,7 +1481,13 @@ class PlayerWindow(Gtk.ApplicationWindow):
         peaks = self._wave_peaks
         alloc = area.get_allocation()
         w, h = alloc.width, alloc.height
-        if not peaks or w <= 0 or h <= 0:
+        if w <= 0 or h <= 0:
+            return False
+        if not peaks:
+            # No envelope (still decoding, or the file is over the waveform size limit) — the
+            # bookmark ticks still matter, and are the whole point of the strip when there are no
+            # bars behind them.
+            self._draw_bookmark_ticks(cr, w, h)
             return False
 
         ctx = self.scale.get_style_context()
@@ -1236,7 +1513,41 @@ class PlayerWindow(Gtk.ApplicationWindow):
             cr.move_to(x + 0.5, mid - bar)
             cr.line_to(x + 0.5, mid + bar)
             cr.stroke()
+
+        self._draw_bookmark_ticks(cr, w, h)
         return False
+
+    def _draw_bookmark_ticks(self, cr, w: int, h: int) -> None:
+        """Bookmark positions, painted onto the waveform strip.
+
+        These used to be ``Gtk.Scale`` marks, which the theme renders as a one-pixel hairline in the
+        trough — invisible against a 44px waveform, which is precisely where they need to be read.
+        Drawn here instead they get the full height of the strip, a solid colour and a cap at the
+        top, so a glance at the bar tells you where the marked moments are.
+
+        A translucent halo goes down first so a tick stays legible over both a loud (tall bars) and a
+        silent (flat) stretch — a single flat colour disappears into whichever of the two it matches.
+        """
+        if not self.bookmarks or self._duration_ms <= 0:
+            return
+        r, g, b = self._lookup_rgb(self.scale.get_style_context(), "tick", (0.98, 0.68, 0.10))
+        cap = 5.0
+        for mark in self.bookmarks:
+            x = (mark.position_ms / self._duration_ms) * w
+            if not 0 <= x <= w:
+                continue
+            x = min(max(x, 1.5), w - 1.5)
+            cr.set_source_rgba(r, g, b, 0.30)          # halo
+            cr.rectangle(x - 2.5, 0, 5.0, h)
+            cr.fill()
+            cr.set_source_rgba(r, g, b, 1.0)           # the tick itself
+            cr.rectangle(x - 1.0, 0, 2.0, h)
+            cr.fill()
+            cr.move_to(x - cap, 0)                     # a flag at the top so it reads as a marker
+            cr.line_to(x + cap, 0)
+            cr.line_to(x, cap * 1.4)
+            cr.close_path()
+            cr.fill()
 
     @staticmethod
     def _lookup_rgb(ctx: Gtk.StyleContext, name: str, fallback: tuple) -> tuple:
@@ -1244,10 +1555,10 @@ class PlayerWindow(Gtk.ApplicationWindow):
         return (rgba.red, rgba.green, rgba.blue) if ok else fallback
 
     def _refresh_bookmarks(self) -> None:
+        # No Gtk.Scale marks any more: the theme draws those as a hairline that vanished against the
+        # waveform. _draw_bookmark_ticks paints them onto the strip instead.
         self.scale.clear_marks()
-        if self._duration_ms > 0:
-            for b in self.bookmarks:
-                self.scale.add_mark(b.position_ms, Gtk.PositionType.TOP, None)
+        self.wave_area.queue_draw()
         for child in self.bm_list.get_children():
             self.bm_list.remove(child)
         for b in self.bookmarks:
@@ -1300,8 +1611,28 @@ class PlayerWindow(Gtk.ApplicationWindow):
             ctx.add_class("placeholder")
 
     def _begin_edit_bm_label(self, b: tmk.Bookmark, holder: Gtk.EventBox, label: Gtk.Label) -> bool:
-        """Swap the label for an inline entry (only the label is editable — the time isn't). Enter
-        saves, Escape or focus-out cancels."""
+        """Swap the label for an inline entry (only the label is editable — the time isn't).
+
+        Enter saves; clicking away saves too (the label you typed is the label you meant — losing it
+        because you looked at something else is never what you wanted); Escape abandons the edit.
+
+        Three things here are deliberate, and each of them was a bug:
+
+        * **The widget swap happens on an idle, never inside the entry's own signal.** Unparenting a
+          focused entry makes GTK emit ``focus-out-event`` *during* ``holder.remove(entry)``, which
+          re-entered this code and re-added the label to a container mid-removal. That is what
+          crashed the player on Enter.
+        * **``finished`` makes the ending happen once.** Enter is normally followed by a focus-out,
+          so without the latch the label would be committed and swapped twice.
+        * **The path is captured now, not read at save time.** Opening another file rebuilds these
+          rows; a save that read ``current_path`` afterwards would write this file's bookmarks into
+          the newly opened file's sidecar.
+        """
+        if holder.get_child() is not label:
+            return True                      # already editing this bookmark
+        path = self.audio.current_path
+        marks = self.bookmarks
+
         entry = Gtk.Entry()
         entry.set_text(b.text)
         entry.set_placeholder_text("label…")
@@ -1309,25 +1640,46 @@ class PlayerWindow(Gtk.ApplicationWindow):
         holder.add(entry)
         entry.show()
         entry.grab_focus()
-        entry.connect("activate", lambda e, bm=b, ho=holder, la=label: self._commit_bm_label(bm, ho, la, e))
-        entry.connect("key-press-event",
-                      lambda e, ev, ho=holder, la=label: self._restore_bm_label(ho, la, e)
-                      if ev.keyval == Gdk.KEY_Escape else False)
-        entry.connect("focus-out-event", lambda e, ev, ho=holder, la=label: self._restore_bm_label(ho, la, e))
+
+        finished = False
+
+        def finish(save: bool) -> None:
+            nonlocal finished
+            if finished:
+                return
+            finished = True
+            if save:
+                b.text = entry.get_text().strip()
+                if path:
+                    tmk.save(path, marks)
+                self._set_bm_label_text(label, b.text)
+            for handler in handlers:
+                entry.disconnect(handler)
+            GLib.idle_add(self._end_edit_bm_label, holder, label, entry)
+
+        def on_key(_entry, event) -> bool:
+            if event.keyval == Gdk.KEY_Escape:
+                finish(False)
+                return True
+            return False
+
+        handlers = [
+            entry.connect("activate", lambda _e: finish(True)),
+            entry.connect("key-press-event", on_key),
+            # Autosave: leaving the field is a commit, not a cancel.
+            entry.connect("focus-out-event", lambda _e, _ev: (finish(True), False)[1]),
+        ]
         return True  # don't let the click fall through to the row's seek handler
 
-    def _commit_bm_label(self, b: tmk.Bookmark, holder: Gtk.EventBox, label: Gtk.Label, entry: Gtk.Entry) -> None:
-        """Save the edited label to the ``.tmk`` sidecar, then restore the (updated) label."""
-        b.text = entry.get_text().strip()
-        tmk.save(self.audio.current_path, self.bookmarks)
-        self._set_bm_label_text(label, b.text)
-        self._restore_bm_label(holder, label, entry)
-
     @staticmethod
-    def _restore_bm_label(holder: Gtk.EventBox, label: Gtk.Label, entry: Gtk.Entry) -> bool:
-        """Put the label back in place of the inline entry (safe to call more than once)."""
+    def _end_edit_bm_label(holder: Gtk.EventBox, label: Gtk.Label, entry: Gtk.Entry) -> bool:
+        """Put the label back where the entry was. Runs on an idle, so no signal is being dispatched
+        on the entry while it is unparented."""
+        if holder.get_parent() is None:
+            return False        # the row was rebuilt underneath us (another file opened)
         if entry.get_parent() is holder:
             holder.remove(entry)
+        entry.destroy()
         if label.get_parent() is None:
             holder.add(label)
             label.show()
@@ -1403,7 +1755,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
 
     def _build_lyrics_panel(self) -> Gtk.Widget:
         """The scrollable side panel showing a sidecar transcription (no timestamps — rendered
-        whole, like lyrics). Hidden until a language chip is picked."""
+        whole, like lyrics). Opens automatically for files that have one."""
         self.lyrics_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.lyrics_panel.get_style_context().add_class("pane")
         self.lyrics_panel.set_no_show_all(True)
@@ -1412,8 +1764,11 @@ class PlayerWindow(Gtk.ApplicationWindow):
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroller.set_size_request(300, -1)
         self.lyrics_view = Gtk.TextView()
-        self.lyrics_view.set_editable(False)
-        self.lyrics_view.set_cursor_visible(False)
+        self.lyrics_view.set_editable(True)   # transcriptions are AI output — correct them in place
+        self.lyrics_view.set_cursor_visible(True)
+        self.lyrics_view.set_tooltip_text(
+            "Editable — corrections are saved to the .ai.txt file a moment after you stop typing "
+            "(Ctrl+S saves now)")
         self.lyrics_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
         self.lyrics_view.set_left_margin(12)
         self.lyrics_view.set_right_margin(12)
@@ -1422,74 +1777,183 @@ class PlayerWindow(Gtk.ApplicationWindow):
         scroller.add(self.lyrics_view)
         self.lyrics_panel.pack_start(scroller, True, True, 0)
         self._lyrics_path: str | None = None
+        self._lyrics_lang_pref: str | None = None  # last language picked — reused for the next file
+        self._lyrics_rebuilding = False            # mutes chip signals while the row is rebuilt
+        self._lyrics_dirty = False                 # buffer holds unsaved edits
+        self._lyrics_loading = False               # mutes the "changed" signal while text is loaded
+        self._lyrics_save_source = 0               # pending debounced save
+        self._lyrics_lang: str | None = None       # language tag of the file in the panel
+        self.lyrics_view.get_buffer().connect("changed", self._on_lyrics_edited)
         return self.lyrics_panel
 
+    def _apply_lyrics_direction(self) -> None:
+        """Lay the panel out right-to-left when it should be: the cursor starts at the right,
+        punctuation lands on the correct side, and bidi runs inside a line resolve the way a reader
+        expects. An ``ar`` (or other RTL) sidecar is RTL by its tag — machine transcripts are often
+        littered with Latin noise, and that must not flip an Arabic page. Anything else reads its
+        direction from the text and is re-evaluated as you type, so an ``en`` file you start typing
+        Arabic into turns around immediately."""
+        lang = (self._lyrics_lang or "").lower().split("-")[0]
+        buf = self.lyrics_view.get_buffer()
+        head = buf.get_text(buf.get_start_iter(),
+                            buf.get_iter_at_offset(min(_DIRECTION_SAMPLE, buf.get_char_count())),
+                            False)
+        rtl = lang in _RTL_LANGS or is_rtl_text(head)
+        self.lyrics_view.set_direction(Gtk.TextDirection.RTL if rtl else Gtk.TextDirection.LTR)
+        self.lyrics_view.set_justification(
+            Gtk.Justification.RIGHT if rtl else Gtk.Justification.LEFT)
+
+    def _on_lyrics_edited(self, _buffer) -> None:
+        """Typing in the transcript panel: mark it dirty and (re)arm the idle save, so a burst of
+        edits writes once, shortly after you stop."""
+        if self._lyrics_loading or self._lyrics_path is None:
+            return
+        self._apply_lyrics_direction()
+        self._lyrics_dirty = True
+        if self._lyrics_save_source:
+            GLib.source_remove(self._lyrics_save_source)
+        self._lyrics_save_source = GLib.timeout_add(1200, self._on_lyrics_save_timeout)
+
+    def _on_lyrics_save_timeout(self) -> bool:
+        self._lyrics_save_source = 0
+        self._save_lyrics()
+        return False   # one-shot
+
+    def _save_lyrics(self, quiet: bool = False) -> None:
+        """Write pending transcript edits back to the ``.ai.txt`` file. Called on the idle timer,
+        on Ctrl+S, and before anything that would replace or remove the text being edited (picking
+        another language, opening another file, trashing, quitting)."""
+        if self._lyrics_save_source:
+            GLib.source_remove(self._lyrics_save_source)
+            self._lyrics_save_source = 0
+        if not self._lyrics_dirty or not self._lyrics_path:
+            return
+        path = self._lyrics_path
+        buf = self.lyrics_view.get_buffer()
+        text = buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False)
+        ok = lyrics.write(path, text)
+        self._lyrics_dirty = not ok
+        if not quiet or not ok:
+            self._flash(f"✓ Saved {os.path.basename(path)}" if ok
+                        else f"⚠ Could not save {os.path.basename(path)}")
     def _refresh_lyrics_langs(self, media_path: str) -> None:
-        """Rebuild the transcription chips for a freshly-opened file (an 'Off' chip plus one per
-        sidecar ``.ai.txt`` found, and a delete button). Hidden when the file has none."""
+        """Rebuild the transcription chips for a freshly-opened file — one chip per sidecar
+        ``.ai.txt`` found, each paired with its own trash button — and open one of them straight
+        away, so reading a transcript costs no clicks. There is no 'Off' chip: the way to be rid of
+        a transcription is the trash button. Languages with no sidecar yet get a ``+`` button that
+        starts an empty one, so the row is shown even for a file with no transcripts at all."""
+        self._lyrics_rebuilding = True
         for c in self.lyrics_row.get_children():
             self.lyrics_row.remove(c)
         self._select_lyrics(None, None)
 
         found = lyrics.find(media_path)
-        if not found:
-            self.lyrics_row.hide()
-            return
         caption = Gtk.Label(label="Transcript:")
         caption.get_style_context().add_class("time")
         self.lyrics_row.pack_start(caption, False, False, 0)
-        off = Gtk.RadioButton.new_with_label_from_widget(None, "Off")
-        off.set_mode(False)  # render as a linked toggle button, not a radio dot
-        off.connect("toggled", lambda b: b.get_active() and self._select_lyrics(None, None))
-        self.lyrics_row.pack_start(off, False, False, 0)
+        group = None          # the first chip leads the radio group
+        buttons: dict[str, Gtk.RadioButton] = {}
         for lang, path in found:
-            rb = Gtk.RadioButton.new_with_label_from_widget(off, lang)
-            rb.set_mode(False)
+            # Language chip + its own trash button. Deliberately NOT "linked": they stay visually
+            # separate so the delete can't be mistaken for (or mis-clicked instead of) the language.
+            chip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
+            rb = Gtk.RadioButton.new_with_label_from_widget(group, lang)
+            group = group or rb
+            rb.set_mode(False)  # render as a linked toggle button, not a radio dot
             rb.connect("toggled",
-                       lambda b, la=lang, pa=path: b.get_active() and self._select_lyrics(la, pa))
-            self.lyrics_row.pack_start(rb, False, False, 0)
-        self.lyrics_delete_btn = Gtk.Button()
-        self.lyrics_delete_btn.add(Gtk.Image.new_from_icon_name("user-trash-symbolic", Gtk.IconSize.BUTTON))
-        self.lyrics_delete_btn.set_relief(Gtk.ReliefStyle.NONE)
-        self.lyrics_delete_btn.set_tooltip_text("Delete the shown transcription file")
-        self.lyrics_delete_btn.set_sensitive(False)  # nothing shown yet
-        self.lyrics_delete_btn.connect("clicked", lambda _b: self._delete_lyrics())
-        self.lyrics_row.pack_start(self.lyrics_delete_btn, False, False, 0)
-        off.set_active(True)
+                       lambda b, la=lang, pa=path: b.get_active() and self._on_lyrics_chip(la, pa))
+            buttons[lang] = rb
+            chip.pack_start(rb, False, False, 0)
+            trash = Gtk.Button()
+            trash.add(Gtk.Image.new_from_icon_name("user-trash-symbolic", Gtk.IconSize.MENU))
+            trash.set_relief(Gtk.ReliefStyle.NONE)
+            trash.get_style_context().add_class("chiptrash")
+            trash.set_tooltip_text(f"Move {os.path.basename(path)} to the Trash (no confirmation)")
+            trash.connect("clicked", lambda _b, pa=path: self._trash_lyrics(pa))
+            chip.pack_start(trash, False, False, 0)
+            self.lyrics_row.pack_start(chip, False, False, 0)
+
+        # "+ ar" / "+ en" for whichever of the two the file doesn't have yet.
+        for lang in lyrics.NEW_LANGS:
+            if any(l == lang for l, _ in found):
+                continue
+            add = Gtk.Button(label=f"+ {lang}")
+            add.set_relief(Gtk.ReliefStyle.NONE)
+            add.set_tooltip_text(
+                f"Start a {lang} transcript — creates "
+                f"{os.path.basename(lyrics.path_for(media_path, lang))} and puts the cursor in it")
+            add.connect("clicked", lambda _b, la=lang, mp=media_path: self._new_lyrics(mp, la))
+            self.lyrics_row.pack_start(add, False, False, 0)
+
+        # show_all() does nothing while no_show_all is set (see _select_lyrics), so lift it first.
+        self.lyrics_row.set_no_show_all(False)
         self.lyrics_row.show_all()
 
+        if not found:
+            self._lyrics_rebuilding = False
+            return   # nothing to open yet — just the two "+" buttons
+
+        # Auto-open: the language last picked if this file has it, else the first one. The chip is
+        # activated with signals muted, then shown by hand, so the panel opens exactly once.
+        lang, path = next(((l, p) for l, p in found if l == self._lyrics_lang_pref), found[0])
+        buttons[lang].set_active(True)
+        self._lyrics_rebuilding = False
+        self._on_lyrics_chip(lang, path)
+
+    def _new_lyrics(self, media_path: str, lang: str) -> None:
+        """Start an empty transcript for ``media_path`` in ``lang`` — ``<base>.<lang>.ai.txt`` beside
+        the media — then open it with the cursor in it. The button you pressed decides the language,
+        full stop; nothing later second-guesses it from the text."""
+        path = lyrics.path_for(media_path, lang)
+        if os.path.exists(path):
+            self._flash(f"{os.path.basename(path)} already exists")
+            return
+        if not lyrics.write(path, ""):
+            self._flash(f"⚠ Could not create {os.path.basename(path)}")
+            return
+        self._flash(f"✓ Created {os.path.basename(path)} — type the transcript")
+        self._lyrics_lang_pref = lang      # so the rebuild opens the new one
+        self._refresh_lyrics_langs(media_path)
+        self.lyrics_view.grab_focus()
+
+    def _on_lyrics_chip(self, lang: str, path: str) -> None:
+        """A transcript chip was picked — by click, or by the auto-open above. Remembers the
+        language so the next file opens in the same one when it has it."""
+        if self._lyrics_rebuilding:
+            return
+        self._lyrics_lang_pref = lang
+        self._select_lyrics(lang, path)
+
     def _select_lyrics(self, lang: str | None, path: str | None) -> None:
-        """Show a transcription in the side panel (or hide it for lang=None). Arabic (and any
-        RTL text) reads right-aligned; GTK's per-paragraph bidi handles the glyph order."""
+        """Show a transcription in the side panel (or hide it for lang=None). Any pending edit to
+        the outgoing text is written first, so switching language or file never loses a correction.
+        Arabic (and any RTL text) reads right-aligned; GTK's per-paragraph bidi handles the glyph
+        order."""
+        self._save_lyrics(quiet=True)
         self._lyrics_path = path
-        btn = getattr(self, "lyrics_delete_btn", None)
-        if btn is not None:
-            btn.set_sensitive(path is not None)
+        self._lyrics_lang = lang          # an RTL tag decides the layout direction outright
         if path is None:
+            self.lyrics_panel.set_no_show_all(True)  # re-arm the guard against a later show_all()
             self.lyrics_panel.hide()
             return
-        self.lyrics_view.set_justification(
-            Gtk.Justification.RIGHT if (lang or "").lower().startswith("ar") else Gtk.Justification.LEFT)
-        self.lyrics_view.get_buffer().set_text(lyrics.read(path) or "(empty transcription)")
+        # Loading is not an edit — mute the buffer's "changed" so it doesn't mark the file dirty.
+        self._lyrics_loading = True
+        self.lyrics_view.get_buffer().set_text(lyrics.read(path))
+        self._lyrics_loading = False
+        self._lyrics_dirty = False
+        self._apply_lyrics_direction()
         # no_show_all guards the panel against the window's initial show_all(); lift it here,
         # since show_all() is a no-op while the flag is set (children would stay hidden).
         self.lyrics_panel.set_no_show_all(False)
         self.lyrics_panel.show_all()
 
-    def _delete_lyrics(self) -> None:
-        """Delete the transcription file shown in the panel (with confirmation), then refresh."""
-        path = self._lyrics_path
-        if not path:
-            return
-        dialog = Gtk.MessageDialog(
-            transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.YES_NO, text=f"Delete {os.path.basename(path)}?")
-        dialog.format_secondary_text("The transcription file is removed from disk permanently.")
-        answer = dialog.run()
-        dialog.destroy()
-        if answer != Gtk.ResponseType.YES:
-            return
-        lyrics.delete(path)
+    def _trash_lyrics(self, path: str) -> None:
+        """Move one transcription sidecar to the Trash and rebuild the chips. No confirmation on
+        purpose — these are throwaway AI transcriptions and the Trash is the undo."""
+        if path == self._lyrics_path:
+            self._lyrics_dirty = False   # don't write edits back to a file being thrown away
+        name = os.path.basename(path)
+        self._flash(f"Moved {name} to Trash" if self._trash(path) else f"⚠ Could not trash {name}")
         if self.audio.current_path:
             self._refresh_lyrics_langs(self.audio.current_path)
 
@@ -1505,6 +1969,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
 
         subs = subtitles.find(media_path)
         if not subs:
+            self.subs_row.set_no_show_all(True)
             self.subs_row.hide()
             return
         caption = Gtk.Label(label="Subtitles:")
@@ -1521,6 +1986,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
                        lambda b, la=lang, pa=path: b.get_active() and self._select_subtitle(la, pa))
             self.subs_row.pack_start(rb, False, False, 0)
         off.set_active(True)
+        self.subs_row.set_no_show_all(False)
         self.subs_row.show_all()
 
     def _select_subtitle(self, lang: str | None, path: str | None) -> None:
@@ -1552,13 +2018,11 @@ class PlayerWindow(Gtk.ApplicationWindow):
             img.set_from_icon_name(icon, Gtk.IconSize.LARGE_TOOLBAR)
 
     def _on_eos(self) -> None:
+        """A file ended: stop there. No auto-advance — moving on is the next-track button or a
+        click in the playlist, so a recording never runs into the next one unattended."""
         self._remember_position(persist=True)
-        i = self._sibling_index()
-        if 0 <= i < len(self.siblings) - 1:
-            self._next_track(autoplay=True)
-        else:
-            self.audio.pause()
-            self._flash("End of queue")
+        self.audio.pause()
+        self._flash("End of file")
 
     def _on_error(self, message: str) -> None:
         self._flash(f"⚠ {message}")
@@ -1619,6 +2083,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
     def _toggle_theme(self) -> None:
         self.settings.theme = "light" if self.settings.theme == "dark" else "dark"
         self._apply_theme()
+        self._refresh_track_list()   # the now-playing row tint is per-theme
         self.settings.save()
 
     def _update_skip_tooltips(self) -> None:
@@ -1645,15 +2110,34 @@ class PlayerWindow(Gtk.ApplicationWindow):
 
         skip_spin = spin(self.settings.skip_primary_secs, 1, 600)
         rewind_spin = spin(self.settings.bookmark_rewind_secs, 0, 120)
+        wave_spin = spin(getattr(self.settings, "waveform_max_mb", 10), 0, 4096)
         sleep_check = Gtk.CheckButton(label="Show the sleep timer")
         sleep_check.set_active(self.settings.sleep_enabled)
         sleep_presets = Gtk.Entry()
         sleep_presets.set_text(", ".join(str(m) for m in self.settings.sleep_presets_min))
-        rows = [("Skip forward / back (seconds)", skip_spin,
+
+        # Folder-tree root: a plain text field (paste a path straight in) plus a folder picker.
+        root_entry = Gtk.Entry()
+        root_entry.set_text(self.settings.library_root or DEFAULT_LIBRARY_ROOT)
+        root_entry.set_width_chars(30)
+        root_entry.set_placeholder_text(DEFAULT_LIBRARY_ROOT)
+        root_browse = Gtk.Button(label="Browse…")
+        root_browse.connect("clicked", lambda _b: self._pick_root_into(root_entry, dialog))
+        root_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        root_box.pack_start(root_entry, True, True, 0)
+        root_box.pack_start(root_browse, False, False, 0)
+
+        rows = [("Folder-tree root", root_box,
+                 "The folder the FOLDERS tree starts from — keep it narrow (a recordings directory, "
+                 f"not all of home). Blank means {DEFAULT_LIBRARY_ROOT}. '~' is allowed."),
+                ("Skip forward / back (seconds)", skip_spin,
                  "The ± seek buttons and Ctrl+← / Ctrl+→ jump by this many seconds."),
                 ("Bookmark rewind (seconds)", rewind_spin,
                  "A new bookmark lands this many seconds back, and playback rewinds there so you "
                  "re-hear the moment you just bookmarked."),
+                ("Waveform limit (MB)", wave_spin,
+                 "Files larger than this get no waveform — drawing one decodes the whole file, "
+                 "which is slow and pointless for a long recording. 0 means no limit."),
                 ("Sleep timer", sleep_check,
                  "Off by default. Enable to show a sleep-timer picker among the player controls."),
                 ("Sleep presets (minutes)", sleep_presets,
@@ -1668,15 +2152,33 @@ class PlayerWindow(Gtk.ApplicationWindow):
         if dialog.run() == Gtk.ResponseType.OK:
             self.settings.skip_primary_secs = int(skip_spin.get_value())
             self.settings.bookmark_rewind_secs = int(rewind_spin.get_value())
+            self.settings.waveform_max_mb = int(wave_spin.get_value())
             self.settings.sleep_enabled = sleep_check.get_active()
             presets = [int(x) for x in re.findall(r"\d+", sleep_presets.get_text()) if int(x) > 0]
             if presets:
                 self.settings.sleep_presets_min = presets
+            # Stored as typed (bar stray quotes), so a '~' path stays portable between machines.
+            root_text = root_entry.get_text().strip().strip("\"'")
+            root_changed = root_text != self.settings.library_root
+            self.settings.library_root = root_text
             self.settings.save()
             self._update_skip_tooltips()
             self._rebuild_sleep_presets()
             self._apply_sleep_visibility()
+            if root_changed:
+                self._populate_root()
         dialog.destroy()
+
+    def _pick_root_into(self, entry: Gtk.Entry, parent: Gtk.Window) -> None:
+        """The Settings dialog's Browse… button: pick a folder into the root text field."""
+        chooser = Gtk.FileChooserDialog(
+            title="Choose the tree's root folder", transient_for=parent,
+            action=Gtk.FileChooserAction.SELECT_FOLDER)
+        chooser.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, "Select", Gtk.ResponseType.OK)
+        chooser.set_current_folder(os.path.expanduser(entry.get_text().strip() or self._root_path()))
+        if chooser.run() == Gtk.ResponseType.OK:
+            entry.set_text(chooser.get_filename())
+        chooser.destroy()
 
     def _choose_file(self) -> None:
         dialog = Gtk.FileChooserDialog(
@@ -1701,7 +2203,9 @@ class PlayerWindow(Gtk.ApplicationWindow):
 
     def _on_key(self, _widget, event) -> bool:
         focus = self.get_focus()
-        typing = isinstance(focus, Gtk.Entry)
+        # The transcript panel is an editable TextView — while it (or any entry) has focus, plain
+        # keys must reach it instead of driving playback.
+        typing = isinstance(focus, (Gtk.Entry, Gtk.TextView))
         ctrl = event.state & Gdk.ModifierType.CONTROL_MASK
         kv = event.keyval
 
@@ -1709,7 +2213,11 @@ class PlayerWindow(Gtk.ApplicationWindow):
         # note), so Ctrl is the modifier for them.
         if ctrl and kv in (Gdk.KEY_b, Gdk.KEY_B):
             self._add_bookmark(); return True
-        if ctrl and kv in (Gdk.KEY_p, Gdk.KEY_P):
+        # Ctrl+Space, not Ctrl+P: a letter key is layout-dependent, and its keyval on an Arabic
+        # layout is not Gdk.KEY_p at all — which is exactly why play/pause died while typing a
+        # bookmark label in Arabic and worked everywhere else. Space carries the same keyval in
+        # every layout, so this one works whatever you are typing in.
+        if ctrl and kv in (Gdk.KEY_space, Gdk.KEY_KP_Space):
             self._toggle(); return True
         if ctrl and kv == Gdk.KEY_Left:
             self._skip(-self.settings.skip_primary_secs); return True
@@ -1719,8 +2227,10 @@ class PlayerWindow(Gtk.ApplicationWindow):
             self._delete_current_file(); return True
         if ctrl and kv in (Gdk.KEY_o, Gdk.KEY_O):
             self._choose_file(); return True
+        if ctrl and kv in (Gdk.KEY_s, Gdk.KEY_S):
+            self._save_lyrics(); return True   # write transcript edits now
         if ctrl and kv in (Gdk.KEY_l, Gdk.KEY_L):
-            self._focus_folder_tree(); return True
+            self._focus_path_entry(); return True   # location bar, as in a file manager/browser
         if ctrl and kv in (Gdk.KEY_t, Gdk.KEY_T):
             self._toggle_theme(); return True
         if ctrl and kv == Gdk.KEY_comma:
@@ -1746,9 +2256,11 @@ class PlayerWindow(Gtk.ApplicationWindow):
         return False
 
     def _on_close(self, *_a) -> bool:
+        self._save_lyrics(quiet=True)   # don't lose a transcript edit made just before quitting
         self._remember_position(persist=True)
         # Persist the layout so the next launch restores it.
         self.settings.pane_sidebar = self.outer_paned.get_position()
+        self.settings.pane_browser = self.browser_paned.get_position()
         self.settings.pane_left = self.left_paned.get_position()
         self.settings.pane_split = self.split_paned.get_position()
         self.settings.win_w, self.settings.win_h = self.get_size()

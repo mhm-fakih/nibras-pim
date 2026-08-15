@@ -18,8 +18,19 @@ object Bookmarks {
     fun sidecar(media: File): File = File(media.parentFile, media.nameWithoutExtension + ".tmk")
 
     /** The old `.txt` sidecar, read for backward compatibility. */
-    private fun legacySidecar(media: File): File =
+    fun legacySidecar(media: File): File =
         File(media.parentFile, media.nameWithoutExtension + ".txt")
+
+    /**
+     * Whether [media] has a bookmark sidecar with anything in it.
+     *
+     * Two `stat` calls rather than [load]'s read-and-parse, because the "random old unbookmarked"
+     * picker asks this of every file in the library — reading each sidecar would turn one tap into
+     * thousands of file reads. An empty sidecar (every bookmark since deleted) counts as
+     * unbookmarked, which is what it means.
+     */
+    fun hasBookmarks(media: File): Boolean =
+        sidecar(media).length() > 0L || legacySidecar(media).length() > 0L
 
     fun load(media: File): List<Bookmark> {
         val f = sidecar(media).takeIf { it.exists() } ?: legacySidecar(media)

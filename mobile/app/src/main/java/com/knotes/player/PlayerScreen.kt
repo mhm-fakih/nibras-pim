@@ -498,6 +498,9 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                     LabeledSlider("Volume ${"%+.0f".format(controller.gainDb)} dB", controller.gainDb, -20f, 50f) { controller.setGain(it) }
 
                     Spacer(Modifier.height(16.dp))
+                    PlayNextRow(controller)
+
+                    Spacer(Modifier.height(16.dp))
                     SleepTimerRow(controller)
 
                     Row(
@@ -873,6 +876,55 @@ private fun SquareButton(
                 modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp),
             )
         }
+    }
+}
+
+/**
+ * What plays when the current file ends. The caption spells out each mode's rule, because "random
+ * old" is the kind of option whose behaviour can't be guessed from its name.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PlayNextRow(controller: PlayerController) {
+    val modes = listOf(
+        PlayNextMode.NONE to "Off",
+        PlayNextMode.SAME_FOLDER to "Same folder",
+        PlayNextMode.RANDOM_OLD to "Random old",
+    )
+    val caption = when (controller.playNextMode) {
+        PlayNextMode.NONE -> "The next file in the folder is cued, paused — nothing starts on its own."
+        PlayNextMode.SAME_FOLDER -> "The next file in this folder plays automatically."
+        PlayNextMode.RANDOM_OLD ->
+            "A file from anywhere in your library folders that you've never bookmarked and haven't " +
+                "touched in ${NextTrack.OLD_DAYS} days. If nothing is that old yet, the oldest ones are used."
+    }
+
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Play next", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(120.dp))
+            if (controller.pickingNext) {
+                Text(
+                    "finding one…",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+            modes.forEach { (mode, label) ->
+                FilterChip(
+                    selected = mode == controller.playNextMode,
+                    onClick = { controller.changePlayNextMode(mode) },
+                    label = { Text(label) },
+                )
+            }
+        }
+        Text(
+            caption,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(0xFFAAAAAA),
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 

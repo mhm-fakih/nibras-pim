@@ -22,6 +22,11 @@ def _base_dir() -> str:
 
 _HERE = _base_dir()
 
+# Where the folder tree is rooted when nothing is configured. Deliberately narrower than the whole
+# home directory — the tree is for the recordings library, not for browsing the machine. Falls back
+# to home if this folder isn't there.
+DEFAULT_LIBRARY_ROOT = "~/mdd/knotes-h"
+
 
 def _config_path() -> str:
     return os.path.join(_HERE, "config.json")
@@ -33,18 +38,24 @@ class Settings:
     rate: float = 1.0                 # 0.75–1.25 (clamped by the engine)
     skip_primary_secs: int = 10       # the big skip buttons
     skip_secondary_secs: int = 5      # the small skip buttons
+    # Above this size no waveform is drawn. Building the envelope decodes the WHOLE file, so a
+    # multi-hour recording costs minutes of CPU and a lot of memory for a strip of decoration —
+    # and the seek bar, bookmarks and playback never needed it. 0 disables the limit.
+    waveform_max_mb: int = 10
     bookmark_rewind_secs: int = 5     # a bookmark lands N seconds before "now" (the line you just heard),
                                       # and playback rewinds there so you re-hear it
     volume: float = 1.0               # 1.0 = unity; up to 10.0 boosts (the phone's gain)
     sleep_enabled: bool = False       # the sleep timer is hidden until enabled in Settings
     sleep_presets_min: list[int] = field(default_factory=lambda: [15, 30, 45, 60])
     theme: str = "light"              # "light" (Solarized parchment, the default) or "dark" (slate)
-    library_root: str = ""            # root folder of the browser tree; blank = home (~)
+    library_root: str = ""            # root folder of the browser tree; blank = DEFAULT_LIBRARY_ROOT
     track_columns: list[str] = field(default_factory=list)  # saved playlist column order (by title)
     # Saved layout — 0 means "use the built-in default". Restored on relaunch.
     pane_sidebar: int = 0             # sidebar width (outer split)
     pane_left: int = 0               # folder-tree / recently-bookmarked split
     pane_split: int = 0              # playlist / player split
+    # Height of the genre/artist/album browser above the playlist+player split (0 = the default).
+    pane_browser: int = 0
     win_w: int = 0
     win_h: int = 0
 
@@ -69,6 +80,14 @@ class Settings:
 
     def saved_position(self, path: str) -> int:
         return self.resume.get(os.path.abspath(path), 0)
+
+    # --- library root ------------------------------------------------------
+
+    def root_path(self) -> str:
+        """The folder the browser tree is rooted at: whatever is configured, else the built-in
+        default, else home — so a stale or mistyped setting can never leave the tree empty."""
+        root = os.path.expanduser(self.library_root or DEFAULT_LIBRARY_ROOT)
+        return root if os.path.isdir(root) else os.path.expanduser("~")
 
     def push_recent(self, path: str) -> None:
         path = os.path.abspath(path)
@@ -96,6 +115,7 @@ class Settings:
         s.skip_primary_secs = int(raw.get("skip_primary_secs", s.skip_primary_secs))
         s.skip_secondary_secs = int(raw.get("skip_secondary_secs", s.skip_secondary_secs))
         s.bookmark_rewind_secs = int(raw.get("bookmark_rewind_secs", s.bookmark_rewind_secs))
+        s.waveform_max_mb = int(raw.get("waveform_max_mb", s.waveform_max_mb))
         s.volume = float(raw.get("volume", s.volume))
         s.sleep_enabled = bool(raw.get("sleep_enabled", s.sleep_enabled))
         s.sleep_presets_min = [int(x) for x in raw.get("sleep_presets_min", s.sleep_presets_min)]
@@ -105,6 +125,7 @@ class Settings:
         s.pane_sidebar = int(raw.get("pane_sidebar", s.pane_sidebar))
         s.pane_left = int(raw.get("pane_left", s.pane_left))
         s.pane_split = int(raw.get("pane_split", s.pane_split))
+        s.pane_browser = int(raw.get("pane_browser", s.pane_browser))
         s.win_w = int(raw.get("win_w", s.win_w))
         s.win_h = int(raw.get("win_h", s.win_h))
         s.last_media = raw.get("last_media", s.last_media)

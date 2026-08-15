@@ -38,9 +38,9 @@ android {
         // Bumped with each released versionName: Android refuses to install over a build with a
         // higher code, so a weekly versionName needs this to move too.
         versionCode = 4
-        versionName = "1.2.32"
+        versionName = "1.3.33"
         buildConfigField("int", "BUILD_NUMBER", "$buildNumber")
-        buildConfigField("String", "CODENAME", "\"Dastgheib\"")
+        buildConfigField("String", "CODENAME", "\"Gratitude\"")
     }
 
     signingConfigs {

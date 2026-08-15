@@ -34,6 +34,8 @@ import { SearchPage } from './pages/SearchPage';
 import { BookmarksPage } from './pages/BookmarksPage';
 import { IndicatorsPage } from './pages/IndicatorsPage';
 import { InsightsPage } from './pages/InsightsPage';
+import { ReportPrintPage } from './pages/ReportPrintPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { SprintsPage } from './pages/SprintsPage';
 import { ParametersPage } from './pages/ParametersPage';
 import { HelpPage } from './pages/HelpPage';
@@ -87,6 +89,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                         <Route path="/indicators" element={<IndicatorsPage />} />
                         <Route path="/insights" element={<InsightsPage />} />
                         <Route path="/sprints" element={<SprintsPage />} />
+                        <Route path="/reports" element={<ReportsPage />} />
+                        {/* Chrome-free, print-ready. Authed like any report read, but
+                            deliberately outside the shell: see ReportPrintPage. */}
+                        <Route path="/reports/:id/print" element={<ReportPrintPage />} />
                         <Route
                           path="/admin"
                           element={

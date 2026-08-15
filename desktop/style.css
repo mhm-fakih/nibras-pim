@@ -93,6 +93,92 @@ headerbar button {
     padding: 2px;
     margin: 0;
 }
+/* Right-hand editor pane (Ctrl+E). A left border rather than a filled panel: it's a writing
+   surface, so the text sits on the same ground as the rest of the window and only the edge says
+   where the board stops. */
+.editor-pane {
+    border-left: 1px solid alpha(@fg_muted, 0.35);
+    background: @card_bg;
+}
+/* read / edit in the pane header. Small and quiet, but a real linked pair — which mode you're in
+   decides whether a click highlights a clause or places a cursor, so it has to be visible. */
+.pane-mode {
+    min-height: 0;
+    min-width: 0;
+    padding: 1px 8px;
+    font-size: 0.76em;
+    color: @fg_muted;
+}
+.pane-mode:checked {
+    background: alpha(@accent, 0.22);
+    color: @accent;
+    font-weight: 700;
+}
+.editor-pane-title {
+    font-weight: 700;
+    font-size: 0.88em;
+    color: @accent;
+}
+/* The save state ("Editing…" / "Saved 12:04:33"). Quiet on purpose — it's there to be glanced at,
+   not read; the one message that matters is a failure, and that one says so in words. */
+.editor-pane-status {
+    color: @fg_muted;
+    font-size: 0.78em;
+}
+.editor-pane text {
+    background: @card_bg;
+}
+
+/* The action row under every card (open folder · open note · copy name · copy path). Flat and muted
+   so four of them per card stay quieter than the note's own text, and plainly clickable on hover.
+   min-height/min-width undo Adwaita's ~24px button floor, which would otherwise add a visible band
+   of empty space to every card in the board. Symbolic icons follow `color`, so the labels and the
+   glyphs light up together. */
+.card-actions {
+    margin-top: 2px;
+}
+.card-action {
+    min-height: 0;
+    min-width: 0;
+    padding: 2px 6px;
+    margin: 0;
+    border: none;
+    background: none;
+    box-shadow: none;
+    color: @fg_muted;
+    font-size: 0.82em;
+}
+.card-action:hover {
+    background: alpha(@accent, 0.18);
+    color: @accent;
+}
+/* The '#' tag-bank completer. Compact rows — it appears over the text being written, so it has to
+   stay out of the way of reading it. The list needs its own colours: it lives in a separate popup
+   window, where Adwaita's default list background (white) would otherwise show through the theme. */
+.tag-complete {
+    background: @bg_alt;
+    color: @fg;
+}
+.tag-complete row {
+    padding: 2px 10px;
+    min-height: 0;
+}
+.tag-complete row:selected {
+    background: alpha(@accent, 0.30);
+    color: @fg;
+}
+
+/* Word / highlight / time-mark counts, closing the action row. Quieter than the actions themselves —
+   they're a status, not something to click. */
+.card-counts {
+    color: @fg_muted;
+    font-size: 0.80em;
+}
+.card-action:disabled {
+    background: none;
+    opacity: 0.45;
+}
+
 .last-note {
     background: alpha(@accent, 0.14);
     border: 1px solid alpha(@accent, 0.55);
@@ -113,6 +199,25 @@ headerbar button {
     color: @fg_muted;
     font-size: 0.82em;
     margin: 0 4px;
+}
+
+/* The line shown where the cards would be when nothing matches — quiet enough to read as a status
+   rather than an error, but centred so it can't be mistaken for a note. */
+.empty-board {
+    color: @fg_muted;
+    font-size: 1.05em;
+    padding: 40px 12px;
+}
+
+/* Attached-file names on a card are links (click to open the file). The theme's own link colour is
+   a loud blue that fights the card, so tint them like the file chips they replaced — the underline
+   is what marks them clickable. */
+.card label:link,
+.card label:visited {
+    color: @cyan;
+}
+.card label:hover:link {
+    color: @accent;
 }
 
 /* Tag badges on each card */
@@ -311,6 +416,54 @@ headerbar button {
 .filter-row:checked .filter-count {
     color: @accent_fg;
 }
+/* Tag cloud: the #hashtags found in note bodies, each with its use count.
+ *
+ * Styled as LINKS, not buttons. They're toggle buttons underneath — that's what carries the picked
+ * state, the keyboard focus and the "clickable at 0 so it can be switched off" rule — but a cloud
+ * of framed buttons at five different font sizes reads as a ransom note and eats the sidebar's best
+ * slot in chrome. Stripping the frame leaves the words themselves, which is what a cloud is for.
+ * min-height/min-width must both be zeroed: Adwaita floors a button at ~24px each way, and that
+ * floor, not the padding, is what makes the small tags look big. */
+.tag-chip {
+    background: none;
+    background-image: none;
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    text-shadow: none;
+    outline: none;
+    border-radius: 4px;
+    min-height: 0;
+    min-width: 0;
+    padding: 0 2px;
+    color: @cyan;
+}
+.tag-chip:hover {
+    color: @accent;
+    background-color: transparent;
+}
+/* Picked: bold + accent, and underlined via Pango in _sync_tag_cloud — GTK3 ignores CSS
+   text-decoration-line on a button label here, so the underline has to come from the markup.
+   A cloud holds one selection at a time (see _on_row), so the picked tag has to be legible at a
+   glance among dozens of siblings without a background to sit on. */
+.tag-chip:checked {
+    color: @accent;
+    font-weight: bold;
+    background-color: transparent;
+}
+.tag-chip:disabled {
+    color: alpha(@fg_muted, 0.55);
+}
+/* The FlowBoxChild GTK wraps each tag in carries its own padding and a selection background; the
+   cloud's spacing is set in code, so zero it out here or every tag gets a second, invisible frame. */
+.tag-cloud flowboxchild {
+    padding: 0;
+    border: none;
+    background: none;
+    min-height: 0;
+    min-width: 0;
+}
+
 /* A code the notes use but this folder doesn't define (solarized yellow — "doesn't belong here",
    distinct from the red .needs-metadata, which is about a file with no metadata at all). */
 .filter-foreign {
@@ -365,4 +518,11 @@ headerbar button {
 .heat-c3 .cal-day-count, .heat-c4 .cal-day-count,
 .heat-u3 .cal-day-count, .heat-u4 .cal-day-count {
     color: @accent_fg;
+}
+
+/* The '#' completer's popup is its own window, so it has to paint its own surface — it inherits
+   nothing from the note behind it. */
+.tag-complete-frame {
+    background: @bg_alt;
+    border: 1px solid alpha(@accent, 0.55);
 }

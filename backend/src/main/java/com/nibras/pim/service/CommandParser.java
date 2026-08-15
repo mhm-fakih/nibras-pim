@@ -34,6 +34,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
  *   !       urgent           !-      un-urgent
  *   cCODE   course           dCODE   department      (cCODE/dCODE only in edit mode)
  *   (DATE   startDate        )DATE   endDate
+ *   'en     language         'ar     language        (a leading apostrophe = language)
  * </pre>
  * DATE accepts (time defaults to 00:00, year to the current one):
  * <pre>
@@ -43,6 +44,21 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
  *   -1  +3  0           days relative to today  -1_1600             yesterday 16:00
  *   (a bare unsigned offset may have 1-2 digits — three digits always read as week+day)
  * </pre>
+ * <h2>Language: {@code 'code}</h2>
+ * A leading apostrophe sets the record's {@code language} — {@code 'en} English, {@code 'ar}
+ * Arabic. The apostrophe was free: no other token starts with one, and it can't be confused with a
+ * word, because a language tag is exactly the kind of thing you want to state in passing while
+ * typing a title rather than break off to a field for.
+ *
+ * <p>The code is lower-cased, so {@code 'AR} and {@code 'ar} are the same language and not two, and
+ * it must be one of the codes configured in Settings ({@value #SETTING_LANGUAGES}, default
+ * {@value #DEFAULT_LANGUAGES}). Checking against the list rather than accepting any letters is what
+ * stops a quoted word being eaten: an unrecognised {@code 'xyz} stays ordinary text instead of
+ * silently vanishing from a title. A tag is also only recognised where a space (or the start of the
+ * text) precedes it, so {@code rabi'ar} is a word and not a language tag.
+ *
+ * <p>In search it filters instead of assigning: {@code 'ar} narrows to Arabic records.
+ *
  * In {@code freeText} mode (batch entry) any word that isn't a token is collected as the title
  * (a malformed date after {@code (}/{@code )} falls back to a title word);
  * otherwise (batch edit) an unrecognized token is an error.
@@ -50,15 +66,23 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 @Service
 public class CommandParser {
 
+    /** Setting holding the accepted language codes, comma-separated. */
+    public static final String SETTING_LANGUAGES = "language.codes";
+
+    /** Offered when the setting has never been written. */
+    public static final String DEFAULT_LANGUAGES = "ar,en,fr,fa,de";
+
     private final CourseRepository courses;
     private final DepartmentRepository departments;
     private final ContextRepository contexts;
+    private final SettingService settings;
 
     public CommandParser(CourseRepository courses, DepartmentRepository departments,
-                         ContextRepository contexts) {
+                         ContextRepository contexts, SettingService settings) {
         this.courses = courses;
         this.departments = departments;
         this.contexts = contexts;
+        this.settings = settings;
     }
 
     /** One field to set. When {@code association}, {@code value} is the FK id (resolved lazily). */
@@ -113,6 +137,9 @@ public class CommandParser {
             } else if (tok.startsWith("=")) {
                 requireProp(proto, "code", tok);
                 ops.add(new Assignment("code", tok.substring(1), false));
+            } else if (isLanguageToken(tok)) {
+                requireProp(proto, "language", tok);
+                ops.add(new Assignment("language", languageOf(tok), false));
             } else if (tok.matches("[pP]\\d+")) {
                 requireProp(proto, "priority", tok);
                 ops.add(new Assignment("priority", Integer.parseInt(tok.substring(1)), false));
@@ -171,12 +198,86 @@ public class CommandParser {
      */
     public record SearchQuery(String text, Integer priority, Boolean bookmarked, Boolean urgent,
                               String typeCode, String statusCode, String contextCode,
-                              String departmentCode, String courseCode) {
+                              String departmentCode, String courseCode, String language) {
         public boolean hasFilters() {
             return priority != null || bookmarked != null || urgent != null || typeCode != null
                     || statusCode != null || contextCode != null || departmentCode != null
-                    || courseCode != null;
+                    || courseCode != null || language != null;
         }
+    }
+
+    /** The accepted language codes, lower-cased, from {@value #SETTING_LANGUAGES}. */
+    public List<String> languageCodes() {
+        String raw = settings == null ? DEFAULT_LANGUAGES
+                : settings.get(SETTING_LANGUAGES, DEFAULT_LANGUAGES);
+        List<String> out = new ArrayList<>();
+        for (String part : raw.split("[,\\s]+")) {
+            String code = part.trim().toLowerCase(java.util.Locale.ROOT);
+            if (!code.isEmpty() && !out.contains(code)) {
+                out.add(code);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * A {@code 'code} language token, where {@code code} is one of the configured languages.
+     *
+     * <p>Checked against the configured list rather than "any letters": an unrecognised tag is far
+     * more likely to be a quoted word than a language nobody has set up, and swallowing it would
+     * silently drop a word from the title or the search text. An unknown {@code 'xyz} therefore
+     * stays ordinary text.
+     *
+     * <p>The apostrophe must also lead the token, which is what keeps {@code don't} out — and the
+     * caller is responsible for only offering whitespace-separated tokens, so a tag is always
+     * preceded by a space (or begins the input).
+     */
+    public boolean isLanguageToken(String tok) {
+        return tok.length() > 1
+                && tok.charAt(0) == '\''
+                && languageCodes().contains(languageOf(tok));
+    }
+
+    /** The language code in a {@code 'code} token, lower-cased so 'AR and 'ar are one language. */
+    public static String languageOf(String tok) {
+        return tok.substring(1).toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /**
+     * The language tag in free-form text, or null — used by the note importer.
+     *
+     * <p>Matched only where a space (or the very start of the text) precedes the apostrophe, so a
+     * tag is a word of its own and never the tail of one: without that rule {@code rabi'ar} ends in
+     * something that looks exactly like {@code 'ar}.
+     */
+    public String languageIn(String text) {
+        if (text == null) {
+            return null;
+        }
+        for (String tok : text.trim().split("\\s+")) {
+            if (isLanguageToken(tok)) {
+                return languageOf(tok);
+            }
+        }
+        return null;
+    }
+
+    /** [text] with its language tags removed — they are metadata, not part of what was written. */
+    public String stripLanguageTokens(String text) {
+        if (text == null || languageIn(text) == null) {
+            return text;
+        }
+        StringBuilder kept = new StringBuilder();
+        for (String tok : text.trim().split("\\s+")) {
+            if (isLanguageToken(tok)) {
+                continue;
+            }
+            if (kept.length() > 0) {
+                kept.append(' ');
+            }
+            kept.append(tok);
+        }
+        return kept.toString();
     }
 
     /** Split a search query into the same command tokens + the leftover free-text words. */
@@ -185,6 +286,7 @@ public class CommandParser {
         Boolean bookmarked = null;
         Boolean urgent = null;
         String type = null, status = null, context = null, department = null, course = null;
+        String language = null;
         List<String> words = new ArrayList<>();
         for (String tok : (q == null ? "" : q).trim().split("\\s+")) {
             if (tok.isEmpty()) {
@@ -206,6 +308,8 @@ public class CommandParser {
                 status = tok.substring(1);
             } else if (tok.startsWith("@") && tok.length() > 1) {
                 context = tok.substring(1);
+            } else if (isLanguageToken(tok)) {
+                language = languageOf(tok);
             } else if (tok.length() > 1 && (tok.charAt(0) == 'd' || tok.charAt(0) == 'D')
                     && !departments.findByCodeIgnoreCase(tok.substring(1)).isEmpty()) {
                 department = tok.substring(1);
@@ -217,7 +321,7 @@ public class CommandParser {
             }
         }
         return new SearchQuery(String.join(" ", words), priority, bookmarked, urgent, type, status,
-                context, department, course);
+                context, department, course, language);
     }
 
     private Assignment lookup(BeanWrapper proto, String field, String lookupKey, String code,
