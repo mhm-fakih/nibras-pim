@@ -82,6 +82,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
@@ -337,12 +339,16 @@ fun MainScreen(
             TopAppBar(
                 title = {
                     if (searchOpen) {
+                        // Opening the box and then having to tap it is a wasted tap on a phone;
+                        // the keyboard comes up with it.
+                        val searchFocus = remember { FocusRequester() }
+                        LaunchedEffect(Unit) { searchFocus.requestFocus() }
                         TextField(
                             value = query,
                             onValueChange = { query = it },
                             singleLine = true,
                             placeholder = { Text("Search notes…") },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().focusRequester(searchFocus),
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
                                 unfocusedContainerColor = Color.Transparent,
@@ -416,7 +422,15 @@ fun MainScreen(
                     }
                     IconButton(onClick = {
                         searchOpen = !searchOpen
-                        if (!searchOpen) query = ""
+                        if (searchOpen) {
+                            // Search starts from everything. A search run inside yesterday's filter
+                            // gives the worst kind of empty result: the note IS there, the filter
+                            // hid it, and nothing on screen says so. Clearing first makes an empty
+                            // result mean what it says.
+                            filterState = filterState.cleared()
+                        } else {
+                            query = ""
+                        }
                     }) {
                         Icon(
                             if (searchOpen) Icons.Filled.Close else Icons.Filled.Search,

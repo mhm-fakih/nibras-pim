@@ -50,6 +50,7 @@ import com.knotes.Note
 import com.knotes.util.Bidi
 import com.knotes.util.Clauses
 import com.knotes.util.Highlights
+import com.knotes.util.Markdown
 import kotlin.math.abs
 
 /**
@@ -104,6 +105,14 @@ fun NoteReadScreen(
             Bidi.lines(plain, fallbackRtl = note.isRtl).forEach {
                 addStyle(Bidi.paragraphStyle(it.rtl), it.start, it.end)
             }
+            // Markdown FIRST, highlights after: a highlighted clause that also happens to be bold
+            // should read as both, and the later style wins where they set the same property.
+            //
+            // The markers are styled in place rather than stripped — every character keeps its
+            // offset, so the clause spans and the tap hit-testing still line up with the text they
+            // were computed from. Removing "**" would shift everything after it and highlight the
+            // wrong words.
+            Markdown.spans(plain).forEach { addStyle(it.style, it.start, it.end) }
             spans.forEach { s ->
                 if (s.text in marked) {
                     addStyle(SpanStyle(background = highlightColor, fontWeight = FontWeight.Bold), s.start, s.end)

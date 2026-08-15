@@ -3063,10 +3063,27 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.search_button.set_active(active)
         self.search_bar.set_search_mode(active)
         if active:
+            # Searching starts from everything. A search that quietly ran inside yesterday's
+            # sidebar selection is the worst kind of empty result: the note IS there, the filter
+            # hid it, and nothing on screen says so. Clearing first makes "no results" mean it.
+            if self.filters.active():
+                self.filters.clear()
+                self.reload_notes()   # re-render the board unfiltered, and re-mirror the sidebar
+            # Focus now AND once the reveal has finished: Gtk.SearchBar reveals the entry through a
+            # GtkRevealer, so at this instant the widget is not yet mapped and a grab on it is
+            # dropped when the animation completes — which is why clicking the button used to leave
+            # the keyboard on the board while Ctrl+F appeared to work.
             self.search_entry.grab_focus()
+            GLib.timeout_add(250, self._focus_search_entry)
         else:
             self.search_entry.set_text("")
             self.textview.grab_focus()
+
+    def _focus_search_entry(self) -> bool:
+        """Put the caret in the search entry once it is actually on screen. One-shot."""
+        if self.search_bar.get_search_mode() and self.search_entry.get_mapped():
+            self.search_entry.grab_focus()
+        return False
 
     def _on_search_changed(self, entry: Gtk.SearchEntry) -> None:
         self.reload_notes()
