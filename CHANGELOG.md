@@ -109,6 +109,33 @@ terminal, audio player).
 
   The calendar strip and the date filters were already correct — they used the file-name date.
 
+### Changed — search, on both mobile and desktop
+
+- **Opening search puts the caret in the box.** On mobile the keyboard comes up with it. On the
+  desktop it looked wired already — `grab_focus()` on toggle — but a `Gtk.SearchBar` reveals its
+  entry through a `GtkRevealer`, so at that instant the widget is not yet mapped and the grab is
+  dropped when the animation finishes. It now focuses again once the entry is actually on screen,
+  which is why the keyboard shortcut appeared to work while the button did not.
+- **Searching clears any active filter first.** A search run inside yesterday's sidebar selection
+  gives the worst kind of empty result: the note IS there, the filter hid it, and nothing on screen
+  says so. Starting from everything makes "no results" mean it.
+
+### Added — markdown in the mobile note reader
+
+- **`**bold**`, `*italic*` / `_italic_`, `` `code` ``, `~~strike~~` and `#` headings now render.**
+
+  The markers stay in the text and are dimmed rather than stripped, which is what makes this safe
+  to add to the reader rather than a rewrite of it: every character keeps its offset, so the clause
+  spans, the tap-to-highlight hit-testing and the stored `==…==` highlights all still line up with
+  the text they were computed from. Removing a `**` would shift every position after it and quietly
+  highlight the wrong words.
+
+  Emphasis inside backticks is left alone — a path with an underscore is not italic — and headings
+  size relative to the surrounding text rather than to a fixed point size, so they follow the
+  reader's own font size instead of fighting it. Deliberately not a Markdown implementation: no
+  links, lists or tables, because a reader that half-parses those is worse than one that shows them
+  as written.
+
 ### Changed — mobile note cards: read by default, edit full-screen
 
 - **Tapping a card now reads it.** Editing is a labelled **Edit** button on the card. Reading is the
