@@ -40,6 +40,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -49,6 +50,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -99,6 +101,8 @@ import com.knotes.Note
 import com.knotes.NoteFiles
 import com.knotes.NoteFilterState
 import com.knotes.player.isMediaFile
+import com.knotes.companionFileNames
+import com.knotes.companionHasContent
 import com.knotes.computeFacets
 import com.knotes.nibras.PushCenter
 import com.knotes.nibras.RecordOutbox
@@ -663,6 +667,18 @@ private fun NoteCard(
     onPush: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    if (confirmDelete) {
+        DeleteNoteDialog(
+            note = note,
+            onDismiss = { confirmDelete = false },
+            onConfirm = {
+                confirmDelete = false
+                onDelete()
+            },
+        )
+    }
 
     Card(
         onClick = onRead,
@@ -777,6 +793,16 @@ private fun NoteCard(
                     Spacer(Modifier.width(4.dp))
                     Text("Edit", style = MaterialTheme.typography.labelMedium)
                 }
+                // Delete sits on the card rather than only in the ⋮ menu, but never deletes on the
+                // tap: it opens a dialog that either confirms or explains why it can't.
+                IconButton(onClick = { confirmDelete = true }, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        Icons.Filled.DeleteOutline,
+                        contentDescription = "Delete",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
                 Spacer(Modifier.width(2.dp))
                 Box {
                     IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
@@ -822,7 +848,7 @@ private fun NoteCard(
                             text = { Text("Delete") },
                             onClick = {
                                 menuOpen = false
-                                onDelete()
+                                confirmDelete = true
                             },
                         )
                     }
@@ -830,6 +856,72 @@ private fun NoteCard(
             }
         }
     }
+}
+
+/**
+ * Confirm a delete — or explain why there isn't one to confirm.
+ *
+ * One dialog for both outcomes on purpose. A note whose companion folder holds files can't be
+ * deleted here (the files would be left with nothing naming them), and the honest way to say that
+ * is at the moment of asking, naming the files, rather than a greyed-out button whose reason the
+ * user has to guess.
+ *
+ * The folder is checked when the dialog opens rather than on every recomposition — it's a disk walk,
+ * and the answer only changes when the user goes and empties the folder, which closes this anyway.
+ */
+@Composable
+private fun DeleteNoteDialog(note: Note, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    val attached = remember(note.file) { companionFileNames(note.file) }
+    val blocked = remember(note.file) { companionHasContent(note.file) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (blocked) "Can't delete this note" else "Delete this note?") },
+        text = {
+            Column {
+                if (blocked) {
+                    Text(
+                        "Its files folder still holds " +
+                            (if (attached.isEmpty()) "files" else "${attached.size} file(s)") +
+                            ". Deleting the note would leave them with nothing naming them — " +
+                            "empty the folder first, then delete.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    attached.take(5).forEach {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    Text(
+                        com.knotes.util.Bidi.directional(note.preview(4), fallbackRtl = note.isRtl),
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    Text(
+                        note.file.name,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            if (blocked) {
+                TextButton(onClick = onDismiss) { Text("OK") }
+            } else {
+                TextButton(onClick = onConfirm) { Text("Delete") }
+            }
+        },
+        dismissButton = if (blocked) null else {
+            { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        },
+    )
 }
 
 /** Collapsible "Upcoming plans" panel at the top of the home screen, fed by [PlansStore]. */

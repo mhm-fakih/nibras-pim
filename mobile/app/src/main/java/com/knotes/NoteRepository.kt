@@ -199,5 +199,27 @@ class NoteRepository(private val settings: SettingsStore) {
         return target
     }
 
-    fun delete(note: Note): Boolean = note.file.delete()
+    /**
+     * Delete a note — but only when its companion folder holds nothing.
+     *
+     * A note's attachments live beside it in `<stem>.d`, and nothing else in the app knows how to
+     * find them once the `.md` that names them is gone. So a note with files is not deletable from
+     * here at all: empty its folder first, deliberately, where you can see what you're throwing
+     * away. An empty (or missing) companion folder strands nothing, and is removed with the note.
+     *
+     * Returns false when the note was refused or the delete failed, so the caller can say why
+     * rather than silently appearing to work.
+     */
+    fun delete(note: Note): Boolean = deleteNoteFile(note.file)
+}
+
+/**
+ * The delete itself, as a function of the file alone — the repository holds no state it needs, and
+ * this way the rule can be tested without an Android [SettingsStore] behind it.
+ */
+fun deleteNoteFile(noteFile: File): Boolean {
+    if (companionHasContent(noteFile)) return false
+    if (!noteFile.delete()) return false
+    companionDirOf(noteFile).takeIf { it.isDirectory }?.deleteRecursively()
+    return true
 }

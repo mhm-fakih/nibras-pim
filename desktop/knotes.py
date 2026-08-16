@@ -28,7 +28,8 @@ import cairo  # noqa: E402  (pycairo — ships with PyGObject; used to draw the 
 from gi.repository import Gtk, Gdk, GLib, Pango, Gio  # noqa: E402
 
 from config import Settings, RepoConfig, parse_tag_block, format_tag_block  # noqa: E402
-from notes import (NoteRepository, Note, is_rtl, companion_dir, parse_created,  # noqa: E402
+from notes import (NoteRepository, Note, is_rtl, companion_dir, companion_files,  # noqa: E402
+                   companion_has_content, parse_created,
                    fmt_count, split_highlights, apply_highlights, clause_bounds)
 from backend import fetch_taxonomy  # noqa: E402
 from filters import FilterState, Taxonomy  # noqa: E402
@@ -2018,6 +2019,19 @@ class KnotesWindow(Gtk.ApplicationWindow):
         add("insert-link-symbolic", "", f"Copy the full path to the clipboard\n{note.path}",
             lambda: self._copy_to_clipboard(note.path, "path"))
 
+        # Delete: on the card as well as on Ctrl+D, and disabled — with the reason in the tooltip —
+        # for a note that still owns files. The row keeps its shape either way, so the button never
+        # moves under the pointer between one card and the next.
+        attached = companion_files(note.path)
+        deletable = not companion_has_content(note.path)
+        add("user-trash-symbolic", "",
+            "Move this note to the .deleted folder  (Ctrl+D)" if deletable else
+            f"Has {len(attached)} attached file(s) — empty its folder first, "
+            "then the note can be deleted",
+            # Deferred to an idle callback: confirming rebuilds the board, which destroys this very
+            # button while its "clicked" signal is still being emitted from it.
+            lambda: GLib.idle_add(self._delete_selected), enabled=deletable)
+
         dates = self._date_markup(note)
         if dates:
             # Pushed to the right-hand end: the buttons are what the row is for, and two timestamps
@@ -2212,6 +2226,21 @@ class KnotesWindow(Gtk.ApplicationWindow):
         note = self.selected_note
         minimal_card = self.minimal_mode and self._minimal_card_selected
         if note is None or (self._sel is None and not minimal_card):
+            return
+        # A note that still owns files isn't deletable from here at all — see NoteRepository.delete.
+        # Said as a message rather than a silent no-op, because Ctrl+D reaches this without ever
+        # seeing the card button's disabled state.
+        attached = companion_files(note.path)
+        if companion_has_content(note.path):
+            blocked = Gtk.MessageDialog(
+                transient_for=self, modal=True, message_type=Gtk.MessageType.INFO,
+                buttons=Gtk.ButtonsType.OK, text="This note still has attached files")
+            names = "\n".join(os.path.basename(p) for p in attached[:5])
+            blocked.format_secondary_text(
+                f"Its files folder holds {len(attached)} file(s):\n{names}\n\n"
+                "Empty the folder first (Ctrl+O opens it), then the note can be deleted.")
+            blocked.run()
+            blocked.destroy()
             return
         dialog = Gtk.MessageDialog(
             transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION,
@@ -3342,7 +3371,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
             ("Ctrl+Shift+<digit>", "Priority: edit selected card, else the add form"),
             ("Click a card / Arrows", "Select a card · move between cards (↑↓ in a column, ←→ across)"),
             ("Enter (card selected)", "Open the selected note in your editor"),
-            ("Ctrl+D (card selected)", "Move the selected note to the .deleted folder (with confirmation)"),
+            ("Ctrl+D (card selected)",
+             "Move the selected note to the .deleted folder (with confirmation). "
+             "Refused while the note still has attached files — empty its folder first"),
             ("Ctrl+M / Ctrl+click", "Mark/unmark card for merge (first marked = survivor) · Esc clears"),
             ("Ctrl+Shift+M", "Merge marked notes into the survivor, rest → .merged folder"),
             ("Space (card selected)", "Quick-append a comment to the note (inline field · Enter adds · Esc cancels)"),

@@ -216,6 +216,24 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
         return repo.findAll();
     }
 
+    /** Just enough of a record to locate its repository folder and name it in a list. */
+    public record RecordRef(String module, long id, String typeCode, String title) {
+    }
+
+    /**
+     * Every non-deleted record as an id + type code + title.
+     *
+     * <p>The type code is the part a caller can't work out for itself: it decides whether the
+     * record's folder nests under a type bucket, and only the owning service knows where the type
+     * lives on its entity. Read in one transaction so {@code feedTitle()} can touch lazy fields.
+     */
+    @Transactional(readOnly = true)
+    public List<RecordRef> recordRefs() {
+        return repo.findAll().stream()
+                .map(e -> new RecordRef(name(), e.getId(), typeCodeOf(e), e.feedTitle()))
+                .toList();
+    }
+
     /** All bookmarked (non-deleted) entities, newest first — for the unified bookmarks list. */
     @Transactional(readOnly = true)
     public List<E> bookmarkedEntities() {

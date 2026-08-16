@@ -1,5 +1,55 @@
 # Changelog
 
+## 2026-08-16 — Maintenance page, and a delete that can't strand files
+
+### Added — a Maintenance page
+
+A new tool page (`/maintenance`, toggleable in Settings, gated on `content.write`) for the two
+stores that grow without anyone deciding they should.
+
+- **Heaviest repository-1 folders.** Every record's repo-1 folder is measured and the top 30 are
+  ranked by size, with the total, the record count scanned, and the path. Tick rows (or "select
+  all") and move their files to the same record's folder in repository 2 — repo 1 is the small
+  portable one, repo 2 is the archive.
+
+  The scan is driven from the database rather than by walking the tree, so a folder is attributed
+  to a record exactly the way the rest of the app resolves it (module code, type bucket, `id/100`
+  bucket) and an orphaned folder from a deleted record can't masquerade as a record.
+
+  Two things deliberately stay behind: the **cover image** and the **checkout `.md`**. Both are
+  looked up in repo 1 by path (the thumbnail, and the pending-sync scan), both are tiny, and moving
+  them would break a visible feature to reclaim a few KB. So the page offers a *movable* size,
+  a little under the folder size, and that is what the button promises to reclaim.
+
+  Nothing in repository 2 is ever overwritten: a name already taken there gets a `-1` suffix,
+  because the destination may hold an older copy of the same document and losing it silently is the
+  one outcome a space-saving tool must never produce. The move falls back to copy-then-delete when
+  the two repos are on different mounts, and the delete only runs after the copy succeeded.
+
+- **Longest resource full text.** Resources ranked by the size of their `fullText` column, with the
+  same select/act shape. Offloading writes the text to `R-<id>-fulltext.md` in the resource's
+  repo-1 folder and clears the column — the file is written and verified *before* the column is
+  cleared, and an existing file of that name is parked with a timestamp rather than replaced.
+
+  Stated on the page, because it is a real trade: an emptied field is out of record search. The
+  text is still on disk, greppable and openable, but the app won't match on it.
+
+### Changed — deleting a note (desktop + mobile)
+
+- **Delete is now a visible action on the card**, not only a keyboard shortcut (desktop) or a menu
+  item (mobile). On mobile it opens a dialog that either confirms or explains; on desktop it joins
+  the card's action row beside "open folder" / "open note".
+
+- **A note with attached files can no longer be deleted.** Its `<stem>.d` companion folder is only
+  reachable *through* the note — nothing else on disk names those files — so deleting the `.md`
+  turns them into an orphan folder named after a timestamp, which is how a photo goes missing for a
+  year. Empty the folder first, deliberately, where you can see what you are throwing away.
+
+  An empty or missing companion folder strands nothing, so it isn't a blocker: mobile removes the
+  empty folder with the note, desktop moves it to `.deleted` alongside as before. The check walks
+  nested folders, so it is stricter than the card's file list (which shows only the top level) —
+  the question is "would this strand a file", not "does the card show one".
+
 ## 2026-08-15 — 1.3.33 "Gratitude"
 
 Version bumped to **1.3.33** and the release codename changed to **Gratitude**, across all six

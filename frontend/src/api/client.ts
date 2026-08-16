@@ -1619,3 +1619,76 @@ export async function setSprintClosed(id: number, closed: boolean): Promise<Spri
   const { data } = await http.put(`/sprints/${id}/closed`, { completed: closed });
   return data;
 }
+
+// ---- Maintenance ---------------------------------------------------------------------
+
+/** One record's repo-1 footprint. `movableBytes` excludes the cover and the checkout .md. */
+export interface FolderUsage {
+  module: string;
+  id: number;
+  title: string | null;
+  typeCode: string | null;
+  bytes: number;
+  movableBytes: number;
+  files: number;
+  /** Whether this record already has files in repository 2. */
+  inRepo2: boolean;
+  path: string;
+}
+
+export interface UsageReport {
+  totalBytes: number;
+  scannedRecords: number;
+  foldersWithFiles: number;
+  top: FolderUsage[];
+}
+
+export interface FulltextUsage {
+  id: number;
+  title: string | null;
+  length: number;
+  fileExists: boolean;
+  fileName: string;
+}
+
+export interface FulltextReport {
+  totalChars: number;
+  records: number;
+  top: FulltextUsage[];
+}
+
+export interface MoveResult {
+  records: number;
+  files: number;
+  bytes: number;
+  skipped: string[];
+}
+
+export interface OffloadResult {
+  records: number;
+  chars: number;
+  written: string[];
+  skipped: string[];
+}
+
+export async function diskUsage(limit = 30): Promise<UsageReport> {
+  const { data } = await http.get('/maintenance/disk', { params: { limit } });
+  return data;
+}
+
+export async function fulltextUsage(limit = 30): Promise<FulltextReport> {
+  const { data } = await http.get('/maintenance/fulltext', { params: { limit } });
+  return data;
+}
+
+export async function moveToRepo2(
+  records: { module: string; id: number }[],
+): Promise<MoveResult> {
+  const { data } = await http.post('/maintenance/move-to-repo2', { records });
+  return data;
+}
+
+export async function offloadFullText(ids: number[]): Promise<OffloadResult> {
+  const { data } = await http.post('/maintenance/offload-fulltext', { ids });
+  return data;
+}
