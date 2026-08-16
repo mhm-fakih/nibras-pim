@@ -281,6 +281,21 @@ def parse_created(timestamp: str, fmt: str, fallback_epoch: float) -> float:
     return fallback_epoch
 
 
+def companion_has_content(note_path: str) -> bool:
+    """True if the note's companion folder holds any file, at any depth.
+
+    Stricter than :func:`companion_files` (which lists only the top level, for the card): the
+    question here is not "what does the card show" but "would deleting this note strand a file".
+    An existing but empty folder strands nothing, so it answers False."""
+    d = companion_dir(note_path)
+    if not os.path.isdir(d):
+        return False
+    for _root, _dirs, files in os.walk(d):
+        if files:
+            return True
+    return False
+
+
 def is_companion_dir(dir_path: str) -> bool:
     """True if `dir_path` is *already* a real companion folder — i.e. its name ends in
     :data:`COMPANION_SUFFIX` and a matching ``<stem>.md`` note sits next to it. There's no reverse
@@ -758,7 +773,15 @@ class NoteRepository:
 
     def delete(self, note: Note) -> bool:
         """Soft-delete: move the note into the repo's ``.deleted`` subfolder (created on demand),
-        de-duplicating the name on collision. Returns True on success."""
+        de-duplicating the name on collision. Returns True on success.
+
+        Refused outright when the note has attached files. The companion folder is only reachable
+        *through* the note — nothing else names those files — so a note that owns files has to have
+        them dealt with first, deliberately, rather than have them swept into ``.deleted`` under a
+        timestamped folder name nobody will ever look inside. An empty (or missing) companion
+        folder strands nothing and travels with the note as before."""
+        if companion_has_content(note.path):
+            return False
         try:
             trash = os.path.join(os.path.dirname(note.path), self.TRASH_DIRNAME)
             os.makedirs(trash, exist_ok=True)

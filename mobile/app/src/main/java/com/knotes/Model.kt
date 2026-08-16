@@ -74,6 +74,20 @@ fun companionFileNames(noteFile: File): List<String> =
     companionDirOf(noteFile).listFiles()?.filter { it.isFile }?.map { it.name }?.sorted() ?: emptyList()
 
 /**
+ * Whether anything at all sits in the note's companion folder — the condition that blocks a delete.
+ *
+ * Deliberately stricter than [companionFileNames]: it walks nested folders too, because the point
+ * is not "does the card show attachments" but "would deleting this note strand a file". A folder
+ * that exists but is empty doesn't strand anything, so it isn't a blocker (and the delete removes
+ * it on the way out).
+ */
+fun companionHasContent(noteFile: File): Boolean {
+    val dir = companionDirOf(noteFile)
+    if (!dir.isDirectory) return false
+    return dir.walkTopDown().any { it.isFile }
+}
+
+/**
  * File-name encoding for notes.
  *
  * Layout: `<timestamp>~<type>~p<priority>~<category>.md`  (type / priority / category order)

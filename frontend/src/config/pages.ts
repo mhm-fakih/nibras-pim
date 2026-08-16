@@ -16,6 +16,7 @@ export const TOGGLEABLE_PAGES: ToolPage[] = [
   { key: 'insights', label: 'Insights' },
   { key: 'sprints', label: 'Sprints' },
   { key: 'reports', label: 'Reports' },
+  { key: 'maintenance', label: 'Maintenance' },
   { key: 'parameters', label: 'Parameters' },
   { key: 'admin', label: 'Admin' },
   { key: 'batch', label: 'Batch entry' },

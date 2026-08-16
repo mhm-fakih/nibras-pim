@@ -39,6 +39,7 @@ import StarIcon from '@mui/icons-material/Star';
 import AdminPanelSettings from '@mui/icons-material/AdminPanelSettings';
 import Tune from '@mui/icons-material/Tune';
 import History from '@mui/icons-material/History';
+import Storage from '@mui/icons-material/Storage';
 import Settings from '@mui/icons-material/Settings';
 import HelpOutline from '@mui/icons-material/HelpOutline';
 import MoveToInbox from '@mui/icons-material/MoveToInbox';
@@ -100,6 +101,7 @@ const TOOLS: { path: string; label: string; icon: typeof Flag; perm?: Permission
   { path: '/import', label: 'Import notes', icon: MoveToInbox, perm: 'content.write' },
   { path: '/images', label: 'Image renamer', icon: Photo, perm: 'content.write' },
   { path: '/sites', label: 'Static website', icon: Public, perm: 'content.write' },
+  { path: '/maintenance', label: 'Maintenance', icon: Storage, perm: 'content.write' },
   { path: '/audit', label: 'Audit log', icon: History, perm: 'tools.audit' },
   { path: '/trash', label: 'Trash', icon: DeleteOutline, perm: 'content.write' },
   { path: '/settings', label: 'Settings', icon: Settings, perm: 'tools.settings' },
