@@ -198,7 +198,8 @@ public class SiteGeneratorService {
         return new FilterParams(
                 m.get("q"), null, null, null, null,
                 bool(m.get("bookmarked")), bool(m.get("urgent")), bool(m.get("dashboard")),
-                lng(m.get("statusId")), lng(m.get("typeId")), lng(m.get("tagId")), lng(m.get("goalId")),
+                lng(m.get("statusId")), lng(m.get("typeId")), integer(m.get("priority")),
+                lng(m.get("tagId")), lng(m.get("goalId")),
                 lng(m.get("writingId")),
                 bool(m.get("noStatus")), bool(m.get("noType")), bool(m.get("noDepartment")),
                 bool(m.get("noPriority")), bool(m.get("hasTags")), bool(m.get("overdue")),
@@ -208,6 +209,14 @@ public class SiteGeneratorService {
 
     private static Boolean bool(String s) {
         return s == null ? null : Boolean.valueOf("true".equalsIgnoreCase(s) || "1".equals(s));
+    }
+
+    private static Integer integer(String s) {
+        try {
+            return s == null || s.isBlank() ? null : Integer.valueOf(s.trim());
+        } catch (NumberFormatException notANumber) {
+            return null;
+        }
     }
 
     private static Long lng(String s) {

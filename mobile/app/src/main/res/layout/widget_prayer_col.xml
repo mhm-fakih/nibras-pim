@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One prayer as a column on the Prayer times strip: the settings icons, then the name and the
+     time SIDE BY SIDE on one line.
+
+     Side by side, not stacked. Stacked, each column was two lines tall and about as wide as the
+     longer of the two, which on a 400dp-wide strip left a broad channel of dead space between
+     every pair of columns while the type had to stay small to fit the height. Inline spends that
+     width instead, and the height it gives back is what pays for readable times.
+
+     wrap_content, NOT weight=1. Equal weights divided the strip's width evenly and centred each
+     name+time inside its share, so the leftover width reappeared as a channel between every pair —
+     and the only way to close it while the shares stayed equal was to make the text wider. Sized to
+     its content instead, with a fixed margin between columns and the whole row centred, the gap is
+     exactly the margin.
+
+     The trade is that nothing guarantees the row fits any more, so the text sizes in
+     PrayerWidget.sizeText carry that job: six columns get a size that fits six. ellipsize on both
+     so an overflow shows as "…" rather than a time silently cut to "19:". The pill's side padding
+     is 4dp rather than a comfortable 7dp for the same reason — every dp of it is a dp the time
+     itself cannot have. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="6dp"
+    android:gravity="center_horizontal"
+    android:orientation="vertical">
+
+    <!-- Which of the per-prayer settings apply here. Every icon starts GONE, so a column with none
+         of them collapses this row to nothing and the strip keeps its height. -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/pw_col_athan"
+            android:layout_width="11dp"
+            android:layout_height="11dp"
+            android:layout_marginEnd="3dp"
+            android:contentDescription="أذان"
+            android:src="@drawable/ic_pw_athan"
+            android:visibility="gone" />
+
+        <ImageView
+            android:id="@+id/pw_col_silence"
+            android:layout_width="11dp"
+            android:layout_height="11dp"
+            android:layout_marginEnd="3dp"
+            android:contentDescription="كتم الهاتف"
+            android:src="@drawable/ic_pw_silence"
+            android:visibility="gone" />
+
+        <ImageView
+            android:id="@+id/pw_col_beeps"
+            android:layout_width="11dp"
+            android:layout_height="11dp"
+            android:contentDescription="تنبيهات قبل"
+            android:src="@drawable/ic_pw_beeps"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- Baseline-aligned (the LinearLayout default) rather than centred: the name and the time are
+         different sizes, and sitting them on a common baseline is what makes them read as one
+         label instead of two things that happen to be adjacent. -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/pw_col_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="3dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#9AA0A6" />
+
+        <TextView
+            android:id="@+id/pw_col_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:paddingStart="4dp"
+            android:paddingTop="1dp"
+            android:paddingEnd="4dp"
+            android:paddingBottom="1dp"
+            android:textColor="#EEEEEE"
+            android:textStyle="bold" />
+    </LinearLayout>
+</LinearLayout>

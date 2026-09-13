@@ -39,6 +39,14 @@ import { RecordCard } from '../components/RecordCard';
 import { MergeDialog, MergeDraft } from '../components/MergeDialog';
 import { ENTITIES, MERGEABLE_MODULES } from '../config/entities';
 
+/**
+ * How many note cards are drawn before "show more".
+ *
+ * Each one issues a similarity search, so this is a request budget as much as a rendering one.
+ * Twenty is about a screen and a half — enough to work through without the page stalling on open.
+ */
+const PAGE = 20;
+
 export function ImportNotesPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -123,6 +131,56 @@ export function ImportNotesPage() {
       .filter((n) => !have.has(n.filename));
     return [...pending, ...imported].sort((a, b) => a.filename.localeCompare(b.filename));
   })();
+
+  /*
+   * Filters, and a cap on how many cards are drawn at once.
+   *
+   * Both exist for the same reason, and it is not cosmetic: every note card mounts a
+   * SimilarRecordsColumn, and that fires its own `searchAll` against the server. A folder holding
+   * three hundred notes therefore opened the page with three hundred concurrent searches, which is
+   * what made it crawl. Cutting the list down is what stops them being issued at all — a card that
+   * never mounts never searches.
+   *
+   * So the cap applies even with no filter chosen. Filtering to the subset you actually mean to
+   * import is the other half of the request, and the two work the same way.
+   */
+  const [priorityFilter, setPriorityFilter] = useState<number | 'all'>('all');
+  const [typeFilter, setTypeFilter] = useState<string | 'all'>('all');
+  const [shownCount, setShownCount] = useState(PAGE);
+
+  // Options come from the folder's own notes, so nothing is offered that would filter to nothing,
+  // and each carries its count — which is the number worth knowing before importing a batch.
+  const priorityOptions = (() => {
+    const counts = new Map<number, number>();
+    notes.forEach((n) => {
+      if (n.priority != null) counts.set(n.priority, (counts.get(n.priority) ?? 0) + 1);
+    });
+    return [...counts.entries()].sort((a, b) => a[0] - b[0]);
+  })();
+  const typeOptions = (() => {
+    const counts = new Map<string, { label: string; count: number }>();
+    notes.forEach((n) => {
+      const code = n.typeCode ?? '';
+      if (!code) return;
+      const prev = counts.get(code);
+      counts.set(code, {
+        label: n.moduleLabel ?? n.moduleKey ?? code,
+        count: (prev?.count ?? 0) + 1,
+      });
+    });
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  })();
+
+  const filtered = notes.filter(
+    (n) =>
+      (priorityFilter === 'all' || n.priority === priorityFilter) &&
+      (typeFilter === 'all' || (n.typeCode ?? '') === typeFilter),
+  );
+  const shown = filtered.slice(0, shownCount);
+
+  // A changed filter means a different set entirely; carrying the old "show more" depth over would
+  // either hide the start of the new set or re-mount hundreds of cards at once.
+  useEffect(() => setShownCount(PAGE), [priorityFilter, typeFilter]);
 
   return (
     <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
@@ -321,8 +379,69 @@ export function ImportNotesPage() {
           <Alert severity="info">No notes to import. The folder is empty.</Alert>
         )}
 
+        {notes.length > 0 && (
+          <Paper variant="outlined" sx={{ p: 1.5, mb: 2 }}>
+            <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+              <TextField
+                select
+                size="small"
+                label="Type"
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value === 'all' ? 'all' : e.target.value)}
+                sx={{ minWidth: 190 }}
+              >
+                <MenuItem value="all">All types ({notes.length})</MenuItem>
+                {typeOptions.map(([code, { label, count }]) => (
+                  <MenuItem key={code} value={code}>
+                    {code} · {label} ({count})
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                size="small"
+                label="Priority"
+                value={priorityFilter}
+                onChange={(e) =>
+                  setPriorityFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
+                }
+                sx={{ minWidth: 150 }}
+              >
+                <MenuItem value="all">All priorities</MenuItem>
+                {priorityOptions.map(([p, count]) => (
+                  <MenuItem key={p} value={p}>
+                    p{p} ({count})
+                  </MenuItem>
+                ))}
+              </TextField>
+              {(priorityFilter !== 'all' || typeFilter !== 'all') && (
+                <Button
+                  size="small"
+                  onClick={() => {
+                    setTypeFilter('all');
+                    setPriorityFilter('all');
+                  }}
+                >
+                  Clear
+                </Button>
+              )}
+              <Box sx={{ flex: 1 }} />
+              <Typography variant="caption" color="text.secondary">
+                Showing {shown.length} of {filtered.length}
+                {filtered.length !== notes.length && ` (${notes.length} in the folder)`}
+              </Typography>
+            </Stack>
+          </Paper>
+        )}
+
+        {!isLoading && notes.length > 0 && filtered.length === 0 && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            No notes match this filter.
+          </Alert>
+        )}
+
         <Stack spacing={2}>
-          {notes.map((n) => (
+          {shown.map((n) => (
             <Stack key={n.filename} direction="row" spacing={2} alignItems="flex-start">
             <Card variant="outlined" sx={{ flex: 1, minWidth: 0 }}>
               <CardContent>
@@ -456,6 +575,16 @@ export function ImportNotesPage() {
             </Stack>
           ))}
         </Stack>
+
+        {shown.length < filtered.length && (
+          <Stack alignItems="center" sx={{ mt: 2 }}>
+            <Button variant="outlined" onClick={() => setShownCount((c) => c + PAGE)}>
+              Show {Math.min(PAGE, filtered.length - shown.length)} more
+              {' · '}
+              {filtered.length - shown.length} left
+            </Button>
+          </Stack>
+        )}
       </Box>
 
       <MergeDialog

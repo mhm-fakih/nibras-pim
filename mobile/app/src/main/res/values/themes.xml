@@ -8,4 +8,20 @@
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
     </style>
+
+    <!-- The floating "New task" input the Today's tasks widget opens (QuickTaskActivity).
+
+         Translucent and non-floating: the activity draws its own scrim and centres its own card in
+         Compose, so the window must not impose a dialog frame of its own around it. Without
+         windowIsTranslucent the card would sit on an opaque white page and read as a screen rather
+         than as something over the home screen. -->
+    <style name="Theme.Knotes.QuickAdd" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
+    </style>
 </resources>

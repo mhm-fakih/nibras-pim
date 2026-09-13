@@ -46,6 +46,21 @@ public abstract class AbstractCrudController<E extends com.nibras.pim.domain.Bas
         return service.lookups();
     }
 
+    /**
+     * Where the search term appears inside each of the listed records.
+     *
+     * <p>Its own request rather than extra fields on the list DTOs: the context is wanted only
+     * while searching, it is far bigger than the row that shows it, and every module's DTO would
+     * otherwise have to grow a field it uses on one screen. The list renders immediately and the
+     * context fills in beneath it.
+     */
+    @GetMapping("/match-context")
+    public Map<Long, List<AbstractCrudService.FieldMatch>> matchContext(
+            @org.springframework.web.bind.annotation.RequestParam String q,
+            @org.springframework.web.bind.annotation.RequestParam List<Long> ids) {
+        return service.matchContext(q, ids);
+    }
+
     @GetMapping("/{id}")
     public D get(@PathVariable Long id) {
         return service.get(id);

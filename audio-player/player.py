@@ -38,7 +38,7 @@ from config import Settings, DEFAULT_LIBRARY_ROOT  # noqa: E402
 from audio import AudioPlayer, MIN_RATE, MAX_RATE  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-VERSION = "1.3.33"
+VERSION = "1.2.36"
 CODENAME = "Gratitude"
 
 # How many directories one "does this branch hold any media?" probe may visit before it stops
@@ -1031,19 +1031,23 @@ class PlayerWindow(Gtk.ApplicationWindow):
         self.video_box.pack_start(overlay, True, True, 0)
         page.pack_start(self.video_box, False, False, 0)
 
-        # Editable title of the playing file (writes the title tag on Enter).
+        # Title of the playing file and its delete button on ONE row.
+        #
+        # There used to be a second row under this holding the file NAME, which for these
+        # recordings is the same string the title tag carries — the entry already showed it, and
+        # the label repeated it back. Dropping it and moving the trash button up here gives two
+        # lines of height back to the waveform.
+        #
+        # The file name is still reachable: it is the entry's own tooltip, updated per file, so
+        # nothing is lost for the cases where a title tag and a file name do differ.
+        name_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.title_entry = Gtk.Entry()
         self.title_entry.get_style_context().add_class("title-entry")
         self.title_entry.set_placeholder_text("Title of the playing file — edit and press Enter to save")
         self.title_entry.set_tooltip_text("Set the file's title tag (Enter to save)")
         self.title_entry.connect("activate", lambda _e: self._save_title())
-        page.pack_start(self.title_entry, False, False, 0)
+        name_row.pack_start(self.title_entry, True, True, 0)
 
-        name_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        self.filename_label = Gtk.Label(label="No file open", xalign=0)
-        self.filename_label.set_ellipsize(3)
-        self.filename_label.get_style_context().add_class("nowplaying")
-        name_row.pack_start(self.filename_label, True, True, 0)
         self.delete_btn = Gtk.Button()
         self.delete_btn.add(Gtk.Image.new_from_icon_name("user-trash-symbolic", Gtk.IconSize.BUTTON))
         self.delete_btn.set_relief(Gtk.ReliefStyle.NONE)
@@ -1052,16 +1056,28 @@ class PlayerWindow(Gtk.ApplicationWindow):
         name_row.pack_start(self.delete_btn, False, False, 0)
         page.pack_start(name_row, False, False, 0)
 
+        # Subtitles and transcripts share ONE row. They are the same kind of thing — the sidecar
+        # text belonging to this file — and on two rows they took two lines of height from the
+        # waveform for a handful of chips, on every file that had both.
+        #
+        # The two children keep their own visibility (a file may have subtitles, transcripts,
+        # either or neither); this box is shown whenever either of them is, which _sync_extras_row
+        # decides after each is rebuilt.
+        self.extras_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=18)
+        self.extras_row.set_no_show_all(True)
+
         # Subtitle language chips (one per sidecar .srt found; hidden when there are none).
         self.subs_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.subs_row.set_no_show_all(True)
-        page.pack_start(self.subs_row, False, False, 0)
+        self.extras_row.pack_start(self.subs_row, False, False, 0)
 
         # Transcription ("lyrics") language chips — sidecar .ai.txt files, e.g. x.ar.ai.txt.
         # Picking a language opens the scrollable side panel; the trash button deletes the file.
         self.lyrics_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
         self.lyrics_row.set_no_show_all(True)
-        page.pack_start(self.lyrics_row, False, False, 0)
+        self.extras_row.pack_start(self.lyrics_row, False, False, 0)
+
+        page.pack_start(self.extras_row, False, False, 0)
 
         # For audio-only files the active subtitle shows here, just above the seek bar.
         self.sub_bar_label = Gtk.Label(label="")
@@ -1233,7 +1249,8 @@ class PlayerWindow(Gtk.ApplicationWindow):
         self.audio.set_rate(self.settings.rate)
         self.audio.set_volume(self.settings.volume)
         self._duration_ms = -1
-        self.filename_label.set_text(os.path.basename(path))
+        self.title_entry.set_tooltip_text(
+            f"{os.path.basename(path)}\nSet the file's title tag (Enter to save)")
         self.title_entry.set_text(self._title_for(path))
         self.scale.set_sensitive(True)
         self.scale.set_range(0, 1)
@@ -1378,7 +1395,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
     def _clear_player(self) -> None:
         """Reset the player UI after the last file is gone."""
         self.audio.stop()
-        self.filename_label.set_text("No file open")
+        self.title_entry.set_tooltip_text("Set the file's title tag (Enter to save)")
         self.title_entry.set_text("")
         self.scale.set_sensitive(False)
         self.scale.set_range(0, 1)
@@ -1397,6 +1414,14 @@ class PlayerWindow(Gtk.ApplicationWindow):
         rewind = self.settings.bookmark_rewind_secs * 1000
         pos = max(0, self.audio.position_ms() - rewind)
         note = self.note_entry.get_text().strip()
+        # With a subtitle track loaded, an unlabelled bookmark takes the sentence being spoken as
+        # its note. Read at `pos`, not at the playhead: the mark is placed a few seconds back
+        # precisely because that is the line you just heard, and labelling it with what is being
+        # said NOW would name a different sentence from the one it points at. A typed note is a
+        # deliberate act and outranks it — that is the case where the sentence is not what you
+        # meant to record.
+        if not note:
+            note = subtitles.label_at(self._cues, pos)
         # Rewind the playhead first, then stamp the bookmark at that rewound moment and keep playing.
         self.audio.seek(pos)
         self.audio.play()
@@ -1888,6 +1913,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
         # show_all() does nothing while no_show_all is set (see _select_lyrics), so lift it first.
         self.lyrics_row.set_no_show_all(False)
         self.lyrics_row.show_all()
+        self._sync_extras_row()
 
         if not found:
             self._lyrics_rebuilding = False
@@ -1971,6 +1997,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
         if not subs:
             self.subs_row.set_no_show_all(True)
             self.subs_row.hide()
+            self._sync_extras_row()
             return
         caption = Gtk.Label(label="Subtitles:")
         caption.get_style_context().add_class("time")
@@ -1988,6 +2015,20 @@ class PlayerWindow(Gtk.ApplicationWindow):
         off.set_active(True)
         self.subs_row.set_no_show_all(False)
         self.subs_row.show_all()
+        self._sync_extras_row()
+
+    def _sync_extras_row(self) -> None:
+        """Show the shared subtitles/transcripts row when either half has anything in it.
+
+        Needed because the two halves are rebuilt independently, by different code paths, and GTK
+        will happily draw an empty parent box as a blank line of padding — which is the height this
+        change exists to give back."""
+        if self.subs_row.get_visible() or self.lyrics_row.get_visible():
+            self.extras_row.set_no_show_all(False)
+            self.extras_row.show()
+        else:
+            self.extras_row.set_no_show_all(True)
+            self.extras_row.hide()
 
     def _select_subtitle(self, lang: str | None, path: str | None) -> None:
         """Activate a subtitle track (parse its cues) or turn subtitles off (lang=None)."""

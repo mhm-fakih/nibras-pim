@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.MoreVert
@@ -100,6 +99,7 @@ import com.knotes.MainViewModel
 import com.knotes.Note
 import com.knotes.NoteFiles
 import com.knotes.NoteFilterState
+import com.knotes.UiStateStore
 import com.knotes.player.isMediaFile
 import com.knotes.companionFileNames
 import com.knotes.companionHasContent
@@ -145,6 +145,12 @@ private fun groupLabelOf(note: Note, mode: GroupMode, settings: AppSettings): St
     GroupMode.PRIORITY -> note.priority?.let { "Priority $it" } ?: "No priority"
     GroupMode.NONE -> ""
 }
+
+/**
+ * Above this many rows the list is worth jumping around in, so the top/bottom and collapse-all
+ * controls appear. Refresh is deliberately NOT behind this — see the overlay below.
+ */
+private const val SCROLL_JUMP_MIN = 8
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -310,9 +316,24 @@ fun MainScreen(
     }
 
     val listState = rememberLazyListState()
-    // Only the chat-like, ungrouped date order auto-scrolls to the newest note at the bottom.
+    // Only the chat-like, ungrouped date order jumps to the newest note at the bottom — and only
+    // when there is a reason to.
+    //
+    // It used to fire on every composition, which meant leaving the screen and coming back (opening
+    // a note's file in the player, say) threw away the restored scroll position and dumped the user
+    // at the bottom, with the note they were reading — and its neighbours — scrolled off. The list
+    // state itself survives navigation; this effect was overwriting it. So it now moves only when
+    // the list has actually GROWN (a note was added) or the ordering changed under it.
+    var lastSize by rememberSaveable { mutableStateOf(-1) }
+    var lastOrder by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(sorted.size, sortMode, groupMode) {
-        if (sortMode == SortMode.DATE && groupMode == GroupMode.NONE && sorted.isNotEmpty()) {
+        val order = "$sortMode/$groupMode"
+        val chatOrder = sortMode == SortMode.DATE && groupMode == GroupMode.NONE
+        val grew = sorted.size > lastSize
+        val reordered = lastOrder.isNotEmpty() && order != lastOrder
+        lastSize = sorted.size
+        lastOrder = order
+        if (chatOrder && sorted.isNotEmpty() && (grew || reordered)) {
             listState.scrollToItem(sorted.lastIndex)
         }
     }
@@ -522,20 +543,32 @@ fun MainScreen(
                     }
                 }
             }
-            // Jump-to-top / jump-to-bottom overlay, shown once the list is long enough to scroll.
-            if (rows.size > 8) {
-                val scope = rememberCoroutineScope()
+            /*
+             * The floating overlay: refresh, and — when the list is long enough to be worth it —
+             * the jump and collapse controls.
+             *
+             * Refresh used to live INSIDE the `rows.size > SCROLL_JUMP_MIN` gate, having been put
+             * in the same column as the jump buttons. That made it disappear exactly when it was
+             * most wanted: a filtered view, or a day with nothing in it yet, is precisely when you
+             * want to pull and see whether anything has arrived. Scrolling controls belong to a
+             * long list; refreshing does not belong to the list at all.
+             */
+            val scope = rememberCoroutineScope()
+            val refreshContext = LocalContext.current
+            val scrollable = rows.size > SCROLL_JUMP_MIN
+            run {
                 Column(
                     modifier = Modifier.align(Alignment.BottomEnd).padding(end = 10.dp, bottom = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    ScrollJumpButton(Icons.Filled.VerticalAlignTop, "Go to top") {
-                        scope.launch { listState.animateScrollToItem(0) }
+                    if (scrollable) {
+                        ScrollJumpButton(Icons.Filled.VerticalAlignTop, "Go to top") {
+                            scope.launch { listState.animateScrollToItem(0) }
+                        }
                     }
                     // Refresh everything: re-list the notes (and their counts in the status
                     // notification / widget), re-pull the type/department codes from the backend,
                     // and force an immediate full sync (same as the periodic background one).
-                    val refreshContext = LocalContext.current
                     ScrollJumpButton(Icons.Filled.Refresh, "Refresh notes + sync now") {
                         vm.refresh()
                         vm.syncTaxonomy()
@@ -544,7 +577,7 @@ fun MainScreen(
                         com.knotes.reminder.KpiWidget.refresh(refreshContext)
                     }
                     // Collapse/expand all group panels (only while grouped), between the jump buttons.
-                    if (groupMode != GroupMode.NONE) {
+                    if (scrollable && groupMode != GroupMode.NONE) {
                         val headerLabels = rows.filterIsInstance<NoteListRow.Header>().map { it.label }
                         val allCollapsed = headerLabels.isNotEmpty() && collapsedGroups.containsAll(headerLabels)
                         ScrollJumpButton(
@@ -555,8 +588,10 @@ fun MainScreen(
                             if (!allCollapsed) collapsedGroups.addAll(headerLabels)
                         }
                     }
-                    ScrollJumpButton(Icons.Filled.VerticalAlignBottom, "Go to bottom") {
-                        scope.launch { listState.animateScrollToItem(rows.lastIndex) }
+                    if (scrollable) {
+                        ScrollJumpButton(Icons.Filled.VerticalAlignBottom, "Go to bottom") {
+                            scope.launch { listState.animateScrollToItem(rows.lastIndex) }
+                        }
                     }
                 }
             }
@@ -707,41 +742,24 @@ private fun NoteCard(
                 val context = LocalContext.current
                 Spacer(Modifier.size(2.dp))
                 note.fileNames.take(5).forEach { name ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                // Media plays in the app's own player; anything else goes out to
-                                // whatever app handles it. This row used to send EVERYTHING to the
-                                // external chooser, which is why a note's audio would open in some
-                                // other player but never in this one — there was no in-app path
-                                // from a note at all.
-                                val f = File(note.companionDir(), name)
-                                if (isMediaFile(f.name)) onPlayMedia(f) else openLocalFile(context, f)
-                            }
-                            .padding(vertical = 1.dp),
-                    ) {
-                        Icon(
-                            Icons.Filled.AttachFile,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(12.dp),
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = name,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    AttachmentRow(
+                        name = name,
+                        onClick = {
+                            // Media plays in the app's own player; anything else goes out to
+                            // whatever app handles it. This row used to send EVERYTHING to the
+                            // external chooser, which is why a note's audio would open in some
+                            // other player but never in this one — there was no in-app path
+                            // from a note at all.
+                            val f = File(note.companionDir(), name)
+                            if (isMediaFile(f.name)) onPlayMedia(f) else openLocalFile(context, f)
+                        },
+                        modifier = Modifier.padding(bottom = 3.dp),
+                    )
                 }
                 if (note.fileNames.size > 5) {
                     Text(
                         text = "… +${note.fileNames.size - 5} more (${note.fileNames.size} files)",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
                             .clickable { openFolder(context, note.companionDir()) }
@@ -1036,7 +1054,12 @@ private fun InputBar(
     // Collapsible: the form (text box + type/priority/category chips) eats a lot of a phone screen
     // when you're only reading. Collapsed it leaves a single tap-to-expand strip. An edit in
     // progress force-expands it, so "Editing note" can never be hidden behind a collapsed bar.
-    var expanded by rememberSaveable { mutableStateOf(true) }
+    //
+    // Kept on disk rather than in the saved-instance bundle: "keep the form out of my way" is a
+    // standing preference, and a bundle is thrown away on a cold start — so the form came back
+    // open every morning no matter how often it was collapsed.
+    val context = LocalContext.current
+    var expanded by rememberSaveable { mutableStateOf(UiStateStore.composerExpanded(context)) }
     val open = expanded || isEditing
 
     Surface(tonalElevation = 3.dp) {
@@ -1054,7 +1077,10 @@ private fun InputBar(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = !isEditing) { expanded = !expanded },
+                    .clickable(enabled = !isEditing) {
+                        expanded = !expanded
+                        UiStateStore.setComposerExpanded(context, expanded)
+                    },
             ) {
                 Text(
                     text = if (open) "New note" else "New note — tap to expand",

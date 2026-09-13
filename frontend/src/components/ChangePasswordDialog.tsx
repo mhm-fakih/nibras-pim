@@ -10,8 +10,9 @@ import {
   Stack,
   TextField,
 } from '@mui/material';
-import { AxiosError } from 'axios';
-import { changePassword } from '../api/client';
+import { changePassword,
+  errorDetail,
+} from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 
 /**
@@ -42,8 +43,7 @@ export function ChangePasswordDialog() {
       const updated = await changePassword(current, next);
       setUser(updated);
     } catch (err) {
-      const data = (err as AxiosError<{ detail?: string; error?: string }>)?.response?.data;
-      setError(data?.detail ?? data?.error ?? 'Could not change the password.');
+      setError(errorDetail(err, 'Could not change the password.'));
     } finally {
       setBusy(false);
     }

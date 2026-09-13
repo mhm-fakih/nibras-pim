@@ -16,6 +16,8 @@ public record FilterParams(
         Boolean dashboard,
         Long statusId,
         Long typeId,
+        // An exact priority ("show me the p3s"), distinct from the highPriority preset (">= 3").
+        Integer priority,
         Long tagId,
         Long goalId,
         Long writingId,
@@ -37,6 +39,6 @@ public record FilterParams(
      */
     public static FilterParams forQuery(String q) {
         return new FilterParams(q, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
     }
 }

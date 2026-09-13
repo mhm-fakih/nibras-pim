@@ -28,9 +28,11 @@ import {
   setSetting,
   updateModule,
   updateRepoSettings,
+  errorDetail,
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { DEFAULT_MAX_SLOT_MINUTES } from '../hooks/useRunningTimer';
+import { DEFAULT_TODAY_COUNT, TODAY_COUNT_KEY } from './TodayPage';
 import { useModules } from '../hooks/useModules';
 import {
   FEATURE_SETTING_KEYS,
@@ -590,6 +592,8 @@ function TaskCompletionSection() {
       <TimerTimeoutField />
       <LanguageCodesField />
 
+      <TodayCountField />
+
       <TextField
         select
         size="small"
@@ -649,6 +653,50 @@ function TimerTimeoutField() {
         inputProps={{ min: 1 }}
         sx={{ width: 260 }}
         helperText={`Blank or invalid falls back to ${DEFAULT_MAX_SLOT_MINUTES}. The session is saved ending at the cut-off, not when the browser noticed.`}
+      />
+    </Box>
+  );
+}
+
+/**
+ * How many records each column of the Today page lists.
+ *
+ * A server setting rather than a per-browser one: it is a statement about how much of a summary is
+ * useful, not about this machine, and the page is the first thing seen on every device.
+ */
+function TodayCountField() {
+  const qc = useQueryClient();
+  const KEY = TODAY_COUNT_KEY;
+  const { data } = useQuery({
+    queryKey: ['setting', KEY],
+    queryFn: () => getSetting(KEY, String(DEFAULT_TODAY_COUNT)),
+  });
+  const [value, setValue] = useState('');
+  useEffect(() => {
+    if (data != null) setValue(data);
+  }, [data]);
+
+  const save = useMutation({
+    mutationFn: (v: string) => setSetting(KEY, v),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['setting', KEY] });
+      qc.invalidateQueries({ queryKey: ['today'] });
+    },
+  });
+
+  return (
+    <Box sx={{ mb: 2 }}>
+      <TextField
+        size="small"
+        type="number"
+        label="Today page: records per column"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => value !== data && save.mutate(value)}
+        onKeyDown={(e) => e.key === 'Enter' && save.mutate(value)}
+        inputProps={{ min: 1, max: 50 }}
+        sx={{ width: 300 }}
+        helperText={`How many newest-created and newest-modified records each module shows on the home page. Blank or invalid falls back to ${DEFAULT_TODAY_COUNT}; capped at 50.`}
       />
     </Box>
   );
@@ -788,12 +836,7 @@ function ModuleRow({ module }: { module: AppModule }) {
       setError(null);
       qc.invalidateQueries({ queryKey: ['modules'] });
     },
-    onError: (e: unknown) => {
-      const msg =
-        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        'Save failed';
-      setError(msg);
-    },
+    onError: (e: unknown) => setError(errorDetail(e, 'Save failed.')),
   });
 
   const dirty =

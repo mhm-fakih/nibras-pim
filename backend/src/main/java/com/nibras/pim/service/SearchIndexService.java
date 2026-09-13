@@ -26,6 +26,28 @@ public class SearchIndexService {
     public record SearchHit(String module, long id, String title, double score, String snippet) {
     }
 
+    /** One record as the index stores it — no entity types, so this class stays cycle-free. */
+    public record Doc(Long id, String title, String body) {
+    }
+
+    /**
+     * Write a batch of docs in a transaction of its own.
+     *
+     * <p>{@code REQUIRES_NEW} is the point of the method: a rebuild writes ~50k rows, and a batch
+     * the database refuses must roll back only itself rather than mark an enclosing transaction
+     * rollback-only and discard everything indexed so far. Called from
+     * {@link SearchReindexService}, which is a different bean — a self-call would bypass the proxy
+     * and silently give no transaction at all.
+     */
+    @org.springframework.transaction.annotation.Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public int upsertAll(String module, List<Doc> docs) {
+        for (Doc d : docs) {
+            upsert(module, d.id(), d.title(), d.body());
+        }
+        return docs.size();
+    }
+
     public void upsert(String module, Long id, String title, String body) {
         if (id == null) {
             return;
@@ -118,69 +140,20 @@ public class SearchIndexService {
                 limit);
     }
 
-    private static final int SNIPPET_LEN = 180;
     private static final int MAX_LINES = 3;
-    private static final Pattern TERM = Pattern.compile("\\p{L}[\\p{L}\\p{N}]+");
 
-    /** Significant query terms (lowercased words of length ≥ 2) for snippet matching. */
+    /** Significant query terms — see {@link Snippets#terms}. */
     private static List<String> terms(String q) {
-        List<String> out = new ArrayList<>();
-        Matcher m = TERM.matcher(q.toLowerCase());
-        while (m.find()) {
-            out.add(m.group());
-        }
-        return out;
+        return Snippets.terms(q);
     }
 
-    /** Up to {@link #MAX_LINES} short excerpts of body lines that contain a query term. */
+    /**
+     * Up to {@link #MAX_LINES} short excerpts of body lines that contain a query term.
+     *
+     * <p>Delegated so the list pane's per-record match context and these results cut text the same
+     * way; see {@link Snippets}.
+     */
     private static String snippet(String body, List<String> terms) {
-        if (body == null || body.isBlank()) {
-            return "";
-        }
-        List<String> hits = new ArrayList<>();
-        for (String raw : body.split("\\r?\\n")) {
-            String line = raw.strip().replaceAll("\\s+", " ");
-            if (line.isEmpty()) {
-                continue;
-            }
-            int idx = firstTermIndex(line.toLowerCase(), terms);
-            if (idx >= 0) {
-                hits.add(window(line, idx));
-                if (hits.size() >= MAX_LINES) {
-                    break;
-                }
-            }
-        }
-        if (hits.isEmpty()) {
-            // Match was in the title only — show the start of the body.
-            String t = body.strip().replaceAll("\\s+", " ");
-            return t.length() > SNIPPET_LEN ? t.substring(0, SNIPPET_LEN) + " …" : t;
-        }
-        return String.join(" … ", hits);
-    }
-
-    private static int firstTermIndex(String lowerLine, List<String> terms) {
-        int best = -1;
-        for (String t : terms) {
-            int p = lowerLine.indexOf(t);
-            if (p >= 0 && (best < 0 || p < best)) {
-                best = p;
-            }
-        }
-        return best;
-    }
-
-    /** A ~SNIPPET_LEN window of {@code line} centred a little before {@code matchIdx}. */
-    private static String window(String line, int matchIdx) {
-        int start = Math.max(0, matchIdx - 50);
-        int end = Math.min(line.length(), start + SNIPPET_LEN);
-        String s = line.substring(start, end).strip();
-        if (start > 0) {
-            s = "… " + s;
-        }
-        if (end < line.length()) {
-            s = s + " …";
-        }
-        return s;
+        return Snippets.fromLines(body, terms, MAX_LINES);
     }
 }

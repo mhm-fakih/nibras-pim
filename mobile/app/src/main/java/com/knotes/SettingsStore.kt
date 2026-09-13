@@ -6,6 +6,30 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/**
+ * What the star beside a Nibras record means.
+ *
+ * The two readings are genuinely different, and which one is useful depends on how the phone is
+ * used. [LOCAL_BOOKMARK] treats the star as a private shortlist that never leaves the device.
+ * [BACKEND_UNBOOKMARK] starts from the fact that **every record on the phone is already bookmarked
+ * on the server** — that is why it synced down at all — so the only bookmark decision left to make
+ * here is to take it off the list. In that mode the star is always filled (it states a fact rather
+ * than offering a toggle) and tapping it retires the record.
+ */
+enum class StarAction {
+    /** Tapping the star adds/removes a phone-local bookmark. Nothing is sent anywhere. */
+    LOCAL_BOOKMARK,
+
+    /** Tapping the star un-bookmarks the record on the server, immediately or on the next sync. */
+    BACKEND_UNBOOKMARK,
+    ;
+
+    companion object {
+        fun of(name: String?): StarAction =
+            entries.firstOrNull { it.name == name } ?: LOCAL_BOOKMARK
+    }
+}
+
 /** All user-configurable settings. */
 data class AppSettings(
     val notesDir: String,
@@ -27,6 +51,24 @@ data class AppSettings(
     val nibrasFilesDir: String,
     val collectSourceDirs: List<String>,
     val collectNewDir: String,
+    /**
+     * Run the file collection on its own, once a day, at [collectAutoHour]:[collectAutoMinute].
+     *
+     * The collection is a chore with a fixed shape — sweep the same folders into the notes folder —
+     * and a chore that has to be remembered is one that stops happening. Off by default: it moves
+     * files out of Camera and Downloads, and nobody should discover that as a surprise.
+     */
+    /**
+     * Whether the file collector exists at all — its page, and its daily alarm.
+     *
+     * Distinct from [collectAutoEnabled], which decides only whether it runs BY ITSELF. Off here
+     * means the feature is not in the app: no rail entry, and nothing scheduled whatever the
+     * automatic setting says.
+     */
+    val collectEnabled: Boolean = true,
+    val collectAutoEnabled: Boolean = false,
+    val collectAutoHour: Int = 15,
+    val collectAutoMinute: Int = 0,
     /** Font-size multiplier for the Resources full-text view (1.0 = default). */
     val fulltextScale: Float,
     /** Root folders scanned by the Media page's Library (genre/artist/album) and Folders tabs. */
@@ -38,6 +80,8 @@ data class AppSettings(
     val calendarEndHour: Int,
     /** When off, the Calendar page hides its mini week-strip (quick-jump) at the top. */
     val calendarEnabled: Boolean,
+    /** Whether the prayer times exist at all — the page, the alarms and the widget's data. */
+    val prayerEnabled: Boolean = true,
     /** Reminder lead times in minutes before a plan starts, e.g. [60, 5]. */
     val reminderOffsetsMin: List<Int>,
     /** Sound URI played for reminders (blank = system default). */
@@ -69,6 +113,8 @@ data class AppSettings(
     val defaultType: String,
     val defaultCategory: String,
     val defaultPriority: Int,
+    /** What the star on a Nibras record row does — see [StarAction]. */
+    val starAction: StarAction = StarAction.LOCAL_BOOKMARK,
 ) {
     val priorities: IntRange get() = priorityMin..priorityMax.coerceAtLeast(priorityMin)
 
@@ -109,6 +155,9 @@ class SettingsStore(context: Context) {
         nibrasFilesDir = prefs.getString(K_NIBRAS_FILES, defaultNibrasFilesDir()) ?: defaultNibrasFilesDir(),
         collectSourceDirs = prefs.getString(K_COLLECT_SRC, null)?.let { decodeLines(it) } ?: defaultSourceDirs(),
         collectNewDir = prefs.getString(K_COLLECT_NEW, defaultNewDir()) ?: defaultNewDir(),
+        collectAutoEnabled = prefs.getBoolean(K_COLLECT_AUTO, false),
+        collectAutoHour = prefs.getInt(K_COLLECT_AUTO_HOUR, 15),
+        collectAutoMinute = prefs.getInt(K_COLLECT_AUTO_MIN, 0),
         fulltextScale = prefs.getFloat(K_FULLTEXT_SCALE, 1.5f),
         // Migration: if the new multi-root key was never written, seed once from the old
         // single-folder key (still just read, never written again — same pattern as "subjects" below).
@@ -119,6 +168,8 @@ class SettingsStore(context: Context) {
         calendarStartHour = prefs.getInt(K_CAL_START, 5),
         calendarEndHour = prefs.getInt(K_CAL_END, 22),
         calendarEnabled = prefs.getBoolean(K_CAL_ENABLED, true),
+        prayerEnabled = prefs.getBoolean(K_PRAYER_ENABLED, true),
+        collectEnabled = prefs.getBoolean(K_COLLECT_ENABLED, true),
         reminderOffsetsMin = decodeInts(prefs.getString(K_REM_OFFSETS, DEFAULT_REM_OFFSETS) ?: DEFAULT_REM_OFFSETS),
         reminderSoundUri = prefs.getString(K_REM_SOUND, "") ?: "",
         reminderRequireDismiss = prefs.getBoolean(K_REM_DISMISS, false),
@@ -135,7 +186,19 @@ class SettingsStore(context: Context) {
         defaultType = prefs.getString(K_DEF_TYPE, "") ?: "",
         defaultCategory = prefs.getString(K_DEF_CAT, "") ?: "",
         defaultPriority = prefs.getInt(K_DEF_PRIO, 2),
+        starAction = StarAction.of(prefs.getString(K_STAR_ACTION, null)),
     )
+
+    /**
+     * Whether anyone has ever saved settings on this device.
+     *
+     * The first-run wizard needs to tell a fresh install from an upgrade, and its own "done" flag
+     * cannot: on an upgrade from a version that predates the flag, "never written" and "never run"
+     * look exactly alike. This looks instead for a key that only exists once [save] has run — and
+     * [K_DIR] is the right one to test, because it is written on every save and has been present
+     * in every version of this app.
+     */
+    fun isConfigured(): Boolean = prefs.contains(K_DIR)
 
     fun save(settings: AppSettings) {
         val min = settings.priorityMin
@@ -155,6 +218,9 @@ class SettingsStore(context: Context) {
             .putString(K_NIBRAS_FILES, settings.nibrasFilesDir.trim().trimEnd('/').ifBlank { defaultNibrasFilesDir() })
             .putString(K_COLLECT_SRC, settings.collectSourceDirs.joinToString("\n") { it.trim() })
             .putString(K_COLLECT_NEW, settings.collectNewDir.trim().trimEnd('/').ifBlank { defaultNewDir() })
+            .putBoolean(K_COLLECT_AUTO, settings.collectAutoEnabled)
+            .putInt(K_COLLECT_AUTO_HOUR, settings.collectAutoHour.coerceIn(0, 23))
+            .putInt(K_COLLECT_AUTO_MIN, settings.collectAutoMinute.coerceIn(0, 59))
             .putFloat(K_FULLTEXT_SCALE, settings.fulltextScale.coerceIn(0.8f, 3f))
             .putString(
                 K_AUDIO_ROOTS,
@@ -165,6 +231,8 @@ class SettingsStore(context: Context) {
             .putInt(K_CAL_START, settings.calendarStartHour.coerceIn(0, 23))
             .putInt(K_CAL_END, settings.calendarEndHour.coerceIn(settings.calendarStartHour + 1, 24))
             .putBoolean(K_CAL_ENABLED, settings.calendarEnabled)
+            .putBoolean(K_PRAYER_ENABLED, settings.prayerEnabled)
+            .putBoolean(K_COLLECT_ENABLED, settings.collectEnabled)
             .putString(K_REM_OFFSETS, settings.reminderOffsetsMin.filter { it >= 0 }.joinToString(","))
             .putString(K_REM_SOUND, settings.reminderSoundUri.trim())
             .putBoolean(K_REM_DISMISS, settings.reminderRequireDismiss)
@@ -181,11 +249,13 @@ class SettingsStore(context: Context) {
             .putString(K_DEF_TYPE, settings.defaultType.trim())
             .putString(K_DEF_CAT, settings.defaultCategory.trim())
             .putInt(K_DEF_PRIO, settings.defaultPriority)
+            .putString(K_STAR_ACTION, settings.starAction.name)
             .apply()
         _state.value = load()
     }
 
     companion object {
+        private const val K_STAR_ACTION = "star_action"
         private const val K_DIR = "notes_dir"
         private const val K_FMT = "timestamp_format"
         private const val K_PREVIEW = "preview_lines"
@@ -202,6 +272,9 @@ class SettingsStore(context: Context) {
         private const val K_NIBRAS_FILES = "nibras_files_dir"
         private const val K_COLLECT_SRC = "collect_source_dirs"
         private const val K_COLLECT_NEW = "collect_new_dir"
+        private const val K_COLLECT_AUTO = "collect_auto_enabled"
+        private const val K_COLLECT_AUTO_HOUR = "collect_auto_hour"
+        private const val K_COLLECT_AUTO_MIN = "collect_auto_minute"
         private const val K_FULLTEXT_SCALE = "fulltext_scale"
         // "audiobook_dir" key retained read-only so an existing single folder migrates once into
         // audio_library_roots (same pattern as "subjects" above) — no longer written.
@@ -211,6 +284,8 @@ class SettingsStore(context: Context) {
         private const val K_CAL_START = "calendar_start_hour"
         private const val K_CAL_END = "calendar_end_hour"
         private const val K_CAL_ENABLED = "calendar_enabled"
+        private const val K_PRAYER_ENABLED = "prayer_enabled"
+        private const val K_COLLECT_ENABLED = "collect_enabled"
         private const val K_REM_OFFSETS = "reminder_offsets_min"
         private const val K_REM_SOUND = "reminder_sound_uri"
         private const val K_REM_DISMISS = "reminder_require_dismiss"

@@ -54,12 +54,24 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
     var duration by mutableStateOf(0L)
         private set
 
-    // Durable playback knobs, kept across navigation.
-    var speed by mutableStateOf(1f)
+    // Durable playback knobs — the three sliders in the player's options panel.
+    //
+    // All three persist. They read as per-file state and are not: someone who listens at 1.15x
+    // with a 30-second skip wants that on the next file and on the next launch, and having to
+    // re-set them every time the app is killed is the kind of small tax that makes an option feel
+    // broken. They used to be plain in-memory defaults while every other knob around them was
+    // stored, so they silently reverted (skip to 10s, speed to 1x, volume to 0 dB) on restart.
+    //
+    // The restored values reach the service through [syncFromController], which re-asserts them
+    // when the MediaController connects — so nothing extra is needed here for them to take effect.
+    var speed by mutableStateOf(prefs.getFloat(K_SPEED, 1f))
         private set
-    var gainDb by mutableStateOf(0f)
+    var gainDb by mutableStateOf(prefs.getFloat(K_GAIN_DB, 0f))
         private set
-    var skipPrimary by mutableStateOf(10)
+
+    /** Seconds the ⏪/⏩ buttons move by. */
+    var skipPrimary by mutableStateOf(prefs.getInt(K_SKIP_SECS, 10))
+        private set
 
     /** Seconds to rewind from the playhead when adding a bookmark (you want the line just read). */
     var bookmarkRewind by mutableStateOf(prefs.getInt(K_BOOKMARK_REWIND, 7))
@@ -80,6 +92,21 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
     /** True while the library is being walked for a RANDOM_OLD pick, so the UI can say so. */
     var pickingNext by mutableStateOf(false)
         private set
+
+    /**
+     * A one-off message for the UI to flash, or null.
+     *
+     * Exists because "next" can legitimately find nothing — the last file in a folder, a scope
+     * with nothing unbookmarked left, a media folder that was never configured — and doing
+     * nothing silently is indistinguishable from a tap that missed the button. The screen shows
+     * it and calls [consumeNotice]; it is deliberately not persisted, being about one tap.
+     */
+    var notice by mutableStateOf<String?>(null)
+        private set
+
+    fun consumeNotice() {
+        notice = null
+    }
 
     /** Audio-only mode: disable the video track so nothing plays on screen (e.g. while driving). */
     var videoDisabled by mutableStateOf(prefs.getBoolean(K_VIDEO_DISABLED, false))
@@ -162,11 +189,22 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         c.play()
     }
 
-    /** Load [file] paused at [positionMs] (used to restore the last session without auto-playing). */
+    /**
+     * Load [file] paused at [positionMs] (used to restore the last session, and to cue the next
+     * file when "play next" is set to none).
+     *
+     * `playWhenReady` is cleared FIRST, and that line is the whole point of this function.
+     * `prepare()` does not start anything by itself, but a controller carries `playWhenReady` from
+     * whatever it was last told: after a file plays to its end the flag is still true, so preparing
+     * the next item on it began playing that item immediately. "Play next: none" then auto-played
+     * the next file — the exact behaviour the setting exists to prevent — while the restore-on-
+     * launch path looked fine, because there `playWhenReady` happens to be false already.
+     */
     fun openPaused(file: File, positionMs: Long) {
         currentFile = file
         duration = 0L
         val c = controller ?: return
+        c.playWhenReady = false
         prepare(c, file, positionMs)
     }
 
@@ -226,12 +264,20 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
 
     fun changeSpeed(value: Float) {
         speed = value
+        prefs.edit().putFloat(K_SPEED, value).apply()
         controller?.setPlaybackSpeed(value)
     }
 
     fun setGain(db: Float) {
         gainDb = db
+        prefs.edit().putFloat(K_GAIN_DB, db).apply()
         sendGain()
+    }
+
+    /** Seconds the skip buttons move by. Clamped to the range the options slider offers. */
+    fun changeSkip(seconds: Int) {
+        skipPrimary = seconds.coerceIn(MIN_SKIP_SECS, MAX_SKIP_SECS)
+        prefs.edit().putInt(K_SKIP_SECS, skipPrimary).apply()
     }
 
     /** Pause after [minutes] (0 = cancel). Kept running by the service even with the UI gone. */
@@ -263,6 +309,46 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         sendAutoBookmark()
     }
 
+    /**
+     * Delete the file being played, and everything the app keeps *about* it.
+     *
+     * <p>Playback is stopped first: the media session holds the file open, and deleting underneath
+     * a running player leaves it either erroring or playing a file that no longer exists. Then the
+     * bookmark sidecar, the saved position and the recents entry go too — leaving those behind
+     * means the next file to take that exact path silently inherits another file's bookmarks.
+     *
+     * <p>The `.ai.txt` transcripts beside it go too — they describe this recording and nothing
+     * else. Advances to the next sibling when there is one, so working through a folder doesn't
+     * stop dead on every delete. Returns false if the file could not be removed, in which case
+     * nothing else was touched either.
+     */
+    fun deleteCurrent(): Boolean {
+        val file = currentFile ?: return false
+        val next = nextSibling()
+
+        controller?.stop()
+        if (!runCatching { file.delete() }.getOrDefault(false)) return false
+
+        runCatching { Bookmarks.sidecar(file).delete() }
+        // The transcripts go with the recording. A `.ar.ai.txt` left behind is not just clutter:
+        // the next file to take this exact name inherits it and shows another recording's words.
+        Transcripts.list(file).forEach { runCatching { Transcripts.delete(it.file) } }
+        prefs.edit()
+            .remove(posKey(file))
+            .apply()
+        recents = recents.filter { it.absolutePath != file.absolutePath }
+        prefs.edit().putString(K_RECENTS, recents.joinToString("\n") { it.absolutePath }).apply()
+
+        if (next != null) {
+            open(next)
+        } else {
+            currentFile = null
+            duration = 0L
+            prefs.edit().remove(K_LAST_FILE).apply()
+        }
+        return true
+    }
+
     /** Files in the same folder, sorted alphabetically (case-insensitive), used for "play next". */
     fun siblings(): List<File> = currentFile?.let(NextTrack::siblings) ?: emptyList()
 
@@ -274,25 +360,41 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
      * next one in the folder. NONE governs what happens *by itself*, not what happens when asked.
      */
     fun playNext() {
-        if (playNextMode == PlayNextMode.RANDOM_OLD) pickRandomOld { open(it) }
-        else nextSibling()?.let { open(it) }
+        when (playNextMode) {
+            PlayNextMode.RANDOM_OLD -> pickRandom(libraryRoots(), NextTrack.Pick.OLDEST) { open(it) }
+            PlayNextMode.RANDOM_OLD_PARENT -> pickRandom(parentRoots(), NextTrack.Pick.OLDEST) { open(it) }
+            PlayNextMode.RANDOM_NEW_PARENT -> pickRandom(parentRoots(), NextTrack.Pick.NEWEST) { open(it) }
+            // The ordered modes run out at the end of a folder, which is just as silent as an empty
+            // random pick and needs saying just as much.
+            else -> nextSibling()?.let { open(it) }
+                ?: run {
+                    notice = if (currentFile == null) {
+                        "Nothing is playing."
+                    } else {
+                        "This is the last file in the folder."
+                    }
+                }
+        }
     }
 
     /**
      * Called when a file plays to the end.
      *
-     * Under [PlayNextMode.NONE] the next file in the folder is cued **paused at its start** (so a
-     * single tap continues) rather than leaving the finished file sitting at its end — the
-     * behaviour the player has always had. The other modes actually start something.
+     * Under [PlayNextMode.NONE] the player **stays on the file that just finished**, rewound to its
+     * start and paused. It used to cue the next sibling instead, which is a different promise from
+     * the one the setting makes: "none" should mean the player is where you left it, not one file
+     * further on. The other modes actually start something.
      */
     private fun advanceToNextPaused() {
         val finished = currentFile
         // The finished file should restart from the beginning next time, not resume at its end.
         if (finished != null) prefs.edit().remove(posKey(finished)).apply()
         when (playNextMode) {
-            PlayNextMode.NONE -> nextSibling()?.let { cuePaused(it) }
+            PlayNextMode.NONE -> finished?.let { openPaused(it, 0L) }
             PlayNextMode.SAME_FOLDER -> nextSibling()?.let { open(it) }
-            PlayNextMode.RANDOM_OLD -> pickRandomOld { open(it) }
+            PlayNextMode.RANDOM_OLD -> pickRandom(libraryRoots(), NextTrack.Pick.OLDEST) { open(it) }
+            PlayNextMode.RANDOM_OLD_PARENT -> pickRandom(parentRoots(), NextTrack.Pick.OLDEST) { open(it) }
+            PlayNextMode.RANDOM_NEW_PARENT -> pickRandom(parentRoots(), NextTrack.Pick.NEWEST) { open(it) }
         }
     }
 
@@ -309,17 +411,39 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
      * The current file and the recents are excluded so "random" can't serve up what was just
      * heard — with a small library, uniform random would do that often enough to feel broken.
      */
-    private fun pickRandomOld(then: (File) -> Unit) {
+    private fun pickRandom(roots: List<File>, end: NextTrack.Pick, then: (File) -> Unit) {
         if (pickingNext) return
+        if (roots.isEmpty()) {
+            // No scope at all: no media folder configured, or nothing playing to be "here".
+            notice = noPickMessage(playNextMode, scopeConfigured = false)
+            return
+        }
         pickingNext = true
         viewModelScope.launch {
-            val roots = SettingsStore(getApplication()).state.value.audioLibraryRoots.map(::File)
             val skip = (recents.map { it.absolutePath } + listOfNotNull(currentFile?.absolutePath)).toSet()
-            val pick = withContext(Dispatchers.IO) { NextTrack.randomOldUnbookmarked(roots, skip) }
+            val pick = withContext(Dispatchers.IO) {
+                when (end) {
+                    NextTrack.Pick.OLDEST -> NextTrack.randomOldUnbookmarked(roots, skip)
+                    NextTrack.Pick.NEWEST -> NextTrack.randomNewUnbookmarked(roots, skip)
+                }
+            }
             pickingNext = false
-            pick?.let(then)
+            if (pick == null) notice = noPickMessage(playNextMode, scopeConfigured = true) else then(pick)
         }
     }
+
+    /** The configured media library — the search scope for [PlayNextMode.RANDOM_OLD]. */
+    private fun libraryRoots(): List<File> =
+        SettingsStore(getApplication()).state.value.audioLibraryRoots.map(::File)
+
+    /**
+     * The scope for the parent-scoped modes — the folder around what is playing.
+     *
+     * Empty when nothing is playing, which is the honest answer: without a current file the mode
+     * has no anchor, and falling back to the whole library would quietly do the other mode's job.
+     */
+    private fun parentRoots(): List<File> =
+        listOfNotNull(currentFile?.let(NextTrack::parentScope))
 
     private fun loadRecents(): List<File> =
         prefs.getString(K_RECENTS, "").orEmpty()
@@ -365,8 +489,15 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         controllerFuture = null
     }
 
-    private companion object {
+    companion object {
         const val K_AUTO_BOOKMARK = "auto_bookmark_on_pause"
+        const val K_SKIP_SECS = "skip_primary_secs"
+        const val K_SPEED = "playback_speed"
+        const val K_GAIN_DB = "gain_db"
+
+        /** The range the options slider offers; [changeSkip] clamps a stored value into it. */
+        const val MIN_SKIP_SECS = 5
+        const val MAX_SKIP_SECS = 60
         const val K_PLAY_NEXT = "play_next_mode"
         const val K_VIDEO_DISABLED = "video_disabled"
         // PlaybackService reads this one too (auto-bookmark on pause rewinds by it).

@@ -62,6 +62,7 @@ class NibrasViewModel(app: Application) : AndroidViewModel(app) {
                         if (recs != null) {
                             cache.save(type.code, recs)
                             _counts.value = _counts.value.toMutableMap().apply { put(type.code, recs.size) }
+                            store.pruneUnbookmarked(type.code, recs.mapTo(mutableSetOf()) { it.key })
                             if (currentCode == type.code) _records.value = recs
                         }
                     }
@@ -82,6 +83,14 @@ class NibrasViewModel(app: Application) : AndroidViewModel(app) {
         if (highlights.isNotEmpty() && runCatching { api.pushHighlights(base, highlights) }.getOrDefault(false)) {
             store.removeHighlights(highlights)
         }
+        // Bookmark flags go one at a time: each carries its own true/false, and the endpoint takes
+        // a single record per call. A failure leaves that one queued for the next attempt.
+        for (item in store.pendingBookmarks.value) {
+            val ok = runCatching {
+                api.pushBookmark(base, item.ecode, item.id, item.text.toBoolean())
+            }.getOrDefault(false)
+            if (ok) store.removeBookmarks(listOf(item))
+        }
     }
 
     fun openType(base: String, code: String, username: String) {
@@ -98,6 +107,9 @@ class NibrasViewModel(app: Application) : AndroidViewModel(app) {
                     _records.value = recs
                     cache.save(code, recs)
                     _counts.value = _counts.value.toMutableMap().apply { put(code, recs.size) }
+                    // A record the server has stopped exporting is one whose un-bookmark landed;
+                    // stop remembering it (and stop drawing the row as pending) now that it's gone.
+                    store.pruneUnbookmarked(code, recs.mapTo(mutableSetOf()) { it.key })
                     // Refresh the KPI widget when the Tasks cache changes ("new tasks today").
                     if (code == "T") com.knotes.reminder.KpiWidget.refresh(getApplication())
                 }
@@ -114,6 +126,45 @@ class NibrasViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleBookmark(record: NibrasRecord) {
         store.toggleBookmark(record.key)
         com.knotes.reminder.BookmarksWidget.refresh(getApplication())
+    }
+
+    /**
+     * The star in [com.knotes.StarAction.BACKEND_UNBOOKMARK] mode: retire the record from the
+     * server's bookmark list, or put it back.
+     *
+     * <p>Written as a *desired state* rather than as an action, which is what makes undo work the
+     * same whether or not the first tap got through. The flag is recorded locally, pushed straight
+     * away, and queued only if the push fails; a second tap records the opposite flag and replaces
+     * any queued entry, so a tap and its undo cancel instead of racing each other onto the wire.
+     *
+     * <p>The row is deliberately left on screen: the server keeps exporting the record until the
+     * next sync, and that window is the undo. [openType] prunes it once the record really is gone.
+     */
+    fun toggleBackendBookmark(base: String, record: NibrasRecord) {
+        val wantBookmarked = store.isUnbookmarked(record.key)   // currently retired -> restore it
+        store.setUnbookmarked(record.key, !wantBookmarked)
+        com.knotes.reminder.BookmarksWidget.refresh(getApplication())
+        viewModelScope.launch {
+            beginSync()
+            try {
+                val pushed = runCatching {
+                    api.pushBookmark(base, record.ecode, record.id, wantBookmarked)
+                }.getOrDefault(false)
+                if (pushed) {
+                    store.unqueueBookmark(record.ecode, record.id)
+                    _message.value = if (wantBookmarked) "Bookmarked again" else "Un-bookmarked — tap the star to undo"
+                } else {
+                    store.queueBookmark(record.ecode, record.id, wantBookmarked)
+                    _message.value = if (wantBookmarked) {
+                        "Saved — will re-bookmark when online"
+                    } else {
+                        "Saved — will un-bookmark when online"
+                    }
+                }
+            } finally {
+                endSync()
+            }
+        }
     }
 
     fun setRead(record: NibrasRecord, value: Boolean) = store.setRead(record.key, value)

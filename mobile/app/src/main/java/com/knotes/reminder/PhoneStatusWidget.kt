@@ -74,12 +74,15 @@ class PhoneStatusWidget : AppWidgetProvider() {
 
             // Volume levels (read-only): bars only, coloured by headroom (see levelColor).
             // (Free space lives on the KPI widget now — this widget is volumes-only.)
+            //
+            // STREAM_VOICE_CALL is deliberately absent: Android exposes no slider for it outside
+            // an active call, so its bar showed a level the user could neither check nor change.
+            // See the layout's header comment.
             val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             setVolume(views, am, R.id.ps_bar_ring, AudioManager.STREAM_RING)
             setVolume(views, am, R.id.ps_bar_notif, AudioManager.STREAM_NOTIFICATION)
             setVolume(views, am, R.id.ps_bar_alarm, AudioManager.STREAM_ALARM)
             setVolume(views, am, R.id.ps_bar_music, AudioManager.STREAM_MUSIC)
-            setVolume(views, am, R.id.ps_bar_call, AudioManager.STREAM_VOICE_CALL)
             setVolume(views, am, R.id.ps_bar_system, AudioManager.STREAM_SYSTEM)
 
             // Title → re-read the levels, in place. Body → that plus the volume mixer.
@@ -99,15 +102,17 @@ class PhoneStatusWidget : AppWidgetProvider() {
             )
 
         private fun setVolume(views: RemoteViews, am: AudioManager, barId: Int, stream: Int) {
-            val max = am.getStreamMaxVolume(stream).coerceAtLeast(1)
+            val max = am.getStreamMaxVolume(stream)
+            val min = streamMin(am, stream)
             val cur = am.getStreamVolume(stream)
-            views.setProgressBar(barId, max, cur, false)
+            val span = (max - min).coerceAtLeast(1)
+            views.setProgressBar(barId, span, (cur - min).coerceIn(0, span), false)
             // Runtime tinting of a RemoteViews ProgressBar needs API 31+; older devices keep the
             // layout's green.
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                 views.setColorStateList(
                     barId, "setProgressTintList",
-                    android.content.res.ColorStateList.valueOf(levelColor(cur, max)),
+                    android.content.res.ColorStateList.valueOf(levelColor(cur - min, span)),
                 )
             }
         }
@@ -125,7 +130,27 @@ class PhoneStatusWidget : AppWidgetProvider() {
          *
          * Headroom has no such problem: "one notch below maximum" is 1/7 or 1/15 of the way down,
          * and both read as near the top, which is what the colour is trying to say.
+         *
+         * <p>[cur] and [max] are positions on the stream's OWN range — see [streamMin]. A stream
+         * whose slider starts at 1 has one fewer step than its maximum suggests, and measuring it
+         * from zero puts both the bar and this colour slightly above where Android's own slider
+         * sits.
          */
+        /**
+         * A stream's lowest selectable index, which is not always zero.
+         *
+         * On this phone the call and alarm streams start at 1 — Android will not let either be
+         * silenced from the slider, so index 1 IS the bottom of that slider, not one notch up from
+         * silence. Available only from API 28; below that, 0 is the long-standing assumption and
+         * the only one available.
+         */
+        private fun streamMin(am: AudioManager, stream: Int): Int =
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                runCatching { am.getStreamMinVolume(stream) }.getOrDefault(0)
+            } else {
+                0
+            }
+
         internal fun levelColor(cur: Int, max: Int): Int {
             val headroomPct = (max - cur) * 100 / max.coerceAtLeast(1)
             return when {

@@ -98,6 +98,65 @@ class NibrasLocalStore(context: Context) {
         saveNotesMap(next)
     }
 
+    // ---- backend un-bookmarking (StarAction.BACKEND_UNBOOKMARK) ----
+
+    /**
+     * Records the user has un-bookmarked on the server but which are still on screen.
+     *
+     * They stay listed on purpose: the server won't stop exporting them until the next sync, and
+     * a row that vanished the instant it was tapped would leave no way back from a mis-tap. The
+     * set is what draws them as retired, and what makes the tap undoable. [pruneUnbookmarked]
+     * clears an entry once the sync it was waiting for actually drops the record.
+     */
+    private val _unbookmarked = MutableStateFlow(loadSet(K_UNBOOKMARKED))
+    val unbookmarked: StateFlow<Set<String>> = _unbookmarked.asStateFlow()
+
+    fun isUnbookmarked(key: String) = key in _unbookmarked.value
+    fun setUnbookmarked(key: String, value: Boolean) = mutateSet(K_UNBOOKMARKED, _unbookmarked, key, value)
+
+    /**
+     * Drop remembered un-bookmarks for records the given fetch no longer returned — they are gone
+     * from the server's list, which is exactly what was being waited for. Scoped to the fetched
+     * type so a fetch of Tasks can't retire a pending Resource.
+     *
+     * A record key is `<type>:<id>`, and a fetch of type `code` yields keys under that prefix. If
+     * the server ever labels a record with some other type, its entry simply isn't pruned here —
+     * a stale set entry for a row that is already gone, which costs nothing.
+     */
+    fun pruneUnbookmarked(code: String, stillPresent: Set<String>) {
+        val next = BookmarkSync.prune(_unbookmarked.value, code, stillPresent)
+        if (next.size != _unbookmarked.value.size) {
+            _unbookmarked.value = next
+            prefs.edit().putStringSet(K_UNBOOKMARKED, next).apply()
+        }
+    }
+
+    /**
+     * Bookmark flags that couldn't reach the server yet, as `text = "true"/"false"`.
+     *
+     * At most one entry per record: a tap and its undo cancel out rather than queueing a pair of
+     * opposing writes whose order on the wire would decide the outcome.
+     */
+    private val _pendingBookmarks = MutableStateFlow(loadQueue(K_PENDING_BOOKMARK))
+    val pendingBookmarks: StateFlow<List<PendingPush>> = _pendingBookmarks.asStateFlow()
+
+    fun queueBookmark(ecode: String, id: String, bookmarked: Boolean) {
+        val next = BookmarkSync.queue(_pendingBookmarks.value, ecode, id, bookmarked)
+        _pendingBookmarks.value = next
+        saveQueue(K_PENDING_BOOKMARK, next)
+    }
+
+    fun unqueueBookmark(ecode: String, id: String) {
+        val next = BookmarkSync.unqueue(_pendingBookmarks.value, ecode, id)
+        if (next.size != _pendingBookmarks.value.size) {
+            _pendingBookmarks.value = next
+            saveQueue(K_PENDING_BOOKMARK, next)
+        }
+    }
+
+    fun removeBookmarks(items: List<PendingPush>) =
+        removeFromQueue(K_PENDING_BOOKMARK, _pendingBookmarks, items)
+
     // ---- outbox (offline-first) ----
 
     fun queueNote(item: PendingPush) = addToQueue(K_PENDING_NOTES, _pendingNotes, item)
@@ -192,5 +251,7 @@ class NibrasLocalStore(context: Context) {
         private const val K_PENDING_NOTES = "pending_notes"
         private const val K_PENDING_HL = "pending_highlights"
         private const val K_PENDING_COMPLETE = "pending_completes"
+        private const val K_PENDING_BOOKMARK = "pending_bookmarks"
+        private const val K_UNBOOKMARKED = "unbookmarked"
     }
 }

@@ -7,18 +7,26 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.StickyNote2
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.filled.DriveFolderUpload
 import androidx.compose.material.icons.filled.Headset
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Mosque
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
@@ -26,6 +34,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,28 +52,65 @@ const val HOME_DEST = "home"
 const val AUDIOBOOKS_DEST = "audiobooks"
 const val GALLERY_DEST = "gallery"
 const val CALENDAR_DEST = "calendar"
+const val PRAYER_DEST = "prayer"
+const val FLASHCARDS_DEST = "flashcards"
+const val HIGHLIGHTS_DEST = "highlights"
 const val COLLECT_DEST = "collect"
 const val SEARCH_DEST = "search"
 const val SETTINGS_DEST = "settings"
 
+/** Which band of the rail a destination belongs to. Settings belongs to neither — see [AppRail]. */
+private enum class RailBand { LOCAL, SERVER }
+
+/** The band a destination lives in, or null for one that sits outside both (Settings). */
+private fun bandOf(dest: String): RailBand? = when (dest) {
+    HOME_DEST, AUDIOBOOKS_DEST, GALLERY_DEST, PRAYER_DEST, COLLECT_DEST -> RailBand.LOCAL
+    SETTINGS_DEST -> null
+    else -> RailBand.SERVER          // the calendar, every record type, search, flash cards, highlights
+}
+
 /**
- * Persistent narrow navigation rail shown beside all browsing screens. A Home button at the
- * top returns to the local-notes screen; below it, one letter per Nibras type (with a count
- * badge) opens that type.
+ * Persistent narrow navigation rail shown beside all browsing screens.
+ *
+ * Every destination but Settings lives in one of two bands: what works **on this phone** and what
+ * comes **from the server**. That is the distinction that decides whether a page is worth opening
+ * when the network is not there — the media player, the image gallery, the prayer times and the
+ * file collector are all fully usable offline, while the record browsers show whatever the last
+ * sync left behind.
+ *
+ * **One band is open at a time.** The rail carries eighteen destinations and cannot show them all
+ * on a phone screen; an accordion means whichever half you are working in is fully visible without
+ * scrolling, and the other is one tap away. It replaces the old "more" group, which folded four
+ * pages behind a neutral icon for exactly the same reason and could only ever hide four of them.
+ *
+ * The band containing the current page opens itself: a collapsed band whose child is the current
+ * page would hide where you already are. Settings belongs to neither band and is always visible at
+ * the bottom, because a rail whose configuration page can be collapsed out of reach is a trap.
  */
 @Composable
 fun AppRail(
     selected: String,
     counts: Map<String, Int?>,
+    /** Switched off in Settings, these two are not in the app at all — see SettingsStore. */
+    prayerEnabled: Boolean = true,
+    collectEnabled: Boolean = true,
     onHome: () -> Unit,
     onAudiobooks: () -> Unit,
     onGallery: () -> Unit,
     onCalendar: () -> Unit,
+    onPrayer: () -> Unit,
+    onFlashcards: () -> Unit,
+    onHighlights: () -> Unit,
     onCollect: () -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
     onType: (String) -> Unit,
 ) {
+    var open by rememberSaveable { mutableStateOf(RailBand.LOCAL.name) }
+    // Follows the selection rather than being set by it: opening a page from anywhere — a widget,
+    // a notification, a link out of another page — should leave the rail showing where you are.
+    LaunchedEffect(selected) { bandOf(selected)?.let { open = it.name } }
+
     Column(
         modifier = Modifier
             .width(56.dp)
@@ -69,85 +119,136 @@ fun AppRail(
             .statusBarsPadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        RailCell(selected == HOME_DEST, onHome) {
-            Icon(
-                Icons.Filled.Home,
-                contentDescription = "Home",
-                tint = if (selected == HOME_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        RailCell(selected == AUDIOBOOKS_DEST, onAudiobooks) {
-            Icon(
-                Icons.Filled.Headset,
-                contentDescription = "Media",
-                tint = if (selected == AUDIOBOOKS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        RailCell(selected == GALLERY_DEST, onGallery) {
-            Icon(
-                Icons.Filled.PhotoLibrary,
-                contentDescription = "Gallery",
-                tint = if (selected == GALLERY_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        // Searching the SERVER, distinct from the per-type browsers below, which only ever show
-        // what sync already pulled down.
-        RailCell(selected == SEARCH_DEST, onSearch) {
-            Icon(
-                Icons.Filled.TravelExplore,
-                contentDescription = "Search server",
-                tint = if (selected == SEARCH_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        RailCell(selected == CALENDAR_DEST, onCalendar) {
-            Icon(
-                Icons.Filled.CalendarMonth,
-                contentDescription = "Calendar",
-                tint = if (selected == CALENDAR_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        HorizontalDivider(modifier = Modifier.width(36.dp))
-        NIBRAS_TYPES.forEachIndexed { index, type ->
-            val sel = type.code == selected
-            // Letter + count on one line, e.g. "T (12)", so the cell stays short.
-            RailCell(sel, { onType(type.code) }, height = 38.dp) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        type.code,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (sel) MaterialTheme.colorScheme.onPrimaryContainer
-                        else MaterialTheme.colorScheme.onSurface,
+        RailSection(
+            icon = Icons.Filled.PhoneAndroid,
+            label = "On this phone",
+            tint = MaterialTheme.colorScheme.tertiary,
+            expanded = open == RailBand.LOCAL.name,
+            onToggle = { open = RailBand.LOCAL.name },
+        ) {
+            // Order set deliberately: prayer times first, being the one opened at a fixed hour
+            // rather than browsed, then notes, then the two media browsers, with the collector —
+            // a job you run, not a place you read — last.
+            if (prayerEnabled) {
+                RailCell(selected == PRAYER_DEST, onPrayer) {
+                    Icon(
+                        Icons.Filled.Mosque,
+                        contentDescription = "Prayer times",
+                        tint = if (selected == PRAYER_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    counts[type.code]?.let { c ->
-                        Text(
-                            text = " ($c)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
                 }
             }
-            // Separator line between navigation items.
-            if (index < NIBRAS_TYPES.lastIndex) {
-                HorizontalDivider(modifier = Modifier.width(36.dp))
+            // A notes icon, not a house. This page is the local notes list, and inside a band
+            // already labelled "on this phone" a house said nothing about what the page holds.
+            RailCell(selected == HOME_DEST, onHome) {
+                Icon(
+                    Icons.AutoMirrored.Filled.StickyNote2,
+                    contentDescription = "Notes",
+                    tint = if (selected == HOME_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            RailCell(selected == GALLERY_DEST, onGallery) {
+                Icon(
+                    Icons.Filled.PhotoLibrary,
+                    contentDescription = "Gallery",
+                    tint = if (selected == GALLERY_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            RailCell(selected == AUDIOBOOKS_DEST, onAudiobooks) {
+                Icon(
+                    Icons.Filled.Headset,
+                    contentDescription = "Media",
+                    tint = if (selected == AUDIOBOOKS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // Gathering files into the notes folder is a job done entirely on the phone; what it
+            // collects is pushed later, by sync, which is a different thing from this page.
+            if (collectEnabled) {
+                RailCell(selected == COLLECT_DEST, onCollect) {
+                    Icon(
+                        Icons.Filled.DriveFolderUpload,
+                        contentDescription = "Collect files",
+                        tint = if (selected == COLLECT_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
-        // Tools at the bottom of the rail: collect files + settings (their own pages now).
-        HorizontalDivider(modifier = Modifier.width(36.dp))
-        RailCell(selected == COLLECT_DEST, onCollect) {
-            Icon(
-                Icons.Filled.DriveFolderUpload,
-                contentDescription = "Collect files",
-                tint = if (selected == COLLECT_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+
+        RailSection(
+            icon = Icons.Filled.CloudQueue,
+            label = "From the server",
+            tint = MaterialTheme.colorScheme.primary,
+            expanded = open == RailBand.SERVER.name,
+            onToggle = { open = RailBand.SERVER.name },
+        ) {
+            RailCell(selected == CALENDAR_DEST, onCalendar) {
+                Icon(
+                    Icons.Filled.CalendarMonth,
+                    contentDescription = "Calendar",
+                    tint = if (selected == CALENDAR_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            HorizontalDivider(modifier = Modifier.width(36.dp))
+            NIBRAS_TYPES.forEach { type ->
+                val sel = type.code == selected
+                // Letter + count on one line, e.g. "T (12)", so the cell stays short.
+                RailCell(sel, { onType(type.code) }, height = 38.dp) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            type.code,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (sel) MaterialTheme.colorScheme.onPrimaryContainer
+                            else MaterialTheme.colorScheme.onSurface,
+                        )
+                        counts[type.code]?.let { c ->
+                            Text(
+                                text = " ($c)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.width(36.dp))
+            }
+            RailCell(selected == FLASHCARDS_DEST, onFlashcards) {
+                Icon(
+                    Icons.Filled.Style,
+                    contentDescription = "Flash cards",
+                    tint = if (selected == FLASHCARDS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            RailCell(selected == HIGHLIGHTS_DEST, onHighlights) {
+                Icon(
+                    Icons.Filled.FormatQuote,
+                    contentDescription = "Highlights",
+                    tint = if (selected == HIGHLIGHTS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // Last in the band, and deliberately so: it searches the SERVER, over everything there,
+            // where every cell above it browses what sync already pulled down. Ending the section
+            // with the widest-reaching thing reads as "and if it is not up there, look here".
+            RailCell(selected == SEARCH_DEST, onSearch) {
+                Icon(
+                    Icons.Filled.TravelExplore,
+                    contentDescription = "Search server",
+                    tint = if (selected == SEARCH_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
+
+        // Outside both bands, and never collapsed.
+        HorizontalDivider(modifier = Modifier.width(36.dp))
         RailCell(selected == SETTINGS_DEST, onSettings) {
             Icon(
                 Icons.Filled.Settings,
@@ -158,6 +259,74 @@ fun AppRail(
         }
     }
 }
+
+/**
+ * One tinted band of the rail: a heading you can tap, and its destinations when it is open.
+ *
+ * The heading is an ICON, not a word. The rail is 56dp wide and "On this phone" at any legible size
+ * would wrap to three lines or be cut; the words are still there for a screen reader, as the icon's
+ * contentDescription, which is also what makes the band's purpose testable from the accessibility
+ * tree rather than only by eye.
+ *
+ * [tint] is applied at a very low alpha. The band has to be visible as a grouping and invisible as
+ * a control — a background competing with the selected cell's own fill makes the rail harder to
+ * read, not easier. A collapsed band keeps the tint, so the two are still distinguishable when
+ * shut, and gets a chevron so it is legible as something that opens.
+ */
+@Composable
+private fun RailSection(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    tint: Color,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 3.dp, vertical = 4.dp)
+            .background(tint.copy(alpha = SECTION_ALPHA), RoundedCornerShape(12.dp)),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // The whole heading is the hit target, not just the icon: a 15dp glyph is not something to
+        // aim at on a phone.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = !expanded, onClick = onToggle)
+                // More below than above: the gap under the heading is what separates it from the
+                // first destination, and without it the icon read as another cell in the list
+                // rather than as the label over it.
+                .padding(top = if (expanded) 5.dp else 9.dp, bottom = if (expanded) 9.dp else 7.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                icon,
+                contentDescription = label,
+                // One size in both states. An open band's heading drawn smaller than a shut one's
+                // made the two look like different kinds of thing rather than the same control.
+                modifier = Modifier.size(SECTION_ICON),
+                tint = tint.copy(alpha = if (expanded) 0.8f else 1f),
+            )
+            if (!expanded) {
+                Icon(
+                    Icons.Filled.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = tint.copy(alpha = 0.6f),
+                )
+            }
+        }
+        if (expanded) content()
+    }
+}
+
+/** Faint enough to group without becoming a surface in its own right. */
+private const val SECTION_ALPHA = 0.07f
+
+/** Heading glyph size, shared by both bands and both states so they read as one control. */
+private val SECTION_ICON = 20.dp
 
 @Composable
 private fun RailCell(

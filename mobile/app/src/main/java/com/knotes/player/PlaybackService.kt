@@ -154,7 +154,12 @@ class PlaybackService : MediaSessionService() {
         val rewindMs = getSharedPreferences(PLAYER_PREFS, MODE_PRIVATE)
             .getInt(PREF_BOOKMARK_REWIND, DEFAULT_BOOKMARK_REWIND_SECS) * 1000L
         val pos = (player.currentPosition - rewindMs).coerceAtLeast(0L)
-        val updated = (Bookmarks.load(file) + Bookmark(pos, AUTO_BOOKMARK_LABEL))
+        // With subtitles beside the file, the sentence at that point names the bookmark instead of
+        // the bare word "auto". This is the path where it helps most: nothing was typed, and a list
+        // of bookmarks all reading "auto" is a list of timestamps with no reason attached.
+        val label = runCatching { Subtitles.labelFor(file, pos) }.getOrDefault("")
+            .ifEmpty { AUTO_BOOKMARK_LABEL }
+        val updated = (Bookmarks.load(file) + Bookmark(pos, label))
             .sortedBy { it.positionMs }
         Bookmarks.save(file, updated)
         // Leave the playhead on the bookmark so pressing play resumes from it.

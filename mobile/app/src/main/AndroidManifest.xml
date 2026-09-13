@@ -28,6 +28,13 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Prayer times: silencing the ringer for a prayer needs Do Not Disturb access, which the user
+         also has to grant on the DND-access screen (see SilenceState). Location is coarse, optional
+         and only read when the "Use my location" button is pressed — the coordinates are stored on
+         the phone and nothing is looked up online. -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:name=".KnotesApp"
         android:allowBackup="true"
@@ -70,6 +77,20 @@
             </intent-filter>
         </activity>
 
+        <!-- The floating "New task" input opened by the Today's tasks widget's add bar. A widget
+             cannot contain a text field (RemoteViews has no editable view), so this stands in for
+             one: translucent, keyboard-first, and gone again the moment the task is saved.
+             excludeFromRecents because it is a gesture, not a place to come back to. -->
+        <activity
+            android:name=".ui.QuickTaskActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Knotes.QuickAdd"
+            android:windowSoftInputMode="adjustResize|stateVisible" />
+
         <!-- Foreground media session: keeps audio playing with the screen off / app backgrounded,
              and exposes transport controls to the lock screen, notification, and Bluetooth devices. -->
         <service
@@ -101,6 +122,18 @@
         <service
             android:name=".reminder.PlansWidgetService"
             android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
+        <!-- Prayer alarms: athan, the reminder before it, the ringer silence and its restore, and
+             the beeps before Shurooq. Each firing arms the next, so this one receiver keeps the
+             whole schedule going with the app closed. -->
+        <receiver
+            android:name=".prayer.PrayerReceiver"
+            android:exported="false" />
+
+        <!-- Daily automatic file collection (see CollectScheduler). -->
+        <receiver
+            android:name=".collect.CollectReceiver"
             android:exported="false" />
 
         <!-- Quarter-hour chime alarm receiver. -->
@@ -193,6 +226,45 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/phone_status_widget_info" />
+        </receiver>
+
+        <!-- Home-screen widget: today's top-priority tasks, with a bar for adding another. -->
+        <receiver
+            android:name=".reminder.TodayTasksWidget"
+            android:exported="false"
+            android:label="Today's tasks">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/today_tasks_widget_info" />
+        </receiver>
+
+        <!-- Home-screen widget: today's journal entries, every priority. -->
+        <receiver
+            android:name=".reminder.TodayJournalWidget"
+            android:exported="false"
+            android:label="Today's journal">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/today_journal_widget_info" />
+        </receiver>
+
+        <!-- Home-screen widget: prayer times, the Islamic date, and what is next. -->
+        <receiver
+            android:name=".reminder.PrayerWidget"
+            android:exported="false"
+            android:label="Prayer times">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/prayer_widget_info" />
         </receiver>
 
         <!-- Lets other apps open record files we hand off via content:// URIs. -->

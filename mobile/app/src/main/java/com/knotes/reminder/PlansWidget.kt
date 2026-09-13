@@ -16,6 +16,23 @@ class PlansWidget : SectionListWidget() {
     override val title = "Upcoming plans"
     override val emptyText = "Nothing to show"
 
+    /**
+     * How many plans are genuinely still ahead.
+     *
+     * Counts `endMillis > now`, which is exactly the set NOT struck through in the list — the rows
+     * that have just ended stay visible for a couple of hours, and counting them would have the
+     * badge disagree with what the strike-through is saying.
+     *
+     * Low is the problem here, not high: an empty week ahead is the thing worth noticing.
+     */
+    override fun badgeFor(context: Context): WidgetBadge {
+        val now = System.currentTimeMillis()
+        val upcoming = runCatching {
+            PlansStore.read(context).count { it.endMillis > now }
+        }.getOrDefault(0)
+        return WidgetCounts.judged(upcoming, good = upcoming >= WidgetCounts.TOO_FEW_PLANS)
+    }
+
     override fun titleIntent(context: Context): PendingIntent =
         WidgetTapReceiver.pendingIntent(context, "plans_refresh".hashCode(), sync = true)
 

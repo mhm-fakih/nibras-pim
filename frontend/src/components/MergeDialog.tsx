@@ -12,7 +12,9 @@ import {
 } from '@mui/material';
 import SwapHoriz from '@mui/icons-material/SwapHoriz';
 import CallMerge from '@mui/icons-material/CallMerge';
-import { mergeRecords } from '../api/client';
+import { mergeRecords,
+  errorDetail,
+} from '../api/client';
 
 export interface MergeDraft {
   module: string;
@@ -73,8 +75,7 @@ export function MergeDialog({
           </Typography>
           {merge.isError && (
             <Alert severity="error" sx={{ mt: 2 }}>
-              {(merge.error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-                'Merge failed.'}
+              {errorDetail(merge.error, 'Merge failed.')}
             </Alert>
           )}
         </DialogContentText>

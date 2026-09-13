@@ -13,7 +13,9 @@ import {
   Typography,
 } from '@mui/material';
 import PublishIcon from '@mui/icons-material/Publish';
-import { generateSite, getSites, PublishableSearch, SiteResult } from '../api/client';
+import { generateSite, getSites, PublishableSearch, SiteResult,
+  errorDetail,
+} from '../api/client';
 import { SideNav } from '../components/SideNav';
 
 export function SitesPage() {
@@ -102,8 +104,7 @@ function SiteCard({ search, out }: { search: PublishableSearch; out: string }) {
 
         {gen.isError && (
           <Alert severity="error" sx={{ mt: 1 }}>
-            {(gen.error as { response?: { data?: { message?: string } }; message?: string })?.response?.data
-              ?.message ?? (gen.error as Error)?.message ?? 'Generation failed.'}
+            {errorDetail(gen.error, 'Generation failed.')}
           </Alert>
         )}
 

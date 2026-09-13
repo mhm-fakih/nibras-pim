@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +40,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Forward10
@@ -49,9 +54,15 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.FiberNew
+import androidx.compose.material.icons.filled.FolderCopy
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -62,15 +73,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,6 +98,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import android.os.SystemClock
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import com.knotes.UiStateStore
+import com.knotes.ui.StepSlider
 import java.io.File
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -127,6 +145,7 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
     // System back returns to the app (mini player keeps playing) instead of backgrounding the app.
     BackHandler(onBack = onBack)
 
+    val panelContext = androidx.compose.ui.platform.LocalContext.current
     var position by remember { mutableStateOf(0L) }
     var dragFraction by remember { mutableStateOf<Float?>(null) }
     var label by remember(currentFile) { mutableStateOf("") }
@@ -134,15 +153,97 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
     // Double-tap-to-prioritise tracking: the last bookmark placed + when it was tapped.
     var lastBm by remember(currentFile) { mutableStateOf<Bookmark?>(null) }
     var lastTapMs by remember(currentFile) { mutableStateOf(0L) }
-    // Which panel (bookmarks / folder / recents / settings) is open under the controls; bookmarks
-    // start open (the panel used most). Toggled by the chip row (list transport button → FOLDER).
-    var activePanel by remember { mutableStateOf<PlayerPanel?>(PlayerPanel.BOOKMARKS) }
+    // Sidecar `.ai.txt` transcriptions, read-only — see [Transcripts]. Loaded the same way as the
+    // subtitles above: keyed on the file, so opening a new track re-reads and nothing is cached
+    // across files.
+    // Bumped by a delete so the chip row reflects the folder again — the list is read from disk,
+    // and nothing else would tell Compose that disk had changed.
+    var transcriptsVersion by remember(currentFile) { mutableIntStateOf(0) }
+    val transcripts = remember(currentFile, transcriptsVersion) { Transcripts.list(currentFile) }
+    var transcriptLang by remember(currentFile) { mutableStateOf(transcripts.firstOrNull()?.lang) }
+    // Whatever was selected may have just been deleted; fall back to whatever is still there.
+    if (transcripts.none { it.lang == transcriptLang }) transcriptLang = transcripts.firstOrNull()?.lang
+    val transcript = transcripts.firstOrNull { it.lang == transcriptLang }
+    val transcriptText = remember(transcript) { transcript?.let { Transcripts.read(it.file) }.orEmpty() }
+    var transcriptOpen by rememberSaveable { mutableStateOf(true) }
+
+    // Deleting the file being played — confirmed, because it is not undoable.
+    var confirmDelete by remember(currentFile) { mutableStateOf(false) }
+    // Set when the file could not be removed at all (permissions, or it is already gone).
+    var deleteFailed by remember(currentFile) { mutableStateOf(false) }
+
+    if (confirmDelete) {
+        val bookmarkCount = bookmarks.size
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete this file?") },
+            text = {
+                Column {
+                    Text(currentFile.name, style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(8.dp))
+                    // ONE message listing everything that goes, transcripts named explicitly.
+                    // They are separate files with their own names, so someone who has corrected
+                    // one by hand would not otherwise expect it to be caught by "delete this file"
+                    // — and there is no trash to retrieve it from.
+                    Text(
+                        buildString {
+                            append("It is deleted from the device — there is no trash to fetch it ")
+                            append("back from.")
+                            if (transcripts.isNotEmpty()) {
+                                append(" Its transcript ")
+                                append(if (transcripts.size == 1) "file " else "files ")
+                                append(transcripts.joinToString(", ") { it.file.name })
+                                append(if (transcripts.size == 1) " goes too." else " go too.")
+                            }
+                            if (bookmarkCount > 0) append(" Its $bookmarkCount bookmark(s) go with it.")
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    // Nothing else to do on success: the controller moves to the next file, or
+                    // clears itself and this screen's own `?: return` above sends us back.
+                    if (!controller.deleteCurrent()) deleteFailed = true
+                }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
+        )
+    }
+
+    if (deleteFailed) {
+        AlertDialog(
+            onDismissRequest = { deleteFailed = false },
+            title = { Text("Could not delete it") },
+            text = {
+                Text(
+                    "The file is still there and nothing else was changed — its bookmarks and "
+                        + "position are untouched.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = { TextButton(onClick = { deleteFailed = false }) { Text("OK") } },
+        )
+    }
+    // Which panel (bookmarks / folder / recents / settings) is open under the controls. Persisted,
+    // like the home screen's composer and filter panels: whether the options or the bookmarks sit
+    // under the transport is a standing choice about how this screen is used, and re-opening it on
+    // every launch is the same small tax as re-setting a slider. Bookmarks remain the default.
+    var activePanel by remember {
+        mutableStateOf<PlayerPanel?>(UiStateStore.playerPanel(panelContext).let(::panelFromName))
+    }
+    // One effect rather than a write at each of the six toggle sites — the state IS the setting,
+    // so persisting where it changes cannot drift from where it is read.
+    LaunchedEffect(activePanel) { UiStateStore.setPlayerPanel(panelContext, activePanel?.name) }
     // Other media in the same folder ("what's next") and the recent-files list, plus any sidecar
     // subtitle tracks for the current file.
     val siblings = remember(currentFile) { controller.siblings() }
     val subtitleTracks = remember(currentFile) { Subtitles.list(currentFile) }
     var selectedSub by remember(currentFile) { mutableStateOf<File?>(null) }
     val cues = remember(selectedSub) { selectedSub?.let { Subtitles.parse(it) } ?: emptyList() }
+
     // Center flash; bumped on each bookmark to (re)trigger the fade. flashText distinguishes a new
     // bookmark ("Bookmarked −Ns") from a priority bump ("priority added pN", no rewind).
     var flashTick by remember { mutableStateOf(0) }
@@ -153,6 +254,17 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
         showFlash = true
         delay(900)
         showFlash = false
+    }
+
+    // A message from the controller (usually "next" finding nothing) rides the same centre flash
+    // as a bookmark, so there is one place on this screen where the player answers back. Consumed
+    // straight away so the same text can be shown again on the next tap.
+    LaunchedEffect(controller.notice) {
+        controller.notice?.let { message ->
+            flashText = message
+            flashTick++
+            controller.consumeNotice()
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -179,9 +291,27 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
         val now = System.currentTimeMillis()
         val windowMs = controller.bookmarkDoubleSecs * 1000L
         val prev = lastBm
-        // A quick second tap doesn't add a new bookmark — it bumps the priority label (p2, p3, …) on
-        // the bookmark just placed, so you can dial in priority by double-/triple-tapping.
-        if (prev != null && now - lastTapMs <= windowMs && bookmarks.contains(prev)) {
+
+        // Where this tap would put a bookmark — needed BEFORE the double-tap test, because that
+        // test has to know whether the playhead is still at the previous mark.
+        val raw = controller.player?.currentPosition ?: position
+        val pos = (raw - controller.bookmarkRewind * 1000L).coerceAtLeast(0L)
+
+        /*
+         * A quick second tap bumps the priority (p2, p3, …) of the bookmark just placed rather than
+         * adding another, so priority can be dialled in by double- or triple-tapping.
+         *
+         * "Quick" was the ONLY condition, and that was the bug: two taps a few seconds apart at
+         * genuinely different points in the audio are also quick, so the second one silently
+         * re-labelled the first instead of marking the new spot — and the mark you wanted was lost.
+         *
+         * So the playhead must still be AT the previous bookmark as well. The tolerance is the same
+         * window measured on the audio rather than on the clock, scaled by playback speed since a
+         * second of listening at 1.25x advances 1.25s, plus a second of grace for the tap itself.
+         */
+        val nearPrev = prev != null &&
+            kotlin.math.abs(pos - prev.positionMs) <= (windowMs * controller.speed).toLong() + 1_000L
+        if (prev != null && now - lastTapMs <= windowMs && nearPrev && bookmarks.contains(prev)) {
             val bumped = prev.copy(text = bumpPriority(prev.text))
             val updated = (bookmarks - prev + bumped).sortedBy { it.positionMs }
             bookmarks = updated
@@ -194,17 +324,33 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
             flashTick++
             return
         }
-        // Bookmark slightly behind the playhead — you usually want the line you just read.
-        val raw = controller.player?.currentPosition ?: position
-        val pos = (raw - controller.bookmarkRewind * 1000L).coerceAtLeast(0L)
-        val bm = Bookmark(pos, label.trim())
+        // `pos` was computed above: bookmarked slightly behind the playhead, since you usually want
+        // the line you just heard.
+        /*
+         * With subtitles on, an unlabelled bookmark takes the sentence being spoken as its label.
+         *
+         * A bare timestamp tells you nothing when you come back to a list of them; the line itself
+         * is the only thing that says why you marked it. Typing it out is exactly the work the
+         * subtitle file has already done.
+         *
+         * Read at `pos`, not at the playhead: the bookmark is placed a few seconds back precisely
+         * because that is the line you just heard, and labelling it with whatever is being spoken
+         * NOW would name a different sentence from the one the mark points at.
+         *
+         * Only when the field is empty. A note you typed is a deliberate act and outranks anything
+         * automatic — and it is the case where the sentence is not what you wanted to record.
+         */
+        val typed = label.trim()
+        val spoken = if (typed.isEmpty()) Subtitles.labelAt(cues, pos) else ""
+        val bm = Bookmark(pos, typed.ifEmpty { spoken })
         val updated = (bookmarks + bm).sortedBy { it.positionMs }
         bookmarks = updated
         Bookmarks.save(currentFile, updated)
         label = ""
         lastBm = bm
         lastTapMs = now
-        flashText = "✓ Bookmarked −${controller.bookmarkRewind}s"
+        flashText = if (spoken.isNotEmpty()) "✓ Bookmarked −${controller.bookmarkRewind}s · line captured"
+        else "✓ Bookmarked −${controller.bookmarkRewind}s"
         flashTick++
         // Rewind to the bookmarked spot so the start of that moment plays again.
         seekTo(pos)
@@ -250,6 +396,8 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
+                // No delete here any more: it sits under the file's name, beside the thing it
+                // deletes. One delete control, not two.
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black),
             )
         },
@@ -263,6 +411,24 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                     factory = { ctx -> PlayerView(ctx).apply { useController = false } },
                     update = { it.player = player },
                     modifier = Modifier.fillMaxWidth().height(200.dp),
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // Transcription panel, in the same place a video would be: above the transport, where
+            // it can be read while the audio plays. Only present when a sidecar exists, so it costs
+            // nothing on files that have none.
+            if (transcripts.isNotEmpty()) {
+                TranscriptPanel(
+                    transcripts = transcripts,
+                    selectedLang = transcriptLang,
+                    text = transcriptText,
+                    expanded = transcriptOpen,
+                    onSelect = { transcriptLang = it },
+                    onDelete = { t ->
+                        if (Transcripts.delete(t.file)) transcriptsVersion++
+                    },
+                    onToggle = { transcriptOpen = !transcriptOpen },
                 )
                 Spacer(Modifier.height(8.dp))
             }
@@ -309,7 +475,8 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                 verticalAlignment = Alignment.Top,
             ) {
                 Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    // Filename region: up to 3 lines.
+                    // Filename region: up to 3 lines, with the delete control directly under it so
+                    // the button and the name it acts on are read together.
                     Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopStart) {
                         Text(
                             currentFile.name,
@@ -319,7 +486,28 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
-                    Spacer(Modifier.height(8.dp))
+                    // Under the name, deliberately small and red: it deletes the recording, its
+                    // transcripts and its bookmarks, and it is the one control on this screen that
+                    // cannot be undone.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = { confirmDelete = true },
+                            modifier = Modifier.size(30.dp),
+                        ) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = "Delete this file",
+                                tint = Color(0xFFE57373),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Text(
+                            "Delete",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFFE57373),
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
                     // Slim single-line note field with little padding.
                     Box(
                         modifier = Modifier
@@ -380,7 +568,15 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
             }
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SquareButton(Modifier.weight(1f), null, Icons.Filled.SkipNext) { controller.playNext() }
+                // The mode's own icon rides on the ⏭ button, the same way the bookmark rides on
+                // pause: what "next" will do is a setting two panels away, and this is where you
+                // find out before pressing it.
+                SquareButton(
+                    Modifier.weight(1f),
+                    null,
+                    Icons.Filled.SkipNext,
+                    badge = playNextIcon(controller.playNextMode),
+                ) { controller.playNext() }
                 SquareButton(Modifier.weight(1f), null, Icons.AutoMirrored.Filled.List) {
                     activePanel = if (activePanel == PlayerPanel.FOLDER) null else PlayerPanel.FOLDER
                 }
@@ -491,11 +687,17 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                 // Player settings: skip/speed/bookmark sliders, sleep timer, bookmark-on-pause.
                 PlayerPanel.SETTINGS -> Column {
                     Spacer(Modifier.height(14.dp))
-                    LabeledSlider("Skip ${skipPrimary}s", skipPrimary.toFloat(), 5f, 60f) { controller.skipPrimary = it.toInt() }
-                    LabeledSlider("Speed ${"%.2f".format(controller.speed)}x", controller.speed, 0.75f, 1.25f) { controller.changeSpeed(it) }
-                    LabeledSlider("Bookmark −${controller.bookmarkRewind}s", controller.bookmarkRewind.toFloat(), 0f, 20f) { controller.changeBookmarkRewind(it.toInt()) }
-                    LabeledSlider("2-tap prio ${controller.bookmarkDoubleSecs}s", controller.bookmarkDoubleSecs.toFloat(), 1f, 10f) { controller.changeBookmarkDouble(it.toInt()) }
-                    LabeledSlider("Volume ${"%+.0f".format(controller.gainDb)} dB", controller.gainDb, -20f, 50f) { controller.setGain(it) }
+                    StepSlider(
+                        "Skip ${skipPrimary}s",
+                        skipPrimary.toFloat(),
+                        PlayerController.MIN_SKIP_SECS.toFloat(),
+                        PlayerController.MAX_SKIP_SECS.toFloat(),
+                        1f,
+                    ) { controller.changeSkip(it.toInt()) }
+                    StepSlider("Speed ${"%.2f".format(controller.speed)}x", controller.speed, 0.75f, 1.25f, 0.05f) { controller.changeSpeed(it) }
+                    StepSlider("Bookmark −${controller.bookmarkRewind}s", controller.bookmarkRewind.toFloat(), 0f, 20f, 1f) { controller.changeBookmarkRewind(it.toInt()) }
+                    StepSlider("2-tap prio ${controller.bookmarkDoubleSecs}s", controller.bookmarkDoubleSecs.toFloat(), 1f, 10f, 1f) { controller.changeBookmarkDouble(it.toInt()) }
+                    StepSlider("Volume ${"%+.0f".format(controller.gainDb)} dB", controller.gainDb, -20f, 50f, 1f) { controller.setGain(it) }
 
                     Spacer(Modifier.height(16.dp))
                     PlayNextRow(controller)
@@ -547,6 +749,117 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
             }
         }
       }
+    }
+}
+
+/**
+ * The read-only transcription panel: one chip per sidecar language, then the text.
+ *
+ * Deliberately NOT editable. The desktop player edits these in place, which is right at a desk with
+ * a keyboard; on a phone the realistic outcome is a stray keystroke silently rewriting a file that
+ * syncs to every machine. Selectable instead, so a passage can still be copied out.
+ *
+ * The text scrolls inside a bounded box rather than extending the page: the player's own scroll
+ * already owns the vertical axis, and a half-hour lecture's transcript would push the transport
+ * controls off the bottom of the screen — the one thing that must always be reachable.
+ */
+@Composable
+private fun TranscriptPanel(
+    transcripts: List<Transcript>,
+    selectedLang: String?,
+    text: String,
+    expanded: Boolean,
+    onSelect: (String) -> Unit,
+    onDelete: (Transcript) -> Unit,
+    onToggle: () -> Unit,
+) {
+    val rtl = transcripts.firstOrNull { it.lang == selectedLang }
+        ?.let { Transcripts.isRtl(it.lang, text) } ?: false
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Color(0xFF444444), RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Icon(
+                Icons.AutoMirrored.Filled.Article,
+                contentDescription = null,
+                tint = Color(0xFF8AB4F8),
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "Transcript",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color(0xFF8AB4F8),
+            )
+            Spacer(Modifier.weight(1f))
+            /*
+             * One chip per language, each with an × that deletes that sidecar outright.
+             *
+             * On EVERY chip, not only the selected one: the common case is an English recording
+             * that also carries a machine-made Arabic transcript, and being rid of it should not
+             * require displaying it first. Making the delete conditional on selection would mean
+             * opening the very file you have already decided is worthless.
+             *
+             * The protection is spatial instead. The label is padded well wider than a bare "ar"
+             * so the language tap target and the × are not two millimetres apart — at default chip
+             * size they would be, and that is how the wrong file gets deleted. There is no
+             * confirmation by request; these are regenerable machine transcripts, and a dialog on
+             * every one would cost more than it saves.
+             */
+            transcripts.forEach { t ->
+                Spacer(Modifier.width(6.dp))
+                FilterChip(
+                    selected = t.lang == selectedLang,
+                    onClick = { onSelect(t.lang) },
+                    label = {
+                        Text(t.lang, modifier = Modifier.padding(start = 6.dp, end = 10.dp))
+                    },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { onDelete(t) },
+                            modifier = Modifier.size(28.dp),
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = "Delete the ${t.lang} transcript",
+                                modifier = Modifier.size(15.dp),
+                            )
+                        }
+                    },
+                )
+            }
+            IconButton(onClick = onToggle, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (expanded) "Hide transcript" else "Show transcript",
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+
+        if (expanded) {
+            Spacer(Modifier.height(6.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 220.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                SelectionContainer {
+                    Text(
+                        text = text.ifBlank { "This transcript is empty." },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (text.isBlank()) Color(0xFF888888) else Color(0xFFDDDDDD),
+                        textAlign = if (rtl) TextAlign.Right else TextAlign.Left,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -883,20 +1196,22 @@ private fun SquareButton(
  * What plays when the current file ends. The caption spells out each mode's rule, because "random
  * old" is the kind of option whose behaviour can't be guessed from its name.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun PlayNextRow(controller: PlayerController) {
-    val modes = listOf(
-        PlayNextMode.NONE to "Off",
-        PlayNextMode.SAME_FOLDER to "Same folder",
-        PlayNextMode.RANDOM_OLD to "Random old",
-    )
     val caption = when (controller.playNextMode) {
         PlayNextMode.NONE -> "The next file in the folder is cued, paused — nothing starts on its own."
         PlayNextMode.SAME_FOLDER -> "The next file in this folder plays automatically."
         PlayNextMode.RANDOM_OLD ->
             "A file from anywhere in your library folders that you've never bookmarked and haven't " +
                 "touched in ${NextTrack.OLD_DAYS} days. If nothing is that old yet, the oldest ones are used."
+        PlayNextMode.RANDOM_OLD_PARENT ->
+            "The same pick, but only from the folder around what's playing — searched recursively. " +
+                "From inside a note's files folder it searches the folder that HOLDS them, so it " +
+                "works through every note's attachments rather than replaying this one's."
+        PlayNextMode.RANDOM_NEW_PARENT ->
+            "The same folder as \"Random here\", but the newest unbookmarked files rather than the " +
+                "oldest — for hearing what has just arrived instead of digging through the backlog."
     }
 
     Column {
@@ -910,12 +1225,22 @@ private fun PlayNextRow(controller: PlayerController) {
                 )
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
-            modes.forEach { (mode, label) ->
+        // A FlowRow, not a Row: with a fourth mode the chips no longer fit on one line of a phone,
+        // and a Row squeezed them all to a sliver each — a tall thin box with one clipped letter in
+        // it. Wrapping keeps every chip its natural width and readable.
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        ) {
+            PlayNextMode.entries.forEach { mode ->
                 FilterChip(
                     selected = mode == controller.playNextMode,
                     onClick = { controller.changePlayNextMode(mode) },
-                    label = { Text(label) },
+                    label = { Text(playNextLabel(mode), maxLines = 1) },
+                    leadingIcon = {
+                        Icon(playNextIcon(mode), null, modifier = Modifier.size(16.dp))
+                    },
                 )
             }
         }
@@ -927,6 +1252,30 @@ private fun PlayNextRow(controller: PlayerController) {
         )
     }
 }
+
+/** Short name for a play-next mode — the chip label and the settings row. */
+private fun playNextLabel(mode: PlayNextMode): String = when (mode) {
+    PlayNextMode.NONE -> "Off"
+    PlayNextMode.SAME_FOLDER -> "Same folder"
+    PlayNextMode.RANDOM_OLD -> "Random old"
+    PlayNextMode.RANDOM_OLD_PARENT -> "Random here"
+    PlayNextMode.RANDOM_NEW_PARENT -> "Newest here"
+}
+
+/**
+ * One icon per play-next mode, shown on the chip AND as the ⏭ button's badge.
+ *
+ * The same glyph in both places is the point: the badge is only readable as "what next will do"
+ * because the chip that set it wore the same mark.
+ */
+private fun playNextIcon(mode: PlayNextMode): androidx.compose.ui.graphics.vector.ImageVector =
+    when (mode) {
+        PlayNextMode.NONE -> Icons.Filled.Block
+        PlayNextMode.SAME_FOLDER -> Icons.AutoMirrored.Filled.PlaylistPlay
+        PlayNextMode.RANDOM_OLD -> Icons.Filled.Shuffle
+        PlayNextMode.RANDOM_OLD_PARENT -> Icons.Filled.FolderCopy
+        PlayNextMode.RANDOM_NEW_PARENT -> Icons.Filled.FiberNew
+    }
 
 /** Sleep-timer picker. The service holds the actual countdown, so it fires with the screen off. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -970,14 +1319,6 @@ private fun SleepTimerRow(controller: PlayerController) {
     }
 }
 
-@Composable
-private fun LabeledSlider(label: String, value: Float, min: Float, max: Float, onChange: (Float) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(120.dp))
-        Slider(value = value.coerceIn(min, max), onValueChange = onChange, valueRange = min..max, modifier = Modifier.weight(1f))
-    }
-}
-
 private val PRIORITY_RE = Regex("^p(\\d+)\\b\\s*")
 
 /** Add or increment a leading "pN" priority label on a bookmark's text (no label → p2, then p3…). */
@@ -987,4 +1328,17 @@ private fun bumpPriority(text: String): String {
     val next = (current + 1).coerceAtMost(9)
     val rest = if (m != null) text.removeRange(m.range).trim() else text.trim()
     return if (rest.isEmpty()) "p$next" else "p$next $rest"
+}
+
+/**
+ * Reads back a stored [PlayerPanel] name.
+ *
+ * Three cases, and they are genuinely three: never chosen opens Bookmarks (the default), a stored
+ * null means the panels were deliberately closed and must stay closed, and a name that no longer
+ * matches any panel falls back to the default rather than to a blank screen.
+ */
+private fun panelFromName(name: String?): PlayerPanel? = when (name) {
+    UiStateStore.ABSENT -> PlayerPanel.BOOKMARKS
+    null -> null
+    else -> PlayerPanel.entries.firstOrNull { it.name == name } ?: PlayerPanel.BOOKMARKS
 }

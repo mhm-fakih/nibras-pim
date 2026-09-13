@@ -46,14 +46,16 @@ class KpiWidget : AppWidgetProvider() {
             ids.forEach { manager.updateAppWidget(it, build(context)) }
         }
 
-        /** Green when the number is where it should be, red when it isn't. */
-        private const val GOOD = 0xFF81C995.toInt()
-        private const val BAD = 0xFFF28B82.toInt()
+        // Green when the number is where it should be, red when it isn't — defined once, in
+        // WidgetCounts, so this widget and the per-list badges cannot drift apart about what
+        // counts as too many or too few.
+        private const val GOOD = WidgetCounts.GOOD
+        private const val BAD = WidgetCounts.BAD
 
         /** Above this many notes — today's, or at the top priority — the number turns red. */
-        const val TOO_MANY_NOTES = 20
+        const val TOO_MANY_NOTES = WidgetCounts.TOO_MANY_NOTES
         /** Below this many upcoming plans the number turns red: an empty week is the warning. */
-        const val TOO_FEW_PLANS = 10
+        const val TOO_FEW_PLANS = WidgetCounts.TOO_FEW_PLANS
 
         /**
          * Colour a value by whether it passes its threshold. Colour rather than styling because the

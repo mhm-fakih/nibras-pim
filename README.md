@@ -321,6 +321,22 @@ nginx, and a Caddy-based HTTPS setup.
   **configurable review window** (default last week), both dropdowns remembered per-browser —
   `total` is scoped to records *created* in the period, not the module's all-time count, so the
   page motivates reviewing recent work instead of years of backlog.
+- **Highlights gallery** (`/highlights` · `GET /api/highlights[?module=&limit=]`): your records'
+  key points, read one card at a time. **Live, not a snapshot** — a record whose highlights are
+  filled in today is in the gallery today, which is why it reads the records themselves rather than
+  a table of its own. Every module that carries the field feeds it: tasks, planners, journals,
+  goals, notes and writings keep theirs in `mainHighlights`, and **resources in `highlights`** — the
+  `book` table has both columns and only the latter is ever written, so the two names are not
+  interchangeable. The server splits the field into bullets (stripping `-`, `*`, `•`, `1.`, `2)`)
+  and decides direction from the first strong letter, once, so the web page and the phone cannot
+  drift apart about either. Read-only; the card names its record and links to `/read/<module>/<id>`.
+- **Flash cards** (`/flashcards` · `GET /api/flashcards`, `GET …/summary`, `PUT …/{id}/state`): the
+  counterpart — a **frozen one-time extract** of passages (≤100 words) from notes with a description
+  of 200 words or more, favouring religious and psychological material, `aya` notes excluded. Three
+  actions per card — **reviewed**, **repeat**, **keep** — synced to the backend so the phone and the
+  browser share one deck. Unreviewed cards are capped at 40 in the queue and the rest hidden;
+  repeat/kept are uncapped. A gallery, not a list: one passage at a time, shrunk to fit rather than
+  scrolled, justified, direction from the passage itself.
 - **Status bar** (`GET /api/info`): a thin bar under the list/detail panes showing server IP
   (prefers the LAN `192.*` address), port and DB name. **Collapsible left rail**: a chevron
   collapses it to a thick bar (state remembered).
@@ -343,10 +359,66 @@ nginx, and a Caddy-based HTTPS setup.
   redeploy. Reads are open to any authenticated user; writes and admin tools are gated per capability.
 - **RTL/Arabic** content is handled with `dir="auto"` throughout the UI.
 
+## Mobile app (knotes)
+
+`mobile/` is a Kotlin/Compose Android client (`com.knotes`) over the same API. Two things about it
+are worth knowing before reading the code:
+
+- **The left rail is split into two bands, and only one is open at a time**: what works **on this
+  phone** (prayer times, notes, image gallery, media player, file collector) and what comes **from
+  the server** (calendar, the record browsers, flash cards, highlights, server search). The
+  distinction is the one that matters when the network is not there. Prayer times and file
+  collection each have a switch in Settings that removes the page *and cancels what it had
+  scheduled* — checked inside `PrayerScheduler.sync` / `CollectScheduler.sync`, at the single point
+  either arms an alarm, so no caller can arm one around the switch.
+- **The galleries work offline.** `FlashCache` keeps the server's raw response on disk and is read
+  *before* the network is tried; `FlashOutbox` holds flash-card decisions taken offline and
+  `PushCenter` drains it when connectivity returns. Highlights is read-only and just needs the
+  cache.
+
+Prayer times are computed on the device (`prayer/PrayerTimes.kt` — declination, equation of time,
+hour-angle solving) with a tabular Hijri calendar and a per-user offset, so nothing about that page
+needs a network.
+
+## Media sidecars
+
+A recording carries its extras as files beside it, sharing its base name. The phone
+(`mobile/.../player/`) and the desktop player (`audio-player/`) read the same conventions, so a
+folder works identically in both:
+
+```
+talk.mp3
+talk.srt          subtitles        (talk.en.srt for a tagged language)
+talk.ar.ai.txt    transcription    note the order: language BEFORE .ai.txt
+talk.tmk          bookmarks        [m:ss] optional note, one per line
+```
+
+Two things worth knowing before changing any of this:
+
+- **With an `.srt` loaded, an unlabelled bookmark takes the sentence being spoken as its label** —
+  read at the *bookmarked* position, not the playhead, since the mark is deliberately placed a few
+  seconds back. A typed note always wins. Both clients do it; on mobile it happens in two places,
+  the player screen and `PlaybackService` (which bookmarks automatically on pause).
+- **Ordering media by "newest" uses the date in the FILE NAME, not mtime.** These folders are
+  Syncthing shares and Syncthing rewrites mtimes on transfer, so mtime says when the phone received
+  a file rather than when it was recorded — see `MediaDates`.
+
 ## Layout
 ```
-backend/    Spring Boot 4.1 / Java 21 / Gradle 9  (REST API, RSS, calendar; bootWar embeds the UI)
-frontend/   React 18 + Vite + TypeScript + MUI    (3-pane UI, mini calendar, Markdown editor/viewer)
-db/         clone-dev-db.sh                        (working-copy setup)
-DEPLOY.md   fresh-machine deployment guide         (WAR, systemd, nginx, DB + network config)
+backend/        Spring Boot 4.1 / Java 21 / Gradle 9  (REST API, RSS, calendar; bootWar embeds the UI)
+frontend/       React 18 + Vite + TypeScript + MUI    (3-pane UI, mini calendar, Markdown editor/viewer)
+mobile/         Kotlin + Jetpack Compose (com.knotes) (offline-first Android client, widgets, player)
+desktop/        GTK3 / Python                          (note editor + tag bank)
+terminal/       Python TUI                             (knotes_tui.py)
+audio-player/   Python                                 (desktop player; writes the .ai.txt transcripts)
+tools/          gather/load/canonical flashcards, API docs dump
+db/             clone-dev-db.sh                        (working-copy setup)
+dist/           built artefacts, in a subfolder per type: war/ apk/ zip/ sql/ appimage/
+                newest TWO of each kept; the only directory that leaves this machine
+DEPLOY.md       fresh-machine deployment guide         (WAR, systemd, nginx, DB + network config)
 ```
+
+The six components share one version and codename — see the top of `backend/build.gradle`,
+`frontend/package.json`, `mobile/app/build.gradle.kts` and the `VERSION` constants in the three
+Python apps. `file-watch/`, `scr-annotator/` and `window-tracker/` are separate small tools, each
+its own git repo, carrying the same tag in a plain `VERSION` file.

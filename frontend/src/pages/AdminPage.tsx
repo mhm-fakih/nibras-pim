@@ -14,19 +14,42 @@ import {
   Typography,
 } from '@mui/material';
 import Sync from '@mui/icons-material/Sync';
-import { AdminModuleStats, getAdminStats, getClientSyncView, reindexSearch } from '../api/client';
+import {
+  AdminModuleStats,
+  errorDetail,
+  getAdminStats,
+  getClientSyncView,
+  reindexSearch,
+} from '../api/client';
 import { SideNav } from '../components/SideNav';
+import { SectionHeading } from '../components/SectionHeading';
 import { ENTITY_BY_KEY } from '../config/entities';
 
 export function AdminPage() {
   const { data } = useQuery({ queryKey: ['admin-stats'], queryFn: getAdminStats });
-  const [reindexMsg, setReindexMsg] = useState<string | null>(null);
+  // A rebuild can now half-succeed, so the message carries its own severity rather than always
+  // being green: "51,430 indexed, 3 skipped" is neither a success nor a failure on its own.
+  const [reindexMsg, setReindexMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [reindexDetail, setReindexDetail] = useState<string[]>([]);
   const modules = data ?? [];
 
   const reindex = useMutation({
     mutationFn: reindexSearch,
-    onSuccess: (n) => setReindexMsg(`Search index rebuilt: ${n.toLocaleString()} records.`),
-    onError: () => setReindexMsg('Reindex failed.'),
+    onSuccess: (r) => {
+      setReindexDetail(r.failures);
+      setReindexMsg({
+        ok: r.skipped === 0,
+        text:
+          r.skipped === 0
+            ? `Search index rebuilt: ${r.indexed.toLocaleString()} records.`
+            : `Search index rebuilt: ${r.indexed.toLocaleString()} records, ` +
+              `${r.skipped.toLocaleString()} skipped.`,
+      });
+    },
+    onError: (e) => {
+      setReindexDetail([]);
+      setReindexMsg({ ok: false, text: errorDetail(e, 'Reindex failed.') });
+    },
   });
 
   return (
@@ -48,9 +71,16 @@ export function AdminPage() {
         </Stack>
         {reindex.isPending && <LinearProgress sx={{ mb: 2 }} />}
         {reindexMsg && (
-          <Typography variant="body2" color="success.main" sx={{ mb: 2 }}>
-            {reindexMsg}
-          </Typography>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" color={reindexMsg.ok ? 'success.main' : 'error.main'}>
+              {reindexMsg.text}
+            </Typography>
+            {reindexDetail.map((f) => (
+              <Typography key={f} variant="caption" color="text.secondary" display="block">
+                {f}
+              </Typography>
+            ))}
+          </Box>
         )}
 
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 2 }}>
@@ -134,9 +164,7 @@ function ClientSyncPanel() {
       </Typography>
 
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-        <Typography variant="overline" color="text.secondary">
-          Departments ({data.departments.length})
-        </Typography>
+        <SectionHeading label="Departments" count={data.departments.length} sticky={false} />
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
           {data.departments.map((d) => (
             <Chip

@@ -11,7 +11,9 @@ import {
   Typography,
 } from '@mui/material';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
-import { batchEntry, getEntity, BatchEntryResult } from '../api/client';
+import { batchEntry, getEntity, BatchEntryResult,
+  errorDetail,
+} from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { RecordCard } from '../components/RecordCard';
 import { useModules } from '../hooks/useModules';
@@ -121,8 +123,7 @@ export function BatchEntryPage() {
           </Button>
           {add.isError && (
             <Alert severity="error" sx={{ py: 0 }}>
-              {(add.error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-                'Failed.'}
+              {errorDetail(add.error, 'Could not add the records.')}
             </Alert>
           )}
         </Stack>

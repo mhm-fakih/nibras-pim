@@ -73,5 +73,8 @@ object Widgets {
         PlansWidget.refresh(context)        // covers Top priority too — see PlansWidget.refresh
         BookmarksWidget.refresh(context)
         KpiWidget.refresh(context)
+        PrayerWidget.refresh(context)
+        TodayTasksWidget.refresh(context)
+        TodayJournalWidget.refresh(context)
     }
 }

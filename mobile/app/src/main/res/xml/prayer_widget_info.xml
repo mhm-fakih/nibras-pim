@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lands at the standard 4x1 strip: four cells wide (70*4-30 = 250dp), one tall.
+
+     One cell, not two. The countdown's own row was briefly worth a second cell; it is not worth
+     it at the price of a whole extra row of home screen, so the three rows are made to fit the
+     ~98dp a single cell actually gives — see widget_prayer, where the paddings are cut to the bone
+     and the Hijri year is dropped to pay for it.
+
+     minResizeWidth/minResizeHeight are set DELIBERATELY and are not decoration. Android takes the
+     resize floor from minWidth/minHeight when they are absent, so a widget declaring a comfortable
+     minimum silently becomes one that cannot be made any smaller at all — which is what happened
+     here: dumpsys read back `min=(...) minResize=(...)` with both the same, and the widget sat
+     locked at its initial size.
+
+     updatePeriodMillis is only a backstop. The strip is redrawn as each prayer event fires, and
+     the countdown between those redraws runs itself (see the Chronometer in widget_prayer). -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_prayer"
+    android:minHeight="40dp"
+    android:minResizeHeight="40dp"
+    android:minResizeWidth="110dp"
+    android:minWidth="250dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="1"
+    android:targetCellWidth="4"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

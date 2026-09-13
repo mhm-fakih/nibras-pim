@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Autocomplete, Box, Dialog, TextField, Typography } from '@mui/material';
-import { batchEdit, getLookups, listContexts, listCourses, Lookup } from '../api/client';
+import { batchEdit, getLookups, listContexts, listCourses, Lookup,
+  errorDetail,
+} from '../api/client';
 
 export type QuickKind = 'priority' | 'type' | 'status' | 'context' | 'department' | 'course';
 
@@ -82,10 +84,7 @@ export function QuickEditDialog({ kind, module, id, onClose, onApplied }: Props)
       await mut.mutateAsync(command);
       onApplied(message);
     } catch (e) {
-      const reason =
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'Update failed';
-      onApplied(reason);
+      onApplied(errorDetail(e, 'Update failed.'));
     }
     onClose();
   };

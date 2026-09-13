@@ -209,6 +209,8 @@ export interface ListParams {
   dashboard?: boolean;
   statusId?: number;
   typeId?: number;
+  /** Exact priority, e.g. 3 — distinct from the highPriority preset's ">= 3". */
+  priority?: number;
   tagId?: number;
   goalId?: number;
   page?: number;
@@ -246,6 +248,31 @@ export async function listEntities(
   params: ListParams,
 ): Promise<PageResponse<EntityRecord>> {
   const { data } = await http.get(`/${path}`, { params: clean({ ...params }) });
+  return data;
+}
+
+/** Where a search term was found inside a record: which field, and the text around it. */
+export interface FieldMatch {
+  field: string;
+  snippet: string;
+}
+
+/**
+ * For the records currently listed, where the query appears in each.
+ *
+ * A second request rather than extra fields on the list rows: the context is only wanted while
+ * searching and is far bigger than the row that shows it, so the list renders at once and this
+ * fills in underneath.
+ */
+export async function matchContext(
+  path: string,
+  q: string,
+  ids: number[],
+): Promise<Record<number, FieldMatch[]>> {
+  if (!q.trim() || ids.length === 0) return {};
+  const { data } = await http.get(`/${path}/match-context`, {
+    params: { q, ids: ids.join(',') },
+  });
   return data;
 }
 
@@ -1005,10 +1032,23 @@ export async function findSemanticDuplicates(
   return data;
 }
 
-export async function reindexSearch(): Promise<number> {
-  const { data } = await http.post('/search/reindex');
-  return data.indexed as number;
+/** What a rebuild did. `skipped` records that couldn't be indexed; `failures` says why. */
+export interface ReindexResult {
+  indexed: number;
+  skipped: number;
+  failures: string[];
 }
+
+export async function reindexSearch(): Promise<ReindexResult> {
+  const { data } = await http.post('/search/reindex');
+  return data as ReindexResult;
+}
+
+// The one message every failed request in the app ends up wearing. Defined in `util/errors` rather
+// than here so it can be exercised outside a browser — this module reads `document.baseURI` at
+// import time, which is exactly what a test of "what do we say when nothing works" cannot rely on.
+// Re-exported so the fourteen call sites keep importing it from the API client they already use.
+export { errorDetail } from '../util/errors';
 
 // ---- task timer (server-side state for external probes) ---------------------
 
@@ -1690,5 +1730,67 @@ export async function moveToRepo2(
 
 export async function offloadFullText(ids: number[]): Promise<OffloadResult> {
   const { data } = await http.post('/maintenance/offload-fulltext', { ids });
+  return data;
+}
+
+// ---- Flash cards & highlights ---------------------------------------------
+
+/** One passage from the flash-card bank. `recordRef` is built server-side ("N13459"). */
+export interface FlashCard {
+  id: number;
+  noteId: number;
+  recordRef: string;
+  writtenOn: string | null;
+  passage: string;
+  rtl: boolean;
+  topic: string;
+  state: FlashCardState;
+}
+
+export type FlashCardState = 'NEW' | 'REVIEWED' | 'REPEAT' | 'KEPT';
+
+export interface FlashCardSummary {
+  total: number;
+  remaining: number;
+  reviewed: number;
+  repeat: number;
+  kept: number;
+}
+
+/** NEW comes back capped to the server's working set; REPEAT and KEPT come back whole. */
+export async function getFlashCards(state: FlashCardState): Promise<FlashCard[]> {
+  const { data } = await http.get('/flashcards', { params: { state } });
+  return data;
+}
+
+export async function getFlashCardSummary(): Promise<FlashCardSummary> {
+  const { data } = await http.get('/flashcards/summary');
+  return data;
+}
+
+/** Record a decision. Sending NEW puts the card back in the queue. */
+export async function setFlashCardState(id: number, state: FlashCardState): Promise<FlashCard> {
+  const { data } = await http.put(`/flashcards/${id}/state`, { state });
+  return data;
+}
+
+/** A resource's key points, already split into bullets by the server. */
+export interface Highlight {
+  id: number;
+  /** The CRUD/route name ("notes", "resources", …) — what /read/:entity/:id wants. */
+  module: string;
+  recordRef: string;
+  title: string | null;
+  subtitle: string | null;
+  date: string | null;
+  bullets: string[];
+  rtl: boolean;
+}
+
+export async function getHighlights(limit?: number, module?: string): Promise<Highlight[]> {
+  const params: Record<string, string | number> = {};
+  if (limit) params.limit = limit;
+  if (module) params.module = module;
+  const { data } = await http.get('/highlights', { params });
   return data;
 }

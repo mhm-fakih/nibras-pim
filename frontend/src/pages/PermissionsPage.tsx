@@ -20,6 +20,7 @@ import {
   Role,
   getPermissionMatrix,
   setRolePermissions,
+  errorDetail,
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { useAuth } from '../hooks/useAuth';
@@ -63,10 +64,7 @@ export function PermissionsPage() {
     // A checkbox here is drawn from the SERVER's matrix, so a failed save leaves it exactly where
     // it was — which reads as the box refusing the click rather than as an error. Say so out loud:
     // this screen has no other way to tell the difference between "didn't save" and "didn't move".
-    onError: (e: unknown) => {
-      const detail = (e as { response?: { data?: { detail?: string; message?: string } } })?.response?.data;
-      setError(detail?.detail ?? detail?.message ?? 'The change could not be saved.');
-    },
+    onError: (e: unknown) => setError(errorDetail(e, 'The change could not be saved.')),
   });
 
   const toggle = (role: Role, permission: Permission, held: string[]) => {

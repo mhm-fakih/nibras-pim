@@ -16,6 +16,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
@@ -41,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -60,8 +63,14 @@ import com.knotes.player.isMediaFile
 import com.knotes.reminder.PlansRepository
 import com.knotes.reminder.PlansStore
 import com.knotes.player.PlayerScreen
+import com.knotes.collect.CollectScheduler
+import com.knotes.prayer.PrayerScheduler
+import com.knotes.prayer.PrayerScreen
+import com.knotes.flash.FlashcardStore
+import com.knotes.prayer.PrayerSettingsStore
 import com.knotes.player.PlayerTheme
 import com.knotes.ui.AUDIOBOOKS_DEST
+import com.knotes.ui.WelcomeWizard
 import com.knotes.ui.BackendSearchScreen
 import com.knotes.ui.SEARCH_DEST
 import com.knotes.ui.AppRail
@@ -73,6 +82,11 @@ import com.knotes.ui.CollectScreen
 import com.knotes.ui.GALLERY_DEST
 import com.knotes.ui.GalleryScreen
 import com.knotes.ui.HOME_DEST
+import com.knotes.ui.FLASHCARDS_DEST
+import com.knotes.ui.HIGHLIGHTS_DEST
+import com.knotes.ui.HighlightsScreen
+import com.knotes.ui.FlashcardsScreen
+import com.knotes.ui.PRAYER_DEST
 import com.knotes.ui.KnotesTheme
 import com.knotes.ui.MainScreen
 import com.knotes.ui.NibrasContent
@@ -176,6 +190,8 @@ private fun AppRoot(
     val nibrasVm: NibrasViewModel = viewModel()
     val playerVm: PlayerController = viewModel()
     val settings by vm.settingsStore.state.collectAsState()
+    val prayerStore = remember { PrayerSettingsStore(context) }
+    val flashStore = remember { FlashcardStore(context) }
     // Rail destination: "home" (local notes), a Nibras type code, or a tool page (collect/settings).
     var dest by rememberSaveable { mutableStateOf(HOME_DEST) }
     // Whether the full-screen player is open (playback continues regardless via [playerVm]).
@@ -194,6 +210,23 @@ private fun AppRoot(
             hasPermission = true
             vm.refresh()
         })
+        return
+    }
+
+    // The first-run tour, AFTER the permission gate: every step of it reads or creates a folder,
+    // so without file access it would report that all of them are missing. Shown only on a genuine
+    // fresh install — see [Onboarding.shouldShowWelcome] for why the flag alone can't decide that.
+    // Settings reopens it through onReplayTour rather than by flipping the flag and waiting for a
+    // resume: nothing leaves the activity when that button is tapped, so a resume never comes.
+    var showWelcome by remember { mutableStateOf(Onboarding.shouldShowWelcome(context)) }
+    if (showWelcome) {
+        WelcomeWizard(
+            store = vm.settingsStore,
+            onDone = {
+                showWelcome = false
+                vm.refresh()   // the notes folder may have just been pointed somewhere real
+            },
+        )
         return
     }
 
@@ -248,6 +281,24 @@ private fun AppRoot(
         }
     }
 
+    // Arm the prayer alarm chain on every app start. Each link re-arms the next, so this only has
+    // to restart a chain that a reboot or a force-stop broke — the page itself re-syncs on every
+    // change it makes.
+    // Keyed on the feature switch, not Unit: turning prayer times off has to CANCEL the standing
+    // alarm, and an effect that only ran once per composition would have left the athan to fire
+    // from a feature the user had just switched off, until the next app restart.
+    LaunchedEffect(settings.prayerEnabled) { PrayerScheduler.sync(context) }
+
+    // The daily automatic collection, re-armed whenever its switches or its time change.
+    LaunchedEffect(
+        settings.collectEnabled,
+        settings.collectAutoEnabled,
+        settings.collectAutoHour,
+        settings.collectAutoMinute,
+    ) {
+        CollectScheduler.sync(context)
+    }
+
     // Persistent status notification + quarter-hour chime; re-applied when their settings change.
     LaunchedEffect(
         settings.statusNotificationEnabled, settings.syncEnabled, settings.chimeEnabled,
@@ -257,27 +308,52 @@ private fun AppRoot(
         com.knotes.status.ChimeScheduler.sync(context)
     }
 
-    // The full player sits above everything; closing it returns to wherever the user was, with
-    // playback still running and reachable from the mini bar.
-    if (showPlayer && playerVm.currentFile != null) {
-        PlayerTheme { PlayerScreen(playerVm, onBack = { showPlayer = false }) }
-        return
-    }
-
     val onPlayMedia: (File) -> Unit = { file -> playerVm.open(file); showPlayer = true }
 
-    AppShell(
-        vm = vm,
-        nibrasVm = nibrasVm,
-        settings = settings,
-        sharedText = sharedText,
-        onSharedTextConsumed = onSharedTextConsumed,
-        dest = dest,
-        onDest = { dest = it },
-        player = playerVm,
-        onPlayMedia = onPlayMedia,
-        onExpandPlayer = { showPlayer = true },
-    )
+    /*
+     * The player is drawn OVER the app, not instead of it.
+     *
+     * It used to `return` before AppShell, which reads the same on screen and is not: returning
+     * removes the whole shell from the composition, and a composable that leaves the composition
+     * takes its remembered state with it — including the SaveableStateHolder that exists precisely
+     * to keep each page's scroll position while it is off-screen. So opening a file from a note and
+     * coming back rebuilt the home screen from nothing and landed at the bottom of the list, with
+     * the note being read scrolled away.
+     *
+     * Kept in the composition and covered instead, every page's state survives the trip. The
+     * player's own BackHandler is registered after the shell's, so it is the one that fires.
+     */
+    Box(modifier = Modifier.fillMaxSize()) {
+        AppShell(
+            vm = vm,
+            nibrasVm = nibrasVm,
+            settings = settings,
+            sharedText = sharedText,
+            onSharedTextConsumed = onSharedTextConsumed,
+            dest = dest,
+            onDest = { dest = it },
+            player = playerVm,
+            onPlayMedia = onPlayMedia,
+            onExpandPlayer = { showPlayer = true },
+            onReplayTour = { showWelcome = true },
+            prayerStore = prayerStore,
+            flashStore = flashStore,
+        )
+        if (showPlayer && playerVm.currentFile != null) {
+            PlayerTheme {
+                // Opaque and click-absorbing in its own right: the shell is still there underneath,
+                // and a gap or a stray tap reaching it would be a real bug rather than a cosmetic one.
+                Surface(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) { detectTapGestures { } },
+                    color = MaterialTheme.colorScheme.background,
+                ) {
+                    PlayerScreen(playerVm, onBack = { showPlayer = false })
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -292,6 +368,9 @@ private fun AppShell(
     player: PlayerController,
     onPlayMedia: (File) -> Unit,
     onExpandPlayer: () -> Unit,
+    onReplayTour: () -> Unit,
+    prayerStore: PrayerSettingsStore,
+    flashStore: FlashcardStore,
 ) {
     val counts by nibrasVm.counts.collectAsState()
     val conn by nibrasVm.conn.collectAsState()
@@ -318,10 +397,15 @@ private fun AppShell(
             AppRail(
                 selected = dest,
                 counts = counts,
+                prayerEnabled = settings.prayerEnabled,
+                collectEnabled = settings.collectEnabled,
                 onHome = { onDest(HOME_DEST) },
                 onAudiobooks = { onDest(AUDIOBOOKS_DEST) },
                 onGallery = { onDest(GALLERY_DEST) },
                 onCalendar = { onDest(CALENDAR_DEST) },
+                onPrayer = { onDest(PRAYER_DEST) },
+                onFlashcards = { onDest(FLASHCARDS_DEST) },
+                onHighlights = { onDest(HIGHLIGHTS_DEST) },
                 onCollect = { onDest(COLLECT_DEST) },
                 onSettings = { onDest(SETTINGS_DEST) },
                 onSearch = { onDest(SEARCH_DEST) },
@@ -351,7 +435,11 @@ private fun AppShell(
                             noteCategory = settings.effectiveDefaultCategory,
                             onBack = { onDest(HOME_DEST) },
                         )
-                        SETTINGS_DEST -> SettingsScreen(vm.settingsStore, onBack = { onDest(HOME_DEST) })
+                        SETTINGS_DEST -> SettingsScreen(
+                            store = vm.settingsStore,
+                            onBack = { onDest(HOME_DEST) },
+                            onReplayTour = onReplayTour,
+                        )
                         AUDIOBOOKS_DEST -> AudiobookScreen(
                             roots = settings.audioLibraryRoots,
                             lastPlayedPath = player.currentFile?.absolutePath,
@@ -366,6 +454,9 @@ private fun AppShell(
                             // in Settings is never offered here either.
                             types = settings.types,
                         )
+                        PRAYER_DEST -> PrayerScreen(store = prayerStore)
+                        FLASHCARDS_DEST -> FlashcardsScreen(store = flashStore, baseUrl = settings.nibrasBaseUrl)
+                        HIGHLIGHTS_DEST -> HighlightsScreen(store = flashStore, baseUrl = settings.nibrasBaseUrl)
                         CALENDAR_DEST -> CalendarScreen(
                             startHour = settings.calendarStartHour,
                             endHour = settings.calendarEndHour,
@@ -380,6 +471,7 @@ private fun AppShell(
                             username = settings.nibrasUsername,
                             filesDir = settings.nibrasFilesDir,
                             fulltextScale = settings.fulltextScale,
+                            starAction = settings.starAction,
                             onPlayMedia = onPlayMedia,
                         )
                     }

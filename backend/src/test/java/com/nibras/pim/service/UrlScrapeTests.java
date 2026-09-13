@@ -26,6 +26,92 @@ class UrlScrapeTests {
         return scraper.parse(Jsoup.parse(html, "https://example.com/a"), URI.create("https://example.com/a"));
     }
 
+    // ------------------------------------------------------- streamed (App Router) pages
+
+    /**
+     * A page shaped like the al-akhbar.com article that prompted this: the DOM carries the headline
+     * and furniture only, and the article itself arrives as React Server Component flight chunks.
+     */
+    private static final String STREAMED_PAGE = """
+            <html><head><meta property="og:title" content="Streamed headline"></head>
+            <body>
+              <article><h1>Streamed headline</h1><span>Some byline</span></article>
+              <script>self.__next_f.push([1,"3:[\\"$\\",\\"div\\",null,{\\"html\\":\\"<p>%s</p><p>%s</p>\\"}]"])</script>
+            </body></html>
+            """.formatted(
+            "The first paragraph of the article, long enough to be unmistakably real prose "
+                    + "rather than a stray caption or a navigation label sitting in the markup.",
+            "A second paragraph, so the recovered body is plainly more than one line.");
+
+    @Test
+    void recoversAnArticleThatThePageStreamedInsteadOfRendering() {
+        var s = parse(STREAMED_PAGE);
+        // The DOM alone yields the headline and nothing else — which is the single line that
+        // started this.
+        assertThat(s.fullText()).contains("The first paragraph of the article");
+        assertThat(s.fullText()).contains("A second paragraph");
+        assertThat(s.fullText().length()).isGreaterThan(150);
+    }
+
+    @Test
+    void theRenderedDomStillWinsWhenThereIsOne() {
+        // The flight payload also carries navigation and related-article furniture that the DOM
+        // pass strips by structure and the streamed pass cannot, so it must stay a fallback.
+        var s = parse("""
+                <html><body>
+                  <article>
+                    <p>A properly rendered article paragraph that is comfortably long enough to
+                       clear the threshold on its own, so nothing needs recovering here at all.</p>
+                    <p>And a second rendered paragraph for good measure.</p>
+                  </article>
+                  <script>self.__next_f.push([1,"\\"<p>Streamed furniture that must not win</p>\\""])</script>
+                </body></html>
+                """);
+        assertThat(s.fullText()).contains("A properly rendered article paragraph");
+        assertThat(s.fullText()).doesNotContain("Streamed furniture");
+    }
+
+    @Test
+    void aPageWithNeitherStillReportsThatItFoundNothing() {
+        var s = parse("<html><body><div><a href=/x>Nav</a></div></body></html>");
+        assertThat(s.warnings()).anyMatch(w -> w.contains("No article text found"));
+    }
+
+    @Test
+    void escapesInTheStreamedPayloadAreDecoded() {
+        // Flight chunks are JSON string literals, so \\uXXXX and \\" have to survive the trip — or
+        // recovered Arabic comes back as mojibake and the markup as broken tags.
+        //
+        // The escape is assembled rather than written out: javac resolves \\uXXXX during LEXING,
+        // even inside a text block, so a literal one in this source would be a compile error
+        // before any test could run.
+        String u = "\\" + "u";
+        String arabic = u + "0627" + u + "0644" + u + "0639" + u + "0631" + u + "0628" + u + "064a" + u + "0629";
+        String payload = "\"<p>" + arabic + " quoted " + "\\" + "\\" + "\\" + "\"word"
+                + "\\" + "\\" + "\\" + "\" and enough further text to clear the threshold</p>\"";
+        var s = parse("<html><body><article><h1>t</h1></article><script>"
+                + "self.__next_f.push([1," + payload + "])</script></body></html>");
+        assertThat(s.fullText()).contains("\u0627\u0644\u0639\u0631\u0628\u064a\u0629".replace("x", ""));
+        assertThat(s.fullText()).contains("word");
+    }
+
+    @Test
+    void aVeryLongStreamedChunkDoesNotBlowTheStack() {
+        /*
+         * The first attempt at this matched flight chunks with "(?:\\\\.|[^"\\\\])*" and died with a
+         * StackOverflowError on the very first real page it met: Java's regex engine recurses once
+         * per repetition, and these chunks run to thousands of characters. The scan is hand-written
+         * and linear now, and this holds it that way — a scraper that crashes on a common page
+         * shape is worse than one that returns nothing.
+         */
+        String prose = "\u0627\u0644\u0646\u0635 ".repeat(4000);   // ~20k chars in one chunk
+        String page = "<html><body><article><h1>t</h1></article><script>"
+                + "self.__next_f.push([1,\"<p>" + prose + "</p>\"])"
+                + "</script></body></html>";
+        var s = parse(page);
+        assertThat(s.fullText().length()).isGreaterThan(10_000);
+    }
+
     // ------------------------------------------------------------------ extraction
 
     @Test

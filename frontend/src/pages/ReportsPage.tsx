@@ -42,6 +42,7 @@ import {
   previewReport,
   runReport,
   updateReport,
+  errorDetail,
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { ReportTable, columnLabel, reportColumns, sortableColumns } from '../components/ReportTable';
@@ -670,8 +671,7 @@ function ReportPreview({ form }: { form: Report }) {
 
 /** The server's RFC-7807 `detail` — the message written for whoever typed the query. */
 function problemDetail(error: unknown): string {
-  const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-  return detail ?? 'Could not run this report.';
+  return errorDetail(error, 'Could not run this report.');
 }
 
 // ---------------------------------------------------------------- runner

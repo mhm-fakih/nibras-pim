@@ -79,7 +79,14 @@ public class SpaController implements ErrorController {
         return ResponseEntity.status(httpStatus).body(body);
     }
 
-    private String render(HttpServletRequest request) throws IOException {
+    /**
+     * The SPA shell with {@code <base href>} rewritten for this servlet context.
+     *
+     * Public because {@link SpaNotFoundAdvice} needs exactly this and must not have its own copy —
+     * two renderings of the shell that could disagree about the base href is precisely the bug that
+     * would make one deep link work and another load its assets from the wrong place.
+     */
+    public String render(HttpServletRequest request) throws IOException {
         String base = request.getContextPath() + "/";          // "/" at ROOT, "/art/" under /art
         return template().replaceFirst("<base href=\"/\">",
                 java.util.regex.Matcher.quoteReplacement("<base href=\"" + base + "\">"));

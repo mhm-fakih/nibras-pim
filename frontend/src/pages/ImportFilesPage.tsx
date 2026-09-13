@@ -25,6 +25,7 @@ import {
   getPendingSync,
   importFiles,
   previewImportFiles,
+  errorDetail,
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { DiffText } from '../components/DiffText';
@@ -133,8 +134,7 @@ export function ImportFilesPage() {
 
         {preview.isError && (
           <Alert severity="error" sx={{ mb: 2 }}>
-            {(preview.error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-              'Could not read the folder.'}
+            {errorDetail(preview.error, 'Could not read the folder.')}
           </Alert>
         )}
 

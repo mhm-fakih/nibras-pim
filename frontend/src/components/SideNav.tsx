@@ -36,9 +36,12 @@ import InsightsIcon from '@mui/icons-material/Insights';
 import TableChart from '@mui/icons-material/TableChart';
 import DirectionsRun from '@mui/icons-material/DirectionsRun';
 import StarIcon from '@mui/icons-material/Star';
+import StyleIcon from '@mui/icons-material/Style';
+import FormatQuote from '@mui/icons-material/FormatQuote';
 import AdminPanelSettings from '@mui/icons-material/AdminPanelSettings';
 import Tune from '@mui/icons-material/Tune';
 import History from '@mui/icons-material/History';
+import Today from '@mui/icons-material/Today';
 import Storage from '@mui/icons-material/Storage';
 import Settings from '@mui/icons-material/Settings';
 import HelpOutline from '@mui/icons-material/HelpOutline';
@@ -87,6 +90,7 @@ const ROLE_LABEL: Record<string, string> = {
 // matrix (editable at /permissions). Tools with no `perm` are visible to any signed-in user. All are
 // still subject to the per-page enabled setting.
 const TOOLS: { path: string; label: string; icon: typeof Flag; perm?: Permission }[] = [
+  { path: '/', label: 'Today', icon: Today },
   { path: '/calendar', label: 'Calendar', icon: CalendarMonth },
   { path: '/kanban', label: 'Kanban', icon: ViewKanban },
   { path: '/dashboards', label: 'Dashboards', icon: Dashboard },
@@ -94,6 +98,8 @@ const TOOLS: { path: string; label: string; icon: typeof Flag; perm?: Permission
   { path: '/sprints', label: 'Sprints', icon: DirectionsRun },
   { path: '/reports', label: 'Reports', icon: TableChart },
   { path: '/bookmarks', label: 'All bookmarks', icon: StarIcon },
+  { path: '/flashcards', label: 'Flash cards', icon: StyleIcon },
+  { path: '/highlights', label: 'Highlights', icon: FormatQuote },
   { path: '/parameters', label: 'Parameters', icon: Tune, perm: 'params.write' },
   { path: '/admin', label: 'Admin', icon: AdminPanelSettings, perm: 'tools.admin' },
   { path: '/batch', label: 'Batch entry', icon: PlaylistAdd, perm: 'content.write' },
