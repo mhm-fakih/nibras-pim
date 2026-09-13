@@ -19,20 +19,20 @@ class TopPriorityWidget : SectionListWidget() {
     override val emptyText = "Nothing to show"
 
     /**
-     * The TRUE number of priority-4 notes, so a widget too short to show them all still says how
-     * many there are.
+     * The TRUE number of top-priority notes, so a widget too short to show them all still says how
+     * many there are — and says, by its colour, whether that number is one to worry about.
      *
      * Counted from the file names ([NoteRepository.countByPriority]) rather than by listing notes
      * and filtering: this runs inside every redraw, including the system's own `onUpdate` on the
      * main thread, and listing notes reads every file's contents. `runCatching` because an
      * unreadable folder should cost the number, not the widget.
      */
-    override fun titleFor(context: Context): String {
+    override fun badgeFor(context: Context): WidgetBadge {
         val n = runCatching {
             val settings = SettingsStore(context)
             NoteRepository(settings).countByPriority(settings.value.topPriority)
         }.getOrDefault(0)
-        return "$title ($n)"
+        return WidgetCounts.judged(n, good = n <= WidgetCounts.TOO_MANY_NOTES)
     }
 
     override fun titleIntent(context: Context): PendingIntent =

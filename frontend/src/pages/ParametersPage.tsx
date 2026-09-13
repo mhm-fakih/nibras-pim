@@ -25,6 +25,7 @@ import {
   setLookupStyle,
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
+import { SectionHeading } from '../components/SectionHeading';
 import { lookupStyle } from '../components/statusStyle';
 
 /**
@@ -90,12 +91,10 @@ function LookupColorsSection() {
         </Alert>
       )}
 
-      <Stack spacing={2}>
+      <Stack spacing={3}>
         {groups.map((g) => (
           <Box key={g.table}>
-            <Typography variant="overline" color="text.secondary">
-              {g.label}
-            </Typography>
+            <SectionHeading label={g.label} count={g.values.length} />
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
               {g.values.map((v) => (
                 <LookupChip

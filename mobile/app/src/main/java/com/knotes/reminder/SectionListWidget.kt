@@ -44,6 +44,14 @@ abstract class SectionListWidget : AppWidgetProvider() {
     /** Shown in place of the list when the section has no rows. */
     protected abstract val emptyText: String
 
+    /**
+     * The count drawn as a badge at the right of the title row, or null for no badge.
+     *
+     * Runs on every redraw, on whatever thread called the refresh — see [titleFor] — so it must be
+     * as cheap as that is.
+     */
+    protected open fun badgeFor(context: Context): WidgetBadge? = null
+
     /** What tapping the title does; null opens nothing (the rows still open the app). */
     protected open fun titleIntent(context: Context): PendingIntent? = null
 
@@ -65,6 +73,7 @@ abstract class SectionListWidget : AppWidgetProvider() {
     private fun build(context: Context, widgetId: Int): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_single_list)
         views.setTextViewText(R.id.widget_title, titleFor(context))
+        WidgetCounts.apply(views, badgeFor(context))
         views.setTextViewText(R.id.widget_empty, emptyText)
         views.setRemoteAdapter(R.id.widget_list_view, sectionIntent(context, widgetId))
         views.setEmptyView(R.id.widget_list_view, R.id.widget_empty)

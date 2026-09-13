@@ -55,7 +55,10 @@ class BookmarksWidget : AppWidgetProvider() {
             // that nothing ever fills — so the rows got half the widget and the rest sat empty.
             // The two-list layout exists for the old combined plans widget, which no longer exists.
             val views = RemoteViews(context.packageName, R.layout.widget_single_list)
-            views.setTextViewText(R.id.widget_title, "Bookmarked records (${count(context)})")
+            views.setTextViewText(R.id.widget_title, "Bookmarked records")
+            // No judgement attached: how many records you chose to bookmark is not a number that
+            // can be too high or too low, so it is stated rather than assessed.
+            WidgetCounts.apply(views, WidgetCounts.plain(count(context)))
             views.setTextViewText(R.id.widget_empty, "No bookmarks")
 
             // Distinct per-widget service intent so each instance gets its own factory/data.

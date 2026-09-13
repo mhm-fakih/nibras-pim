@@ -114,3 +114,31 @@ if __name__ == "__main__":
     assert cue_at(cues, 4500) == "Bye"
     os.remove(p)
     print("subtitles.py self-test OK")
+
+
+#: Long enough for a spoken sentence, short enough to stay on one row of the bookmark list.
+LABEL_MAX = 90
+
+_TAG_RE = re.compile(r"<[^>]*>")
+_SPACE_RE = re.compile(r"\s+")
+
+
+def label_at(cues: list[Cue], position_ms: int) -> str:
+    """The cue at ``position_ms`` as a one-line bookmark label, or ``""`` when there is none.
+
+    A bare timestamp says nothing when you come back to a list of bookmarks; the sentence is the
+    only thing that records why you marked it, and the subtitle file has already done the typing.
+
+    Cues wrap across two or three lines in the file and carry the odd tag, while a bookmark list
+    shows one row — hence the flattening and the clip. Clipped on a word boundary, because half a
+    word reads as corruption rather than as an abbreviation.
+    """
+    raw = cue_at(cues, position_ms)
+    if not raw:
+        return ""
+    flat = _SPACE_RE.sub(" ", _TAG_RE.sub(" ", raw)).strip()
+    if len(flat) <= LABEL_MAX:
+        return flat
+    cut = flat[:LABEL_MAX]
+    last_space = cut.rfind(" ")
+    return (cut[:last_space] if last_space > LABEL_MAX // 2 else cut).rstrip() + "\u2026"

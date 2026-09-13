@@ -50,6 +50,35 @@ object Subtitles {
     fun cueAt(cues: List<Cue>, posMs: Long): String? =
         cues.firstOrNull { posMs in it.startMs..it.endMs }?.text
 
+    /**
+     * The cue at [posMs] as a one-line bookmark label, or "" when there is none.
+     *
+     * A bare timestamp says nothing when you come back to a list of bookmarks; the sentence is the
+     * only thing that records why you marked it, and the subtitle file has already done the typing.
+     *
+     * Cues wrap across two or three lines in the file and carry the odd tag, while a bookmark list
+     * shows one row — hence the flattening and the clip. Clipped on a word boundary, because half a
+     * word reads as corruption rather than as an abbreviation.
+     */
+    fun labelAt(cues: List<Cue>, posMs: Long): String {
+        val raw = cueAt(cues, posMs) ?: return ""
+        val flat = raw.replace(TAG, " ").replace(SPACES, " ").trim()
+        if (flat.length <= LABEL_MAX) return flat
+        val cut = flat.take(LABEL_MAX)
+        val lastSpace = cut.lastIndexOf(' ')
+        return (if (lastSpace > LABEL_MAX / 2) cut.take(lastSpace) else cut).trimEnd() + "…"
+    }
+
+    /** The same, read straight from the media file's own sidecars — for callers with no UI state. */
+    fun labelFor(media: File, posMs: Long): String {
+        val track = list(media).firstOrNull() ?: return ""
+        return labelAt(parse(track.file), posMs)
+    }
+
+    /** Long enough for a spoken sentence, short enough to stay on one row of the bookmark list. */
+    private const val LABEL_MAX = 90
+    private val SPACES = Regex("\\s+")
+
     private fun parseTimeLine(line: String): Pair<Long, Long>? {
         val stamps = TIME.findAll(line).map { m ->
             val h = m.groupValues[1].toLong()

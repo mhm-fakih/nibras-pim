@@ -34,6 +34,8 @@ import { SearchPage } from './pages/SearchPage';
 import { BookmarksPage } from './pages/BookmarksPage';
 import { IndicatorsPage } from './pages/IndicatorsPage';
 import { InsightsPage } from './pages/InsightsPage';
+import { FlashCardsPage } from './pages/FlashCardsPage';
+import { HighlightsPage } from './pages/HighlightsPage';
 import { ReportPrintPage } from './pages/ReportPrintPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { MaintenancePage } from './pages/MaintenancePage';
@@ -43,14 +45,17 @@ import { HelpPage } from './pages/HelpPage';
 import { TrashPage } from './pages/TrashPage';
 import { SitesPage } from './pages/SitesPage';
 import { useModules } from './hooks/useModules';
+import { TodayPage } from './pages/TodayPage';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, staleTime: 30_000 } },
 });
 
 /**
- * The homepage / any unknown route lands on the FIRST ENABLED module (by sortOrder) rather than a
- * hardcoded /tasks — which may be disabled. Falls back to /tasks only until modules have loaded.
+ * Any UNKNOWN route lands on the first enabled module (by sortOrder) rather than a hardcoded
+ * /tasks — which may be disabled. Falls back to /tasks only until modules have loaded.
+ *
+ * The homepage itself is no longer a redirect: `/` is the Today page.
  */
 function HomeRedirect() {
   const { enabled, isLoading } = useModules();
@@ -89,6 +94,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                         <Route path="/bookmarks" element={<BookmarksPage />} />
                         <Route path="/indicators" element={<IndicatorsPage />} />
                         <Route path="/insights" element={<InsightsPage />} />
+                        <Route path="/flashcards" element={<FlashCardsPage />} />
+                        <Route path="/highlights" element={<HighlightsPage />} />
                         <Route path="/sprints" element={<SprintsPage />} />
                         <Route path="/reports" element={<ReportsPage />} />
                         <Route
@@ -202,6 +209,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                             </RequireAuth>
                           }
                         />
+                        {/* The landing page: what was just created / just touched, per module. */}
+                        <Route path="/" element={<TodayPage />} />
                         <Route path="/:entity" element={<AppShell />} />
                         <Route path="*" element={<HomeRedirect />} />
                       </Routes>

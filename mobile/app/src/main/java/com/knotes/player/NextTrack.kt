@@ -1,5 +1,6 @@
 package com.knotes.player
 
+import com.knotes.COMPANION_SUFFIX
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -23,7 +24,27 @@ enum class PlayNextMode {
      * A file picked at random from the whole media library that you have never bookmarked and have
      * not touched in a long time — for working through what was downloaded and forgotten.
      */
-    RANDOM_OLD;
+    RANDOM_OLD,
+
+    /**
+     * The same pick, but confined to the folder tree around the file being played — for working
+     * through one pipeline rather than the whole library. See [NextTrack.parentScope] for exactly
+     * which folder that is.
+     */
+    RANDOM_OLD_PARENT,
+
+    /**
+     * The same scope as [RANDOM_OLD_PARENT], picked from the other end of the clock: a file that
+     * arrived *recently* and has never been bookmarked — for hearing what just came in, rather
+     * than digging through what was forgotten.
+     */
+    RANDOM_NEW_PARENT;
+
+    /** True for the modes that pick at random rather than walking the folder in order. */
+    val isRandom: Boolean get() = this == RANDOM_OLD || this == RANDOM_OLD_PARENT || this == RANDOM_NEW_PARENT
+
+    /** True for the modes confined to the folder around what is playing. */
+    val isParentScoped: Boolean get() = this == RANDOM_OLD_PARENT || this == RANDOM_NEW_PARENT
 
     companion object {
         fun from(name: String?): PlayNextMode =
@@ -58,6 +79,33 @@ object NextTrack {
     }
 
     /**
+     * The folder [PlayNextMode.RANDOM_OLD_PARENT] searches, given the file being played.
+     *
+     * Normally the file's own folder, walked recursively. The exception is a note's companion
+     * folder (`<stem>.d`): that folder belongs to exactly one note, so confining the search to it
+     * would offer the two or three files attached to the note you are already listening to. The
+     * point of the mode is the opposite — sweeping the *sibling* companion folders, the whole
+     * pipeline of notes with attachments — so from inside one, the search starts a level up.
+     *
+     * Returns null when the file has no usable folder at all.
+     */
+    fun parentScope(current: File): File? {
+        val dir = current.parentFile ?: return null
+        return if (dir.name.endsWith(COMPANION_SUFFIX)) dir.parentFile ?: dir else dir
+    }
+
+    /**
+     * Which end of the clock a random pick comes from.
+     *
+     * The two are not symmetric in the obvious way. "Old" means *forgotten* — downloaded, never
+     * heard, gone stale — so it wants an absolute age threshold. "New" means *just arrived*, which
+     * is inherently relative: a folder whose newest file is a year old still has a newest file,
+     * and that is the one you meant. So OLDEST tests against [OLD_DAYS] and falls back to
+     * relative, while NEWEST is relative from the start.
+     */
+    enum class Pick { OLDEST, NEWEST }
+
+    /**
      * A random media file under [roots] that has no bookmarks and hasn't been modified for
      * [OLD_DAYS], excluding [exclude] (the current file and recent plays).
      *
@@ -77,16 +125,87 @@ object NextTrack {
         exclude: Set<String> = emptySet(),
         now: Long = System.currentTimeMillis(),
         random: kotlin.random.Random = kotlin.random.Random.Default,
+    ): File? = randomUnbookmarked(roots, Pick.OLDEST, exclude, now, random)
+
+    /**
+     * A random media file under [roots] that has no bookmarks, drawn from the newest end — the
+     * recent arrivals you have not marked up.
+     *
+     * There is no age threshold here, only a ranking: see [Pick]. The pick comes from a *pool*
+     * rather than being simply "the newest file", because a folder into which twenty files were
+     * copied in one pass — all sharing a timestamp to the second, which is exactly what Syncthing
+     * produces — would otherwise hand back the same arbitrary one forever.
+     *
+     * The pool is the newer **half**, capped at [FALLBACK_POOL], and never smaller than one. A
+     * fixed-size pool was the first attempt and it is wrong at the size that matters: this mode is
+     * usually scoped to one folder of note attachments, where a flat "newest 25" is every file
+     * there is, and the mode silently degrades into plain shuffle. A proportion keeps the
+     * recency bias at every scope size.
+     *
+     * Returns null only when the scope holds nothing eligible at all.
+     */
+    fun randomNewUnbookmarked(
+        roots: List<File>,
+        exclude: Set<String> = emptySet(),
+        now: Long = System.currentTimeMillis(),
+        random: kotlin.random.Random = kotlin.random.Random.Default,
+    ): File? = randomUnbookmarked(roots, Pick.NEWEST, exclude, now, random)
+
+    private fun randomUnbookmarked(
+        roots: List<File>,
+        pick: Pick,
+        exclude: Set<String>,
+        now: Long,
+        random: kotlin.random.Random,
     ): File? {
         val candidates = MediaLibrary.mediaFilesUnder(roots)
             .filter { it.absolutePath !in exclude && !Bookmarks.hasBookmarks(it) }
         if (candidates.isEmpty()) return null
 
-        val cutoff = now - TimeUnit.DAYS.toMillis(OLD_DAYS.toLong())
-        val old = candidates.filter { it.lastModified() in 1 until cutoff }
-        val pool = old.ifEmpty {
-            candidates.sortedBy { it.lastModified() }.take(FALLBACK_POOL)
+        // Ordered by when each file was RECORDED, read from its name — not by mtime. These folders
+        // are Syncthing shares and Syncthing rewrites mtimes on transfer, so mtime says when this
+        // phone received a file. Ranking on it made "newest" hand back old recordings while
+        // unbookmarked ones from the same day sat in the folder, because an old file re-synced this
+        // morning outranked them. See MediaDates.
+        val dated = candidates.map { it to MediaDates.recordedMillis(it) }
+        val pool = when (pick) {
+            Pick.OLDEST -> {
+                val cutoff = now - TimeUnit.DAYS.toMillis(OLD_DAYS.toLong())
+                dated.filter { (_, at) -> at in 1 until cutoff }.map { it.first }
+                    .ifEmpty { dated.sortedBy { it.second }.take(FALLBACK_POOL).map { it.first } }
+            }
+            // Files whose date cannot be read at all fall back to mtime inside MediaDates, and an
+            // unreadable/zero one sorts to the bottom — the right place for it, since nothing is
+            // known about when it arrived.
+            Pick.NEWEST -> dated.sortedByDescending { it.second }
+                .take(((candidates.size + 1) / 2).coerceIn(1, FALLBACK_POOL))
+                .map { it.first }
         }
         return pool.randomOrNull(random)
     }
+}
+
+/**
+ * What to say when the ⏭ button finds nothing.
+ *
+ * The button used to do nothing at all in this case — no movement, no message — which is
+ * indistinguishable from a tap that missed. Worse, the three reasons it can come back empty want
+ * three different responses from the user: a scope that was never configured is fixed in Settings,
+ * a folder with nothing unbookmarked left in it means move on, and a library that is exhausted
+ * means the mode has done its job.
+ *
+ * @param scopeConfigured whether there was anywhere to search at all — a configured media folder
+ *   for the library-wide mode, or a file playing for the folder-scoped ones.
+ */
+internal fun noPickMessage(mode: PlayNextMode, scopeConfigured: Boolean): String = when {
+    !scopeConfigured && mode.isParentScoped ->
+        "Nothing is playing, so there is no folder to pick from."
+    !scopeConfigured ->
+        "No media folders are set — add one in Settings."
+    mode == PlayNextMode.RANDOM_NEW_PARENT ->
+        "Nothing new here — every file in this folder is bookmarked or already played."
+    mode.isParentScoped ->
+        "Nothing left here — every file in this folder is bookmarked or already played."
+    else ->
+        "Nothing left in your library — every file is bookmarked or already played."
 }

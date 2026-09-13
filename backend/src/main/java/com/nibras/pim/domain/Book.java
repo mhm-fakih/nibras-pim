@@ -55,6 +55,14 @@ public class Book extends BaseEntity implements SyncMutable, Taggable, HasShortS
     @Column(name = "full_text", columnDefinition = "longtext")
     private String fullText;
 
+    /**
+     * The resource's key points, one per line — what the highlights gallery reads for a resource.
+     *
+     * Note the name: every OTHER record type calls this field {@code mainHighlights}, and the book
+     * table has a {@code main_highlights} column too, but nothing writes it and the frontend's
+     * resource form has only ever offered this one. Reading the field that matches the other six by
+     * name would find a resource's highlights empty every time.
+     */
     @Column(columnDefinition = "longtext")
     private String highlights;
 

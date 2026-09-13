@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The amber pill behind the NEXT prayer's time on the Prayer times widget.
+
+     Colour rather than weight or a marker glyph: the widget is read at arm's length from a home
+     screen, where bold-vs-normal at 13sp says nothing. Amber against the dark ground carries at
+     that distance and needs no reading at all. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFB300" />
+    <corners android:radius="6dp" />
+</shape>

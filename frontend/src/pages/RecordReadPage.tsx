@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import Edit from '@mui/icons-material/Edit';
 import { BASE, coverUrl, getEntity, updateEntity } from '../api/client';
+import { toggleChecklistItem } from '../util/checklist';
 import { ENTITY_BY_KEY } from '../config/entities';
 import { lookupStyle } from '../components/statusStyle';
 import { RelatedRecordsPanel } from '../components/RelatedRecordsPanel';
@@ -104,6 +105,22 @@ export function RecordReadPage() {
         ...record,
         [fields!.source]: wasMarked ? removeMarker(src, text) : addMarker(src, text),
         [fields!.target]: wasMarked ? removeHighlight(tgt, text) : appendHighlight(tgt, text),
+      });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['record', entity, recordId] }),
+  });
+
+  /**
+   * Tick a `- [ ]` item — the same shape as the highlight toggle above, and for the same reason:
+   * a full-record PUT, rewritten from the record's current value rather than from the DOM, so two
+   * quick ticks can't race each other into writing the same stale text twice.
+   */
+  const toggleItem = useMutation({
+    mutationFn: ({ field, index }: { field: string; index: number }) => {
+      const source = String(record?.[field] ?? '');
+      return updateEntity(entity!, recordId, {
+        ...record,
+        [field]: toggleChecklistItem(source, index),
       });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['record', entity, recordId] }),
@@ -249,7 +266,18 @@ export function RecordReadPage() {
               <Divider sx={{ mt: 2 }} />
             </Box>
           ) : (
-            <FieldView key={f.name} label={f.label} type={f.type} value={record[f.name]} record={record} />
+            <FieldView
+              key={f.name}
+              label={f.label}
+              type={f.type}
+              value={record[f.name]}
+              record={record}
+              onToggleChecklistItem={
+                f.type === 'markdown' || f.type === 'richtext'
+                  ? (index) => toggleItem.mutate({ field: f.name, index })
+                  : undefined
+              }
+            />
           ),
         )}
       </Stack>

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -36,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -56,7 +58,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.knotes.AppSettings
+import com.knotes.Onboarding
 import com.knotes.SettingsStore
+import com.knotes.StarAction
 import com.knotes.Tag
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -64,7 +68,7 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
+fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () -> Unit = {}) {
     val current = store.value
 
     var dir by remember { mutableStateOf(current.notesDir) }
@@ -84,18 +88,24 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
     var nibrasFiles by remember { mutableStateOf(current.nibrasFilesDir) }
     val collectSources = remember { mutableStateListOf<String>().apply { addAll(current.collectSourceDirs) } }
     var collectNew by remember { mutableStateOf(current.collectNewDir) }
+    var collectAuto by remember { mutableStateOf(current.collectAutoEnabled) }
+    var collectAutoHour by remember { mutableStateOf(current.collectAutoHour) }
+    var collectAutoMinute by remember { mutableStateOf(current.collectAutoMinute) }
     var fulltextScale by remember { mutableStateOf(current.fulltextScale) }
     val audioLibraryRoots = remember { mutableStateListOf<String>().apply { addAll(current.audioLibraryRoots) } }
     var galleryDir by remember { mutableStateOf(current.galleryDir) }
     var calStart by remember { mutableStateOf(current.calendarStartHour.toString()) }
     var calEnd by remember { mutableStateOf(current.calendarEndHour.toString()) }
     var calendarEnabled by remember { mutableStateOf(current.calendarEnabled) }
+    var prayerEnabled by remember { mutableStateOf(current.prayerEnabled) }
+    var collectEnabled by remember { mutableStateOf(current.collectEnabled) }
     var reminderOffsets by remember { mutableStateOf(current.reminderOffsetsMin.joinToString(", ")) }
     var reminderSound by remember { mutableStateOf(current.reminderSoundUri) }
     var reminderDismiss by remember { mutableStateOf(current.reminderRequireDismiss) }
     var reminderRepeat by remember { mutableStateOf(current.reminderRepeatCount.toString()) }
     var statusNotif by remember { mutableStateOf(current.statusNotificationEnabled) }
     var syncEnabled by remember { mutableStateOf(current.syncEnabled) }
+    var starAction by remember { mutableStateOf(current.starAction) }
     var syncCheckSec by remember { mutableStateOf(current.syncCheckIntervalSec.toString()) }
     var syncSec by remember { mutableStateOf(current.syncIntervalSec.toString()) }
     var chimeEnabled by remember { mutableStateOf(current.chimeEnabled) }
@@ -178,12 +188,17 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 nibrasFilesDir = nibrasFiles,
                 collectSourceDirs = collectSources.toList(),
                 collectNewDir = collectNew,
+                collectAutoEnabled = collectAuto,
+                collectAutoHour = collectAutoHour,
+                collectAutoMinute = collectAutoMinute,
                 fulltextScale = fulltextScale,
                 audioLibraryRoots = audioLibraryRoots.toList(),
                 galleryDir = galleryDir,
                 calendarStartHour = calStart.toIntOrNull() ?: 5,
                 calendarEndHour = calEnd.toIntOrNull() ?: 22,
                 calendarEnabled = calendarEnabled,
+                prayerEnabled = prayerEnabled,
+                collectEnabled = collectEnabled,
                 reminderOffsetsMin = SettingsStore.decodeInts(reminderOffsets),
                 reminderSoundUri = reminderSound,
                 reminderRequireDismiss = reminderDismiss,
@@ -201,6 +216,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 defaultCategory = defCategory,
                 defaultPriority = defPriority.toIntOrNull() ?: 2,
                 topPriority = topPriority.toIntOrNull() ?: 4,
+                starAction = starAction,
             ),
         )
         onBack()
@@ -391,15 +407,47 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 onPick = { pickFolder { path -> nibrasFiles = path } },
             )
 
-            Text(
-                "Resources font size: ${"%.1f".format(fulltextScale)}×",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Slider(
+            // What the star on a record row means. Two genuinely different readings — see StarAction.
+            Text("Star button", style = MaterialTheme.typography.bodyLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(
+                    selected = starAction == StarAction.LOCAL_BOOKMARK,
+                    onClick = { starAction = StarAction.LOCAL_BOOKMARK },
+                )
+                Column(modifier = Modifier.clickable { starAction = StarAction.LOCAL_BOOKMARK }) {
+                    Text("Bookmark on this device", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "A private shortlist. Nothing is sent to the server.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(
+                    selected = starAction == StarAction.BACKEND_UNBOOKMARK,
+                    onClick = { starAction = StarAction.BACKEND_UNBOOKMARK },
+                )
+                Column(modifier = Modifier.clickable { starAction = StarAction.BACKEND_UNBOOKMARK }) {
+                    Text("Un-bookmark in Nibras", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Every record here is already bookmarked on the server, so the star is "
+                            + "filled and tapping it takes the record off the list — right away when "
+                            + "online, on the next sync when not. The row stays until then so you can undo.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            StepSlider(
+                label = "Font size ${"%.1f".format(fulltextScale)}×",
                 value = fulltextScale,
-                onValueChange = { fulltextScale = (it * 10).toInt() / 10f },
-                valueRange = 0.8f..3f,
-                modifier = Modifier.fillMaxWidth(),
+                min = 0.8f,
+                max = 3f,
+                step = 0.1f,
+                labelWidth = 130.dp,
+                onChange = { fulltextScale = it },
             )
 
             HorizontalDivider()
@@ -555,6 +603,33 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 }
                 Switch(checked = calendarEnabled, onCheckedChange = { calendarEnabled = it })
             }
+            // Whole features, not display preferences: switching one off takes its page out of the
+            // rail AND cancels what it had scheduled — see PrayerScheduler.sync and
+            // CollectScheduler.sync, which each check this before arming anything.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Prayer times", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "The prayer page and its alarms — athan, reminders, the silent window and " +
+                            "the beeps before Shurooq. Off removes all of them.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = prayerEnabled, onCheckedChange = { prayerEnabled = it })
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("File collection", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "The collector page and its daily run. Off removes both, whatever the " +
+                            "automatic-collection setting below says.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = collectEnabled, onCheckedChange = { collectEnabled = it })
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("15-minute chime", style = MaterialTheme.typography.bodyLarge)
@@ -621,6 +696,36 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 onPick = { pickFolder { path -> collectNew = path } },
             )
 
+            // Unattended collection. Off by default and stated plainly, because it MOVES files out
+            // of Camera and Downloads — that is not something to discover by accident.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Collect automatically every day", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Runs the same collection as the Collect page, on its own, at the time below. " +
+                            "Files are MOVED out of the source folders. Nothing is reported unless " +
+                            "something was actually collected.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = collectAuto, onCheckedChange = { collectAuto = it })
+            }
+            if (collectAuto) {
+                StepSlider(
+                    "At %02d:%02d".format(collectAutoHour, collectAutoMinute),
+                    (collectAutoHour * 60 + collectAutoMinute).toFloat(),
+                    0f,
+                    (23 * 60 + 55).toFloat(),
+                    5f,
+                    labelWidth = 96.dp,
+                ) { v ->
+                    val minuteOfDay = v.toInt().coerceIn(0, 23 * 60 + 55)
+                    collectAutoHour = minuteOfDay / 60
+                    collectAutoMinute = minuteOfDay % 60
+                }
+            }
+
             HorizontalDivider()
             TagListEditor(
                 title = "Types",
@@ -636,6 +741,30 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 addLabel = "Add category",
                 tags = categories,
             )
+
+            HorizontalDivider()
+            // The tour is also the only place that says what each folder above actually turns on,
+            // so it is worth being able to reach again — not a one-shot that vanishes after install.
+            Text("Setup tour", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "Walk through the folders again, with what each one is for.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(
+                onClick = {
+                    // Saved first: the tour opens from the stored settings, so unsaved edits on
+                    // this screen would silently vanish behind it.
+                    save()
+                    // The flag is cleared as well as the callback fired: if the app is killed
+                    // before the tour is finished, it should still be waiting on the next launch.
+                    Onboarding.replayWelcome(context)
+                    onReplayTour()
+                },
+                modifier = Modifier.padding(top = 6.dp),
+            ) {
+                Text("Show the setup tour")
+            }
         }
     }
 }
@@ -754,7 +883,7 @@ private fun FolderListEditor(
  *  to a plain filesystem path. This app already holds MANAGE_EXTERNAL_STORAGE and every other file
  *  API here works with plain paths — the picker is only a typo-proof folder chooser, not a
  *  scoped-storage access grant, so there's nothing else to persist once the path is extracted. */
-private fun treeUriToPath(uri: Uri): String? = runCatching {
+internal fun treeUriToPath(uri: Uri): String? = runCatching {
     val docId = DocumentsContract.getTreeDocumentId(uri)
     val parts = docId.split(":", limit = 2)
     val volume = parts[0]

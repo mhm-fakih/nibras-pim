@@ -3,6 +3,7 @@ package com.knotes.nibras
 import android.content.Context
 import com.knotes.Note
 import com.knotes.SettingsStore
+import com.knotes.flash.FlashOutbox
 import com.knotes.reminder.PlansRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,14 +45,35 @@ object PushCenter {
         scope.launch { runCatching { drain(app) } }
     }
 
-    /** Push every queued record and calendar entry; drop each one the server accepts. */
+    /**
+     * Drain and WAIT for it.
+     *
+     * For callers that must not read the server until their pending writes have gone up — the flash
+     * cards, whose reload would otherwise race its own outbox and pull down the state each card is
+     * about to be moved out of. [drainAll] returns the moment it has launched, which is right for an
+     * opportunistic nudge and wrong for an ordering guarantee.
+     */
+    suspend fun drainNow(context: Context) {
+        runCatching { drain(context.applicationContext) }
+    }
+
+    /**
+     * Push every queued record, calendar entry and flash-card decision; drop each one the server
+     * accepts.
+     *
+     * The flash-card outbox is drained HERE rather than only by the flash-card screen, for the same
+     * reason the calendar one is: a decision taken offline must not depend on that page being
+     * reopened to reach the server. This runs whenever connectivity returns.
+     */
     private suspend fun drain(context: Context) = drainLock.withLock {
         RecordOutbox.seed(context)
+        FlashOutbox.seed(context)
         val settings = SettingsStore(context).value
         val base = settings.nibrasBaseUrl.trim()
         val calendar = CalendarStore(context)
         if (base.isEmpty() ||
-            (RecordOutbox.pending.value.isEmpty() && calendar.pending.value.isEmpty())
+            (RecordOutbox.pending.value.isEmpty() && calendar.pending.value.isEmpty() &&
+                FlashOutbox.pending.value.isEmpty())
         ) {
             return
         }
@@ -90,6 +112,15 @@ object PushCenter {
             // Pending events were already in the plans store (first-class pre-sync); refresh so
             // the widget/reminders switch over to the server copies without duplicating.
             runCatching { PlansRepository.refresh(context, settings) }
+        }
+
+        // Flash-card decisions, one at a time and only removed on a definite yes — a decision is
+        // the reader's, so the outbox holds it until the server has actually taken it.
+        FlashOutbox.pending.value.forEach { item ->
+            val ok = runCatching {
+                api.pushFlashcardState(base, item.id, item.state)
+            }.getOrDefault(false)
+            if (ok) FlashOutbox.remove(context, item)
         }
     }
 

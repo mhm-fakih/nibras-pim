@@ -31,6 +31,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -262,19 +265,29 @@ private fun TwoWeekStrip(
                             }
                             .padding(horizontal = 6.dp, vertical = 3.dp),
                     ) {
+                        // Date and count on ONE line — "14 (3)". They used to be stacked, and on a
+                        // tablet the second line fell outside the cell and the counts were simply
+                        // not there to read. Beside the number they can't be clipped away.
                         Text(
-                            day.dayOfMonth.toString(),
+                            text = buildAnnotatedString {
+                                withStyle(
+                                    SpanStyle(
+                                        fontWeight = if (day == today) FontWeight.Bold else FontWeight.Normal,
+                                    ),
+                                ) {
+                                    append(day.dayOfMonth.toString())
+                                }
+                                if (n > 0) {
+                                    withStyle(SpanStyle(fontSize = 9.sp)) {
+                                        append(" ($n)")
+                                    }
+                                }
+                            },
                             style = MaterialTheme.typography.labelMedium,
-                            fontWeight = if (day == today) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
                             color = if (picked) MaterialTheme.colorScheme.onPrimary
                             else MaterialTheme.colorScheme.onSurface,
                             textAlign = TextAlign.Center,
-                        )
-                        Text(
-                            if (n > 0) n.toString() else "·",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (picked) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }

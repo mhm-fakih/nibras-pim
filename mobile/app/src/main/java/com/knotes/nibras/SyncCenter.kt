@@ -58,6 +58,17 @@ object SyncCenter {
 
         PushCenter.drainAll(context)
 
+        // Bookmark flags taken offline (the star in StarAction.BACKEND_UNBOOKMARK mode). Pushed
+        // BEFORE the pull, so a record un-bookmarked while offline is already off the server's list
+        // by the time this same sync fetches it — one round trip, not two.
+        val local = NibrasLocalStore(context)
+        for (item in local.pendingBookmarks.value) {
+            val ok = runCatching {
+                api.pushBookmark(base, item.ecode, item.id, item.text.toBoolean())
+            }.getOrDefault(false)
+            if (ok) local.removeBookmarks(listOf(item))
+        }
+
         val cache = NibrasCache(context)
         // Count what actually landed. Every per-type failure used to be swallowed by getOrNull()
         // and the enclosing runCatching therefore always succeeded — so a wrong password (which the
@@ -73,6 +84,9 @@ object SyncCenter {
                         val recs = result.getOrNull()
                         if (recs != null) {
                             cache.save(type.code, recs)
+                            // The record is gone from the server's list — stop remembering that we
+                            // un-bookmarked it. This is the moment the row finally disappears.
+                            local.pruneUnbookmarked(type.code, recs.mapTo(mutableSetOf()) { it.key })
                             fetched.incrementAndGet()
                         } else if (result.exceptionOrNull()?.message?.contains("401") == true) {
                             unauthorized.set(true)

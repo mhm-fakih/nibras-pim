@@ -25,7 +25,6 @@ import {
 import Add from '@mui/icons-material/Add';
 import Edit from '@mui/icons-material/Edit';
 import Delete from '@mui/icons-material/Delete';
-import { AxiosError } from 'axios';
 import {
   ManagedUser,
   Role,
@@ -33,6 +32,7 @@ import {
   deleteUser,
   listUsers,
   updateUser,
+  errorDetail,
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
 
@@ -86,16 +86,13 @@ export function UsersPage() {
       setDraft(null);
       setError(null);
     },
-    onError: (err: AxiosError<{ detail?: string; error?: string }>) => {
-      setError(err.response?.data?.detail ?? err.response?.data?.error ?? 'Could not save the user.');
-    },
+    onError: (err: unknown) => setError(errorDetail(err, 'Could not save the user.')),
   });
 
   const remove = useMutation({
     mutationFn: (id: number) => deleteUser(id),
     onSuccess: invalidate,
-    onError: (err: AxiosError<{ detail?: string; error?: string }>) =>
-      setError(err.response?.data?.detail ?? err.response?.data?.error ?? 'Could not delete the user.'),
+    onError: (err: unknown) => setError(errorDetail(err, 'Could not delete the user.')),
   });
 
   const startEdit = (u: ManagedUser) =>

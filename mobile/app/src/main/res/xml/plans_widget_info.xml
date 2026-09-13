@@ -1,10 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- minHeight is the real floor the launcher enforces (cells are 70*n - 30 dp), so 180dp meant
      "3 rows minimum" and the widget refused to shrink however it was dragged — targetCellHeight
-     is only a placement hint. 110dp = 2 rows, matching the bookmarks and top-priority lists. -->
+     is only a placement hint. 110dp = 2 rows, matching the bookmarks and top-priority lists.
+
+     minResizeHeight is what actually lets it be DRAGGED smaller than that, down to one row. Android
+     takes the resize floor from minHeight when minResizeHeight is absent, so a widget declaring a
+     comfortable minimum silently becomes one that cannot be made any smaller at all — the same trap
+     the prayer widget hit, where dumpsys read back min == minResize and the strip sat locked at its
+     initial size. 40dp is one row: the title with its count badge, and whichever single plan fits
+     under it.
+
+     The default placement stays 2 rows. This only permits the smaller size; it does not impose it,
+     and an already-placed widget keeps whatever height it has until it is dragged. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:initialLayout="@layout/widget_single_list"
     android:minHeight="110dp"
+    android:minResizeHeight="40dp"
+    android:minResizeWidth="110dp"
     android:minWidth="110dp"
     android:resizeMode="horizontal|vertical"
     android:targetCellHeight="2"

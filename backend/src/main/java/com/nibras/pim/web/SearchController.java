@@ -29,7 +29,8 @@ public class SearchController {
         this.semanticDedup = semanticDedup;
     }
 
-    public record ReindexResult(int indexed) {
+    /** Rebuild outcome: rows written, rows skipped, and the first few reasons. */
+    public record ReindexResult(int indexed, int skipped, java.util.List<String> failures) {
     }
 
     @GetMapping
@@ -44,7 +45,8 @@ public class SearchController {
 
     @PostMapping("/reindex")
     public ReindexResult reindex() {
-        return new ReindexResult(reindex.reindexAll());
+        var report = reindex.reindexAll();
+        return new ReindexResult(report.indexed(), report.skipped(), report.failures());
     }
 
     public record IndexStatus(long indexed) {

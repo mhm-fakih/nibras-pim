@@ -19,6 +19,7 @@ import {
   TextField,
   Tooltip,
   Typography,
+  alpha,
 } from '@mui/material';
 import Search from '@mui/icons-material/Search';
 import Add from '@mui/icons-material/Add';
@@ -30,11 +31,14 @@ import {
   coverUrl,
   getLookups,
   listEntities,
+  matchContext,
   EntityRecord,
+  FieldMatch,
   ListParams,
   Lookup,
   REPORT_KEYS,
   scrapeUrl,
+  errorDetail,
 } from '../api/client';
 import DownloadIcon from '@mui/icons-material/CloudDownload';
 import LinkIcon from '@mui/icons-material/AddLink';
@@ -70,6 +74,25 @@ interface Props {
 
 const PAGE_SIZE = 25;
 
+/** Page sizes offered in the filter bar. */
+const PAGE_SIZES = [10, 25, 50, 100, 200];
+
+const PAGE_SIZE_KEY = 'nibras.listPageSize';
+
+/**
+ * Priorities offered by the filter, as pseudo-lookups so they can share [FilterSelect].
+ *
+ * A fixed 0–5 rather than the distinct values in the data: a list whose options changed as you
+ * filtered would be unusable, and "no priority" is already a report preset rather than a value.
+ */
+const PRIORITY_OPTIONS: Lookup[] = [0, 1, 2, 3, 4, 5].map((p) => ({ id: p, name: `P${p}` }));
+
+/** Records per page, remembered across sessions — it's a preference, not a per-visit choice. */
+function storedPageSize(): number {
+  const saved = Number(localStorage.getItem(PAGE_SIZE_KEY));
+  return PAGE_SIZES.includes(saved) ? saved : PAGE_SIZE;
+}
+
 /** yyyy-mm-dd in local time. */
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
@@ -87,6 +110,8 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
   const [q, setQ] = useState('');
   const [statusId, setStatusId] = useState<number | ''>('');
   const [typeId, setTypeId] = useState<number | ''>('');
+  const [priority, setPriority] = useState<number | ''>('');
+  const [pageSize, setPageSize] = useState<number>(storedPageSize);
   const [bookmarked, setBookmarked] = useState(false);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -129,7 +154,7 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
 
   useEffect(() => {
     setPage(0);
-  }, [config.key, q, statusId, typeId, bookmarked, reportKey]);
+  }, [config.key, q, statusId, typeId, priority, bookmarked, pageSize, reportKey]);
 
   // Clear selection/feedback when switching entities or report.
   useEffect(() => {
@@ -143,22 +168,37 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
   });
 
   const { data, isFetching, isError, error, refetch } = useQuery({
-    queryKey: ['list', config.key, { q, onDay, statusId, typeId, bookmarked, page, reportKey }],
+    queryKey: [
+      'list',
+      config.key,
+      { q, onDay, statusId, typeId, priority, bookmarked, page, pageSize, reportKey },
+    ],
     queryFn: () =>
       listEntities(config.key, {
         q: q || undefined,
         onDay,
         statusId: statusId === '' ? undefined : statusId,
         typeId: typeId === '' ? undefined : typeId,
+        priority: priority === '' ? undefined : priority,
         bookmarked: bookmarked || undefined,
         page,
-        size: PAGE_SIZE,
+        size: pageSize,
         ...reportParams,
       }),
     placeholderData: keepPreviousData,
   });
 
   const items = data?.content ?? [];
+
+  // Where the query appears inside each listed record. Runs only while searching, and only for the
+  // ids on screen — a page of context, not a second search.
+  const ids = items.map((it) => it.id);
+  const { data: context } = useQuery({
+    queryKey: ['match-context', config.key, q, ids],
+    queryFn: () => matchContext(config.key, q, ids),
+    enabled: q.length > 0 && ids.length > 0,
+    placeholderData: keepPreviousData,
+  });
 
   // Report loaded ids to the shell for keyboard (j/k) navigation.
   useEffect(() => {
@@ -174,11 +214,7 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
       setCommand('');
       qc.invalidateQueries({ queryKey: ['list', config.key] });
     },
-    onError: (e: unknown) =>
-      setBatchMsg(
-        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-          'Batch edit failed.',
-      ),
+    onError: (e: unknown) => setBatchMsg(errorDetail(e, 'Batch edit failed.')),
   });
 
   const toggle = (id: number) =>
@@ -231,10 +267,11 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
         </Stack>
         {showFromUrl && fromUrlOpen && (
           <ScrapeFromUrl
-            onScraped={(fields, warnings, cover) => {
-              setFromUrlOpen(false);
-              onScraped!(fields, warnings, cover);
-            }}
+            // The panel STAYS open after a fetch. Closing it was the obvious thing and it was
+            // wrong: building resources from links is done in runs, and having the control fold
+            // itself away after each one meant re-opening it for every URL. It closes when asked
+            // to — the X, or Escape — and not otherwise.
+            onScraped={(fields, warnings, cover) => onScraped!(fields, warnings, cover)}
             onCancel={() => setFromUrlOpen(false)}
           />
         )}
@@ -259,6 +296,12 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
           {config.hasType && (
             <FilterSelect label="Type" value={typeId} options={lookups?.types} onChange={setTypeId} />
           )}
+          <FilterSelect
+            label="Priority"
+            value={priority}
+            options={PRIORITY_OPTIONS}
+            onChange={setPriority}
+          />
           <Tooltip title="Bookmarked only">
             <IconButton size="small" onClick={() => setBookmarked((b) => !b)} color="primary">
               {bookmarked ? <Star fontSize="small" /> : <StarBorder fontSize="small" />}
@@ -273,6 +316,26 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
               field: { clearable: true },
             }}
           />
+          {/* Sits with the filters rather than beside the pager: how much you want to see at once
+              is part of how you're looking, and it's remembered for next time. */}
+          <TextField
+            select
+            size="small"
+            label="Per page"
+            value={pageSize}
+            onChange={(e) => {
+              const next = Number(e.target.value);
+              setPageSize(next);
+              localStorage.setItem(PAGE_SIZE_KEY, String(next));
+            }}
+            sx={{ width: 110 }}
+          >
+            {PAGE_SIZES.map((n) => (
+              <MenuItem key={n} value={n}>
+                {n}
+              </MenuItem>
+            ))}
+          </TextField>
         </Stack>
         <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
           {onDay && (
@@ -395,8 +458,10 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
                     {it.displayTitle || '(untitled)'}
                   </>
                 }
+                secondaryTypographyProps={{ component: 'span' }}
                 secondary={
-                  <Stack component="span" direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                  <>
+                    <Stack component="span" direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
                     <Typography component="span" variant="caption" color="text.secondary">
                       {formatDate(it.dateCreated)}
                     </Typography>
@@ -426,7 +491,9 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
                         sx={{ height: 18, fontSize: 10 }}
                       />
                     ))}
-                  </Stack>
+                    </Stack>
+                    <MatchContext matches={context?.[it.id]} term={q} />
+                  </>
                 }
               />
             </ListItemButton>
@@ -442,10 +509,7 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
                   </Button>
                 }
               >
-                Couldn't load {config.label.toLowerCase()}.{' '}
-                {(error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-                  (error as Error | undefined)?.message ??
-                  'Please try again.'}
+                {errorDetail(error, `Couldn't load ${config.label.toLowerCase()}.`)}
               </Alert>
             </Box>
           )}
@@ -512,6 +576,69 @@ function Cover({ module, id }: { module: string; id: number }) {
       sx={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 0.5, mr: 1, flexShrink: 0 }}
     />
   );
+}
+
+/** Human name for a record field, for the "where it matched" label. */
+const FIELD_LABEL: Record<string, string> = {
+  summary: 'Summary',
+  name: 'Name',
+  title: 'Title',
+  author: 'Author',
+  description: 'Description',
+  shortDescription: 'Short description',
+  fullText: 'Full text',
+  highlights: 'Highlights',
+  notes: 'Notes',
+};
+
+/**
+ * Where the search term was found, under the record it was found in.
+ *
+ * The title alone answers "what matched" but not "why", and for a resource the answer is usually
+ * buried in a field the list never shows — a scanned book's full text, a note from months ago. The
+ * term itself is marked in each excerpt so the eye lands on it without reading the sentence.
+ */
+function MatchContext({ matches, term }: { matches?: FieldMatch[]; term: string }) {
+  if (!matches || matches.length === 0) return null;
+  return (
+    <Box component="span" sx={{ display: 'block', mt: 0.25 }}>
+      {matches.slice(0, 3).map((m) => (
+        <Typography
+          component="span"
+          key={m.field}
+          variant="caption"
+          color="text.secondary"
+          sx={{ display: 'block', whiteSpace: 'normal', lineHeight: 1.35 }}
+        >
+          <Box component="span" sx={{ fontWeight: 700, mr: 0.5 }}>
+            {FIELD_LABEL[m.field] ?? m.field}:
+          </Box>
+          <MarkedText text={m.snippet} term={term} />
+        </Typography>
+      ))}
+    </Box>
+  );
+}
+
+/** The snippet with every occurrence of `term` emboldened. Case-insensitive, literal (not a regex). */
+function MarkedText({ text, term }: { text: string; term: string }) {
+  const needle = term.trim().toLowerCase();
+  if (!needle) return <>{text}</>;
+  const parts: React.ReactNode[] = [];
+  let from = 0;
+  for (;;) {
+    const at = text.toLowerCase().indexOf(needle, from);
+    if (at < 0) break;
+    if (at > from) parts.push(text.slice(from, at));
+    parts.push(
+      <Box component="span" key={at} sx={{ fontWeight: 700, color: 'text.primary' }}>
+        {text.slice(at, at + needle.length)}
+      </Box>,
+    );
+    from = at + needle.length;
+  }
+  parts.push(text.slice(from));
+  return <>{parts}</>;
 }
 
 function FilterSelect({
@@ -590,12 +717,10 @@ function ScrapeFromUrl({
         s.imageUrl ?? '',
       );
     },
-    // The backend's rejections are all written for a person — a bad URL, a private address, a dead
-    // page — so show the message rather than a generic failure.
-    onError: (e: unknown) => {
-      const detail = (e as { response?: { data?: { detail?: string; message?: string } } })?.response?.data;
-      setError(detail?.detail ?? detail?.message ?? 'Could not fetch that page.');
-    },
+    // The backend's rejections are all written for a person — a bad URL, a private address, a
+    // dead page — so show its words. And when there IS no answer, say THAT rather than blaming the
+    // URL: a backend that is down used to be reported as "Could not fetch that page."
+    onError: (e: unknown) => setError(errorDetail(e, 'Could not fetch that page.')),
   });
 
   const go = () => {
@@ -603,7 +728,22 @@ function ScrapeFromUrl({
   };
 
   return (
-    <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ pb: 1 }}>
+    // Its own tinted, bordered panel. Unstyled it sat directly above the search field as another
+    // bare row of the same shape, and the two were told apart only by their placeholder text —
+    // which is a poor way to know which box you are typing into.
+    <Stack
+      direction="row"
+      spacing={1}
+      alignItems="flex-start"
+      sx={(theme) => ({
+        mb: 1,
+        p: 1,
+        borderRadius: 1,
+        border: 1,
+        borderColor: alpha(theme.palette.primary.main, 0.35),
+        bgcolor: alpha(theme.palette.primary.main, 0.06),
+      })}
+    >
       <TextField
         size="small"
         fullWidth

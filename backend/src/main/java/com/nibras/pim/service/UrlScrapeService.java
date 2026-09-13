@@ -143,6 +143,13 @@ public class UrlScrapeService {
                 text(doc.selectFirst("time"))));
 
         String body = articleText(doc);
+        // A page can deliver its article without ever putting it in the DOM — see streamedText.
+        if (body.length() < MIN_BODY_CHARS) {
+            String streamed = streamedText(doc);
+            if (streamed.length() > body.length()) {
+                body = streamed;
+            }
+        }
         String image = mainImage(doc, uri);
 
         List<String> warnings = new java.util.ArrayList<>();
@@ -247,6 +254,105 @@ public class UrlScrapeService {
     // ---------------------------------------------------------------- extraction
 
     /**
+     * Below this, the DOM has plainly not given up an article and it is worth looking at what the
+     * page streamed instead. A real article clears this many characters in its first paragraph.
+     */
+    private static final int MIN_BODY_CHARS = 400;
+
+    /** Marks a React Server Component flight chunk: {@code self.__next_f.push([1,"<escaped>"]}. */
+    private static final String FLIGHT_MARKER = "__next_f.push(";
+
+    /**
+     * The article text a page streamed rather than rendered.
+     *
+     * <p>Next.js App Router pages ship their content as React Server Component "flight" chunks
+     * inside {@code <script>self.__next_f.push([1,"…"])</script>} — the markup arrives as escaped
+     * JSON strings and is assembled into the DOM by the browser. Nothing is wrong with the DOM
+     * extraction in that case; there simply is no article in the document to find. The al-akhbar.com
+     * page that prompted this had 119 characters inside its {@code <article>} element and 35,000 in
+     * its flight payload.
+     *
+     * <p>This is deliberately a FALLBACK rather than a first choice. The rendered DOM is what the
+     * reader sees and is right whenever it exists; the flight payload also carries navigation,
+     * related-article lists and other furniture that the DOM pass strips by structure and this one
+     * cannot. It is only better than nothing — which is exactly the case it is here for.
+     *
+     * <p>Not site-specific: the App Router is used widely, so a page that renders nothing into its
+     * HTML is now a common shape rather than one publisher's quirk.
+     *
+     * <p>The literals are found and walked BY HAND rather than with a regex. The obvious pattern —
+     * {@code "(?:\\.|[^"\\])*"} — is a stack overflow waiting to happen: Java's engine recurses
+     * once per repetition, and these chunks run to thousands of characters, so the first real page
+     * this was tried against killed it outright. This scan is linear and cannot recurse.
+     */
+    private String streamedText(Document doc) {
+        StringBuilder payload = new StringBuilder();
+        for (Element script : doc.select("script")) {
+            String js = script.data();
+            int at = js.indexOf(FLIGHT_MARKER);
+            while (at >= 0) {
+                int quote = js.indexOf('"', at + FLIGHT_MARKER.length());
+                if (quote < 0) {
+                    break;
+                }
+                int end = endOfJsonString(js, quote);
+                if (end < 0) {
+                    break;
+                }
+                payload.append(unescapeJsonString(js.substring(quote, end + 1)));
+                at = js.indexOf(FLIGHT_MARKER, end);
+            }
+        }
+        if (payload.length() == 0) {
+            return "";
+        }
+        // Re-parse as HTML and reuse the ordinary block extraction, so entities, nesting and the
+        // Markdown-ish shaping are all handled in exactly one place.
+        Document streamed = Jsoup.parse(payload.toString(), doc.baseUri());
+        streamed.select(FURNITURE).remove();
+        return blocksToMarkdown(streamed);
+    }
+
+    /** Index of the closing quote of the JSON string starting at [open], or -1 if unterminated. */
+    private int endOfJsonString(String s, int open) {
+        for (int i = open + 1; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\') {
+                i++;              // skip whatever it escapes, including a quote
+            } else if (c == '"') {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** A JSON string literal (quotes included) to its value; blank if it will not decode. */
+    private String unescapeJsonString(String literal) {
+        StringBuilder out = new StringBuilder(literal.length());
+        for (int i = 1; i < literal.length() - 1; i++) {
+            char c = literal.charAt(i);
+            if (c != '\\') {
+                out.append(c);
+                continue;
+            }
+            char n = literal.charAt(++i);
+            switch (n) {
+                case 'n' -> out.append('\n');
+                case 't' -> out.append('\t');
+                case 'r' -> out.append('\r');
+                case 'b' -> out.append('\b');
+                case 'f' -> out.append('\f');
+                case 'u' -> {
+                    out.append((char) Integer.parseInt(literal.substring(i + 1, i + 5), 16));
+                    i += 4;
+                }
+                default -> out.append(n);   // \" \\ \/ and anything else stands for itself
+            }
+        }
+        return out.toString();
+    }
+
+    /**
      * The article's text as Markdown-ish plain text: headings keep their {@code #} markers and
      * paragraphs are blank-line separated, because the Resource {@code fullText} field is edited and
      * rendered as Markdown.
@@ -258,7 +364,11 @@ public class UrlScrapeService {
         }
         root = root.clone();
         root.select(FURNITURE).remove();
+        return blocksToMarkdown(root);
+    }
 
+    /** Block elements under [root] as Markdown-ish text. Shared by the DOM and streamed passes. */
+    private String blocksToMarkdown(Element root) {
         StringBuilder out = new StringBuilder();
         for (Element el : root.select("h1, h2, h3, h4, h5, h6, p, li, blockquote, pre")) {
             // Skip a node whose text is entirely inside a descendant we're also going to emit,

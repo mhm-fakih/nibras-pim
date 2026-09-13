@@ -158,9 +158,8 @@ public class SyncService {
 
     private List<Map<String, Object>> exportPlans() {
         LocalDateTime now = LocalDateTime.now();
-        Specification<Planner> spec = (root, q, cb) -> cb.and(
-                cb.between(root.get("startDate"), now.minusDays(14), now.plusDays(14)),
-                cb.isNull(root.get("completedOn")));
+        Specification<Planner> spec = SyncService.<Planner>bookmarkedOrRecent(now)
+                .and((root, q, cb) -> cb.isNull(root.get("completedOn")));
         List<Map<String, Object>> out = new ArrayList<>();
         for (Planner p : plannerRepo.findAll(spec, Sort.by(Sort.Direction.ASC, "startDate"))) {
             String summary = (p.getTask() != null ? "[" + p.getTask().getSummary() + "] " : "") + nz(p.getSummary());
@@ -191,7 +190,7 @@ public class SyncService {
             }
             out.add(m);
         }
-        out.addAll(expandedPlanOccurrences(now.minusDays(14), now.plusDays(14)));
+        out.addAll(expandedPlanOccurrences(now.minusDays(CALENDAR_PAST_DAYS), now.plusDays(CALENDAR_AHEAD_DAYS)));
         return out;
     }
 
@@ -242,7 +241,8 @@ public class SyncService {
 
     private List<Map<String, Object>> exportJournal() {
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Journal j : journalRepo.findAll(bookmarked(), Sort.by(Sort.Direction.DESC, "startDate"))) {
+        for (Journal j : journalRepo.findAll(bookmarkedOrRecent(LocalDateTime.now()),
+                Sort.by(Sort.Direction.DESC, "startDate"))) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("type", "J");
             m.put("id", j.getId());
@@ -347,6 +347,28 @@ public class SyncService {
 
     private static <E> Specification<E> bookmarked() {
         return (root, q, cb) -> cb.isTrue(root.get("bookmarked"));
+    }
+
+    /** How far either side of today the phone's calendar keeps entries it was never asked to bookmark. */
+    private static final int CALENDAR_PAST_DAYS = 7;
+    private static final int CALENDAR_AHEAD_DAYS = 14;
+
+    /**
+     * Bookmarked, <em>or</em> starting within the past week / coming fortnight.
+     *
+     * The calendar types (Journal and Planner) are not browsed the way Tasks or Resources are —
+     * they are lived through, around today. Requiring a bookmark for them had a specific and bad
+     * consequence: an entry made on the phone synced up, came back down on the next pull only if
+     * something had bookmarked it, and otherwise vanished from the calendar it was just entered
+     * into. Recency is the right test for these two, and the bookmark is kept as an OR rather than
+     * replaced, so anything deliberately pinned still comes down however old it is.
+     */
+    private static <E> Specification<E> bookmarkedOrRecent(LocalDateTime now) {
+        LocalDateTime from = now.minusDays(CALENDAR_PAST_DAYS);
+        LocalDateTime to = now.plusDays(CALENDAR_AHEAD_DAYS);
+        return (root, q, cb) -> cb.or(
+                cb.isTrue(root.get("bookmarked")),
+                cb.between(root.get("startDate"), from, to));
     }
 
     // ====================================================================== search (mobileSearch)

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The pill behind a list widget's count. A quiet fill rather than a coloured one: the number's
+     own colour carries the signal (green when it is where it should be, red when it is not), and a
+     coloured background would compete with it. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#2A2A2E" />
+    <corners android:radius="9dp" />
+</shape>

@@ -48,6 +48,7 @@ import {
   updateEntity,
   EntityRecord,
   TagRef,
+  errorDetail,
 } from '../api/client';
 import { EntityConfig, ENTITY_CLASS_BY_KEY } from '../config/entities';
 import { lookupStyle } from './statusStyle';
@@ -55,6 +56,7 @@ import { HistoryPanel } from './HistoryPanel';
 import { RepoFilesPanel } from './RepoFilesPanel';
 import { RelatedRecordsPanel } from './RelatedRecordsPanel';
 import { MarkdownView } from './MarkdownView';
+import { toggleChecklistItem } from '../util/checklist';
 import { FulltextPanel } from './FulltextPanel';
 import { isRtlText } from '../util/rtl';
 import { useAuth } from '../hooks/useAuth';
@@ -98,6 +100,28 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
   const toggleField = useMutation({
     mutationFn: (field: 'bookmarked' | 'urgent') =>
       updateEntity(config.key, id, { ...record, [field]: !record![field] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['record', config.key, id] });
+      qc.invalidateQueries({ queryKey: ['list', config.key] });
+    },
+  });
+
+  /**
+   * Tick or untick a `- [ ]` item in one of the record's long-text fields.
+   *
+   * The whole record goes back, like every other quick toggle here: the generic PUT applies every
+   * DTO field, so a partial body would null out everything it left unsaid. The text is rewritten
+   * from the record's CURRENT value rather than from anything the DOM holds, so two ticks in quick
+   * succession can't race — the second reads what the first saved.
+   */
+  const toggleChecklist = useMutation({
+    mutationFn: ({ field, index }: { field: string; index: number }) => {
+      const source = String((record as Record<string, unknown>)[field] ?? '');
+      return updateEntity(config.key, id, {
+        ...record,
+        [field]: toggleChecklistItem(source, index),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['record', config.key, id] });
       qc.invalidateQueries({ queryKey: ['list', config.key] });
@@ -287,7 +311,17 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
             places. Nothing is deleted by hiding it — see FieldDef.feature. */}
         {config.fields.filter((f) => featureOn(f.feature)).map((f) => (
           <Box key={f.name}>
-            <FieldView label={f.label} type={f.type} value={record[f.name]} record={record} />
+            <FieldView
+              label={f.label}
+              type={f.type}
+              value={record[f.name]}
+              record={record}
+              onToggleChecklistItem={
+                canWriteContent && (f.type === 'markdown' || f.type === 'richtext')
+                  ? (index) => toggleChecklist.mutate({ field: f.name, index })
+                  : undefined
+              }
+            />
             {(f.name === 'description' || f.name === 'notes') && canWriteContent && (
               <AppendToDescriptionBar
                 key={`${record.id}-${f.name}`}
@@ -541,10 +575,7 @@ function AppendToDescriptionBar({
         <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
           {/* Show the server's own words. A 409 here means someone else changed the record and
               says to reload — "Could not append." would hide the one thing worth knowing. */}
-          {(append.error as { response?: { data?: { detail?: string; message?: string } } })
-            ?.response?.data?.detail ??
-            (append.error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-            'Could not append.'}
+          {errorDetail(append.error, 'Could not append.')}
         </Typography>
       )}
     </Box>
@@ -707,11 +738,14 @@ export function FieldView({
   type,
   value,
   record,
+  onToggleChecklistItem,
 }: {
   label: string;
   type: string;
   value: unknown;
   record: EntityRecord;
+  /** Ticking a `- [ ]` item in this field. Omitted where the record can't be written. */
+  onToggleChecklistItem?: (index: number) => void;
 }) {
   // status/type/department/course/book/tags/recurrence are already shown as chips in the header.
   if (['status', 'type', 'department', 'course', 'book', 'tags', 'recurrence'].includes(type)) return null;
@@ -724,7 +758,7 @@ export function FieldView({
   if (type === 'richtext' || type === 'markdown') {
     body = (
       <Box dir={rtl ? 'rtl' : 'ltr'} sx={{ textAlign: rtl ? 'right' : 'left' }}>
-        <MarkdownView value={String(value)} />
+        <MarkdownView value={String(value)} onToggleItem={onToggleChecklistItem} />
       </Box>
     );
   } else if (type === 'url') {

@@ -10,28 +10,31 @@ import android.widget.RemoteViewsService
 import com.knotes.NoteRepository
 import com.knotes.R
 import com.knotes.SettingsStore
+import com.knotes.startOfToday
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
 /**
- * Serves the rows for [PlansWidget]'s two independent lists: "Upcoming plans" and "Top priority"
- * (priority-4 notes). The two lists are told apart by the section segment of the service intent's
- * `data` URI ({@code widget://plans/<section>/<widgetId>}, set in [PlansWidget.sectionIntent]).
+ * Serves the rows for every list-style widget in the app: "Upcoming plans", "Top priority" (notes
+ * at the top priority, any type) and "Today's tasks" (type T at the top priority, written today).
+ *
+ * The lists are told apart by the section segment of the service intent's `data` URI
+ * ({@code widget://plans/<section>/<widgetId>}) — Android matches a RemoteViewsService adapter by
+ * [Intent.filterEquals], which compares `data` and ignores extras, so that segment is what keeps
+ * three widgets from silently sharing one adapter and showing identical rows.
  */
 class PlansWidgetService : RemoteViewsService() {
-    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
-        val section = intent.data?.pathSegments?.firstOrNull()
-        return PlansFactory(applicationContext, priorityOnly = section == "priority")
-    }
+    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory =
+        PlansFactory(applicationContext, intent.data?.pathSegments?.firstOrNull().orEmpty())
 }
 
 private data class ItemRow(val lead: CharSequence, val text: CharSequence)
 
 private class PlansFactory(
     private val context: Context,
-    private val priorityOnly: Boolean,
+    private val section: String,
 ) : RemoteViewsService.RemoteViewsFactory {
 
     private val recentMs = 2 * 60 * 60 * 1000L
@@ -40,26 +43,76 @@ private class PlansFactory(
     override fun onCreate() {}
 
     override fun onDataSetChanged() {
-        rows = if (priorityOnly) {
-            val topNotes = runCatching {
-                NoteRepository(SettingsStore(context)).listNotes()
-                    .filter { it.priority == SettingsStore(context).value.topPriority }
-            }.getOrDefault(emptyList())
-            if (topNotes.isEmpty()) listOf(ItemRow("", "No priority-4 notes"))
-            else topNotes.map { n -> ItemRow(n.type ?: "·", preview20(n.content)) }
-        } else {
-            val now = System.currentTimeMillis()
-            val plans = PlansStore.read(context)
-                .filter { it.endMillis > now - recentMs }
-                .sortedBy { it.startMillis }
-            if (plans.isEmpty()) listOf(ItemRow("", "Nothing upcoming"))
-            else plans.map { p ->
-                val expired = p.endMillis < now
-                ItemRow(
-                    maybeStrike(lead(p.startMillis), expired),
-                    maybeStrike(p.summary.ifBlank { "(no summary)" }, expired),
-                )
-            }
+        rows = when (section) {
+            "priority" -> priorityRows()
+            TodayTasksWidget.SECTION -> todayTaskRows()
+            TodayJournalWidget.SECTION -> todayJournalRows()
+            else -> planRows()
+        }
+    }
+
+    /** Every note at the top priority, whatever its type. */
+    private fun priorityRows(): List<ItemRow> {
+        val priority = SettingsStore(context).value.topPriority
+        val topNotes = runCatching {
+            NoteRepository(SettingsStore(context)).listNotes().filter { it.priority == priority }
+        }.getOrDefault(emptyList())
+        return if (topNotes.isEmpty()) listOf(ItemRow("", "No priority-$priority notes"))
+        else topNotes.map { n -> ItemRow(n.type ?: "·", widgetRowText(n.content)) }
+    }
+
+    /**
+     * Today's tasks, newest first, led by the time each was written.
+     *
+     * No empty-row placeholder here: this widget sets a real `setEmptyView`, and returning a fake
+     * row would keep the adapter non-empty and stop that view from ever showing.
+     */
+    private fun todayTaskRows(): List<ItemRow> {
+        val priority = SettingsStore(context).value.topPriority
+        val tasks = runCatching {
+            NoteRepository(SettingsStore(context))
+                .listTasksSince(TodayTasksWidget.TASK_TYPE, priority, startOfToday())
+        }.getOrDefault(emptyList())
+        return tasks.map { n ->
+            ItemRow(
+                SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(n.createdMillis)),
+                widgetRowText(n.content),
+            )
+        }
+    }
+
+    /**
+     * Today's journal entries, newest first, led by the time each was written.
+     *
+     * Null priority, unlike [todayTaskRows]: every entry of the day belongs on this list. Same
+     * absence of a placeholder row — the widget sets a real `setEmptyView`, and a fake row would
+     * keep the adapter non-empty and stop that view ever showing.
+     */
+    private fun todayJournalRows(): List<ItemRow> {
+        val entries = runCatching {
+            NoteRepository(SettingsStore(context))
+                .listTasksSince(TodayJournalWidget.JOURNAL_TYPE, null, startOfToday())
+        }.getOrDefault(emptyList())
+        return entries.map { n ->
+            ItemRow(
+                SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(n.createdMillis)),
+                widgetRowText(n.content),
+            )
+        }
+    }
+
+    private fun planRows(): List<ItemRow> {
+        val now = System.currentTimeMillis()
+        val plans = PlansStore.read(context)
+            .filter { it.endMillis > now - recentMs }
+            .sortedBy { it.startMillis }
+        return if (plans.isEmpty()) listOf(ItemRow("", "Nothing upcoming"))
+        else plans.map { p ->
+            val expired = p.endMillis < now
+            ItemRow(
+                maybeStrike(lead(p.startMillis), expired),
+                maybeStrike(p.summary.ifBlank { "(no summary)" }, expired),
+            )
         }
     }
 
@@ -77,11 +130,6 @@ private class PlansFactory(
     override fun getViewTypeCount(): Int = 1
     override fun getItemId(position: Int): Long = position.toLong()
     override fun hasStableIds(): Boolean = false
-
-    private fun preview20(content: String): String {
-        val s = content.replace("\n", " ").trim()
-        return if (s.length > 20) s.take(20) + "…" else s
-    }
 
     private fun maybeStrike(text: String, strike: Boolean): CharSequence =
         if (!strike) text

@@ -86,4 +86,35 @@ class VolumeLevelColorTest {
             )
         }
     }
+
+    // ---- streams whose slider does not start at zero ---------------------------------------
+
+    /**
+     * The call and alarm streams on a real device (a Galaxy A07) report Min 1, Max 15: Android
+     * will not let either be silenced from its slider, so index 1 IS the bottom of that slider.
+     * Drawing them from zero puts the bar — and this colour — above where the system slider sits.
+     *
+     * [PhoneStatusWidget.levelColor] takes positions on the stream's own range, so the caller
+     * subtracts the minimum. These check that the shifted range behaves.
+     */
+    @Test
+    fun theBottomOfAStreamThatStartsAtOneIsTreatedAsTheBottom() {
+        // cur = min = 1 on a 1..15 stream -> position 0 of a 14-step span.
+        assertEquals(green, color(0, 14))
+    }
+
+    @Test
+    fun theTopOfAShiftedRangeIsStillRed() {
+        // cur = max = 15 on a 1..15 stream -> position 14 of 14.
+        assertEquals(red, color(14, 14))
+    }
+
+    /**
+     * The measured case: call volume 11 of 1..15 is 10/14 = 71% — where Android's slider shows it.
+     * Read from zero it was 11/15 = 73%, which crosses nothing here but shifts every bar up.
+     */
+    @Test
+    fun aMidHighShiftedLevelIsNotYetNearTheTop() {
+        assertEquals(green, color(10, 14))
+    }
 }

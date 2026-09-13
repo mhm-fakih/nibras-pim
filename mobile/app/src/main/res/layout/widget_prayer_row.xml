@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One prayer on the Prayer times widget: name on the left, clock time hard against the right.
+
+     The name takes the leftover width (weight 1) and ellipsizes, so the time column never gets
+     pushed off the edge however narrow the widget is dragged. Colours are set at runtime — the
+     next prayer is drawn brighter than the rest — so what is here is only what shows before the
+     first refresh. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/row_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingTop="3dp"
+    android:paddingBottom="3dp">
+
+    <TextView
+        android:id="@+id/pw_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="#EEEEEE"
+        android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/pw_time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingStart="8dp"
+        android:textColor="#EEEEEE"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+</LinearLayout>

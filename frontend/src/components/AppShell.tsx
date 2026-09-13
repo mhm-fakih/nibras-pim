@@ -3,7 +3,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Alert, Box, Button, Snackbar, Typography, useMediaQuery, useTheme } from '@mui/material';
 import ChevronLeft from '@mui/icons-material/ChevronLeft';
-import { batchEdit, createJournalDay, exportFulltext, getSetting, listEntities, listModules, openRecordFolder, setCoverFromUrl, EntityRecord, SavedSearchRecordRef } from '../api/client';
+import { batchEdit, createJournalDay, exportFulltext, getSetting, listEntities, listModules, openRecordFolder, setCoverFromUrl, EntityRecord, SavedSearchRecordRef,
+  errorDetail,
+} from '../api/client';
 import { ENTITY_BY_KEY } from '../config/entities';
 import { SearchResultsList } from './SearchResultsList';
 import { ShortcutContext } from './ShortcutsProvider';
@@ -209,8 +211,7 @@ export function AppShell() {
         setToast('Cover image imported from the page.');
       })
       .catch((e: unknown) => {
-        const detail = (e as { response?: { data?: { detail?: string; message?: string } } })?.response?.data;
-        setToast(`Saved — but the cover image could not be imported: ${detail?.detail ?? detail?.message ?? 'download failed'}`);
+        setToast(`Saved — but the cover image could not be imported: ${errorDetail(e, 'the download failed.')}`);
       });
   };
 

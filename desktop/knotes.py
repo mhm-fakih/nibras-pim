@@ -44,7 +44,7 @@ IS_WINDOWS = os.name == "nt"
 IS_MACOS = sys.platform == "darwin"
 DEFAULT_OPENER = "start" if IS_WINDOWS else ("open" if IS_MACOS else "xdg-open")
 
-VERSION = "1.3.33"
+VERSION = "1.2.36"
 CODENAME = "Gratitude"
 
 

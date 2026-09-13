@@ -1,5 +1,1332 @@
 # Changelog
 
+## 2026-09-13 — Subtitle-labelled bookmarks, and a tighter player
+
+### Added — a bookmark takes the spoken sentence as its label
+
+With an `.srt` beside the file, an unlabelled bookmark is now named with the line being spoken. A
+bare timestamp says nothing when you come back to a list of them; the sentence is the only thing
+that records why you marked it, and the subtitle file has already done the typing. A note you typed
+still wins — that is a deliberate act, and the case where the sentence is not what you meant to keep.
+
+The cue is read at the BOOKMARKED position, not at the playhead. The mark is placed a few seconds
+back precisely because that is the line you just heard; labelling it with what is being said now
+would name a different sentence from the one it points at.
+
+On mobile this turned out to need two places, not one. The player screen's button was the obvious
+one; the other is `PlaybackService`, which bookmarks automatically on pause and wrote the literal
+word "auto" — and that is where it helps most, since nothing was typed and a list of them reads
+"auto, auto, auto". The label logic lives in `Subtitles` so both paths share it. **Desktop gets the
+same**, in `subtitles.label_at`.
+
+### Fixed — the bookmark button kept bumping priority instead of adding a mark
+
+A quick second tap is meant to raise the previous bookmark's priority (p2, p3, …). The only
+condition was "was the tap quick?", so two taps a few seconds apart at genuinely different points in
+the audio were both quick — and the second silently re-labelled the first instead of marking the new
+spot. The bookmark you wanted was never recorded.
+
+The playhead must now still be AT the previous mark as well. The tolerance is that same window
+measured on the audio rather than on the clock, scaled by playback speed, since a second of
+listening at 1.25x advances 1.25s — without the scaling, double-tapping would have quietly stopped
+working for anyone who speeds playback up.
+
+### Changed — two rows of the desktop player given back to the waveform
+
+Subtitles and transcripts now share ONE row: they are the same kind of thing, the sidecar text
+belonging to this file, and on separate rows they cost two lines of height for a handful of chips on
+every file that had both. They keep independent visibility, so the shared row is shown when either
+half has content — an empty parent box draws as a blank line, which is the height this was meant to
+recover.
+
+The file-name label under the title entry is gone and the trash button moved to the entry's right.
+For these recordings the name and the title tag are the same string, so the label was repeating what
+the field above it already showed. The name is still reachable as the entry's tooltip, for the files
+where the two genuinely differ.
+
+8 new mobile unit tests (272).
+
+## 2026-09-06 — One card per note, and galleries that work offline
+
+### Changed — the flash-card bank is one canonical card per note
+
+22,385 cards came from **1,576 notes** — an average of 14 each, and 257 for the worst of them. (Not
+13,000 notes: that is the whole notes module. Only 1,618 notes have a 200-word description, which is
+what the extract required, and 1,576 of those produced passages.) Reviewing fourteen slices of the
+same note is not a task anyone finishes.
+
+The bank is now **1,576 cards, one per note** — the passage that best carries the note's point.
+20,809 were retired.
+
+The pick is scored on four signals, in the order they matter: summing-up phrases (`بمعنى`, `الخلاصة`,
+`in short`, `the point is` — the strongest evidence a sentence is the conclusion and not a step),
+then topical weight on the SAME keyword lists the bank was favoured by, then fullness (a passage near
+the 100-word cap is a complete thought; a 35-word stub is what was left at the end of a note), then
+position as a tie-break only. `tools/gather_flashcards.py` was given a `__main__` guard so its
+scoring is imported rather than copied — two copies of a tuned heuristic is two things to retune.
+
+**Nothing is hard-deleted**, and **decided cards are never touched**. Retired cards get `deleted_on`,
+which every query already filters on, so the whole reduction is one UPDATE away from being undone —
+the SQL says how in its own header.
+
+Two files in `dist/`, for two different situations, and they are not interchangeable:
+
+- **`flashcards-canonical.sql`** — reduces a database that ALREADY has the full bank. It asks that
+  database which notes you have decided about and keeps those cards, so it is correct on the
+  production box without the generating script ever seeing it. Portable because `card_key` is the
+  passage's content hash: the same passage has the same key everywhere.
+- **`nibras-flashcards-canonical-1576.sql.gz`** — the reduced bank as a plain load, for a database
+  with no bank yet. `INSERT IGNORE` on the unique `card_key`, so re-running adds nothing and cannot
+  reset a reviewed card. Verified by loading into a scratch database: 1,576 rows, 1,576 notes, every
+  passage byte-identical to the source, and a re-run after marking a card KEPT left it KEPT.
+
+### Added — both galleries work offline
+
+They fetched on open with nothing to fall back on, so no server meant an error and an empty page.
+Both now read a **cache first, before the network is tried at all**, and treat the fetch as a refresh.
+
+`FlashCache` stores the server's **raw response verbatim** rather than a re-serialisation, so the
+offline copy is parsed by exactly the code that parses a live one — a cache with its own format has
+a second parser to keep in step, and the day they disagree is the day nobody notices.
+
+Flash-card decisions work offline too. `FlashOutbox` holds them, keyed by card id so re-deciding
+replaces rather than stacks, and `PushCenter` drains it alongside the record and calendar outboxes —
+so a decision goes out when connectivity returns, not only if the page happens to be reopened. The
+card is written to disk before the network is touched: a decision is the reader's, and the only open
+question is when it arrives. The old "that decision did not reach the server — it has been put back"
+is gone; the header says `saved copy, 2h ago · 3 decisions to sync` instead.
+
+The one case that still shows an error is a cold start with no cache and no server, which genuinely
+has nothing to show.
+
+### Changed — the mobile rail is two bands, one open at a time
+
+The rail had become one undifferentiated column, and the difference that actually matters when you
+open it is whether the page will work right now. It is now two faintly tinted bands under icon
+headings: **on this phone** (prayer times, notes, image gallery, media player, file collector) and
+**from the server** (calendar, the record letters, flash cards, highlights, server search).
+
+The headings are icons, not words: the rail is 56dp wide and any legible label would wrap or be cut.
+The words are there for a screen reader as the icon's `contentDescription` — which is also what makes
+the bands testable from the accessibility tree rather than only by eye. The tints are at 7% alpha, so
+they group without competing with the selected cell's own fill.
+
+Every destination but Settings lives in one of the two bands, and **one band is open at a time**:
+opening either closes the other. The rail carries eighteen destinations and cannot show them all on a
+phone screen, so whichever half you are working in is fully visible without scrolling and the other
+is one tap away. It replaces the old "more" group, which folded four pages behind a neutral icon for
+the same reason and could only ever hide four.
+
+The band holding the current page opens itself — a collapsed band whose child is the page you are on
+would hide where you already are. Settings sits outside both and is never collapsed: a rail whose
+configuration page can be shut out of reach is a trap.
+
+- **Order**, local band: prayer times, notes, image gallery, media, file collector — the collector
+  last, being a job you run rather than a place you read. The file collector moved here from the
+  bottom of the rail: gathering files into the notes folder happens entirely on the phone.
+- **Server band**: search server moved to the END. It searches everything on the server, where every
+  cell above it browses what sync already pulled down, so closing the section with the
+  widest-reaching thing reads as "and if it is not up there, look here".
+- The home icon is a **note**, not a house. Inside a band already labelled "on this phone", a house
+  said nothing about what the page holds.
+- Both heading glyphs are one size in both states, with more padding below than above — the gap
+  under the heading is what separates it from the first destination, and evenly padded the icons
+  read as another cell in the list rather than the label over it.
+
+**Prayer times and file collection each have a switch in Settings**, and they govern the feature
+rather than the icon: switching one off removes its page AND cancels what it had scheduled. Checked
+inside `PrayerScheduler.sync` and `CollectScheduler.sync`, at the single point either arms an alarm,
+so no caller can arm one around the switch. An athan calling from a prayer page you have turned off
+is the worst possible version of that feature.
+
+Two wiring gaps closed with it: the prayer effect in `MainActivity` was keyed on `Unit`, so it ran
+once per composition and would have left a standing alarm armed until the next app restart; the
+collect effect keyed only on the automatic-run settings. File collection now has two switches and
+the feature one wins — `collectEnabled` says whether the collector is in the app at all,
+`collectAutoEnabled` only whether it runs by itself.
+
+### Fixed — "play next: none" auto-played the next file
+
+`openPaused()` prepared the next item but never cleared `playWhenReady`. A `MediaController` carries
+that flag from whatever it was last told, so after a file played to its end it was still true and
+preparing the next item started it immediately — precisely what the setting exists to prevent. The
+restore-on-launch path used the same function and looked fine, because there the flag happens to be
+false already.
+
+**And "none" now keeps the same file open**, rewound to its start and paused, instead of cueing the
+next sibling. None should mean the player is where you left it, not one file further on.
+
+### Added — deleting transcripts, and deleting a recording with them
+
+An × on **every** language chip in the transcript panel, deleting that `.ai.txt` sidecar outright.
+On every chip and not only the selected one: the common case is an English recording carrying a
+machine-made Arabic transcript, and being rid of it should not require displaying it first. There is
+no confirmation, by request — these are regenerable machine transcripts. The protection is spatial:
+the label is padded well wider than a bare "ar" so the language tap target and the × are not two
+millimetres apart, which is how the wrong file gets deleted. `Transcripts.delete` is guarded to the
+`.ai.txt` suffix so it can never become a general file delete — the recording sits in the same folder
+under a name one character different.
+
+The player's own delete **moved out of the top bar to under the file's name**, beside the thing it
+deletes, and now removes the `.ai.txt` sidecars along with the recording. One confirmation names them
+all: a left-behind transcript is not just clutter, since the next file to take that name inherits it
+and shows another recording's words.
+
+3 new mobile unit tests (249).
+
+### Added — selectable text and a copy button in both galleries (mobile)
+
+A card's text is now selectable, and each card carries a copy button in its header — the passage on
+a flash card, the bullets as a `- ` list on a highlights card, so what lands in a note is a list
+again rather than a paragraph of run-together lines. The copy takes the text alone, without the
+record reference or the date: what is wanted elsewhere is the words, and a header line would have to
+be deleted at the other end every time.
+
+Selection and the pager do compete — both are horizontal drags — so a plain swipe still turns the
+page and a long-press hands the gesture to the text. Verified on the phone: long-pressing an Arabic
+passage inside the pager selects a word and raises the system's Copy toolbar, and the copy button's
+output pastes back correctly.
+
+The Toast is for Android 12 and below only. Android 13 shows its own confirmation for every
+clipboard write, and two notices for one action is worse than none.
+
+### Added — thousand separators in the gallery counts
+
+"22,385", not "22385". A five-digit run of bare digits has to be counted before it can be read, and
+these numbers exist to be read at a glance. Pinned to `en-US` on both clients rather than the
+device's locale, so the same bank does not group its counts one way on the phone and another in the
+browser.
+
+4 new mobile unit tests (246). They cover the failure most likely to bite the cache: the serialiser
+writing `date`/`text` where the parser reads `writtenOn`/`passage`. Nothing throws in that case — the
+card comes back with an empty passage, and only when offline.
+
+## 2026-09-05i — 1.2.36 "Gratitude"
+
+Version set to **1.2.36** across all six components (backend, frontend, mobile, desktop, terminal,
+audio-player). The Android `versionCode` moves to 5 with it, per the convention in
+`mobile/app/build.gradle.kts` — a released `versionName` that leaves the code behind cannot be
+installed over by the build after it.
+
+### Fixed — the highlights gallery was empty for everyone
+
+"No resource has its highlights filled in yet", on a database with 41 resources whose highlights
+were filled in. Two mistakes stacked, either of which alone would have emptied the page.
+
+**It queried one module.** `mainHighlights` is mapped on Task, Planner, Journal, Goal, IndexCard and
+Writing, and the frontend offers a Highlights box on all six. The controller read `BookRepository`
+and nothing else, so every note and task with key points in it was invisible.
+
+**And it asked resources for the wrong field.** Resources keep theirs in `highlights`, not
+`mainHighlights`. The `book` table has both columns; only `highlights` is ever written — it is what
+the resource form offers, and what the phone's own `mobilePushHighlight` appends to. So the single
+module being queried was asked for the one field of its two that is always empty there.
+
+Now every module is read, each under the name it actually uses, filtered in SQL and sorted newest
+first across all seven. `?module=notes` narrows it to one. A record whose field holds only
+punctuation splits to no bullets and stays out, because an empty card is worse than no card.
+
+### Added — a record's name on the card, linking to the record
+
+The highlights and flash-card galleries both name the record they came from; on the frontend that
+name is now a link to `/read/<module>/<id>`, opened in a new tab so following it does not lose your
+place in the deck.
+
+The href is built from the servlet context (`<base href>`), not as a root-absolute `/read/…`: the
+same WAR is deployed under several contexts, and a root-absolute link lands on the wrong app under
+every one of them but `/`.
+
+### Fixed — highlights rendered their Markdown source
+
+A resource's highlights field is Markdown, and unrendered its bold lines read as
+`**Governing principle:**` — on the largest module in the gallery. The frontend renders each bullet
+through the existing `MarkdownView`; the phone styles them with the same `Markdown.spans` a note is
+read through, markers faded in place rather than stripped.
+
+### Added — hear the athan and the beeps without waiting for them
+
+Preview controls in the Athan panel: **Hear it** beside the file chooser, a per-prayer **Hear:** row
+under the volume sliders, and **Hear N** in the beeps section.
+
+They call the same `soundAthan` / `soundBeeps` the alarms call, one level below the alarm itself —
+no notification, no silencing, no scheduling. A ringtone picker's own preview plays one file once at
+media volume; the real thing plays the picked sound N times on the alarm stream at the volume set
+for that prayer, and it is exactly those parts that surprise you at 4am. A percentage cannot be
+judged by eye, which is why the per-prayer row exists.
+
+### Fixed — Stop did not stop the built-in beeps
+
+Stop tore down the `MediaPlayer` and nothing else, so the generated tone — the default, and the case
+where someone is most likely to reach for Stop — kept beeping. The tone generator is now tracked and
+cancelled by run counter; releasing the generator alone would not have interrupted the thread's
+sleep between tones.
+
+### Changed — the prayer widget is Arabic, right-to-left, and readable across a room
+
+The strip now reads as one: **فجر 04:59 · شروق 06:14 · ظهر 12:37 · مغرب 19:17**, right to left, with
+**23 ربيع الأول** and the countdown on the line beneath.
+
+- `layoutDirection` is pinned to `rtl` in the layout rather than left to the device locale — the
+  text is Arabic whatever language the phone is set to, and the columns are added in order by the
+  code, so rtl is what puts the first prayer of the day at the right where the eye starts.
+- Names are the short Arabic forms (`Prayer.arabicShort` — فجر, not الفجر). Six of them share the
+  width of a four-cell widget; the article is two characters that column cannot spare. Anywhere
+  there is room for a sentence, `arabic` is still the right form.
+- **Digits stay Western** (123, not ١٢٣). The clock formatter is pinned to `Locale.US`, since an
+  Arabic-locale phone would otherwise render 19:17 as ١٩:١٧. The countdown's elapsed time is fenced
+  in LRM marks: a time like 9:41:31 dropped bare into Arabic text is neutral colons between digits,
+  which bidi is free to reorder against the surrounding script.
+- **Name and time sit side by side, not stacked.** Stacked, each column was two lines tall and only
+  as wide as the longer of the two, leaving a broad channel of dead space between every pair while
+  the type stayed small to fit the height. Inline spends that width instead, and the height it
+  returns is what pays for the larger type — label 11→15sp, time 14→20sp.
+- Sizes are set in code against the column count (`sizeText`), because the layout cannot know it and
+  one size cannot serve both four columns and six.
+- The Hijri **year is dropped**. It is the part of the date never in doubt at a glance, and its
+  width is what lets the countdown share that line.
+- The countdown moved off the header, where it and the date were ellipsizing each other as the
+  prayer name or the month grew, to the line below the times — which is what it refers to.
+- Times are bottom-aligned across the strip: columns are top-aligned by default, so a prayer with no
+  settings icons rode higher than its neighbours and the row came out ragged.
+
+Still one cell tall. A second cell would have bought the countdown its own row and was briefly taken;
+it is not worth a whole row of home screen.
+
+3 new backend tests (185).
+
+## 2026-09-05h — The Shurooq beeps can be any sound
+
+The beeps before sunrise were the device's own generated tone and nothing else. They can now be a
+**ringtone** or **any audio file on the phone**, picked in the Athan panel.
+
+Both pickers, not one. The athan gets a file picker alone, because an athan recording is a specific
+thing nobody's ringtone list contains — but a countdown mark is exactly the sort of short sound the
+system already ships, so the ringtone list is genuinely useful here and worth the second button.
+
+**The generated tone stays, as the default and as a choice.** It needs no file, cannot be broken by
+deleting one, and is the right shape for what this is: a mark, not a piece of music. "Built-in tone"
+puts it back.
+
+A chosen sound plays once per beep, so the count now decides how long the countdown runs — said
+plainly under the control, because picking a two-minute file and asking for ten of them is a
+reasonable thing to do by accident.
+
+The generated tone still runs inside `goAsync` on its own thread, since it is spaced by sleeping
+between tones. A chosen sound does not: it repeats off the completion callback, the way the plan
+reminders already do, because holding a broadcast open for the length of an audio file is how a
+receiver gets killed.
+
+3 new unit tests (242 mobile).
+
+## 2026-09-05g — API documentation in ./dist
+
+Three files, for writing a script that adds records:
+
+* `dist/nibras-api-openapi.json` — the spec. Point a client generator at this.
+* `dist/nibras-api-openapi.yaml` — the same, for reading.
+* `dist/nibras-api-adding-records.md` — the short version: authenticate, create, and a table of
+  every settable field on each of the 19 collections.
+
+All three are **generated from the running backend**, by `tools/dump_api_docs.sh`, rather than
+written by hand — so they cannot drift from the code. A new module, a renamed field or a dropped
+endpoint appears the next time it is run.
+
+The guide states three things a script author would otherwise have to discover the hard way, and
+each was checked against the code rather than assumed:
+
+* Login answers `{"token": …, "user": …}`, and every `/api/**` path needs that token.
+* A 401 arrives **before routing**, so from outside a missing endpoint is indistinguishable from a
+  forbidden one — a 401 does not mean "no such path".
+* A `PUT` must carry the `version` it read, or it is refused with **409** and *"This record was
+  modified by someone else."* That is the optimistic lock, and a script that ignores it will
+  silently lose other people's writes.
+
+Server-managed fields (`id`, `version`, `dateCreated`, `lastUpdated`) are left out of the per-field
+tables. Listing them as things to send would be actively misleading.
+
+## 2026-09-05f — Section headings that survive a dense page
+
+The lookup groups on the Parameters page are walls of small coloured chips, and their headings were
+`overline` in `text.secondary` — small, grey, and the same visual weight as everything around them.
+They disappeared into the chips: there was no telling where RESOURCE TYPE ended and CONTEXT began
+without reading the values themselves.
+
+Three things do the work now. The heading is heavier and in primary ink, so it outranks the chips
+instead of competing with them. It carries an accent bar and a rule beneath, so the eye finds the
+boundary without reading anything. And it **sticks**, so on a long page the group you are looking at
+is always named — with an opaque background, because chips scrolling under a transparent header
+would read as a smear.
+
+Sticking is optional and off inside a card, where there is nothing to scroll past and a stuck header
+would look wrong; the Admin page's one heading uses it that way. Group spacing went up a step too,
+since the boundary is now something to see rather than infer.
+
+## 2026-09-05e — Keyboard control, and Reviewed under the thumb
+
+### The galleries take the keyboard
+
+**← →** or **PageUp/PageDown** move between cards, **Home/End** jump to the ends. On the flash
+cards, **d** or **Enter** marks reviewed, **r** repeats, **k** keeps, **u** unsets.
+
+This also fixes the drift that prompted it: Left and Right were nudging the card's content sideways
+a few pixels, because nothing claimed the arrows and the browser was scrolling the overflow
+container with them. Every key the galleries use is now `preventDefault`ed.
+
+**Up and Down are deliberately left alone.** A flash card never scrolls, but a resource's highlights
+are a list of unknown length, and taking the vertical arrows would leave no way to read down one.
+Sideways moves between items; vertical scrolls within one.
+
+Shortcuts never fire while a field has focus, and never when Ctrl/Cmd/Alt is held, so typing and
+browser shortcuts are untouched. The keys are named in the header rather than left to be found.
+
+### Reviewed moved to the right, on both
+
+It is the action most cards get, and a phone held in the right hand has its thumb already at that
+edge — so the far side of the row is the wrong place for it, and the rare actions belong there
+instead. Order is now Unset · Keep · Repeat · **Reviewed**, with Reviewed last and filled.
+
+The web page uses the same order. Two clients that teach opposite habits for the same three buttons
+would be worse than either arrangement.
+
+## 2026-09-05d — The refresh button was hiding when it was most wanted
+
+### Fixed — refresh only appeared on a long, unfiltered list
+
+Refresh sat inside the floating overlay's `rows.size > 8` gate, having been added to the same column
+as the jump-to-top and jump-to-bottom buttons. So it vanished exactly when it was most useful: a
+filtered view, or a day with nothing written yet, shows few rows or none — and that is precisely
+when you want to pull and find out whether anything has arrived.
+
+Scrolling controls belong to a long list. Refreshing does not belong to the list at all — it re-lists
+the notes, re-pulls the type and department codes, and forces a full sync. It is now always present;
+the jump and collapse-all controls stay behind the length check, which is the one thing that check
+was ever right about.
+
+The threshold is a named constant now rather than a bare `8` in a condition, with the reason
+refresh is not behind it recorded next to it.
+
+Verified on the phone in the reported state: one filter active, nothing written today, empty list —
+refresh showing, jump buttons correctly absent.
+
+## 2026-09-05c — Articles that the page never rendered
+
+### Fixed — a long article imported as a single line
+
+Importing an al-akhbar.com opinion piece produced 51 characters of full text: the headline, and
+nothing else. The scraper was not at fault in the ordinary sense — there was no article in the
+document to find.
+
+The page is a Next.js App Router page. Its content ships as React Server Component "flight" chunks
+inside `<script>self.__next_f.push([1,"…")</script>`, as escaped JSON that the browser assembles
+into the DOM. In the HTML as fetched, the `<article>` element holds 119 characters — headline,
+byline, and the buttons around them — the whole page has six `<p>` tags, and the density scan that
+backs up the hint selectors tops out at 92. So every route into the text came back empty-handed and
+the headline was all that was left.
+
+There is now a fallback: when the DOM yields less than 400 characters, the flight payload is
+decoded, re-parsed as HTML, and run through the *same* block extraction. On the page that prompted
+this it recovers **34,210 characters** in place of 51, entities and all.
+
+Deliberately a fallback, not a first choice. The rendered DOM is what a reader sees and is right
+wherever it exists; the flight payload also carries navigation and related-article furniture that
+the DOM pass strips by structure and this one cannot. It is better than nothing, which is exactly
+the case it is for. And it is not one publisher's quirk — the App Router is widely used, so "renders
+nothing into its HTML" is now a common page shape.
+
+**A bug this found on the way in.** The first version matched flight chunks with the obvious regex,
+`"(?:\\.|[^"\\])*"`, and died with a `StackOverflowError` on the first real page it met: Java's
+engine recurses once per repetition and these chunks run to thousands of characters. A scraper that
+crashes on a common page shape is worse than one that returns nothing. The scan is hand-written and
+linear now, with a test that feeds it a 20,000-character chunk.
+
+### The fetch-from-URL panel stays put
+
+It closed itself after every successful fetch. Building resources from links is done in runs, so
+that meant re-opening the control for each URL. It stays open now and closes when asked — the X, or
+Escape.
+
+It also has its own tinted, bordered panel. Unstyled it sat directly above the search field as
+another bare row of the same shape, the two told apart only by their placeholder text, which is a
+poor way to know which box you are typing into.
+
+### The card bank ships as SQL
+
+`dist/nibras-flashcards-22385.sql.gz` — restore it with `zcat … | mysql -u user1 -p… <db>`, no
+Python needed. Still `INSERT IGNORE` on the content-hash key, so re-running adds nothing and resets
+no decision. Verified by restoring into the test database and counting.
+
+5 new backend tests (179 backend, 239 mobile, 14 frontend).
+
+## 2026-09-05b — Both galleries, on both clients
+
+Two reading pages, deliberately different from each other.
+
+### Flash cards, on the web too
+
+The same rows the phone reads. A card reviewed in the browser is gone from the phone, because there
+is one table behind both. One passage at a time with arrows either side, justified, direction taken
+from the passage itself, and the three decisions underneath.
+
+### Highlights — a different thing, and built differently
+
+A resource's key points, one resource at a time. Read-only and **live**: filling in a resource's
+highlights puts it in the gallery immediately, with nothing to decide and nothing written back.
+That is the whole distinction from the flash cards next door, which are a frozen one-time job.
+
+`main_highlights` has always been in the table and on every other record type. `Book` was the one
+entity that never mapped it — which is exactly why a resource's highlights could not be read
+anywhere. Mapping it was the fix.
+
+The bullets are split **on the server**, so the phone and the web page cannot disagree about what
+counts as a line, and neither carries a copy of the tidying rules. Leading glyphs and numbering
+(`-`, `*`, `•`, `1.`, `2)`) are stripped; a line that is only punctuation splits to nothing and the
+resource is left out rather than shown as an empty card. Direction comes from the first strong
+letter, so one quoted Arabic word in an English list does not flip the card.
+
+### Where they scroll and where they don't
+
+A flash card never scrolls — one passage of at most a hundred words, shrunk to fit, always whole.
+The highlights gallery **does** scroll, and that is not an inconsistency: a resource's highlights
+are a list of unknown length, and shrinking twenty bullets to fit would end at unreadable type. A
+list is the one shape where scrolling is the honest answer.
+
+Each gallery remembers its own text size. A short passage and a long list rarely want the same one,
+and sharing a single number would have each page quietly resizing the other.
+
+### The rail stopped fitting
+
+Seventeen destinations does not fit a phone screen, so the bottom of the rail — Settings included —
+could only be reached by scrolling a column of icons, which is a poor way to reach anything.
+
+Two changes. The record letters moved to the MIDDLE, so the thing reached most often is not pushed
+further down every time a page is added above it. And four of the least-often-opened pages — Search
+server, Prayer, Flash cards, Highlights — fold behind one toggle, which brings the rail back to
+twelve cells and within a screen. The group opens itself when one of its own pages is showing,
+since a collapsed group hiding the current page would be worse than the scrolling.
+
+Its icon is a neutral "more", not a picture of what is inside. It was a book to begin with, meaning
+"reading pages" — which stopped being true the moment Search server joined. An icon describing a
+group's current members has to be re-justified every time they change.
+
+### Notes
+
+* Verified on the phone that the error path names the failure: `HTTP 404 for
+  http://192.168.0.47:8081/api/flashcards?state=NEW`, with the URL and the status. That also settled
+  a question curl could not: an unauthenticated probe gets 401 before routing on every `/api` path,
+  so it cannot tell a missing endpoint from a present one — an authenticated 404 can, and it
+  confirms that server is running an older build.
+* 13 new backend tests (174 backend, 239 mobile, 14 frontend).
+
+## 2026-09-05 — Flash cards move to the backend
+
+The passage bank is a table now, not a file bundled in the app. Both clients read the same rows and
+write the same decisions, so a card reviewed on the phone is gone from the browser too.
+
+### Why it moved
+
+It shipped as `assets/flashcards.jsonl` inside the APK. That was wrong in three ways, and the third
+is the one that mattered: it put 21 MB in the app, it froze the extract at build time, and it kept
+every decision on a single device. Reviewing 22,000 passages is not a job anyone finishes on one
+phone in one sitting.
+
+### The gathering stays one-time
+
+`flash_card` is a frozen extract: notes written or deleted afterwards do not add or remove cards.
+That is deliberate — the job is to get through this material once, not to keep up with it, and a
+bank that refilled itself would never be finished.
+
+The passage text is copied rather than referenced, so a card keeps saying what it said when it was
+gathered even if the note behind it is later edited. `note_id` is provenance — shown as `N13459` —
+and is deliberately not a foreign key.
+
+`card_key` is the passage's content hash, with a unique index. The load is therefore idempotent:
+re-running it adds nothing **and does not reset a card that has already been reviewed**. Both halves
+were checked against the live table before this was called done.
+
+### The shape of the job
+
+The undecided queue is capped at forty; REPEAT and KEPT are not capped at all. That asymmetry is the
+whole design. A bank of twenty-odd thousand served whole is unusable, so only a working set is
+offered and the rest stays out of sight — but having said "come back to this" or "I want to edit
+that note", the app has no business truncating the result.
+
+`PUT /api/flashcards/{id}/state` with `NEW` puts a card back, which is how a decision is undone. It
+clears `decided_on` at the same time: a date that outlived its decision is a lie the next read would
+repeat.
+
+An unknown state is a 400, not an empty list. Silently returning nothing for a typo looks exactly
+like "you have finished", which is the one wrong answer that reads as success.
+
+### Tools
+
+* `tools/gather_flashcards.py` — notes → passages. The one-time extraction.
+* `tools/load_flashcards.py` — passages → SQL on stdout, so the load can be read before it is run
+  and piped at whichever database is meant.
+
+22,385 cards loaded, in 1.6 seconds.
+
+### The app got 8 MB smaller
+
+25 MB again, down from 32.9. Decisions are gone from the phone's preferences; what is left there is
+genuinely local — the text size and which list was last open.
+
+6 new backend tests (167 backend, 239 mobile).
+
+## 2026-09-04e — Flash cards
+
+A new page: passages lifted out of long notes, shown one at a time to be read and decided on.
+
+### The bank
+
+22,385 passages, extracted from the 1,601 notes whose `description` runs to 200 words or more,
+each cut at sentence boundaries to at most 100 words. Bundled with the app, so the page works with
+no server and no network. `mobile/tools/build_flashcard_bank.py` is the extractor, kept beside the
+asset so a 21 MB blob is reproducible rather than unaccountable.
+
+Religious and psychological passages are **favoured**: they form the front of the bank, recent
+first, and everything else follows behind on the same recency rule — imported, as asked, but not
+standing between the reader and the material they wanted.
+
+The favouring is graded rather than binary, and that mattered. A single incidental word is not a
+topic: a US presidential statement signing off "GOD BLESS AMERICA" scored two and led a bank of
+22,000 as its most religious entry. Three or more topical words is the line between a passage that
+is *about* this material and one that brushes past it.
+
+Notes of type `aya` are excluded. Worth recording the scale, because the instinct is that this
+removes a lot: there are 6,236 of them, but only **17** ever had a 200-word description, so the
+length filter had already left the other 6,219 out.
+
+### One at a time
+
+A gallery, not a list. The whole screen carries a single passage, swiped through like pictures on a
+wall — reading something closely and scrolling a feed are different acts, and a list quietly invites
+the second.
+
+**Nothing scrolls.** A passage that will not fit is shrunk until it does, rather than given a
+scrollbar, so every card is whole and there is never anything below the fold to go looking for.
+Compose 1.7 has no auto-sizing text, so this measures and steps down: `TextOverflow.Clip` on a
+height-bounded text makes `hasVisualOverflow` a reliable "did not fit", and each failed layout
+shrinks a little until it settles.
+
+Text is justified, with the direction resolved from the passage's own first strong letter — Arabic
+justifies to a clean right margin, English to the left, with nothing to keep in step with the text.
+The source record is named above the passage as `N13459`, so a quote can always be traced back to
+the note holding it.
+
+Font size is adjustable and remembered, in its own store — nothing to do with the Resources
+full-text scale, which is a separate setting for a separate kind of reading.
+
+The three decisions are filled buttons 52dp tall, not flat labels. They are the controls the page
+exists for, pressed once per card and often without looking closely; as text they were a small
+target on a busy card, missed twice while testing on the device itself. "Reviewed" takes the extra
+width, because an even three-way split clipped it to "Reviewe" on a 720px screen.
+
+**Fixed before it shipped:** the action row was drawn underneath the navigation bar. Every other
+full-height page in the app either scrolls with bottom padding or sits above the mini player bar,
+which carries that inset for it — this page is neither, and needed to ask for it itself.
+
+### Three decisions, and what is capped
+
+**Reviewed** retires a card. **Repeat** keeps it for later. **Keep** holds it as the pile to go and
+edit in the note itself. On the decided lists an **Unset** button puts a card back.
+
+The review queue holds forty and hides the rest, and tops itself back up as cards are decided. The
+Repeat and Kept lists are **not** capped: having said "come back to this", the app has no business
+truncating the result.
+
+Nothing here writes to a note or is pushed to the server. The bank is a fixed extract and a decision
+is a private reading position, not a change to the record.
+
+### Notes
+
+* The bank is read as a **stream**, one JSON object per line, and the scan stops as soon as it has a
+  full queue and every decided card. Loading all 21 MB to fill a screen of forty took about ten
+  seconds on the phone this was built for; it now takes about three. The header line carries the
+  card count, which is what makes stopping early possible — otherwise knowing how much is held back
+  would mean reading every line every time.
+* Lines are classified by a substring, and only the handful actually wanted reach a JSON parser.
+* `org.json` ships with Android but is a **throwing stub** in JVM unit tests, so the first run of
+  these tests silently returned nothing at all. The real implementation is now a test dependency.
+* The extract came out of MySQL as JSON-per-line rather than TSV: descriptions carry bare carriage
+  returns, and a TSV read through Python's universal newlines split 400 notes into 2,104 half-rows.
+* Markdown footnote marks and bracketed citation numbers are stripped. A card reading "anxiety and
+  psychological distress[^291]" looks like a typo when the footnote it points at is nowhere on
+  screen and never will be.
+* Card ids are content hashes, so a decision survives the bank being rebuilt — **unless that
+  passage's own text changed**, in which case its id changes with it and the decision is orphaned.
+  Stripping the footnote marks did exactly that to a handful of cards.
+
+13 new unit tests (252 mobile, 161 backend).
+
+## 2026-09-04d — Widget badges, per-prayer setting icons, transcripts in the player
+
+### Counts became badges
+
+Every list widget's count moved out of the title's parentheses and into a right-floated pill.
+Inside the title it competed with the name for the same ellipsis and was the first thing lost when
+the widget was narrowed — exactly backwards, since the number is the part read at a glance.
+
+**Upcoming plans** now carries one at all, red below seven: a low number is the problem here, not a
+high one, so the comparison runs the other way from the rest. The colour rule is the KPI widget's
+own, moved into one place both now read from, so the two views of the same numbers on the same home
+screen cannot drift apart about which are worrying. `TOO_FEW_PLANS` went from 10 to 7 as asked, and
+the KPI widget follows it.
+
+Bookmarks and today's tasks get a neutral badge. How many records you chose to bookmark is not a
+number that can be too high or too low, and a day with few tasks written down is not a worse day —
+colouring either would be inventing a judgement.
+
+### The prayer strip says what will happen at each time
+
+A speaker where the athan will be called, a struck bell where the ringer will go silent, bars where
+the beeps will sound before Shurooq. The strip was otherwise silent about the difference between a
+time that will announce itself and one that will pass unnoticed — which is exactly the thing worth
+checking at a glance, and otherwise needed the app and a settings panel to find out.
+
+Every icon starts hidden, so a column with none of them collapses its row to nothing and the strip
+keeps its height.
+
+### Transcripts in the media player
+
+Sidecar `.ai.txt` transcriptions now show in the player, in the slot a video would occupy — above
+the transport, readable while the audio plays. One chip per language found, the text below,
+right-to-left when the language tag says so.
+
+The convention is the desktop player's, `<base>.<lang>.ai.txt`, with the language *before* the
+suffix. Worth stating because the request had it the other way round: a check of the phone found
+1,196 files in the first form and none in the second, and a convention of our own would have found
+nothing at all.
+
+The tag decides direction before the text does. Machine transcripts routinely open with a stray
+Latin token — a mis-heard name, a bracketed marker — and an Arabic transcript is still Arabic when
+its first word came out wrong.
+
+**Read-only, deliberately.** The desktop edits these in place, which is right at a desk with a
+keyboard. On a phone the realistic outcome of an editable panel is a stray keystroke silently
+rewriting a file that syncs to every machine. The text is selectable, so a passage can still be
+copied out.
+
+13 new unit tests (239 mobile, 161 backend).
+
+## 2026-09-04c — Prayer strip, athan files and volumes, a daily collection, calendar entries that stay
+
+### The prayer widget is a strip now
+
+Rebuilt to the shape it is actually read in: the Islamic date and a live countdown across the top,
+then one column per shown time with the next one in an amber pill. A glance for what is next and
+how long is left, not a list to work down. Six columns divide the width as readily as four, so
+hiding Shurooq widens the rest instead of leaving a gap.
+
+The countdown is a `Chronometer` in countdown mode, which ticks on its own between redraws.
+`RemoteViews` offers no other way to show a running clock, and waking the app once a second to
+redraw a widget would be indefensible. Against the reference widget on the same home screen it
+agrees to the second.
+
+The highlight follows whatever the countdown is counting to — **including tomorrow's Fajr** once the
+day is spent. It first shipped restricted to today, which left the strip with nothing marked all
+evening while the header still named a prayer; that read as a fault rather than as a distinction.
+
+**Fixed — the widget could not be resized.** `minResizeWidth`/`minResizeHeight` were absent, and
+Android takes the resize floor from `minWidth`/`minHeight` when they are. A widget declaring a
+comfortable minimum therefore became one that could not be made any smaller at all. `dumpsys` read
+back `min=(...) minResize=(...)` with both identical; they now differ, and the widget resizes.
+
+### Athan: a file, and a volume for each time
+
+The athan is picked from the phone's **files** now, not from the system ringtone list. That list
+holds notification tones and alarm jingles — an athan recording is neither, so the picker was
+offering a list that could not contain the answer. A persistable read grant is taken, because the
+alarm receiver has to open that URI months later, after reboots, with the app closed.
+
+Each prayer that calls the athan gets **its own volume**. The Fajr athan and the Dhuhr athan want
+different volumes from the same phone — one is heard in a silent house at dawn, the other over a
+working day — and one setting cannot serve both. Scaled within the alarm stream, so it can quieten
+an athan but never make it louder than the device's own alarm volume; 0 mutes that one, and a 0 is
+stored rather than dropped, because "call this one silently" is a setting and not the absence of one.
+
+The percentage is squared into the amplitude the player takes. Amplitude is not loudness: a linear
+50% is only about 6 dB down and barely sounds quieter, which crams the useful range into the bottom
+of the slider. Squaring puts the middle at roughly 12 dB down, which is about what someone means
+when they drag a volume control halfway.
+
+### The file collection can run itself
+
+Once a day, at a configurable time (15:00 by default). Same collection the Collect page performs,
+filed with the same defaults, into the same notes folder. Off by default and stated plainly in
+Settings, because it **moves** files out of Camera and Downloads and that is not a thing to discover
+by accident. It reports what it did, and says nothing at all when there was nothing to collect — a
+daily "collected 0 files" would train you to ignore the one notification that matters.
+
+### Calendar entries stop disappearing
+
+`exportJournal` served **bookmarked records only**, which had a specific and bad consequence: an
+entry made on the phone synced up, came back down on the next pull only if something had bookmarked
+it, and otherwise vanished from the calendar it was just entered into. Journal and Planner now
+export anything bookmarked **or** starting within the past week / coming fortnight. The bookmark is
+kept as an OR rather than replaced, so anything deliberately pinned still comes down however old.
+
+Worth recording precisely: `exportPlans` never filtered on the bookmark at all — it was already
+date-windowed, at ±14 days, now −7/+14 as asked. Journal was the one doing it.
+
+### Fixed — deep links opened a page of JSON
+
+Opening a record in a new tab returned `{"detail":"No static resource read/planners/1231."}` instead
+of the record. `SpaController` already serves the React shell for unmatched paths, but only for 404s
+that reach the container's `/error` dispatch — and since `spring.mvc.problemdetails.enabled` was
+turned on, Spring resolves `NoResourceFoundException` into an RFC 7807 body and returns it directly,
+so it never got that far. Single-segment routes kept working throughout, because `SpaController`'s
+own mapping catches those before any resource lookup, which is why this only surfaced on a
+two-segment route opened directly.
+
+The new advice has to outrank Boot's own `ProblemDetailsExceptionHandler`, which sits at order 0 and
+already claims that exception — an unordered advice sorts last and never sees it. Backend paths keep
+their machine-readable 404, and so do genuinely missing assets: answering `/assets/index-abc.js`
+with HTML would turn every broken script tag into a page parsed as JavaScript.
+
+### Fixed — the published APK could be named for the wrong build
+
+`version.properties` advances on every Gradle configuration, so reading it *after* a build — running
+the tests in between is enough — names the file for a build that is not the one in it. A b314 APK
+was published as b315 this way. Gradle now owns the whole step: `./gradlew :app:publishDebugApk`
+builds and copies in one invocation, so the number compiled in and the number in the name come from
+the same resolution and cannot drift. The APK also carries `assets/build.txt`, so the claim is
+checkable from the artefact with nothing but a zip reader — `verifyPublishedApk` does exactly that
+and fails if they disagree.
+
+12 new unit tests (226 mobile, 161 backend).
+
+## 2026-09-04b — Today's tasks widget, with an add bar
+
+A home-screen widget listing the tasks written **today** at the top priority — type `T`, priority
+`p4` — with a bar at the top for adding another. Distinct from the existing "Top priority" widget,
+which lists every top-priority note ever written whatever its type: this one is a day's work list,
+so it empties itself overnight and what is on it is what is still outstanding now.
+
+### The add bar is not a text field, and cannot be
+
+`RemoteViews` supports no editable view on any Android version — there is no `EditText` in a
+widget, and no API that adds one. So the bar is a `TextView` drawn to look like an input, and
+tapping it opens `QuickTaskActivity`: a translucent, keyboard-first window over the home screen with
+the real field in it. It opens already focused, one line, with **Done** on the key. Enter writes the
+note, refreshes the widget and closes, so the task is on the list as the input disappears.
+
+This is the same arrangement Keep and Todoist use for the same reason. It costs one window
+transition; there is no version of it that types directly into the widget.
+
+### Notes
+
+* Tasks are found from **file names alone** — `<timestamp>~T~p4~<category>.md` already carries the
+  type, the priority *and* the time the note was written, so the widget needs one directory listing
+  and no file reads. The obvious `listNotes().filter { … }` would have read the full text of every
+  note in the folder to decide it wanted three of them, on the main thread, on every redraw.
+* "Today" comes from the name's timestamp, never the mtime. Syncthing rewrites files it has not
+  changed and retagging renames them, either of which would report a year-old task as today's.
+* The name-only filter falls back to the default timestamp format when the configured one does not
+  fit. The two can genuinely disagree — a note name must match `yyyy_MM_dd-HHmmss` whatever the
+  setting says — and without the fallback the widget would have quietly reported that nothing was
+  ever written today.
+* Priority follows the configurable `topPriority` rather than a hardcoded 4, and the title says
+  which it is: "Today's p4 tasks (3)".
+* A task added **inside the app** now refreshes this widget too, alongside the KPI widget that
+  `MainViewModel.add` already refreshed. Typing a task in the app and not seeing it on the widget
+  would have been the same bug from the other end.
+* Fixed in passing: the Top priority list's empty state said "No priority-4 notes" while the filter
+  used the configurable priority. It now names the priority actually in force.
+* `PlansWidgetService` now switches on a section string rather than a boolean, since it serves
+  three lists instead of two.
+
+9 new unit tests (214 in total).
+
+## 2026-09-04 — Prayer times
+
+A new page on the rail, a home-screen widget, and the alarms that go with them. Everything is
+computed on the phone: no network call, no lookup service, and the coordinates never leave the
+device.
+
+### The calculation
+
+`PrayerTimes` is the standard sun-position algorithm — declination and equation of time for the
+moment in question, then solving for the hour angle at each prayer's defining altitude, iterated to
+a fixed point because each time's own hour is an input to the sun's position at that hour. It is
+pure Kotlin with no Android in it, so the part most likely to be quietly wrong is the part under
+test: London and New York sunrise/sunset at the solstice are pinned to published figures, and Beirut
+comes out matching local tables to the minute.
+
+Two settings decide the answer, and they are separate because they answer different questions:
+
+* **School** — whether Asr begins when a shadow equals an object's length (Standard: Shafiʿi, Maliki,
+  Hanbali, and the Jaʿfari reckoning) or twice it (**Hanafi**). About an hour apart in summer, and
+  the setting most likely to make the app disagree with the mosque down the road.
+* **Method** — how far below the horizon the sun must be for Fajr and Isha. Seven are offered,
+  including **Shia Ithna-ʿAshari (Leva Institute, Qum)** and **Tehran**, the two that hold Maghrib
+  back until the sun is 4° down rather than treating sunset as the moment. Umm al-Qura's Isha is an
+  interval rather than an angle, and stretches to 120 minutes in Ramadan — which the app knows
+  because it has the Hijri date already.
+
+Times are rounded to the whole minute on purpose, so the row you read *is* the instant the alarm
+fires. Above about 48° there are summer nights when Fajr and Isha have no geometric answer at all;
+a blank row is the honest default, and three high-latitude rules are offered for anyone who needs a
+time named anyway. Under the midnight sun nothing can be rescued and every row stays blank.
+
+### What you can set, on the page itself
+
+The settings live with the times rather than in the app's Settings screen, for the reason the
+player's do: nudging Asr by three minutes is a decision you make while watching what Asr says.
+Everything writes through immediately and re-arms the alarm chain, so the screen and the schedule
+never drift apart.
+
+* **Which times to show** — any of Fajr, Shurooq, Dhuhr, Asr, Maghrib, Isha.
+* **Per-time adjustment** — −/+ minutes against the calculated time, shown beside the time it
+  produced. This is how you match the mosque you actually pray at; no method agrees with every one.
+* **Athan** — which prayers call it and what it plays. Shurooq is never on the list: it is sunrise,
+  not a prayer. Played on the alarm stream, so it is still heard through the silence below.
+* **Reminder** — a configurable number of minutes before each shown time.
+* **Silence** — the ringer drops to silent from the time until *n* minutes after, then goes back
+  exactly as it was. Chosen separately from the athan, because wanting the phone quiet while you
+  pray and wanting to hear the call are different decisions. Needs Do Not Disturb access, and the
+  panel says so and offers the button.
+* **Beeps before Shurooq** — yes/no, how many, and how long before. Sunrise closes the window in
+  which Fajr can still be prayed, so it earns a signal of its own; the beeps sound on the alarm
+  stream, to be heard by someone asleep.
+* **Islamic date** — a ±3-day nudge, and whether the day turns over at Maghrib (it does, by default,
+  because it does).
+
+### The Hijri date
+
+Arithmetical, from the tabular calendar: reproducible offline, on any date, with no network and no
+lunar-visibility model. What it is not is authoritative — the real month begins on a sighting — and
+the day nudge exists precisely so the user can read the announcement and correct it, rather than the
+app pretending to know. Checked against the epoch (1 Muharram 1 AH = 19 July 622) and against the
+starts of Ramadan 1446 and 1447, both of which it lands on exactly.
+
+### The widget
+
+Today's times, the Islamic date and what is next. The next prayer is drawn in the accent and the
+ones already passed recede. Redrawn as each event fires rather than on a timer, because the only
+thing that goes stale is which row is highlighted, and that changes exactly when an alarm goes off.
+
+### Notes
+
+* One exact alarm is pending at a time; each firing arms the next. A missed link heals on the next
+  app start or reboot rather than stopping the schedule for good, and the receiver re-arms in a
+  `finally` — a thrown exception costs one athan, not every one after it.
+* A silence interrupted by a reboot is undone at boot. The alarm that would have ended it did not
+  survive the restart either, and a phone left silent indefinitely is much the worse failure.
+* Coordinates are stored as a Double's raw bits. `putFloat` is not merely imprecise here, it is
+  visibly wrong: 33.8938 comes back as 33.89379806518555, which is what the text field would then
+  show. The 0.2 m of positional error would never have mattered; the fifteen spurious digits would.
+* Location is coarse, optional, and read only when the button is pressed — the last known position,
+  not a fresh fix, since a prayer time moves by seconds across a whole town.
+
+50 new unit tests (205 in total).
+
+## 2026-09-03b — The Volumes widget shows only what you can set
+
+### Removed — the in-call volume bar
+
+The bar that read almost full was **in-call volume** (`STREAM_VOICE_CALL`), not ring. Ring was at
+5/15 = 33% and drawing correctly; the two were confused because `ic_ring_volume` and `ic_call` are
+both telephone handsets at 18dp, and this widget has no labels.
+
+Rather than making the icons more distinguishable, the bar is gone. Verified on the device:
+**Sounds and vibration → Volume** offers Ringtone, Media, Notifications, System, AI assistant,
+Accessibility and Alarm — and *no in-call slider*. Android exposes that stream only through the
+volume keys during an active call. So the bar reported a level that could not be checked against
+anything or changed from anywhere, and sat near its default maximum while every other bar sat at a
+third. A widget that reports a number the user can neither verify nor act on is worse than one
+that leaves it out.
+
+Five bars remain — Ring, Notif, Alarm, Music, System — which is exactly the set on that Settings
+screen, and every one of them now has its own silhouette. `ic_vol_call` is deleted.
+
+## 2026-09-03 — Player options that survive a restart; "next" answers back
+
+### Fixed — the player's sliders are settings again
+
+Skip seconds reverted to 10 on every launch. So did speed (to 1×) and volume gain (to 0 dB): all
+three were plain in-memory values while every knob around them — bookmark rewind, double-tap
+window, auto-bookmark, play-next mode, audio-only — was stored. The comment above them even claimed
+they were durable.
+
+They now persist, and the restored values reach the playback service through the existing
+`syncFromController`, which already re-asserts them when the MediaController connects.
+
+**Verified on a device across a real force-stop**, not just in the slider: Skip 15s came back with
+the transport buttons reading **+15 / −15**, and Speed 1.15×.
+
+The open panel under the transport (bookmarks / folder / recents / options) persists too, like the
+home screen's composer and filter panels. "Never chosen" and "deliberately closed" are stored as
+different answers, so closing the panels stays closed instead of springing back to Bookmarks.
+
+The sleep timer stays deliberately transient — it is a one-shot countdown, not a preference.
+
+### Fixed — ⏭ no longer does nothing in silence
+
+"Next" can legitimately find nothing, and it used to say so by not moving, which is
+indistinguishable from a tap that missed the button. It now flashes a message on the same centre
+overlay a bookmark uses — and distinguishes the cases, because they call for different responses:
+
+- **no media folder set** → points at Settings;
+- **nothing playing** in a folder-scoped mode → there is no "here" to pick from;
+- **folder exhausted** vs. **library exhausted** → different scopes, different facts;
+- **last file in the folder** — the ordered modes ran out just as silently and were never reported.
+
+### Fixed — volume bars measured on each stream's own range
+
+Android streams do not all start at zero. On a Galaxy A07 the **call and alarm** streams report
+`Min: 1` — Android will not let either be silenced from its slider, so index 1 *is* the bottom of
+that slider. The widget drew every bar from 0, putting those two above where the system's own
+slider sits (call 11 of 1..15 is 10/14 = 71%, not 11/15 = 73%). Bars and their colours are now
+measured on `min..max`.
+
+Streams with `Min: 0` — ring, music, notification, system — are unaffected; the ring bar was
+already agreeing with the system, measured at 5/15 on the device.
+
+Mobile suite: 155 tests.
+
+## 2026-09-03 — Top priority widget rows use the width they have
+
+### Fixed — widget rows no longer cut at a fixed 20 characters
+
+The **Top priority** widget stopped every row after twenty characters however wide the widget was,
+while **Bookmarked records** filled whatever width it was given. Both draw the same row layout, and
+that layout was never the problem: `widget_row_compact` already puts `ellipsize="end"` on a
+weighted `TextView`, which measures itself against the real width.
+
+The Top priority factory cut the text in Kotlin first:
+
+```kotlin
+if (s.length > 20) s.take(20) + "…" else s
+```
+
+That runs long before anything knows how wide the widget is, so the ellipsis was always in the same
+place. Bookmarked records passes its text through whole and lets the view decide — which is why the
+two behaved differently from the same layout.
+
+The cut now belongs to the view. `widgetRowText` produces one clean line and nothing more:
+flattened, whitespace runs collapsed (a flattened indented note otherwise spends the row's width on
+gaps), and highlight `==markers==` stripped — a widget row is a label, like a note card, and that
+punctuation means nothing on a home screen.
+
+**The 200-character bound that remains is a transport guard, not a display limit.** A note body is
+unbounded and every row crosses to the home screen through a binder transaction with about a
+megabyte shared between all of them; shipping whole notes for forty rows is how a widget dies with
+`TransactionTooLargeException` instead of drawing. It sits far above what the widest home screen
+can show, so it never decides where text ends — the ellipsis a reader sees is always the view's.
+The tests assert both halves of that: bounded, and not bounded so tightly it becomes a width again.
+
+Mobile suite: 148 tests.
+
+## 2026-08-29 — Honest failure messages, a first-run tour
+
+### Fixed — a request that never reached the server no longer blames the operation
+
+Importing a resource by URL reported **"Could not fetch that page."** when the real cause was that
+the backend was down. The message was not merely unhelpful, it pointed the wrong way: it sent
+someone to check a URL that was fine.
+
+The backend was never at fault. Its rejections are written for a person ("Refusing to fetch x — it
+resolves to a private address", "The page returned HTTP 403") and `spring.mvc.problemdetails` has
+been carrying them to the client all along. The frontend threw them away in the case where there
+were none to carry: **fourteen** call sites each ended in
+
+```ts
+(e as {...})?.response?.data?.detail ?? 'Could not do the thing.'
+```
+
+and when there is no response at all — Tomcat restarting, the laptop asleep, Caddy up with nothing
+behind it — `response` is undefined and every one of them fell through to a sentence blaming the
+operation.
+
+All fourteen now go through `errorDetail`, which distinguishes what actually happened:
+
+- the server's own words, when it sent any;
+- a **502/503/504** named as what it is — "Nibras is not answering — the backend is down,
+  restarting, or still starting up" — rather than as a failure of whatever was being attempted;
+- 401/403/404/413 explained in terms of the status, not a bare number;
+- **no response at all** reported as unreachable, naming the API address, and explicitly *not*
+  appended to the caller's message, which would produce the self-contradicting "Could not fetch
+  that page. The server did not answer.";
+- offline, timed out, and cancelled told apart, because they have different fixes.
+
+An HTML error body (a proxy's 502 page, Tomcat's whitelabel) is now recognised as a string rather
+than being read through as an object, so markup can never reach the screen.
+
+`errorDetail` moved to `src/util/errors.ts` — `api/client.ts` reads `document.baseURI` at import
+time, and the one function that has to be right when nothing else works should be testable outside
+a browser. `api/client` re-exports it, so call sites are unchanged.
+
+### Added — `npm test` in the frontend
+
+There was no way to run a test here at all. There is now a ~30-line runner: each `test/*.test.mjs`
+imports the real TypeScript source, esbuild bundles it, node runs it. No framework — everything
+worth testing in this app is either a pure function in `src/util` or needs a real browser, and
+vitest + jsdom is a large dependency for the first group. 14 checks on `errorDetail`.
+
+### Added — a first-run setup tour (mobile)
+
+knotes is a front end for folders on the device, and almost every screen it has is dark until the
+folder behind it points somewhere real. Nothing says so: an unconfigured Media page is empty, and
+empty is exactly what a correctly-configured library with no files looks like. A new install
+therefore looks like a working app that happens to have nothing in it.
+
+Eight steps, one folder each, each stated together with what it turns on: notes, collected files,
+media, pictures, the Nibras connection, then reminders and the chime. Under every path is what is
+actually there right now — *doesn't exist yet*, *empty*, *3 items*, *that's a file* — because the
+commonest way to mis-set this app is a path that reads correctly and isn't there, and the symptom
+is silence.
+
+Details that matter more than the screens:
+
+- **It never appears for an existing install.** Its own "done" flag cannot tell a fresh install
+  from an upgrade that predates the flag — both look unwritten. The test is instead whether
+  settings have ever been saved (`SettingsStore.isConfigured`), so an upgrade is marked done
+  without ever being shown a screen.
+- **It never creates a folder on its own.** Every folder here is where the user's own files live;
+  guessing wrong scatters empty directories through their storage, and on a device whose card
+  isn't mounted yet it would create the "missing" folder in the wrong place and then sync into it.
+  Creation is one clearly-labelled tap.
+- **Moving the notes folder moves the collection destination with it** while the two match. They
+  default to the same folder for a reason: a collection writes a note *and* its companion folder,
+  and the desktop only reads that as a note if it sits among the notes.
+- **Answers are saved on every step**, so an interrupted setup keeps what was already answered.
+- **Skip is on every screen**, not just the first.
+
+Reopenable from the bottom of Settings — the tour is also the only place that says what each folder
+is for.
+
+Mobile suite: 141 tests. Frontend: 14 checks.
+
+## 2026-08-27 — Legible attachments, a "newest here" play-next mode
+
+### Changed — attached files are readable on a note card (mobile)
+
+An attached file's name used to be `labelSmall` grey text behind a paperclip — the same weight as
+the type/priority badges under it, so a card with attachments read as one grey block and the file
+names, which are the whole reason to tap, were the least visible thing on it.
+
+Each file now gets its own row: body-sized text on a `surfaceVariant` strip, with an icon chosen
+from its extension (audio, video, image, PDF, document, spreadsheet, slides, text, archive, code).
+The strip separates the files from the note's prose above and its badges below without needing a
+divider.
+
+Two details that are not decoration:
+
+- **A playable file's icon wears the accent colour.** Tapping a media file opens the in-app player;
+  tapping anything else throws it out to whatever app claims it. Those are quite different things
+  to have happen, and the tint is the only warning of which one you are about to get.
+- **The name is laid out directionally.** An Arabic file name in a left-to-right card otherwise
+  renders backwards, and now that these names are long enough to be truncated, the ellipsis would
+  land at the wrong end too.
+
+Extension matching goes through `FileNames.ext`, so a name carrying a trailing invisible bidi mark —
+`تسجيل.mp3‏`, which is how such names actually arrive from the server and from Syncthing — still
+gets its own icon instead of falling back to a blank page.
+
+### Added — play-next mode "Newest here" (mobile)
+
+The same folder scope as **Random here** (the folder around what's playing; from inside a note's
+`.d` companion folder, the folder that *holds* them), picked from the other end of the clock: a
+recent unbookmarked arrival rather than a forgotten old one. For hearing what has just come in.
+
+The two ends are deliberately not symmetric. "Old" means *forgotten* — downloaded, never heard,
+gone stale — so it keeps its absolute 90-day threshold. "New" is inherently relative: a folder whose
+newest file is a year old still has a newest file, and that is the one you meant, so there is no
+threshold at all, only a ranking.
+
+**The pool is a proportion, not a fixed size.** The first implementation drew from the 25 newest,
+which passes every small-folder test and is wrong at exactly the size this mode is for: scoped to
+one folder of note attachments, "the newest 25" is every file there is, and the mode silently
+degrades into plain shuffle. It is now the newer *half*, capped at 25 — a real recency bias at any
+scope size. It stays a pool rather than "the newest file" because Syncthing copies a folder in one
+pass and every file lands on the same second; a strict maximum would hand back one arbitrary file
+forever.
+
+Mobile suite: 133 tests.
+
+## 2026-08-18 — Tickable checklists, sample routines, delete from the player
+
+### Added — `- [ ]` items are tickable (frontend)
+
+Option A of `dist/habits-proposal.md`: a routine is a recurring Planner whose `description` holds a
+markdown checklist. This is the half that needed building — the recurrence already existed.
+
+Checklist items now render as real checkboxes wherever a markdown field is shown (record detail and
+the read page) and ticking one writes straight back to the record.
+
+Two properties the implementation is built around:
+
+- **Only the character between the brackets changes.** Not the line, not the list — indentation,
+  bullet character and spacing survive a tick untouched. The same text is edited by hand in the
+  checkout `.md` and the desktop editor, and a renderer that quietly reformatted on every click
+  would fight whoever wrote it.
+- **Fenced code blocks don't count.** A `- [ ]` inside a fence is documentation of the syntax — the
+  Markdown cheat-sheet page renders exactly that — so counting it would shift every index after it
+  and tick the wrong line.
+
+The DOM checkbox is never the source of truth: the click is prevented, the record is rewritten from
+its *current* stored value, and the re-render decides what is ticked. So a failed save can't leave a
+ticked box sitting over untouched text, and two quick ticks can't race.
+
+### Added — sample routines
+
+Three recurring Planners seeded into `db_nibras2_uat` for trying this out: **Routine — Morning**
+(07:00), **Routine — Evening** (19:00) and **Routine — Night** (22:30), each `CUSTOM` cron, each
+with a four-or-five item checklist. The script is `dist/seed-sample-routines.sql` — idempotent, and
+it names its own undo.
+
+### Added — delete the playing file, from the player (mobile)
+
+A delete action in the player's top bar, behind a confirmation that names the file and says how many
+bookmarks go with it.
+
+Playback is stopped first: the media session holds the file open, and deleting underneath a running
+player leaves it either erroring or playing something that no longer exists. The bookmark sidecar,
+the saved position and the recents entry go too — leaving those behind means the next file to take
+that exact path silently inherits another file's bookmarks. Playback advances to the next sibling so
+working through a folder doesn't stop dead on every delete. A delete that fails changes nothing at
+all, and says so.
+
+## 2026-08-17 — 1.2.34 "Gratitude" (b262)
+
+### Fixed — the home list still landed at the bottom
+
+The previous attempt guarded the auto-scroll effect, which was necessary but not the cause. The
+cause was one line in `AppRoot`: opening the player `return`ed before `AppShell` instead of drawing
+over it.
+
+That reads the same on screen and is not. Returning removes the whole shell from the composition,
+and a composable that leaves the composition takes its remembered state with it — including the
+`SaveableStateHolder` that exists precisely to keep each page's scroll position while it is
+off-screen. So opening a file from a note rebuilt the home screen from nothing on the way back, and
+landed at the bottom with the note being read scrolled away.
+
+The player is now an overlay: the shell stays composed and is covered by an opaque, click-absorbing
+surface. Its own `BackHandler` is registered after the shell's, so it is still the one that fires.
+
+### Fixed — the fourth play-next chip was a sliver
+
+Four chips no longer fit on one line of a phone, and a `Row` squeezed them all — a tall thin box
+with one clipped letter in it. They wrap now (`FlowRow`), each at its natural width.
+
+### Changed — every options slider has − and + buttons
+
+A bare slider is a poor control for a *value*: on a phone track, one step of speed or one decibel is
+a few pixels, and a tap lands where your finger is rather than where you meant. All six option
+sliders (skip, speed, bookmark rewind, 2-tap priority, volume, resources font size) now have
+buttons either side. The slider stays for coarse moves, which is what it is good at.
+
+Every value — the slider's own included — is snapped to the step grid, measured from the range's
+minimum rather than from zero, so a drag can't land between steps and leave the buttons nudging
+from a fraction the label never showed.
+
+## 2026-08-17 — 1.2.34 "Gratitude"
+
+Version set to **1.2.34** across all six components. The Android `versionCode` is unchanged, so the
+new build still installs over the previous one.
+
+### Added — a Today home page (frontend)
+
+`/` was a redirect to whichever module sorted first, which told you nothing you didn't know. It is
+now a page: per enabled module, the **last N created** and the **last N modified**, N configurable
+in Settings (default 5, capped at 50).
+
+The two columns answer different questions — "what did I start?" and "what am I still working on?"
+— so a record appears under Modified only if it has actually been touched since it was written.
+Otherwise every new record would appear twice and the second column would just be a copy of the
+first, which is what makes a page like this ignorable. Both orderings come from the server
+(`dateCreated,desc` / `lastUpdated,desc`), not a re-sort of one page.
+
+### Added — search says *where* it matched (frontend + backend)
+
+A search result used to be a title, which for a resource matched deep inside a scanned page looked
+like an unexplained hit. Each row now carries the excerpt(s) where the term was found, labelled by
+field — Description, Full text, Notes, Highlights, Short description — with the term emboldened.
+
+- It looks for the query **as typed**, because that is what listed the record: the filter is a
+  single `LIKE %q%`, not a per-word match, so pointing at where one common word of a phrase
+  happened to land would explain a match that never happened that way.
+- It is a separate request (`GET /api/<module>/match-context`) for the ids on screen, not extra
+  fields on every module's DTO: the context is wanted only while searching and is far larger than
+  the row that shows it. The list renders at once and the context fills in underneath.
+- **Resources are now searched by `fullText` and `highlights` too.** A resource is very often
+  findable only by a phrase inside its scanned text, and a search that silently skipped the biggest
+  field on the record was the wrong kind of fast. It costs about a second on 25k books.
+
+### Added — mobile player: "Random here"
+
+A fourth play-next mode: the same never-bookmarked, oldest-first random pick as "Random old", but
+confined to the folder around what is playing, searched recursively.
+
+From **inside a note's `.d` companion folder the search starts one level up**, so it sweeps the
+sibling notes' attachments rather than replaying the two files belonging to the note already
+playing — which is the point of the mode: working through the whole pipeline.
+
+Every mode now has an icon (⃠ / playlist / shuffle / stacked folders), shown on its chip **and** as a
+badge on the ⏭ button — the same way the bookmark rides on pause. What "next" will do is a setting
+two panels away; this is where you find out before pressing it.
+
+### Fixed — mobile
+
+- **The "New note" form stayed collapsed only until the app restarted.** Its state lived in the
+  saved-instance bundle, which a cold start throws away, so the form reopened every morning however
+  often it was closed. It is a standing preference and now lives on disk.
+- **Returning to the home list dumped you at the bottom.** Opening a note's file in the player and
+  coming back lost the note you were reading and its neighbours. The list's scroll position always
+  survived the trip — the auto-scroll-to-newest effect was overwriting it on every composition. It
+  now moves only when the list has actually grown (a note was added) or the ordering changed.
+
+## 2026-08-16 — A star that un-bookmarks, list filters, and a rebuild that survives a bad record
+
+### Added — the mobile star can un-bookmark on the server
+
+Settings → "Star button" now chooses what the star beside a Nibras record means.
+
+- **Bookmark on this device** (unchanged, still the default) — a private shortlist that is never
+  sent anywhere.
+- **Un-bookmark in Nibras** — starts from the fact that every record on the phone is *already*
+  bookmarked on the server, which is why it synced down at all. So the star is drawn **filled**: it
+  states a fact rather than offering a toggle. Tapping it takes the record off the server's list —
+  immediately when online, on the next sync when not.
+
+  The row deliberately **stays on screen**, tinted and labelled, until a sync actually stops
+  returning it. That window is the undo: tap the star again and the record is restored. The flag is
+  written as a *desired state* rather than an action, and a queued flag is replaced rather than
+  appended, so a tap and its undo cancel instead of racing each other onto the wire — the outcome is
+  the same whether or not the first tap got through.
+
+  In this mode the local "★ Bookmarked" grouping is dropped: the star no longer writes that set, and
+  a section the user can't change any more would just be frozen.
+
+### Added — two filters in the list pane
+
+- **Records per page** (10 / 25 / 50 / 100 / 200), remembered across sessions. It sits with the
+  filters rather than beside the pager: how much you want to see at once is part of how you're
+  looking.
+- **Priority**, right after Type. An *exact* priority, which the module didn't have — the existing
+  "high priority" report preset means "3 or higher", and asking for the p3s is a different question.
+
+### Fixed — "Rebuild search index" reported only "Reindex failed"
+
+The rebuild reads ~50,000 records and wrote them all in **one transaction**, so any single record
+the database refused rolled back the entire thing — and the Admin page turned every possible cause
+(a rejected row, a missing table, a permission, a dropped connection) into the same four words.
+
+- The work is now **committed in chunks**; a failing chunk is retried row by row to find the record
+  actually at fault, and the rest of the index is still built. The result carries what was skipped
+  and why, so "51,430 indexed, 3 skipped" reads as a success with a footnote rather than a failure.
+- A **missing `search_doc` table** — what a database that predates the migrations actually produces —
+  is now reported in plain words up front, naming Flyway, instead of surfacing as a raw SQL error on
+  the first of 51,433 inserts. (Two databases on this machine, `db_nibras` and `db_nibras_470s`, have
+  neither the table nor a Flyway history; an instance pointed at either fails exactly this way.)
+- The Admin page shows **the server's own message** instead of a fixed string, and colours the result
+  by what happened rather than always green.
+
+### Fixed — mobile
+
+- **The filter calendar's per-day counts** were on a second line inside each cell and fell outside it
+  on a tablet, so they simply weren't there to read. Date and count now share one line — `14 (3)`.
+
 ## 2026-08-16 — Maintenance page, and a delete that can't strand files
 
 ### Added — a Maintenance page

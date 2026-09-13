@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -216,6 +217,20 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
         return repo.findAll();
     }
 
+    /**
+     * Every record reduced to what the search index stores.
+     *
+     * <p>Flattened here, inside the read transaction, rather than by the caller: the rebuild writes
+     * in its own short transactions, so by the time it iterates, the entities are detached and any
+     * lazy field {@code feedTitle()} reached for would throw.
+     */
+    @Transactional(readOnly = true)
+    public List<SearchIndexService.Doc> indexDocs() {
+        return repo.findAll().stream()
+                .map(e -> new SearchIndexService.Doc(e.getId(), e.feedTitle(), e.feedDescription()))
+                .toList();
+    }
+
     /** Just enough of a record to locate its repository folder and name it in a list. */
     public record RecordRef(String module, long id, String typeCode, String title) {
     }
@@ -232,6 +247,68 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
         return repo.findAll().stream()
                 .map(e -> new RecordRef(name(), e.getId(), typeCodeOf(e), e.feedTitle()))
                 .toList();
+    }
+
+    /** Where a search term was found in a record: the field, and the text around it. */
+    public record FieldMatch(String field, String snippet) {
+    }
+
+    /**
+     * Long-text fields worth quoting back even when the module doesn't search them.
+     *
+     * <p>A list row shows a title, so "this record matched" without saying where is unhelpful
+     * exactly when the match is somewhere long — a scanned book's full text, a note left months
+     * ago. These are checked in addition to {@link #searchFields()} and skipped where the entity
+     * has no such property.
+     */
+    private static final List<String> CONTEXT_FIELDS =
+            List.of("description", "fullText", "notes", "highlights", "shortDescription");
+
+    /**
+     * For each of [ids], where in the record the query appears.
+     *
+     * <p>Looks for the query **as typed**, because that is what listed the record: the filter is a
+     * single {@code LIKE %q%}, not a per-word match, so pointing at where one common word happened
+     * to land would explain a match that didn't happen that way.
+     *
+     * <p>Records are fetched in one query and fields read reflectively, so this stays generic
+     * across modules; a record whose text no longer contains the term (it changed between the two
+     * requests) simply contributes nothing.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, List<FieldMatch>> matchContext(String q, List<Long> ids) {
+        if (q == null || q.isBlank() || ids == null || ids.isEmpty()) {
+            return Map.of();
+        }
+        List<String> fields = new ArrayList<>(searchFields());
+        CONTEXT_FIELDS.forEach(f -> {
+            if (!fields.contains(f)) {
+                fields.add(f);
+            }
+        });
+
+        Map<Long, List<FieldMatch>> out = new LinkedHashMap<>();
+        for (E entity : repo.findAllById(ids)) {
+            org.springframework.beans.BeanWrapper bw = new org.springframework.beans.BeanWrapperImpl(entity);
+            List<FieldMatch> found = new ArrayList<>();
+            for (String field : fields) {
+                if (!bw.isReadableProperty(field)) {
+                    continue;
+                }
+                Object value = bw.getPropertyValue(field);
+                if (!(value instanceof String text) || text.isBlank()) {
+                    continue;
+                }
+                String snippet = Snippets.around(text, q);
+                if (snippet != null) {
+                    found.add(new FieldMatch(field, snippet));
+                }
+            }
+            if (!found.isEmpty()) {
+                out.put(entity.getId(), found);
+            }
+        }
+        return out;
     }
 
     /** All bookmarked (non-deleted) entities, newest first — for the unified bookmarks list. */
@@ -562,6 +639,11 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
             }
             if (f.writingId() != null && has(root, "writing")) {
                 ps.add(cb.equal(root.get("writing").get("id"), f.writingId()));
+            }
+            // An exact priority, unlike the highPriority preset's ">= 3": the list filter asks for
+            // "the p3s", and a module without a priority column simply ignores it.
+            if (f.priority() != null && has(root, "priority")) {
+                ps.add(cb.equal(root.get("priority"), f.priority()));
             }
 
             // ---- report presets ----

@@ -85,6 +85,8 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.knotes.NoteFiles
+import com.knotes.StarAction
+import com.knotes.nibras.BookmarkSync
 import com.knotes.nibras.ConnState
 import com.knotes.nibras.NIBRAS_TYPES
 import com.knotes.nibras.NibrasRecord
@@ -110,13 +112,19 @@ fun NibrasContent(
     username: String,
     filesDir: String,
     fulltextScale: Float,
+    starAction: StarAction,
     onPlayMedia: (File) -> Unit,
 ) {
     val conn by vm.conn.collectAsState()
     val records by vm.records.collectAsState()
     val loading by vm.loading.collectAsState()
     val readSet by vm.store.read.collectAsState()
-    val bookmarkedSet by vm.store.bookmarked.collectAsState()
+    val localBookmarks by vm.store.bookmarked.collectAsState()
+    val unbookmarkedSet by vm.store.unbookmarked.collectAsState()
+    // In backend mode the star no longer writes the local set, so grouping by it would freeze a
+    // "★ Bookmarked" section the user can no longer change. One list instead.
+    val backendMode = starAction == StarAction.BACKEND_UNBOOKMARK
+    val bookmarkedSet = if (backendMode) emptySet() else localBookmarks
     val completedSet by vm.store.completed.collectAsState()
     val message by vm.message.collectAsState()
     val syncing by vm.syncing.collectAsState()
@@ -199,6 +207,8 @@ fun NibrasContent(
             record = record,
             isRead = record.key in readSet,
             isBookmarked = record.key in bookmarkedSet,
+            starAction = starAction,
+            isPendingUnbookmark = record.key in unbookmarkedSet,
             isExpanded = record.key == expandedKey,
             isCompleted = record.key in completedSet,
             queuedNotes = recordNotes[record.key].orEmpty(),
@@ -206,7 +216,9 @@ fun NibrasContent(
                 if (record.key == expandedKey) expandedKey = null
                 else { expandedKey = record.key; vm.setRead(record, true) }
             },
-            onToggleBookmark = { vm.toggleBookmark(record) },
+            onToggleBookmark = {
+                if (backendMode) vm.toggleBackendBookmark(baseUrl, record) else vm.toggleBookmark(record)
+            },
             onToggleComplete = { vm.toggleComplete(baseUrl, record) },
             onMarkUnread = { vm.setRead(record, false) },
             onAddNote = { note -> vm.addNote(baseUrl, record, note) },
@@ -278,7 +290,12 @@ fun NibrasContent(
                                 }
                             }
                         } else {
-                            item { SectionHeader("Unbookmarked", others.size) }
+                            item {
+                                SectionHeader(
+                                    if (backendMode) "Bookmarked in Nibras" else "Unbookmarked",
+                                    others.size,
+                                )
+                            }
                             items(others, key = { it.key }) { rowContent(it) }
                         }
                     }
@@ -479,6 +496,9 @@ private fun NibrasRow(
     record: NibrasRecord,
     isRead: Boolean,
     isBookmarked: Boolean,
+    starAction: StarAction,
+    /** Backend mode only: the un-bookmark is recorded and the row is waiting for the sync to drop it. */
+    isPendingUnbookmark: Boolean,
     isExpanded: Boolean,
     isCompleted: Boolean,
     queuedNotes: List<String>,
@@ -508,19 +528,46 @@ private fun NibrasRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            // Lighter tint for the opened record panel.
-            .background(if (isExpanded) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) else Color.Transparent)
+            // Lighter tint for the opened record panel; a retired row is tinted instead, so it
+            // reads as on-its-way-out without disappearing before the user can change their mind.
+            .background(
+                when {
+                    isPendingUnbookmark -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.30f)
+                    isExpanded -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
+                    else -> Color.Transparent
+                },
+            )
             .padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
+        if (isPendingUnbookmark) {
+            Text(
+                text = "Un-bookmarked — leaves this list on the next sync. Tap the star to undo.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth().clickable { onToggleExpand() },
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Two readings of the same glyph (see StarAction). In backend mode the star is filled
+            // by default because it states a fact — this record IS bookmarked in Nibras, which is
+            // why it is here — and an emptied star means "un-bookmarked, waiting for the sync".
+            val backendStar = starAction == StarAction.BACKEND_UNBOOKMARK
+            val filled = BookmarkSync.starFilled(starAction, isBookmarked, isPendingUnbookmark)
             IconButton(onClick = onToggleBookmark, modifier = Modifier.size(48.dp)) {
                 Icon(
-                    if (isBookmarked) Icons.Filled.Star else Icons.Filled.StarBorder,
-                    contentDescription = "Bookmark",
-                    tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                    if (filled) Icons.Filled.Star else Icons.Filled.StarBorder,
+                    contentDescription = when {
+                        !backendStar -> "Bookmark"
+                        isPendingUnbookmark -> "Un-bookmarked — tap to undo"
+                        else -> "Un-bookmark in Nibras"
+                    },
+                    tint = when {
+                        isPendingUnbookmark -> MaterialTheme.colorScheme.error
+                        filled -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.outline
+                    },
                     modifier = Modifier.size(32.dp),
                 )
             }

@@ -57,6 +57,63 @@ fun isIgnoredSidecar(name: String): Boolean =
 
 fun isAuxDir(name: String): Boolean = name.trimStart('.').lowercase() in AUX_DIR_STEMS
 
+/**
+ * Whether a note FILE NAME is a [type] note at [priority] written on or after [sinceMillis].
+ *
+ * Deliberately answered from the name alone, with no file read. The name already carries the type,
+ * the priority *and* the time it was written, so a widget can find today's tasks with one directory
+ * listing — where the obvious `listNotes().filter { … }` would read the full text of every note in
+ * the folder to decide it wanted three of them.
+ *
+ * Written-at comes from the name rather than the mtime for the usual reason: Syncthing rewrites
+ * files it has not changed, and retagging renames them, either of which would report a year-old
+ * task as today's.
+ */
+/**
+ * Whether a note file name says "this type, written since then" — and, when [priority] is given,
+ * "at this priority".
+ *
+ * **[priority] is nullable, meaning ANY priority.** Today's tasks are the ones at the top priority,
+ * because the widget is a do-this-first list; today's journal is every entry, because a day's
+ * writing is not ranked. One predicate with an optional filter rather than two that would have to
+ * be kept in step about what counts as today.
+ */
+fun isTaskNameSince(
+    name: String,
+    type: String,
+    priority: Int?,
+    timestampFormat: String,
+    sinceMillis: Long,
+): Boolean {
+    if (!isFormattedNote(name)) return false
+    val parsed = NoteFiles.parse(name)
+    if (priority != null && parsed.priority != priority) return false
+    if (!type.equals(parsed.type.orEmpty(), ignoreCase = true)) return false
+    return createdFromName(parsed.timestamp, timestampFormat) >= sinceMillis
+}
+
+/**
+ * When a canonical note name says it was written, or [Long.MIN_VALUE] if it cannot be read.
+ *
+ * Falls back to the default timestamp format when the configured one does not fit. The two can
+ * genuinely disagree: [isFormattedNote] insists on `yyyy_MM_dd-HHmmss` whatever the setting says,
+ * so pointing the format at something else would otherwise make every existing note unplaceable in
+ * time — and this predicate would quietly report that nothing was written today, ever.
+ */
+private fun createdFromName(timestamp: String, timestampFormat: String): Long {
+    val configured = NoteFiles.parseCreated(timestamp, timestampFormat, Long.MIN_VALUE)
+    if (configured != Long.MIN_VALUE) return configured
+    return NoteFiles.parseCreated(timestamp, SettingsStore.DEFAULT_FORMAT, Long.MIN_VALUE)
+}
+
+/** Midnight this morning, local time — the cut-off for anything counted as "today's". */
+fun startOfToday(): Long = java.util.Calendar.getInstance().apply {
+    set(java.util.Calendar.HOUR_OF_DAY, 0)
+    set(java.util.Calendar.MINUTE, 0)
+    set(java.util.Calendar.SECOND, 0)
+    set(java.util.Calendar.MILLISECOND, 0)
+}.timeInMillis
+
 /** A file missing its final newline shows as a spurious change on every future line ('No newline
  * at end of file') in git diff and similar tools — always write one. */
 private fun String.withTrailingNewline(): String = if (endsWith("\n")) this else this + "\n"
@@ -170,6 +227,31 @@ class NoteRepository(private val settings: SettingsStore) {
             fileNames = companionFileNames(file),
         )
     }
+
+    /**
+     * Notes of [type] at [priority] written on or after [sinceMillis], newest first.
+     *
+     * Names are filtered before any file is opened (see [isTaskNameSince]), so only the handful
+     * that survive are read. Newest first because a task added a moment ago should appear at the
+     * top of the widget that added it.
+     */
+    /** Notes of [type] written since [sinceMillis], newest first. Null [priority] means any. */
+    fun listTasksSince(type: String, priority: Int?, sinceMillis: Long): List<Note> =
+        (dir().listFiles() ?: emptyArray())
+            .filter {
+                it.isFile &&
+                    isTaskNameSince(it.name, type, priority, settings.value.timestampFormat, sinceMillis)
+            }
+            .map(::toNote)
+            .sortedByDescending { it.createdMillis }
+
+    /** How many there are, without reading a single one of them. */
+    fun countTasksSince(type: String, priority: Int?, sinceMillis: Long): Int =
+        (dir().listFiles() ?: emptyArray())
+            .count {
+                it.isFile &&
+                    isTaskNameSince(it.name, type, priority, settings.value.timestampFormat, sinceMillis)
+            }
 
     fun saveNew(text: String, type: String?, priority: Int, category: String?): File {
         val token = NoteFiles.nowToken(settings.value.timestampFormat)

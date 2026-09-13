@@ -14,7 +14,9 @@ import ChevronRight from '@mui/icons-material/ChevronRight';
 import DeleteForever from '@mui/icons-material/DeleteForever';
 import DriveFileRenameOutline from '@mui/icons-material/DriveFileRenameOutline';
 import Undo from '@mui/icons-material/Undo';
-import { deleteImage, imageFileUrl, listImages, renameImage, restoreImage } from '../api/client';
+import { deleteImage, imageFileUrl, listImages, renameImage, restoreImage,
+  errorDetail,
+} from '../api/client';
 import { AuthImage } from '../components/AuthImage';
 import { SideNav } from '../components/SideNav';
 
@@ -67,11 +69,7 @@ export function ImagesPage() {
     el.setSelectionRange(0, el.value.length); // whole base (extension isn't in the field)
   };
 
-  const fail = (e: unknown) =>
-    setError(
-      (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        'Something went wrong.',
-    );
+  const fail = (e: unknown) => setError(errorDetail(e, 'Something went wrong.'));
 
   const load = async () => {
     setError(null);

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Prayer times: one column per shown time with the next one in an amber pill, then a line
+     carrying the Islamic date and a live countdown to that next time. Read right-to-left, in
+     Arabic.
+
+     layoutDirection is pinned to rtl here rather than left to the device locale: the strip's text
+     is Arabic whatever language the phone is set to, and a right-to-left script laid out left-to-
+     right puts the first prayer of the day at the far end from where the eye starts. The columns
+     are added in order by the code, so rtl is what makes Fajr the rightmost of them.
+
+     Digits stay Western (123, not ١٢٣) — see PrayerWidget.clock, which pins the formatter's locale
+     so a phone set to an Arabic locale does not switch them out from under the layout.
+
+     ONE cell tall, ~98dp, and that is the whole design constraint. With the name and time inline
+     the binding constraint is WIDTH, not height — which is why the sizes are chosen against the
+     column count and there is height to spare; gravity=center_vertical shares that spare out above
+     and below rather than pooling it under the last line. The times are what the widget
+     is for, so they get the size; everything else is fitted around them. Three separate rows —
+     date, times, countdown — needed a second cell, which is not worth a whole row of home screen,
+     so the date lost its year and moved down to share the countdown's line. That line still comes
+     after the times, which was the point of moving the countdown off the top in the first place.
+
+     The countdown is a Chronometer, not a TextView: it ticks down on its own, with no alarm and no
+     redraw from the app. RemoteViews has no other way to show a running clock. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:gravity="center_vertical"
+    android:layoutDirection="rtl"
+    android:orientation="vertical"
+    android:paddingStart="12dp"
+    android:paddingTop="4dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="3dp">
+
+    <!-- gravity=bottom lines the times up across the strip whatever icons sit above them. Columns
+         are top-aligned by default, so a prayer with no settings icons rode higher than its
+         neighbours and the row of times came out ragged — and it is the times that are read across.
+
+         center_horizontal because the columns size to their content now rather than dividing the
+         width; without it they would bunch against the leading edge with all the slack at the far
+         end. -->
+    <LinearLayout
+        android:id="@+id/pw_columns"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:baselineAligned="false"
+        android:gravity="bottom|center_horizontal"
+        android:orientation="horizontal" />
+
+    <TextView
+        android:id="@+id/pw_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#AAAAAA"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <!-- The footing: date on the right, countdown on the left. The Hijri year is back on it, so
+         both are at 14sp rather than 16 — at 16sp "23 ربيع الأول 1448" and "فجر بعد 8:41:43"
+         together came close to the full width, and the first long month name would have started
+         ellipsizing one of them. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:baselineAligned="false"
+        android:orientation="horizontal">
+
+        <!-- Doubles as the refresh control, the way every other widget's title does. -->
+        <TextView
+            android:id="@+id/pw_hijri"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <Chronometer
+            android:id="@+id/pw_countdown"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="end"
+            android:maxLines="1"
+            android:paddingStart="8dp"
+            android:textColor="#8AB4F8"
+            android:textSize="14sp" />
+    </LinearLayout>
+</LinearLayout>

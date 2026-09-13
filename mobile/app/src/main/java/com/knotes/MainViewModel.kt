@@ -70,6 +70,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _unrecognized.value = repo.listUnrecognized()
             com.knotes.status.StatusService.refresh(getApplication())  // update today's count
             com.knotes.reminder.KpiWidget.refresh(getApplication())
+            // A task typed in the app belongs on the Today's tasks widget as much as one typed
+            // into the widget's own add bar; without this it would not appear there until the
+            // next half-hourly redraw.
+            com.knotes.reminder.TodayTasksWidget.refresh(getApplication())
         }
     }
 

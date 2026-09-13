@@ -40,7 +40,10 @@ public class BookService extends AbstractCrudService<Book, BookDto> {
      */
     @Override
     protected List<String> searchFields() {
-        return List.of("title", "author", "description", "notes");
+        // fullText and highlights are in here despite being long columns: a resource is very
+        // often findable ONLY by a phrase inside its scanned text, and a search that silently
+        // ignored the biggest field on the record was the wrong kind of fast.
+        return List.of("title", "author", "description", "notes", "fullText", "highlights");
     }
 
     @Override

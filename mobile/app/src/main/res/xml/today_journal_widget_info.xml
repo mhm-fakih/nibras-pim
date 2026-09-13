@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same shape as today_tasks_widget_info: a title, an add bar and a list need room, and 2 cells
+     wide by 2 tall (70*2-30 = 110dp) is the smallest at which the add bar and a couple of rows are
+     both legible. updatePeriodMillis is a backstop only — the widget is redrawn the moment an entry
+     is written, and by the shared Widgets.refreshAll. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_today_journal"
+    android:minHeight="110dp"
+    android:minWidth="110dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="2"
+    android:targetCellWidth="2"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

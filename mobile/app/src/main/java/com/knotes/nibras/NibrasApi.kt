@@ -87,6 +87,76 @@ class NibrasApi {
     }
 
     /**
+     * Flash cards in one state. The server caps NEW to its working set and returns REPEAT and KEPT
+     * whole — the phone does not decide how much of the bank it is shown.
+     */
+    @Throws(ApiException::class)
+    suspend fun fetchFlashcards(base: String, state: String): List<com.knotes.flash.Flashcard> =
+        withContext(Dispatchers.IO) {
+            val arr = JSONArray(fetchFlashcardsRaw(base, state))
+            (0 until arr.length()).mapNotNull { i ->
+                com.knotes.flash.Flashcard.fromJson(arr.getJSONObject(i))
+            }
+        }
+
+    /**
+     * The same call, as the JSON the server actually sent.
+     *
+     * For the offline cache, which stores the response verbatim so the copy it serves is parsed by
+     * exactly the code that parses a live one — see [com.knotes.flash.FlashCache].
+     */
+    @Throws(ApiException::class)
+    suspend fun fetchFlashcardsRaw(base: String, state: String): String =
+        withContext(Dispatchers.IO) {
+            get("${base.trimEnd('/')}$PATH_FLASHCARDS?state=" + URLEncoder.encode(state, "UTF-8"))
+        }
+
+    /** How much of the job is left, so the page can say what it is holding back. */
+    @Throws(ApiException::class)
+    suspend fun fetchFlashcardSummaryRaw(base: String): String =
+        withContext(Dispatchers.IO) { get("${base.trimEnd('/')}$PATH_FLASHCARDS/summary") }
+
+    @Throws(ApiException::class)
+    suspend fun fetchFlashcardSummary(base: String): com.knotes.flash.FlashSummary =
+        withContext(Dispatchers.IO) {
+            val o = JSONObject(fetchFlashcardSummaryRaw(base))
+            com.knotes.flash.FlashSummary(
+                total = o.optInt("total"),
+                remaining = o.optInt("remaining"),
+                reviewed = o.optInt("reviewed"),
+                repeat = o.optInt("repeat"),
+                kept = o.optInt("kept"),
+            )
+        }
+
+    /**
+     * Resources' key points, live from the server.
+     *
+     * Bullets arrive already split, so the phone and the web page cannot disagree about what counts
+     * as a line — and neither carries a copy of the tidying rules.
+     */
+    @Throws(ApiException::class)
+    suspend fun fetchHighlights(base: String, limit: Int = 200): List<com.knotes.flash.Highlight> =
+        withContext(Dispatchers.IO) {
+            val arr = JSONArray(fetchHighlightsRaw(base, limit))
+            (0 until arr.length()).mapNotNull { i ->
+                com.knotes.flash.Highlight.fromJson(arr.getJSONObject(i))
+            }
+        }
+
+    /** The same call, verbatim, for the offline cache. */
+    @Throws(ApiException::class)
+    suspend fun fetchHighlightsRaw(base: String, limit: Int = 200): String =
+        withContext(Dispatchers.IO) { get("${base.trimEnd('/')}$PATH_HIGHLIGHTS?limit=$limit") }
+
+    /** Record a decision. The same call puts a card back, by sending NEW. */
+    suspend fun pushFlashcardState(base: String, id: Long, state: String): Boolean =
+        withContext(Dispatchers.IO) {
+            putAuthed("${base.trimEnd('/')}$PATH_FLASHCARDS/$id/state",
+                JSONObject().put("state", state))
+        }
+
+    /**
      * Flags a record on the server so the next sync pulls it down (or unflags it). The exports
      * carry bookmarked records only, so this IS "send this to my phone".
      */
@@ -250,6 +320,26 @@ class NibrasApi {
         }
 
     /** POST a JSON payload with the bearer token, re-logging-in and retrying once on a 401. */
+    /** PUT twin of [postAuthed] — same one-shot re-login on a 401. */
+    private fun putAuthed(url: String, payload: JSONObject): Boolean {
+        fun build(): Request {
+            val b = Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .put(payload.toString().toRequestBody(jsonMedia))
+            token?.let { b.header("Authorization", "Bearer $it") }
+            return b.build()
+        }
+        return runCatching {
+            var resp = client.newCall(build()).execute()
+            if (resp.code == 401 && doLogin()) {
+                resp.close()
+                resp = client.newCall(build()).execute()
+            }
+            resp.use { it.isSuccessful }
+        }.getOrDefault(false)
+    }
+
     private fun postAuthed(url: String, payload: JSONObject): Boolean {
         fun build(): Request {
             val b = Request.Builder()
@@ -371,5 +461,7 @@ class NibrasApi {
         const val PATH_MOBILE_SEARCH = "/sync/mobileSearch"
         const val PATH_MOBILE_PUSH_BOOKMARK = "/sync/mobilePushBookmark"
         const val PATH_CLIENT_TAXONOMY = "/sync/clientTaxonomy"
+        const val PATH_FLASHCARDS = "/api/flashcards"
+        const val PATH_HIGHLIGHTS = "/api/highlights"
     }
 }
