@@ -219,10 +219,15 @@ class PrayerEventsTest {
         val events = PrayerEvents.forDay(s, day, countdownWakeups = true)
             .filter { it.kind == PrayerEventKind.COUNTDOWN }
 
-        assertEquals(s.visible.size, events.size)
-        events.forEach { e ->
-            val prayerAt = day.timeOf(e.prayer)!!
-            assertEquals(prayerAt - 60 * 60_000L, e.atMillis)
+        // Two per shown time: one when the countdown becomes due, one AT the time so the strip
+        // flips from "بعد" to "منذ" instead of counting into negatives.
+        assertEquals(s.visible.size * 2, events.size)
+        events.groupBy { it.prayer }.forEach { (prayer, list) ->
+            val prayerAt = day.timeOf(prayer)!!
+            assertEquals(
+                listOf(prayerAt - 60 * 60_000L, prayerAt),
+                list.map { it.atMillis }.sorted(),
+            )
         }
     }
 
@@ -240,8 +245,8 @@ class PrayerEventsTest {
         val day = PrayerCalendar.dayOf(base(), date, beirut)
         fun firstCountdown(minutes: Int): Long =
             PrayerEvents.forDay(base().copy(countdownWithinMin = minutes), day, countdownWakeups = true)
-                .first { it.kind == PrayerEventKind.COUNTDOWN && it.prayer == Prayer.DHUHR }
-                .atMillis
+                .filter { it.kind == PrayerEventKind.COUNTDOWN && it.prayer == Prayer.DHUHR }
+                .minOf { it.atMillis }
 
         val dhuhr = day.timeOf(Prayer.DHUHR)!!
         assertEquals(dhuhr - 30 * 60_000L, firstCountdown(30))

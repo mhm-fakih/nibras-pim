@@ -26,6 +26,8 @@ public record TaskDto(
         Long courseId,
         Long goalId,
         List<Long> tagIds,
+        /** People this task is about. Tagging by CONTACT, alongside tagging by tag. */
+        List<Long> contactIds,
         Boolean urgent,
         Integer orderNumber,
         Boolean recurring,
@@ -39,6 +41,7 @@ public record TaskDto(
         LookupDto course,
         LookupDto goal,
         List<TagDto> tags,
+        List<ContactRefDto> contacts,
         Boolean hasCover,
         LocalDateTime completedOn,
         LocalDateTime dateCreated,

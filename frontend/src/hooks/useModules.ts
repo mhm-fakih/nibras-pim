@@ -20,5 +20,12 @@ export function useModules() {
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder);
   const enabled = modules.filter((m) => m.enabled);
-  return { modules, enabled, isLoading: query.isLoading };
+  /**
+   * Is this module switched on? A module the backend does not list at all counts as off, so a
+   * feature gated on this stays hidden on databases whose `app_module` predates it rather than
+   * appearing half-wired. Used for UI that a module owns but that lives on *other* modules' pages
+   * (contact tagging on a task, say) — the nav and the settings list work off `enabled` directly.
+   */
+  const isEnabled = (key: string) => enabled.some((m) => m.moduleKey === key);
+  return { modules, enabled, isEnabled, isLoading: query.isLoading };
 }

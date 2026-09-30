@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long and wide by default: 4 cells across, 4 down. This one is for reading, so it wants the
+     room — a feed two rows tall shows one note and the top of another, which is a worse version of
+     the lists that already exist.
+
+     minResizeHeight is set explicitly. Android takes the resize floor from minHeight when it is
+     absent, which is how a widget ends up unable to be dragged smaller at all. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_recent_notes"
+    android:minHeight="110dp"
+    android:minResizeHeight="70dp"
+    android:minResizeWidth="180dp"
+    android:minWidth="250dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="4"
+    android:targetCellWidth="4"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

@@ -14,6 +14,8 @@ export type FieldType =
   | 'book'
   | 'goal'
   | 'tags'
+  /** People a record is about — the same multi-select as `tags`, over contacts. */
+  | 'contacts'
   | 'recurrence';
 
 export interface FieldDef {
@@ -87,6 +89,9 @@ export const ENTITIES: EntityConfig[] = [
       // Pseudo-field: renders a compound recurrence picker over recurring, recurrencePreset,
       // recurrenceInterval, recurrenceCron, fixedSchedule — see RecurrenceField in EntityForm.tsx.
       { name: 'recurrence', label: 'Repeats', type: 'recurrence', recurrenceMode: 'chain' },
+      // Tagging by PERSON as well as by tag. Backed by the legacy `task_contact` join, and read
+      // back by the phone's Contacts page, which groups open work under the people it is with.
+      { name: 'contacts', label: 'People', type: 'contacts' },
       ...common,
     ],
   },
@@ -229,6 +234,41 @@ export const ENTITIES: EntityConfig[] = [
     ],
   },
 ];
+
+// Contacts: people, with the same list/detail/edit as any other module.
+//
+// Its own module rather than a lookup table, because a contact is a record you keep — notes on a
+// person, their number, what you owe them — and because BOOKMARKED has to be settable. The phone's
+// Contacts page selects on that flag, and before this module nothing in any client could change it:
+// the bookmarked people were bookmarked in the legacy system and the rest were unreachable.
+//
+// No status/type/department/course: the legacy `contact` table has no such columns, so the common
+// block is not spread in here. `summary` is NOT NULL there and the server fills it from the name
+// when a contact is created with only one.
+ENTITIES.push({
+  key: 'contacts',
+  label: 'Contacts',
+  icon: 'Groups',
+  hasStatus: false,
+  hasType: false,
+  fields: [
+    // `summary` IS the person's name in this table — it is set on all 187 rows and `name` is empty
+    // on every one of them. So it leads, and carries the label a reader expects.
+    { name: 'summary', label: 'Name', type: 'text' },
+    { name: 'code', label: 'Code', type: 'text' },
+    { name: 'jobTitle', label: 'Job title', type: 'text' },
+    { name: 'telephones', label: 'Telephones', type: 'text' },
+    { name: 'email', label: 'Email', type: 'text' },
+    { name: 'address', label: 'Address', type: 'text' },
+    { name: 'description', label: 'About', type: 'richtext' },
+    { name: 'notes', label: 'Notes', type: 'textarea' },
+    // Kept, and last: empty throughout today, but it is a real column and editing a record must
+    // not silently drop what is in it.
+    { name: 'name', label: 'Alternate name', type: 'text' },
+    { name: 'priority', label: 'Priority', type: 'number' },
+    { name: 'bookmarked', label: 'Bookmarked', type: 'switch' },
+  ],
+});
 
 // Department & Course are first-class modules that also categorize the records above.
 ENTITIES.push(

@@ -99,6 +99,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
     var calendarEnabled by remember { mutableStateOf(current.calendarEnabled) }
     var prayerEnabled by remember { mutableStateOf(current.prayerEnabled) }
     var collectEnabled by remember { mutableStateOf(current.collectEnabled) }
+    var feedDays by remember { mutableStateOf(current.feedDays) }
+    var feedWords by remember { mutableStateOf(current.feedWords) }
     var reminderOffsets by remember { mutableStateOf(current.reminderOffsetsMin.joinToString(", ")) }
     var reminderSound by remember { mutableStateOf(current.reminderSoundUri) }
     var reminderDismiss by remember { mutableStateOf(current.reminderRequireDismiss) }
@@ -199,6 +201,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 calendarEnabled = calendarEnabled,
                 prayerEnabled = prayerEnabled,
                 collectEnabled = collectEnabled,
+                feedDays = feedDays,
+                feedWords = feedWords,
                 reminderOffsetsMin = SettingsStore.decodeInts(reminderOffsets),
                 reminderSoundUri = reminderSound,
                 reminderRequireDismiss = reminderDismiss,
@@ -606,17 +610,34 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             // Whole features, not display preferences: switching one off takes its page out of the
             // rail AND cancels what it had scheduled — see PrayerScheduler.sync and
             // CollectScheduler.sync, which each check this before arming anything.
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Prayer times", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "The prayer page and its alarms — athan, reminders, the silent window and " +
-                            "the beeps before Shurooq. Off removes all of them.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            // The recent-notes feed widget. Two numbers, and they are the whole of it — the widget
+            // has no controls of its own by design.
+            Text("Recent notes widget", style = MaterialTheme.typography.titleSmall)
+            StepSlider(
+                if (feedDays == 1) "today only" else "$feedDays days back",
+                feedDays.toFloat(), 1f, 30f, 1f, labelWidth = 130.dp,
+            ) { v -> feedDays = v.toInt() }
+            StepSlider(
+                "$feedWords words, then Read more",
+                feedWords.toFloat(), 10f, 200f, 10f, labelWidth = 190.dp,
+            ) { v -> feedWords = v.toInt() }
+
+            // Prayer times are configured on the prayer page, not here — including this switch.
+            // What is left is the way BACK: turning it off there takes that page out of the rail,
+            // so the switch cannot be reached to undo it. This row appears only while it is off.
+            if (!prayerEnabled) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Prayer times are hidden", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "Switched off on the prayer page, which also took it out of the left " +
+                                "rail. Turn it back on here.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = false, onCheckedChange = { prayerEnabled = true })
                 }
-                Switch(checked = prayerEnabled, onCheckedChange = { prayerEnabled = it })
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {

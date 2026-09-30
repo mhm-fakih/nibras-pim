@@ -149,6 +149,16 @@ class NibrasApi {
     suspend fun fetchHighlightsRaw(base: String, limit: Int = 200): String =
         withContext(Dispatchers.IO) { get("${base.trimEnd('/')}$PATH_HIGHLIGHTS?limit=$limit") }
 
+    /**
+     * Bookmarked people and the work still open with each.
+     *
+     * One call for the whole page: the server groups the tasks per contact, so a screen of sixteen
+     * people is one request rather than one per heading.
+     */
+    @Throws(ApiException::class)
+    suspend fun fetchContactsRaw(base: String): String =
+        withContext(Dispatchers.IO) { get("${base.trimEnd('/')}$PATH_CONTACTS/with-tasks") }
+
     /** Record a decision. The same call puts a card back, by sending NEW. */
     suspend fun pushFlashcardState(base: String, id: Long, state: String): Boolean =
         withContext(Dispatchers.IO) {
@@ -463,5 +473,7 @@ class NibrasApi {
         const val PATH_CLIENT_TAXONOMY = "/sync/clientTaxonomy"
         const val PATH_FLASHCARDS = "/api/flashcards"
         const val PATH_HIGHLIGHTS = "/api/highlights"
+        // The base path is the CRUD list now; the grouped view this page wants is a sub-path.
+        const val PATH_CONTACTS = "/api/contacts"
     }
 }

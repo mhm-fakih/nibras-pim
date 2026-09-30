@@ -65,6 +65,16 @@ data class AppSettings(
      * means the feature is not in the app: no rail entry, and nothing scheduled whatever the
      * automatic setting says.
      */
+    /**
+     * The recent-notes feed widget: how many days back it reaches, and how many words a note shows
+     * before it is folded behind "Read more".
+     *
+     * Days rather than a count, because the widget answers "what have I written lately" — a fixed
+     * number of notes says something different on a busy day than on a quiet one.
+     */
+    val feedDays: Int = 3,
+    val feedWords: Int = 40,
+
     val collectEnabled: Boolean = true,
     val collectAutoEnabled: Boolean = false,
     val collectAutoHour: Int = 15,
@@ -170,6 +180,8 @@ class SettingsStore(context: Context) {
         calendarEnabled = prefs.getBoolean(K_CAL_ENABLED, true),
         prayerEnabled = prefs.getBoolean(K_PRAYER_ENABLED, true),
         collectEnabled = prefs.getBoolean(K_COLLECT_ENABLED, true),
+        feedDays = prefs.getInt(K_FEED_DAYS, 3),
+        feedWords = prefs.getInt(K_FEED_WORDS, 40),
         reminderOffsetsMin = decodeInts(prefs.getString(K_REM_OFFSETS, DEFAULT_REM_OFFSETS) ?: DEFAULT_REM_OFFSETS),
         reminderSoundUri = prefs.getString(K_REM_SOUND, "") ?: "",
         reminderRequireDismiss = prefs.getBoolean(K_REM_DISMISS, false),
@@ -233,6 +245,8 @@ class SettingsStore(context: Context) {
             .putBoolean(K_CAL_ENABLED, settings.calendarEnabled)
             .putBoolean(K_PRAYER_ENABLED, settings.prayerEnabled)
             .putBoolean(K_COLLECT_ENABLED, settings.collectEnabled)
+            .putInt(K_FEED_DAYS, settings.feedDays.coerceIn(1, 60))
+            .putInt(K_FEED_WORDS, settings.feedWords.coerceIn(10, 400))
             .putString(K_REM_OFFSETS, settings.reminderOffsetsMin.filter { it >= 0 }.joinToString(","))
             .putString(K_REM_SOUND, settings.reminderSoundUri.trim())
             .putBoolean(K_REM_DISMISS, settings.reminderRequireDismiss)
@@ -286,6 +300,8 @@ class SettingsStore(context: Context) {
         private const val K_CAL_ENABLED = "calendar_enabled"
         private const val K_PRAYER_ENABLED = "prayer_enabled"
         private const val K_COLLECT_ENABLED = "collect_enabled"
+        private const val K_FEED_DAYS = "feed_days"
+        private const val K_FEED_WORDS = "feed_words"
         private const val K_REM_OFFSETS = "reminder_offsets_min"
         private const val K_REM_SOUND = "reminder_sound_uri"
         private const val K_REM_DISMISS = "reminder_require_dismiss"

@@ -59,7 +59,7 @@ public class NoteImportService {
             "^\\d{4}_\\d{2}_\\d{2}-\\d{6}(-\\d+)?~[^~]*~[pP]\\d+~[^~]*\\.md$");
     private static final String ARCHIVE = "imported";
     /** Settings key for the import folder; overridable at runtime from the UI. */
-    static final String DIR_KEY = "import.notes-dir";
+    public static final String DIR_KEY = "import.notes-dir";
 
     private final SettingService settings;
     private final AppModuleRepository modules;

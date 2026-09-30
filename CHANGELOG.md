@@ -1,5 +1,233 @@
 # Changelog
 
+## 2026-09-29b — The notes folder, in the browser
+
+### Added — a local-notes page, and one search over both halves of the archive
+
+The archive has always been two things: records in the database, and a folder of markdown files the
+desktop app writes. Only one of them was reachable from a browser. The backend now reads the folder
+off its own disk — it sits on the same machine — so the notes are listed, searched, read and written
+over HTTP without the desktop app being up.
+
+**Two axes, because the folder genuinely has two.** By DAY is how it was written; by SUBJECT is how
+it is looked for. Both come down in one response, so the halves cannot disagree after a write.
+
+The subject axis is the part that needs machinery. A note carries only a slug — `#A.salat` — and it
+takes the tag bank to know that means course 9208 inside department A. The bank is parsed from the
+markdown document the user maintains, whose section 2 is a table of `id · course · canonical ·
+aliases` under department headings. Only section 2 is read: sections 4 and 6 list tags that are
+PROPOSED or RETIRED, and offering those as real vocabulary is exactly the drift the bank exists to
+stop. Against the real bank this resolves 242 courses across 13 departments, aliases in both
+scripts, and all 242 canonicals distinct — the partition the design depends on.
+
+A tag the bank does not carry still lands under its department letter in a course-less bucket, and a
+note with no tags and no letter lands in one too. Hiding either would hide precisely the notes whose
+filing is unfinished.
+
+**Nothing is indexed.** The folder is a few hundred files and a full scan costs milliseconds; an
+index would buy speed in exchange for the one failure this cannot afford — a listing that disagrees
+with the folder after the desktop app, the phone or Syncthing has written to it. A fingerprint of
+the directory is cached instead, so repeated reads touch no files while any change forces a rescan.
+
+### Added — writing notes over HTTP
+
+An add form, and editing in place. The department letter is deliberately NOT a field: the archive's
+invariant is that the letter in the file name equals the department of the note's FIRST tag, so the
+form derives it from the text and says what it derived. Letting the form win would let the name and
+the tags contradict each other, and the name is the half that would be wrong. A note written with no
+tag gets no letter — which honestly reads as "not filed" instead of parking it in `X` on nobody's
+judgement. Two notes written in the same second both survive, via the desktop app's `-N` suffix.
+
+File names arriving from a browser are checked against the note grammar and resolved inside the
+folder, so `../../etc/passwd` dies at the service rather than at the filesystem.
+
+### Added — consolidated search
+
+`/api/search/all` answers one query with both: records from the index, note files from the folder.
+Two lists rather than one merged list, deliberately — a record has an id, a module and a status, a
+file has a name and a folder, and flattening them would mean inventing an id for a file and a score
+for a substring match. A `~` duplicate query stays records-only, since a note file is not something
+a record can be merged into. An unreadable folder returns the record half plus a reason, not a 500.
+
+46 new tests (237). The one that matters most is `writingANoteFilesItFromItsFirstTag` — checked by
+breaking the rule and watching it fail.
+
+### Fixed — two things only a rendered page showed
+
+Found by running the build against a real folder in a browser, not by reading the code.
+
+**The department heading said "A · A الدين".** A department's name in this database already begins
+with its own letter, because `Department.getName()` returns the `summary` column and that column is
+written `A الدين`. The letter is now prefixed only when the name does not already carry it, so the
+heading is right whichever convention a database uses.
+
+**The no-department bucket was headed `?`.** That is the service's sentinel for a note with no
+department at all — the state a capture starts in — and it now reads "Not filed".
+
+Also corrected the TypeScript for the new endpoints: the API runs
+`default-property-inclusion: non_null`, so an absent field is OMITTED rather than sent as null. The
+types said `| null`, which would have made `=== null` look safe when it never matches.
+
+## 2026-09-29 — Contacts is a module you can switch off
+
+### Added — the Contacts toggle in Settings → Modules
+
+Contacts now behaves like every other module when it comes to being turned off, which it did not
+before. Two halves were missing, and only one of them was where you would look.
+
+The visible half comes free with migration V10: Settings → Modules lists whatever rows are in
+`app_module`, so registering Contacts there gives it a switch alongside Tasks and Journal, and the
+left rail hides it the moment the switch is off. Nothing in the frontend needed a Contacts case —
+that list has always been data-driven. V10 ships in this WAR; a database that has not run it yet has
+no Contacts row, and so no toggle, which is exactly what was being seen.
+
+The half that did need code: contact tagging lives on OTHER modules' pages. The "People" picker on a
+task's form and the quick-tag row on its details pane are contacts UI mounted on tasks, so switching
+Contacts off would have left the feature half-on — a page gone from the rail, its tagging still on
+every task. Both now check the module first. A module the backend does not list at all counts as
+off, so this stays hidden on older databases instead of appearing half-wired.
+
+Hidden fields are still WRITTEN BACK unchanged, deliberately: the form seeds from the whole record
+and the payload is built from every field, not the visible ones. Turning Contacts off therefore hides
+the tagging without silently stripping the tags already on a task — turn it back on and the people
+are still there.
+
+Not covered: the phone's rail entry is hardcoded, as all of its pages are, so the toggle is a
+web-side switch only.
+
+## 2026-09-27b — A notes feed, a rail refresh, and contacts in batch edit
+
+### Added — a read-only feed of recent notes (mobile widget)
+
+"Recent notes": the last few days of writing as one column you scroll down, the way a channel is
+read. Oldest first so the newest is at the BOTTOM — and the widget opens scrolled there, since that
+is where reading resumes. Minimal metadata in small type, one scrollbar, no filters and no buttons.
+
+Deliberately not another list widget. The others are working lists that filter, count and act; this
+one is for reading what you have written, so everything that would invite interaction was left out.
+The single tap a row accepts unfolds a long note in place and tapping again folds it back — that is
+the only interaction, which is why the rows carry no other controls.
+
+Notes longer than a configurable word count (default 40, over a configurable 3 days) are folded
+behind "Read more". Folded by WORDS, not by lines: a line depends on the widget's width and the
+phone's font scale, so a line-based cap would put "Read more" on different notes for the same feed
+at two sizes. The unfolded set lives in prefs rather than memory, because the rows are built by a
+RemoteViewsFactory in a service the system is free to tear down between taps.
+
+5 new unit tests (277), including the off-by-one at the cap — a "Read more" that reveals nothing is
+the worst kind, since tapping it appears to do nothing at all.
+
+### Fixed — "Unknown module: contacts" when batch editing
+
+`BatchEditService` works off a hardcoded map of seven modules, so registering a CRUD module does not
+enrol it in bulk edits. That is defensible on its own, but it made `*-` over a dozen selected people
+fail for a reason nothing on screen could explain. Contacts added.
+
+Which tokens apply is still decided per entity — `CommandParser.parse` gets the class and only emits
+assignments for properties it has, so `*-` and `p3` work on a contact while `?status`, a column
+contacts do not carry, is rejected rather than failing at the write.
+
+### Added — the Contacts page works offline
+
+The same shape as the flash cards and highlights: the saved copy is shown before the network is
+tried, and the header says how old it is. Worth more than it looks — the page went blank with
+"Failed to connect" simply because it was opened while the backend was restarting for a deploy, and
+"what do I owe this person" does not stop being a useful question mid-deploy.
+
+### Added — one refresh for the server pages, in the rail
+
+The record browsers have always had their own refresh; flash cards, highlights and contacts had
+none, so the only way to pull new rows was to open a records page, refresh THAT, and come back. The
+server band now ends with a refresh button above Settings, and all three pages watch one signal.
+
+A counter rather than a flag, so two refreshes in a row still re-run and no screen has to reset it
+on behalf of the others.
+
+### Changed — the rail's two bands are told apart by weight, not only hue
+
+Tertiary and primary at the same faint alpha read as one shade in most themes, which is the opposite
+of the point. The local band stays light; the server band is noticeably deeper.
+
+## 2026-09-27 — Contacts, and typed text that cannot be lost
+
+### Added — a Contacts page: bookmarked people and the work open with them
+
+Tasks can now be tagged by CONTACT as well as by tag, and the phone has a page that reads it back:
+one heading per bookmarked person, their live tasks underneath.
+
+Nothing was migrated for this — the legacy schema had it all along. `task_contact` was already
+there, and note its shape: it carries TWO possible owning columns, `task_people_id` and
+`task_contacts_id`, because the old Grails app had two associations sharing one table. Only the
+latter is populated, so that is the one mapped; joining on the other reads an empty relation and
+looks exactly like "no task has a contact".
+
+**Active** means not done, cancelled, deferred or frozen — and a task with NO status is active,
+since unset is not the same as finished (most tasks here have never been given one). Matched on the
+status CODE, not its display name, because the names are editable in Parameters and renaming
+"Cancelled" would otherwise quietly change what the endpoint returns.
+
+A contact with nothing open still gets a heading. "Is there anything outstanding with them?" is a
+question the page should answer, and dropping the empty ones makes it silently incomplete.
+
+The write side matters as much as the read side here: the join held **two rows in total**, both on
+people who are not bookmarked, so without a way to tag tasks the page would stay empty for ever.
+`TaskDto` now takes `contactIds` and returns `contacts`, mirroring `tagIds`/`tags` exactly.
+
+### Added — Contacts as a full module, and a "People" picker on tasks
+
+The page above selects on `bookmarked`, and nothing in any client could set that flag: the sixteen
+bookmarked people were bookmarked in the legacy system years ago and the other 171 were unreachable.
+So contacts are now a module like any other — `ContactService`/`ContactController` over the shared
+CRUD base, giving list, detail, create, edit, delete, search and audit rather than a bespoke screen.
+
+Three things were each individually enough to leave it invisible, so all three are done: the
+`entities.ts` entry, `Groups` in the nav's icon map (absent, it falls back to a generic flag), and
+**`V10__contacts_module.sql`**, which adds the `app_module` row — that table drives the rail, so a
+module declared only in the frontend never appears. The migration adds a row and nothing else; the
+legacy `contact` table is untouched. Idempotent, and verified as such on the test clone.
+
+Tasks gain a **People** field: a new `contacts` field type mirroring `tags` at each of the three
+points that type touches — the multi-select renderer, the seed from `record.contactIds`, and the
+`contactIds` payload. Its options come from the task module's own `lookups()`, the same path tags
+use, so there is no extra request and no second source of truth about who exists. Bookmarked people
+sort first: 187 contacts, a handful live at a time, and the ones being worked with should be
+reachable without typing.
+
+No status, type, department or course on a contact — the legacy table has no such columns, and
+offering empty dropdowns is worse than offering none. `summary` is NOT NULL there, so a contact
+created with only a name has it filled from the name rather than failing at the insert.
+
+8 new backend tests.
+
+### Fixed — typed text in the widget capture bars could be lost
+
+The bar floats over a home screen, so a thumb that misses the one-line field lands on wallpaper —
+and that discarded whatever had been written. Two defences, because the stray tap is only one of the
+ways out:
+
+1. A tap on the scrim now closes the bar only while it is EMPTY. With something typed it is refused
+   and says so. Refused rather than "dismiss but keep the draft": the text is what you are looking
+   at, and having it vanish mid-sentence is alarming even when it is recoverable.
+2. Every keystroke is written to `QuickDraft` and read back when the bar reopens, covering the exits
+   that cannot be intercepted — Back, Home, and the system finishing an activity declared
+   `noHistory`. Only a note reaching disk clears it.
+
+The restored draft puts the caret at its END; a cursor left at position 0 means the next thing typed
+lands in front of what was written, which reads as the app having mangled it.
+
+### Changed — prayer strip wording, and where prayer options live
+
+The countdown said "بعد" (in) even after a time had passed, because a Chronometer in countdown mode
+does not stop at zero — it counts into negatives, so the strip read "شروق بعد -0:12:34". It now says
+"منذ" (since) once the time has gone and counts up, and the widget is woken AT each shown time so
+the flip actually happens. Shurooq needed that particularly: it has no athan to redraw the strip.
+The countdown is a step larger at 16sp.
+
+The prayer feature switch moved from the global Settings screen onto the prayer page, so everything
+about prayer times is configured in one place. It is a one-way door from there — the page you are
+standing on is the page that disappears — so Settings keeps a single "hidden · show" row while it is
+off. Without that the switch could not be undone.
+
 ## 2026-09-13 — Subtitle-labelled bookmarks, and a tighter player
 
 ### Added — a bookmark takes the spoken sentence as its label

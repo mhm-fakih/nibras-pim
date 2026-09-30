@@ -13,7 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import { getSearchIndexStatus, searchAll, SearchHit } from '../api/client';
+import { getSearchIndexStatus, searchEverything, SearchHit } from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { ENTITY_BY_KEY } from '../config/entities';
 
@@ -29,10 +29,13 @@ export function SearchPage() {
 
   const { data, isFetching } = useQuery({
     queryKey: ['search', q],
-    queryFn: () => searchAll(q, 200),
+    queryFn: () => searchEverything(q, 200),
     enabled: q.trim().length > 0,
   });
-  const hits = data ?? [];
+  const hits = data?.records ?? [];
+  // A ~query asks "which existing RECORD is this a duplicate of" — a note file is not a candidate
+  // answer, so the local half is dropped rather than shown as a near-miss that cannot be merged.
+  const notes = dedupeQuery(q) ? [] : data?.notes ?? [];
 
   // Only needed to explain a zero-result search, so it's fetched lazily alongside one.
   const { data: indexStatus } = useQuery({
@@ -102,7 +105,7 @@ export function SearchPage() {
           </Typography>
         )}
 
-        {q && !isFetching && hits.length === 0 && (
+        {q && !isFetching && hits.length === 0 && notes.length === 0 && (
           indexStatus?.indexed === 0 ? (
             // Distinguish "genuinely no matches" from "the index was never built" — the latter
             // silently returns nothing on a fresh install over an existing database, while each
@@ -152,9 +155,50 @@ export function SearchPage() {
             </List>
           </Box>
         ))}
+
+        {notes.length > 0 && (
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="overline" color="text.secondary">
+              Local notes · {notes.length}
+            </Typography>
+            <List dense>
+              {notes.map((n) => (
+                <ListItemButton
+                  key={n.filename}
+                  onClick={() => navigate(`/local-notes?open=${encodeURIComponent(n.filename)}`)}
+                  divider
+                  alignItems="flex-start"
+                >
+                  <ListItemText
+                    primary={n.title || n.filename}
+                    primaryTypographyProps={{ dir: 'auto', noWrap: true, fontWeight: 600 }}
+                    secondary={n.snippet ? <Highlight text={n.snippet} terms={terms} /> : undefined}
+                    secondaryTypographyProps={{ dir: 'auto', component: 'span' }}
+                  />
+                  {n.courseName && (
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={n.courseName}
+                      sx={{ ml: 1, mt: 0.5 }}
+                    />
+                  )}
+                  {/* A file has no id to show, so its stamp stands in: it is the archive's own
+                      stable handle for a note and stays greppable when the name changes. */}
+                  <Chip size="small" variant="outlined" label={n.stamp} sx={{ ml: 1, mt: 0.5 }} />
+                </ListItemButton>
+              ))}
+            </List>
+          </Box>
+        )}
       </Box>
     </Box>
   );
+}
+
+/** A leading ~ asks for near-duplicate RECORDS; note files are not candidates. */
+function dedupeQuery(q: string): boolean {
+  return q.trimStart().startsWith('~');
 }
 
 /** Renders a snippet with the matched query terms highlighted. */

@@ -193,27 +193,44 @@ class PrayerWidget : AppWidgetProvider() {
                 views.setTextViewText(R.id.pw_countdown, "")
                 return
             }
-            val remaining = (targetMillis - now).coerceAtLeast(0L)
+            // Past or future decides both the wording and which way the clock runs.
+            val delta = targetMillis - now
+            val passed = delta < 0
+            val magnitude = kotlin.math.abs(delta)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                views.setChronometerCountDown(R.id.pw_countdown, true)
+                views.setChronometerCountDown(R.id.pw_countdown, !passed)
                 views.setChronometer(
-                    R.id.pw_countdown, SystemClock.elapsedRealtime() + remaining, counting(label), true,
+                    R.id.pw_countdown,
+                    if (passed) SystemClock.elapsedRealtime() - magnitude
+                    else SystemClock.elapsedRealtime() + magnitude,
+                    counting(label, passed),
+                    true,
                 )
             } else {
                 views.setChronometer(R.id.pw_countdown, 0L, null, false)
-                views.setTextViewText(R.id.pw_countdown, counting(label).format(coarse(remaining)))
+                views.setTextViewText(
+                    R.id.pw_countdown, counting(label, passed).format(coarse(magnitude)),
+                )
             }
         }
 
         /**
-         * "فجر بعد %s" — the Chronometer's format string, with the clock held left-to-right.
+         * "فجر بعد %s" while the time is still ahead, "شروق منذ %s" once it has gone.
+         *
+         * A Chronometer in countdown mode does not stop at zero — it carries on into negatives —
+         * so a strip that was not redrawn at the moment a time arrived read "شروق بعد -0:12:34":
+         * "Shurooq in minus twelve minutes". The wording has to follow the sign, and the widget is
+         * woken at each shown time (see PrayerEventKind.COUNTDOWN) so the flip actually happens.
+         *
+         * The clock is held left-to-right regardless.
          *
          * The LRM marks around the placeholder are not decoration. A time like 1:23:45 dropped bare
          * into an Arabic run is a sequence of neutral colons between digits, and bidi is free to
          * reorder it against the surrounding right-to-left text; the marks fence it into its own
          * left-to-right run so it reads in the order it counts.
          */
-        private fun counting(label: String): String = "$label بعد \u200E%s\u200E"
+        private fun counting(label: String, passed: Boolean): String =
+            if (passed) "$label منذ \u200E%s\u200E" else "$label بعد \u200E%s\u200E"
 
         /** "7h 23m" / "43m" — only used on API 23, where the clock cannot tick. */
         private fun coarse(millis: Long): String {

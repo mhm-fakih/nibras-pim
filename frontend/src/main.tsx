@@ -36,6 +36,7 @@ import { IndicatorsPage } from './pages/IndicatorsPage';
 import { InsightsPage } from './pages/InsightsPage';
 import { FlashCardsPage } from './pages/FlashCardsPage';
 import { HighlightsPage } from './pages/HighlightsPage';
+import { LocalNotesPage } from './pages/LocalNotesPage';
 import { ReportPrintPage } from './pages/ReportPrintPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { MaintenancePage } from './pages/MaintenancePage';
@@ -96,6 +97,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                         <Route path="/insights" element={<InsightsPage />} />
                         <Route path="/flashcards" element={<FlashCardsPage />} />
                         <Route path="/highlights" element={<HighlightsPage />} />
+                        <Route path="/local-notes" element={<LocalNotesPage />} />
                         <Route path="/sprints" element={<SprintsPage />} />
                         <Route path="/reports" element={<ReportsPage />} />
                         <Route

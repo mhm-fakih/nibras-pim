@@ -465,6 +465,29 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
                     <Typography component="span" variant="caption" color="text.secondary">
                       {formatDate(it.dateCreated)}
                     </Typography>
+                    {/* The record's own short code. Contacts carry one and have no status or type
+                        chips to fill this line, so without it the row is a name and a date. */}
+                    {it.code && (
+                      <Chip
+                        component="span"
+                        size="small"
+                        label={it.code}
+                        variant="outlined"
+                        sx={{ height: 18, fontSize: 11 }}
+                      />
+                    )}
+                    {/* Contacts: how much is still open with this person. Shown even at zero —
+                        "nothing outstanding" is the answer you came for as often as a number is. */}
+                    {typeof it.openTasks === 'number' && (
+                      <Chip
+                        component="span"
+                        size="small"
+                        label={`${it.openTasks} open`}
+                        color={it.openTasks > 0 ? 'primary' : 'default'}
+                        variant={it.openTasks > 0 ? 'filled' : 'outlined'}
+                        sx={{ height: 18, fontSize: 11 }}
+                      />
+                    )}
                     {it.status && (
                       <Chip
                         component="span"
