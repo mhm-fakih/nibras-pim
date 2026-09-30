@@ -49,6 +49,11 @@ import {
   EntityRecord,
   TagRef,
   errorDetail,
+  ContactRef,
+  listContactOptions,
+  addContactToRecord,
+  removeContactFromRecord,
+  getContactTasks,
 } from '../api/client';
 import { EntityConfig, ENTITY_CLASS_BY_KEY } from '../config/entities';
 import { lookupStyle } from './statusStyle';
@@ -61,6 +66,7 @@ import { FulltextPanel } from './FulltextPanel';
 import { isRtlText } from '../util/rtl';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureFlags } from '../hooks/useFeature';
+import { useModules } from '../hooks/useModules';
 import { AuthImage } from './AuthImage';
 import { TaskTimeTracker } from './TaskTimeTracker';
 import { GoalHabits } from './HabitHeatmap';
@@ -77,6 +83,8 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
   const navigate = useNavigate();
   const { canWriteContent } = useAuth();
   const featureOn = useFeatureFlags();
+  const { isEnabled } = useModules();
+  const contactsOn = isEnabled('contacts');
   const [confirm, setConfirm] = useState(false);
 
   const { data: record, isLoading } = useQuery({
@@ -303,6 +311,24 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
           sx={{ mt: 1.5 }}
         />
       )}
+
+      {/* People, on the same terms as tags: attachable here without opening the form, which is the
+          whole point of quick tagging. Present only for modules whose records carry contacts, and
+          only while the Contacts module is switched on — turning it off has to take the tagging
+          with it, or the toggle would leave half the feature on other modules' pages. */}
+      {contactsOn && Array.isArray(record.contacts) && (
+        <ContactEditor
+          module={config.key}
+          id={id}
+          contacts={record.contacts}
+          readOnly={!canWriteContent}
+          sx={{ mt: 1 }}
+        />
+      )}
+
+      {/* A contact's open work, listed under their details. The count on the list row comes from
+          the same rule, so the two cannot tell different stories. */}
+      {config.key === 'contacts' && <ContactTaskList id={id} />}
 
       <Divider sx={{ my: 2 }} />
 
@@ -587,6 +613,144 @@ function AppendToDescriptionBar({
  * attach an existing tag or create a new one (type a name + Enter). Updates the record cache in place
  * so chips refresh immediately, and invalidates the list so the row's tags update too.
  */
+/**
+ * The tasks tagged to this contact — active ones only, urgent and highest priority first.
+ *
+ * Read from the server rather than derived here: "active" is a status rule that also drives the
+ * list-row count and the phone's page, and re-deciding it in the browser is how three views of the
+ * same thing start disagreeing.
+ */
+function ContactTaskList({ id }: { id: number }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['contact-tasks', id],
+    queryFn: () => getContactTasks(id),
+  });
+  const tasks = data ?? [];
+
+  return (
+    <Box sx={{ mt: 2 }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+        Open tasks {tasks.length > 0 && `(${tasks.length})`}
+      </Typography>
+      {isLoading && (
+        <Typography variant="caption" color="text.secondary">
+          Loading…
+        </Typography>
+      )}
+      {!isLoading && tasks.length === 0 && (
+        <Typography variant="caption" color="text.secondary">
+          Nothing open with this person.
+        </Typography>
+      )}
+      <Stack spacing={0.5}>
+        {tasks.map((t) => (
+          <Stack key={t.id} direction="row" spacing={1} alignItems="baseline">
+            {t.urgent && <Chip size="small" color="error" label="!" sx={{ height: 18, fontSize: 11 }} />}
+            <Typography variant="body2" dir="auto" sx={{ flex: 1, minWidth: 0 }}>
+              {t.summary}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+              {[t.priority != null ? `p${t.priority}` : null, t.status, t.due]
+                .filter(Boolean)
+                .join(' · ')}
+            </Typography>
+          </Stack>
+        ))}
+      </Stack>
+    </Box>
+  );
+}
+
+/**
+ * Attach and detach PEOPLE from the detail pane — the sibling of {@link TagEditor}.
+ *
+ * One deliberate difference: no free-text create. A tag is a word you invent as you type; a contact
+ * is a record with a phone number and a history, and conjuring one from a half-typed name would
+ * fill the table with near-duplicates of people already in it. So the picker offers existing
+ * contacts only — bookmarked first, as the server orders them.
+ */
+function ContactEditor({
+  module,
+  id,
+  contacts,
+  sx,
+  readOnly,
+}: {
+  module: string;
+  id: number;
+  contacts: ContactRef[];
+  sx?: object;
+  readOnly?: boolean;
+}) {
+  const qc = useQueryClient();
+  const { data: options } = useQuery({
+    queryKey: ['contact-options'],
+    queryFn: listContactOptions,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const onUpdated = (rec: EntityRecord) => {
+    qc.setQueryData(['record', module, id], rec);
+    qc.invalidateQueries({ queryKey: ['list', module] });
+    // The contacts page groups open work per person, so attaching one changes it.
+    qc.invalidateQueries({ queryKey: ['list', 'contacts'] });
+  };
+  const add = useMutation({
+    mutationFn: (contactId: number) => addContactToRecord(module, id, contactId),
+    onSuccess: onUpdated,
+  });
+  const remove = useMutation({
+    mutationFn: (contactId: number) => removeContactFromRecord(module, id, contactId),
+    onSuccess: onUpdated,
+  });
+
+  const have = new Set(contacts.map((c) => c.id));
+  const pickable = (options ?? []).filter((o) => !have.has(o.id));
+
+  if (readOnly) {
+    if (contacts.length === 0) return null;
+    return (
+      <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap sx={sx}>
+        {contacts.map((c) => (
+          <Chip key={c.id} size="small" variant="outlined" color="secondary" label={c.name} />
+        ))}
+      </Stack>
+    );
+  }
+
+  return (
+    <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap sx={sx}>
+      {contacts.map((c) => (
+        <Chip
+          key={c.id}
+          size="small"
+          variant="outlined"
+          color="secondary"
+          label={c.name}
+          onDelete={() => remove.mutate(c.id)}
+        />
+      ))}
+      <Autocomplete
+        size="small"
+        options={pickable}
+        getOptionLabel={(o) => o.name}
+        isOptionEqualToValue={(a, b) => a.id === b.id}
+        value={null}
+        blurOnSelect
+        clearOnBlur
+        disabled={add.isPending}
+        onChange={(_, value) => {
+          if (value) add.mutate(value.id);
+        }}
+        sx={{ minWidth: 170 }}
+        renderInput={(params) => (
+          <TextField {...params} variant="standard" placeholder="+ add person…" />
+        )}
+      />
+    </Stack>
+  );
+}
+
 function TagEditor({
   module,
   id,
@@ -748,7 +912,7 @@ export function FieldView({
   onToggleChecklistItem?: (index: number) => void;
 }) {
   // status/type/department/course/book/tags/recurrence are already shown as chips in the header.
-  if (['status', 'type', 'department', 'course', 'book', 'tags', 'recurrence'].includes(type)) return null;
+  if (['status', 'type', 'department', 'course', 'book', 'tags', 'contacts', 'recurrence'].includes(type)) return null;
   if (value === null || value === undefined || value === '') return null;
 
   // Direction follows the field's own content (not the language field, which may be wrong).

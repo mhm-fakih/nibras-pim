@@ -30,7 +30,12 @@ class PlansWidgetService : RemoteViewsService() {
         PlansFactory(applicationContext, intent.data?.pathSegments?.firstOrNull().orEmpty())
 }
 
-private data class ItemRow(val lead: CharSequence, val text: CharSequence)
+/** [key] names the underlying record where a row's tap needs to act on it — the feed's notes. */
+private data class ItemRow(
+    val lead: CharSequence,
+    val text: CharSequence,
+    val key: String = "",
+)
 
 private class PlansFactory(
     private val context: Context,
@@ -47,6 +52,7 @@ private class PlansFactory(
             "priority" -> priorityRows()
             TodayTasksWidget.SECTION -> todayTaskRows()
             TodayJournalWidget.SECTION -> todayJournalRows()
+            RecentNotesWidget.SECTION -> feedRows()
             else -> planRows()
         }
     }
@@ -101,6 +107,48 @@ private class PlansFactory(
         }
     }
 
+    /**
+     * The recent-notes feed: oldest first, so the newest sits at the bottom like the last message
+     * in a channel.
+     *
+     * A note longer than the configured word count is folded and gets a "Read more"; the reader
+     * unfolds one by tapping it. Folding by WORDS rather than by lines because a line depends on
+     * the widget's width and the phone's font scale, and "Read more" should appear on the same
+     * notes whatever those happen to be.
+     */
+    private fun feedRows(): List<ItemRow> {
+        val settings = SettingsStore(context)
+        val days = settings.value.feedDays.coerceIn(1, 60)
+        val cap = settings.value.feedWords.coerceIn(10, 400)
+        val since = RecentNotesWidget.sinceMillis(days)
+
+        val notes = runCatching {
+            NoteRepository(settings).listNotes()
+                .filter { it.createdMillis >= since }
+                .sortedBy { it.createdMillis }
+        }.getOrDefault(emptyList())
+
+        val stamp = SimpleDateFormat("EEE d MMM · HH:mm", Locale.getDefault())
+        return notes.map { n ->
+            val expanded = FeedExpanded.has(context, n.file.name)
+            val meta = listOfNotNull(
+                stamp.format(Date(n.createdMillis)),
+                n.type?.takeIf { it.isNotBlank() },
+                n.priority?.let { "p$it" },
+            ).joinToString(" · ")
+            ItemRow(meta, foldedBody(n.content, cap, expanded), n.file.name)
+        }
+    }
+
+    /** The note, or its first [cap] words with a "Read more" after them. */
+    private fun foldedBody(content: String, cap: Int, expanded: Boolean): String {
+        val text = content.trim()
+        if (expanded) return text
+        val words = text.split(Regex("\\s+"))
+        if (words.size <= cap) return text
+        return words.take(cap).joinToString(" ") + "…  Read more"
+    }
+
     private fun planRows(): List<ItemRow> {
         val now = System.currentTimeMillis()
         val plans = PlansStore.read(context)
@@ -119,12 +167,27 @@ private class PlansFactory(
     override fun onDestroy() { rows = emptyList() }
     override fun getCount(): Int = rows.size
 
-    override fun getViewAt(position: Int): RemoteViews =
-        RemoteViews(context.packageName, R.layout.widget_row_compact).apply {
-            setTextViewText(R.id.row_lead, rows[position].lead)
-            setTextViewText(R.id.row_text, rows[position].text)
+    override fun getViewAt(position: Int): RemoteViews {
+        val row = rows[position]
+        // The feed reads down and wraps; every other section is a one-line working list.
+        if (section == RecentNotesWidget.SECTION) {
+            return RemoteViews(context.packageName, R.layout.widget_feed_row).apply {
+                setTextViewText(R.id.feed_meta, row.lead)
+                setTextViewText(R.id.feed_body, row.text)
+                // Names the note, so the tap can unfold THIS one. Without the extra, every row
+                // would toggle whatever the template happened to carry.
+                setOnClickFillInIntent(
+                    R.id.feed_row_root,
+                    Intent().putExtra(RecentNotesWidget.EXTRA_NOTE, row.key),
+                )
+            }
+        }
+        return RemoteViews(context.packageName, R.layout.widget_row_compact).apply {
+            setTextViewText(R.id.row_lead, row.lead)
+            setTextViewText(R.id.row_text, row.text)
             setOnClickFillInIntent(R.id.row_root, Intent())
         }
+    }
 
     override fun getLoadingView(): RemoteViews? = null
     override fun getViewTypeCount(): Int = 1

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One note in the recent-notes feed: a small grey metadata line, then the note itself.
+
+     Unlike widget_row_compact (one line, ellipsised) this wraps — the feed is for READING, so a
+     note has to be able to take the height it needs. The body is capped in the factory by word
+     count, not here by maxLines, because "Read more" has to mean the same thing whatever the font
+     scale or widget width happens to be. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/feed_row_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="6dp"
+    android:paddingBottom="8dp">
+
+    <TextView
+        android:id="@+id/feed_meta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#8A8F94"
+        android:textSize="10sp" />
+
+    <TextView
+        android:id="@+id/feed_body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="1dp"
+        android:textColor="#E6E6E6"
+        android:textSize="12sp" />
+</LinearLayout>

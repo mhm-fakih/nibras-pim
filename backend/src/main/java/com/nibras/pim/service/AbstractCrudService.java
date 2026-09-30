@@ -390,6 +390,35 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
         return addTag(id, tag.getId());
     }
 
+    /**
+     * Attach a person to a record from the detail pane — quick tagging, without opening the form.
+     *
+     * <p>Deliberately the same shape as {@link #addTag}: a contact is not created on the fly the
+     * way a tag is, though. A tag is a word you invent as you go; a person is a record with a
+     * phone number and a history, and conjuring one from a half-typed name would litter the table
+     * with near-duplicates of people who are already in it.
+     */
+    @Transactional
+    public D addContact(Long id, Long contactId) {
+        E e = repo.findById(id).orElseThrow(() -> new EntityNotFoundException("No " + name() + " " + id));
+        if (e instanceof com.nibras.pim.domain.ContactTaggable c) {
+            c.getContacts().add(em.getReference(com.nibras.pim.domain.Contact.class, contactId));
+            repo.save(e);
+        }
+        return toDto(e);
+    }
+
+    /** Detaches a person from a record. */
+    @Transactional
+    public D removeContact(Long id, Long contactId) {
+        E e = repo.findById(id).orElseThrow(() -> new EntityNotFoundException("No " + name() + " " + id));
+        if (e instanceof com.nibras.pim.domain.ContactTaggable c) {
+            c.getContacts().removeIf(x -> x.getId().equals(contactId));
+            repo.save(e);
+        }
+        return toDto(e);
+    }
+
     /** Detaches a tag from a record. */
     @Transactional
     public D removeTag(Long id, Long tagId) {
@@ -511,6 +540,22 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
         return tags;
     }
 
+    /**
+     * The same shape as {@link #resolveTags}, for the people a record is about.
+     *
+     * <p>References, not loads: the ids come from a client that already listed them, and fetching
+     * each row to attach it would be a query per contact for data nobody reads back.
+     */
+    protected Set<com.nibras.pim.domain.Contact> resolveContacts(List<Long> contactIds) {
+        Set<com.nibras.pim.domain.Contact> out = new LinkedHashSet<>();
+        if (contactIds != null) {
+            for (Long id : contactIds) {
+                out.add(em.getReference(com.nibras.pim.domain.Contact.class, id));
+            }
+        }
+        return out;
+    }
+
     protected static LookupDto lookup(com.nibras.pim.domain.lookup.LookupEntity e) {
         return new LookupDto(e.getId(), e.getName(), e.getCode(), e.getStyle());
     }
@@ -541,6 +586,25 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
         return em.createQuery("select t from " + Tag.class.getName() + " t order by t.name", Tag.class)
                 .getResultList().stream()
                 .map(t -> new LookupDto(t.getId(), t.getName(), null, null))
+                .toList();
+    }
+
+    /**
+     * Contacts as options for the "People" picker, bookmarked ones FIRST.
+     *
+     * <p>The table holds 187 people and a handful are live at any time; sorting the bookmarked to
+     * the top makes the ones you are actually working with the ones you reach without typing. The
+     * rest are still there, which matters — tagging a task is often what makes a contact live
+     * again.
+     */
+    protected List<LookupDto> contactOptions() {
+        return em.createQuery(
+                        "select c from " + com.nibras.pim.domain.Contact.class.getName()
+                                + " c order by case when c.bookmarked = true then 0 else 1 end, "
+                                + "coalesce(nullif(c.name, ''), c.summary)",
+                        com.nibras.pim.domain.Contact.class)
+                .getResultList().stream()
+                .map(c -> new LookupDto(c.getId(), c.displayName(), c.getCode(), null))
                 .toList();
     }
 

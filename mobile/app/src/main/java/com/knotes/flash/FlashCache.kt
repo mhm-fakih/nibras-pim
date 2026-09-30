@@ -53,6 +53,23 @@ class FlashCache(context: Context) {
         }.getOrNull()
     }
 
+    /**
+     * The cached Contacts page, or null if it has never been fetched.
+     *
+     * Lives here with the other server-page caches rather than in its own store: the mechanism is
+     * identical — the response kept verbatim so the copy served offline is parsed by exactly the
+     * code that parses a live one — and a second implementation would be a second thing to keep in
+     * step about that.
+     */
+    fun contacts(): List<com.knotes.nibras.ContactWithTasks>? = raw(CONTACTS)?.let { text ->
+        runCatching {
+            val arr = JSONArray(text)
+            (0 until arr.length()).mapNotNull {
+                com.knotes.nibras.ContactWithTasks.fromJson(arr.getJSONObject(it))
+            }
+        }.getOrNull()
+    }
+
     fun summary(): FlashSummary? = raw(SUMMARY)?.let { text ->
         runCatching {
             val o = JSONObject(text)
@@ -82,6 +99,7 @@ class FlashCache(context: Context) {
 
     companion object {
         const val HIGHLIGHTS = "highlights"
+        const val CONTACTS = "contacts"
         const val SUMMARY = "summary"
         fun cardsKey(state: String) = "cards_$state"
     }

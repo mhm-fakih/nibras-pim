@@ -26,8 +26,10 @@ import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.Mosque
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -57,6 +59,7 @@ const val FLASHCARDS_DEST = "flashcards"
 const val HIGHLIGHTS_DEST = "highlights"
 const val COLLECT_DEST = "collect"
 const val SEARCH_DEST = "search"
+const val CONTACTS_DEST = "contacts"
 const val SETTINGS_DEST = "settings"
 
 /** Which band of the rail a destination belongs to. Settings belongs to neither — see [AppRail]. */
@@ -101,6 +104,9 @@ fun AppRail(
     onPrayer: () -> Unit,
     onFlashcards: () -> Unit,
     onHighlights: () -> Unit,
+    onContacts: () -> Unit,
+    /** Re-fetch every server-backed page — the band's own refresh. */
+    onRefreshServer: () -> Unit,
     onCollect: () -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
@@ -123,6 +129,7 @@ fun AppRail(
             icon = Icons.Filled.PhoneAndroid,
             label = "On this phone",
             tint = MaterialTheme.colorScheme.tertiary,
+            alpha = LOCAL_ALPHA,
             expanded = open == RailBand.LOCAL.name,
             onToggle = { open = RailBand.LOCAL.name },
         ) {
@@ -183,6 +190,7 @@ fun AppRail(
             icon = Icons.Filled.CloudQueue,
             label = "From the server",
             tint = MaterialTheme.colorScheme.primary,
+            alpha = SERVER_ALPHA,
             expanded = open == RailBand.SERVER.name,
             onToggle = { open = RailBand.SERVER.name },
         ) {
@@ -234,6 +242,16 @@ fun AppRail(
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            // The people this work is with — tasks are tagged by contact as well as by tag, and
+            // this is the page that reads that back.
+            RailCell(selected == CONTACTS_DEST, onContacts) {
+                Icon(
+                    Icons.Filled.Groups,
+                    contentDescription = "Contacts",
+                    tint = if (selected == CONTACTS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             // Last in the band, and deliberately so: it searches the SERVER, over everything there,
             // where every cell above it browses what sync already pulled down. Ending the section
             // with the widest-reaching thing reads as "and if it is not up there, look here".
@@ -243,6 +261,16 @@ fun AppRail(
                     contentDescription = "Search server",
                     tint = if (selected == SEARCH_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // Closes the band: refresh what the band shows. The record browsers carry their own
+            // refresh, but flash cards, highlights and contacts had none — the only way to pull new
+            // rows was to visit a records page, refresh there, and come back.
+            RailCell(false, onRefreshServer) {
+                Icon(
+                    Icons.Filled.Refresh,
+                    contentDescription = "Refresh server pages",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -278,6 +306,7 @@ private fun RailSection(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     tint: Color,
+    alpha: Float,
     expanded: Boolean,
     onToggle: () -> Unit,
     content: @Composable () -> Unit,
@@ -286,7 +315,7 @@ private fun RailSection(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 3.dp, vertical = 4.dp)
-            .background(tint.copy(alpha = SECTION_ALPHA), RoundedCornerShape(12.dp)),
+            .background(tint.copy(alpha = alpha), RoundedCornerShape(12.dp)),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // The whole heading is the hit target, not just the icon: a 15dp glyph is not something to
@@ -322,8 +351,16 @@ private fun RailSection(
     }
 }
 
-/** Faint enough to group without becoming a surface in its own right. */
-private const val SECTION_ALPHA = 0.07f
+/**
+ * The two bands' fills.
+ *
+ * Different COLOURS were not enough on their own — tertiary and primary at the same faint alpha
+ * read as one shade in most themes, which is the opposite of the point. The local band stays the
+ * lighter of the two and the server band is noticeably deeper, so they are told apart by weight as
+ * well as by hue, and still by the heading icon when neither reads clearly.
+ */
+private const val LOCAL_ALPHA = 0.07f
+private const val SERVER_ALPHA = 0.20f
 
 /** Heading glyph size, shared by both bands and both states so they read as one control. */
 private val SECTION_ICON = 20.dp

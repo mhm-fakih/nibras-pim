@@ -25,7 +25,7 @@ import java.util.Set;
 @SQLRestriction("deleted_on is null")
 @Getter
 @Setter
-public class Task extends BaseEntity implements SyncMutable, Taggable {
+public class Task extends BaseEntity implements SyncMutable, Taggable, ContactTaggable {
 
     private String summary;
     private String name;
@@ -141,6 +141,21 @@ public class Task extends BaseEntity implements SyncMutable, Taggable {
             joinColumns = @JoinColumn(name = "task_tags_id"),
             inverseJoinColumns = @JoinColumn(name = "tag_id"))
     private Set<Tag> tags = new LinkedHashSet<>();
+
+    /**
+     * The people a task is about — tagging by CONTACT rather than only by tag.
+     *
+     * <p>The join table is legacy and already there, which is why nothing is migrated for this. Note
+     * its shape: {@code task_contact} carries TWO possible owning columns, {@code task_people_id}
+     * and {@code task_contacts_id}, because the old Grails app had two associations sharing one
+     * table. Only {@code task_contacts_id} is populated, so that is the one mapped — joining on the
+     * other would read an empty relation and look like "no task has a contact".
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "task_contact",
+            joinColumns = @JoinColumn(name = "task_contacts_id"),
+            inverseJoinColumns = @JoinColumn(name = "contact_id"))
+    private Set<Contact> contacts = new LinkedHashSet<>();
 
     @Override
     public String feedTitle() {

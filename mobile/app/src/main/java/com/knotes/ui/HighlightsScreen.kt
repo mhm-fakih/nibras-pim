@@ -35,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -84,7 +85,8 @@ fun HighlightsScreen(store: FlashcardStore, baseUrl: String) {
     var offlineSince by remember { mutableStateOf<Long?>(null) }
     var fontScale by remember { mutableStateOf(store.highlightFontScale) }
 
-    LaunchedEffect(baseUrl) {
+    val tick by com.knotes.nibras.ServerRefresh.tick.collectAsState()
+    LaunchedEffect(baseUrl, tick) {
         // The saved copy first, before the network is even tried. On a slow or absent connection
         // this is the difference between a gallery and a spinner.
         val cached = withContext(Dispatchers.IO) { cache.highlights() }

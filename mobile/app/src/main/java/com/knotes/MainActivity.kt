@@ -83,6 +83,8 @@ import com.knotes.ui.GALLERY_DEST
 import com.knotes.ui.GalleryScreen
 import com.knotes.ui.HOME_DEST
 import com.knotes.ui.FLASHCARDS_DEST
+import com.knotes.ui.CONTACTS_DEST
+import com.knotes.ui.ContactsScreen
 import com.knotes.ui.HIGHLIGHTS_DEST
 import com.knotes.ui.HighlightsScreen
 import com.knotes.ui.FlashcardsScreen
@@ -406,6 +408,8 @@ private fun AppShell(
                 onPrayer = { onDest(PRAYER_DEST) },
                 onFlashcards = { onDest(FLASHCARDS_DEST) },
                 onHighlights = { onDest(HIGHLIGHTS_DEST) },
+                onContacts = { onDest(CONTACTS_DEST) },
+                onRefreshServer = { com.knotes.nibras.ServerRefresh.bump() },
                 onCollect = { onDest(COLLECT_DEST) },
                 onSettings = { onDest(SETTINGS_DEST) },
                 onSearch = { onDest(SEARCH_DEST) },
@@ -457,6 +461,7 @@ private fun AppShell(
                         PRAYER_DEST -> PrayerScreen(store = prayerStore)
                         FLASHCARDS_DEST -> FlashcardsScreen(store = flashStore, baseUrl = settings.nibrasBaseUrl)
                         HIGHLIGHTS_DEST -> HighlightsScreen(store = flashStore, baseUrl = settings.nibrasBaseUrl)
+                        CONTACTS_DEST -> ContactsScreen(baseUrl = settings.nibrasBaseUrl)
                         CALENDAR_DEST -> CalendarScreen(
                             startHour = settings.calendarStartHour,
                             endHour = settings.calendarEndHour,

@@ -33,6 +33,18 @@ class WidgetTapReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val app = context.applicationContext
+
+        // Unfolding a note in the feed: flip the stored state and redraw just that widget. No sync,
+        // no other widget touched — reading a note is not an event the rest of the app cares about.
+        if (intent.action == RecentNotesWidget.ACTION_TOGGLE) {
+            val note = intent.getStringExtra(RecentNotesWidget.EXTRA_NOTE).orEmpty()
+            if (note.isNotBlank()) {
+                FeedExpanded.toggle(app, note)
+                RecentNotesWidget.refresh(app)
+            }
+            return
+        }
+
         val sync = intent.getBooleanExtra(EXTRA_SYNC, false)
         val result = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
@@ -76,5 +88,6 @@ object Widgets {
         PrayerWidget.refresh(context)
         TodayTasksWidget.refresh(context)
         TodayJournalWidget.refresh(context)
+        RecentNotesWidget.refresh(context)
     }
 }

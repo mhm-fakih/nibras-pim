@@ -27,6 +27,7 @@ import StickyNote2 from '@mui/icons-material/StickyNote2';
 import Flag from '@mui/icons-material/Flag';
 import Create from '@mui/icons-material/Create';
 import AccountTree from '@mui/icons-material/AccountTree';
+import Groups from '@mui/icons-material/Groups';
 import School from '@mui/icons-material/School';
 import ShowChart from '@mui/icons-material/ShowChart';
 import CalendarMonth from '@mui/icons-material/CalendarMonth';
@@ -38,6 +39,7 @@ import DirectionsRun from '@mui/icons-material/DirectionsRun';
 import StarIcon from '@mui/icons-material/Star';
 import StyleIcon from '@mui/icons-material/Style';
 import FormatQuote from '@mui/icons-material/FormatQuote';
+import NotesIcon from '@mui/icons-material/Description';
 import AdminPanelSettings from '@mui/icons-material/AdminPanelSettings';
 import Tune from '@mui/icons-material/Tune';
 import History from '@mui/icons-material/History';
@@ -73,7 +75,7 @@ import { CalendarNotebookIcon } from './CalendarNotebookIcon';
 
 const ICONS: Record<string, typeof Flag> = {
   CheckCircleOutline, MenuBook, EventNote, LocalLibrary, StickyNote2, Flag, Create,
-  AccountTree, School, ShowChart,
+  AccountTree, School, ShowChart, Groups,
 };
 
 /** Per-module icon names not derived from entities.ts (modules without a field config). */
@@ -100,6 +102,7 @@ const TOOLS: { path: string; label: string; icon: typeof Flag; perm?: Permission
   { path: '/bookmarks', label: 'All bookmarks', icon: StarIcon },
   { path: '/flashcards', label: 'Flash cards', icon: StyleIcon },
   { path: '/highlights', label: 'Highlights', icon: FormatQuote },
+  { path: '/local-notes', label: 'Local notes', icon: NotesIcon },
   { path: '/parameters', label: 'Parameters', icon: Tune, perm: 'params.write' },
   { path: '/admin', label: 'Admin', icon: AdminPanelSettings, perm: 'tools.admin' },
   { path: '/batch', label: 'Batch entry', icon: PlaylistAdd, perm: 'content.write' },

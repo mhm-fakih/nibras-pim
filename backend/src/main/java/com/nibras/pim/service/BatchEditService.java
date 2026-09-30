@@ -29,10 +29,23 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class BatchEditService {
 
+    /**
+     * Modules batch editing works on.
+     *
+     * <p>Hardcoded rather than derived from the catalogue, so that adding a CRUD module does not
+     * silently enrol it in bulk edits — but that cuts both ways: `contacts` returned
+     * "Unknown module: contacts" until it was added here, which is the wrong answer to a perfectly
+     * reasonable "unbookmark these twelve people".
+     *
+     * <p>Which TOKENS apply is decided per entity, not here: {@link CommandParser#parse} is given
+     * the class and only produces assignments for properties it actually has. So `*-` and `p3`
+     * work on a contact while `?status` — a column a contact does not carry — is rejected rather
+     * than failing at the write.
+     */
     private static final Map<String, Class<?>> CLASSES = Map.of(
             "tasks", Task.class, "journals", Journal.class, "planners", Planner.class,
             "resources", Book.class, "notes", IndexCard.class, "goals", Goal.class,
-            "writings", Writing.class);
+            "writings", Writing.class, "contacts", com.nibras.pim.domain.Contact.class);
 
     private final EntityCatalog catalog;
     private final CommandParser parser;

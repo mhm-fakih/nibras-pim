@@ -163,6 +163,10 @@ export interface EntityRecord {
   dateCreated: string;
   lastUpdated: string;
   bookmarked?: boolean;
+  /** A record's own short code, where its module has one (contacts, courses, departments). */
+  code?: string;
+  /** Contacts only: how much work is still open with this person. */
+  openTasks?: number;
   status?: Lookup;
   type?: Lookup;
   context?: Lookup;
@@ -172,6 +176,8 @@ export interface EntityRecord {
   goal?: Lookup;
   goalId?: number;
   tags?: TagRef[];
+  contacts?: ContactRef[];
+  contactIds?: number[];
   hasCover?: boolean;
   urgent?: boolean;
   orderNumber?: number;
@@ -807,6 +813,56 @@ export async function createJournalDay(date: string): Promise<DayJournal> {
 export async function listTags(): Promise<TagRef[]> {
   const { data } = await http.get('/tags');
   return data;
+}
+
+/** People this record is about, as the record carries them back. */
+export interface ContactRef {
+  id: number;
+  name: string;
+}
+
+/** Contacts to offer in the pickers, bookmarked first (the server orders them). */
+export async function listContactOptions(): Promise<Lookup[]> {
+  const { data } = await http.get('/tasks/lookups');
+  return (data.contacts ?? []) as Lookup[];
+}
+
+/**
+ * Attach a person to a record. Unlike a tag there is no create-by-name: a contact is a record with
+ * a history, not a word you invent while typing.
+ */
+export async function addContactToRecord(
+  module: string,
+  id: number,
+  contactId: number,
+): Promise<EntityRecord> {
+  const { data } = await http.post(`/${module}/${id}/contacts/${contactId}`);
+  return data;
+}
+
+export async function removeContactFromRecord(
+  module: string,
+  id: number,
+  contactId: number,
+): Promise<EntityRecord> {
+  const { data } = await http.delete(`/${module}/${id}/contacts/${contactId}`);
+  return data;
+}
+
+/** One task as a contact's detail page lists it. */
+export interface ContactTask {
+  id: number;
+  summary: string;
+  priority?: number;
+  status?: string;
+  due?: string;
+  urgent: boolean;
+}
+
+/** The work still open with one person — same rule and order as the phone's Contacts page. */
+export async function getContactTasks(id: number): Promise<ContactTask[]> {
+  const { data } = await http.get(`/contacts/${id}/tasks`);
+  return data as ContactTask[];
 }
 
 /** Attach a tag to a record by id (existing) or name (created if new). Returns the updated record. */
@@ -1792,5 +1848,107 @@ export async function getHighlights(limit?: number, module?: string): Promise<Hi
   if (limit) params.limit = limit;
   if (module) params.module = module;
   const { data } = await http.get('/highlights', { params });
+  return data;
+}
+
+// ---- Local notes -------------------------------------------------------------------------
+// The markdown folder the desktop app keeps, read (and written) by the backend off its own disk.
+// These are FILES, not records: they have a file name where a record has an id, and only some of
+// them ever become records — that is what the import page is for.
+
+// Note: the API is configured `default-property-inclusion: non_null`, so a field with no value is
+// OMITTED from the JSON rather than sent as null. Everything optional below therefore arrives as
+// `undefined` — use `??` and `!= null`, never `=== null`.
+export interface LocalNote {
+  filename: string;
+  /** The timestamp token. Stable identity: a note keeps it when retagging renames everything else. */
+  stamp: string;
+  timestamp: string;
+  type?: string;
+  moduleKey?: string;
+  moduleLabel?: string;
+  priority?: number;
+  /** Department LETTER from the file name. */
+  dept?: string;
+  deptId?: number;
+  deptName?: string;
+  /** #hashtags in the body, in the order written — the first is the subject. */
+  tags: string[];
+  primaryTag?: string;
+  courseId?: number;
+  courseName?: string;
+  title?: string;
+  /** Carries the 🤖 marker: written by the Q&A workflow rather than captured by hand. */
+  generated: boolean;
+  words: number;
+  files: number;
+  snippet: string;
+}
+
+export interface LocalNotesView {
+  dir: string;
+  tagBankPath: string;
+  tagBankEntries: number;
+  total: number;
+  days: { day: string; count: number; notes: LocalNote[] }[];
+  subjects: {
+    dept: string;
+    deptId?: number;
+    deptName?: string;
+    count: number;
+    courses: {
+      courseId?: number;
+      courseName?: string;
+      tag?: string;
+      count: number;
+      notes: LocalNote[];
+    }[];
+  }[];
+  tags: {
+    tag: string;
+    canonical?: string;
+    courseId?: number;
+    courseName?: string;
+    dept?: string;
+    count: number;
+  }[];
+}
+
+/** The whole folder, along both axes at once. */
+export async function getLocalNotes(): Promise<LocalNotesView> {
+  const { data } = await http.get('/local-notes');
+  return data;
+}
+
+export async function getLocalNote(filename: string): Promise<{ note: LocalNote; body: string }> {
+  const { data } = await http.get(`/local-notes/${encodeURIComponent(filename)}`);
+  return data;
+}
+
+export async function createLocalNote(input: {
+  type?: string;
+  priority?: number;
+  dept?: string;
+  body: string;
+}): Promise<LocalNote> {
+  const { data } = await http.post('/local-notes', input);
+  return data;
+}
+
+export async function updateLocalNote(filename: string, body: string): Promise<LocalNote> {
+  const { data } = await http.put(`/local-notes/${encodeURIComponent(filename)}`, { body });
+  return data;
+}
+
+/** Records and note files for one query — the consolidated search. */
+export interface ConsolidatedSearch {
+  records: SearchHit[];
+  notes: LocalNote[];
+  notesDir: string;
+  notesError?: string;
+}
+
+export async function searchEverything(q: string, limit = 100): Promise<ConsolidatedSearch> {
+  const { data } = await http.get('/search/all', { params: { q, limit } });
   return data;
 }

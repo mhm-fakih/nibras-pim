@@ -38,7 +38,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.knotes.NoteRepository
 import com.knotes.SettingsStore
@@ -55,8 +57,19 @@ import com.knotes.reminder.TodayTasksWidget
  *
  * Presented as a bar sitting ON the keyboard rather than as a centred dialog: the gesture is "tap,
  * type, enter", and a card in the middle of the screen with Cancel and Add buttons made a one-line
- * capture look like a form to fill in. There is no Add button — the keyboard's own Done key saves,
- * and tapping away cancels, which is what the scrim is for.
+ * capture look like a form to fill in. There is no Add button — the keyboard's own Done key saves.
+ *
+ * <h4>Typed text is never thrown away</h4>
+ * The bar floats over a home screen, so a thumb that misses the field lands on wallpaper. That used
+ * to discard whatever had been written. Two defences now, because the stray tap is only one of the
+ * ways out:
+ *
+ *  1. A tap on the scrim closes the bar only while it is EMPTY. With something typed it is refused,
+ *     and says so — the text is what the user is looking at, and having it vanish mid-sentence is
+ *     alarming even when it could be recovered.
+ *  2. Every keystroke is written to [QuickDraft] and read back when the bar reopens, which covers
+ *     the exits that cannot be intercepted: Back, Home, and the system finishing an activity
+ *     declared `noHistory`. Only a note reaching disk clears it.
  *
  * Serves both widgets, told apart by [EXTRA_TYPE]: tasks are captured at the top priority, because
  * that widget is a do-this-first list; journal entries at the ordinary default, because a day's
@@ -92,8 +105,26 @@ private fun QuickCaptureBar(type: String, onClose: () -> Unit) {
     // since that widget shows every priority and ranking a diary entry means nothing.
     val priority = if (journal) settings.value.defaultPriority else settings.value.topPriority
 
-    var text by remember { mutableStateOf("") }
+    // Restored from the draft, with the caret at the END of it. A restored draft whose cursor sits
+    // at position 0 means the next thing typed lands in front of what was written, which reads as
+    // the app having mangled it.
+    var field by remember {
+        val saved = QuickDraft.get(context, type)
+        mutableStateOf(TextFieldValue(saved, TextRange(saved.length)))
+    }
+    val text = field.text
     var error by remember { mutableStateOf<String?>(null) }
+    var hint by remember { mutableStateOf<String?>(null) }
+    /*
+     * Set the moment the note reaches disk, and it closes the draft for good.
+     *
+     * Clearing the draft in submit() was not enough on its own. Pressing the keyboard's Done makes
+     * the IME finish its composing region, and that delivers a final onValueChange — AFTER the
+     * action callback has already run. So the sequence was: save, clear the draft, then the
+     * trailing keystroke event wrote the whole text straight back. The bar reopened pre-filled and
+     * the next Done duplicated the record.
+     */
+    var submitted by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
 
     fun submit() {
@@ -115,6 +146,12 @@ private fun QuickCaptureBar(type: String, onClose: () -> Unit) {
             )
         }
         saved.onSuccess {
+            // Order matters: stop accepting draft writes BEFORE clearing, or a trailing
+            // onValueChange from the IME writes the text back over the cleared draft.
+            submitted = true
+            field = TextFieldValue("")
+            // Only now: the text has become a note, so there is nothing left pending to restore.
+            QuickDraft.clear(context, type)
             if (journal) TodayJournalWidget.refresh(context) else TodayTasksWidget.refresh(context)
             onClose()
         }.onFailure {
@@ -126,7 +163,19 @@ private fun QuickCaptureBar(type: String, onClose: () -> Unit) {
 
     LaunchedEffect(Unit) { focus.requestFocus() }
 
-    // Scrim: tapping anywhere off the bar cancels. No ripple — this is a background, not a button.
+    /*
+     * Scrim: tapping off the bar closes it ONLY while it is empty.
+     *
+     * With something typed the tap is refused, because the bar sits over a home screen and the
+     * target is a one-line field with wallpaper all round it — a thumb that misses is the ordinary
+     * case, not the exceptional one, and it used to cost whatever had been written.
+     *
+     * Refused rather than "dismiss but keep the draft": the text is on screen, it is what the user
+     * is looking at, and having it vanish mid-sentence is alarming even when it is recoverable.
+     * Back still leaves, and the draft is kept for that.
+     *
+     * No ripple — this is a background, not a button.
+     */
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -134,7 +183,10 @@ private fun QuickCaptureBar(type: String, onClose: () -> Unit) {
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = onClose,
+                onClick = {
+                    if (text.isBlank()) onClose()
+                    else hint = "Kept. Press Back to leave — what you typed is saved as a draft."
+                },
             )
             .imePadding(),
         // Bottom, not Center: the bar rides directly on top of the keyboard, where the thing you
@@ -162,8 +214,16 @@ private fun QuickCaptureBar(type: String, onClose: () -> Unit) {
                 )
                 Spacer(Modifier.height(4.dp))
                 OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it; error = null },
+                    value = field,
+                    onValueChange = {
+                        field = it
+                        error = null
+                        hint = null
+                        // Every keystroke, so no exit path can outrun it — including the system
+                        // finishing this activity, which is declared noHistory. Except once the
+                        // note is saved: see `submitted`.
+                        if (!submitted) QuickDraft.put(context, type, it.text)
+                    },
                     placeholder = {
                         Text(if (journal) "What happened?" else "What needs doing?")
                     },
@@ -188,6 +248,15 @@ private fun QuickCaptureBar(type: String, onClose: () -> Unit) {
                 error?.let {
                     Spacer(Modifier.height(4.dp))
                     Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                }
+                // Shown only after a tap that was refused, so the bar does not look stuck.
+                hint?.takeIf { error == null }?.let {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

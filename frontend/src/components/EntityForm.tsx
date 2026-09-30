@@ -26,6 +26,7 @@ import {
 } from '../api/client';
 import { EntityConfig, FieldDef } from '../config/entities';
 import { useFeatureFlags } from '../hooks/useFeature';
+import { useModules } from '../hooks/useModules';
 
 interface Props {
   config: EntityConfig;
@@ -83,7 +84,13 @@ export function EntityForm({ config, recordId, initial, onClose, onSaved }: Prop
 
   // Fields a Settings → Features switch has hidden are not drawn...
   const featureOn = useFeatureFlags();
-  const visibleFields = config.fields.filter((f) => featureOn(f.feature));
+  // ...and neither is a field belonging to a module that is switched off in Settings → Modules.
+  // The People picker is the one such field: it is a contacts control living on a task's form, so
+  // it has to go when Contacts goes, the same way the module's own page does.
+  const { isEnabled } = useModules();
+  const visibleFields = config.fields.filter(
+    (f) => featureOn(f.feature) && (f.type !== 'contacts' || isEnabled('contacts')),
+  );
 
   const save = useMutation({
     mutationFn: () => {
@@ -289,6 +296,24 @@ function FieldInput({
             <TextField {...params} label={field.label} placeholder="Link to a bookmarked goal…" />
           )}
           sx={{ maxWidth: 480 }}
+        />
+      );
+    }
+    case 'contacts': {
+      // The same control as tags, over a different list. Contacts come down in the module's own
+      // lookups, so no extra request and no second source of truth about who exists.
+      const options = lookups?.contacts ?? [];
+      const ids = (value as number[]) ?? [];
+      const selected = options.filter((o) => ids.includes(o.id));
+      return (
+        <Autocomplete
+          multiple
+          options={options}
+          value={selected}
+          getOptionLabel={(o) => o.name}
+          isOptionEqualToValue={(a, b) => a.id === b.id}
+          onChange={(_, v) => onChange(v.map((o) => o.id))}
+          renderInput={(params) => <TextField {...params} label={field.label} />}
         />
       );
     }
@@ -557,6 +582,9 @@ function initForm(fields: FieldDef[], record?: EntityRecord): FormState {
       case 'tags':
         f[field.name] = record?.tagIds ?? [];
         break;
+      case 'contacts':
+        f[field.name] = record?.contactIds ?? [];
+        break;
       case 'recurrence':
         f.recurring = Boolean(record?.recurring);
         f.recurrencePreset = (record?.recurrencePreset as string) || 'DAILY';
@@ -606,6 +634,9 @@ function buildPayload(fields: FieldDef[], form: FormState): Record<string, unkno
         break;
       case 'tags':
         body.tagIds = (v as number[]) ?? [];
+        break;
+      case 'contacts':
+        body.contactIds = (v as number[]) ?? [];
         break;
       case 'recurrence': {
         const on = Boolean(form.recurring);

@@ -6,6 +6,8 @@ import com.nibras.pim.service.SearchReindexService;
 import com.nibras.pim.service.SearchService;
 import com.nibras.pim.service.SearchService.DuplicatePair;
 import com.nibras.pim.service.SemanticDedupService;
+import com.nibras.pim.service.localnotes.LocalNotesService;
+import com.nibras.pim.web.dto.LocalNoteDto;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,11 +24,46 @@ public class SearchController {
     private final SearchService search;
     private final SearchReindexService reindex;
     private final SemanticDedupService semanticDedup;
+    private final LocalNotesService localNotes;
 
-    public SearchController(SearchService search, SearchReindexService reindex, SemanticDedupService semanticDedup) {
+    public SearchController(SearchService search, SearchReindexService reindex,
+                            SemanticDedupService semanticDedup, LocalNotesService localNotes) {
         this.search = search;
         this.reindex = reindex;
         this.semanticDedup = semanticDedup;
+        this.localNotes = localNotes;
+    }
+
+    /**
+     * Records AND the markdown notes on disk, for one query.
+     *
+     * <p>Two lists rather than one merged one, deliberately. A record and a note file are not the
+     * same kind of thing — one has an id, a module and a status, the other has a file name and a
+     * folder — and flattening them would mean inventing an id for a file and a score for a
+     * substring match. The caller gets both halves of the answer in one request and can show them
+     * side by side without either having to pretend to be the other.
+     *
+     * <p>A folder that cannot be read is not an error: the record half of the search is still
+     * worth returning, so a missing notes folder yields an empty note list and a note saying so.
+     */
+    @GetMapping("/all")
+    public Consolidated searchAll(@RequestParam String q,
+                                  @RequestParam(defaultValue = "100") int limit) {
+        int capped = Math.min(limit, 200);
+        List<SearchHit> records = search(q, capped);
+        List<LocalNoteDto> notes;
+        String notesError = null;
+        try {
+            notes = localNotes.search(q, capped);
+        } catch (RuntimeException e) {
+            notes = List.of();
+            notesError = e.getMessage();
+        }
+        return new Consolidated(records, notes, localNotes.dir().toString(), notesError);
+    }
+
+    public record Consolidated(List<SearchHit> records, List<LocalNoteDto> notes,
+                               String notesDir, String notesError) {
     }
 
     /** Rebuild outcome: rows written, rows skipped, and the first few reasons. */

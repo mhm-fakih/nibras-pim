@@ -80,9 +80,10 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
                 parent.getDepartment() == null ? null : parent.getDepartment().getId(),
                 parent.getCourse() == null ? null : parent.getCourse().getId(),
                 parent.getGoal().getId(),
-                null,
+                null,          // tagIds
+                null,          // contactIds — a split-off subtask inherits none; it is new work
                 null, parent.getOrderNumber() + 1, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
         TaskDto created = create(draft);
         if (parent.getContext() != null) {
             created = setReference(created.id(), "context", parent.getContext().getId());
@@ -123,6 +124,7 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
                 t.getCourse() == null ? null : t.getCourse().getId(),
                 t.getGoal() == null ? null : t.getGoal().getId(),
                 t.getTags().stream().map(tag -> tag.getId()).toList(),
+                t.getContacts().stream().map(c -> c.getId()).toList(),
                 t.getUrgent(),
                 t.getOrderNumber(),
                 t.getRecurring(),
@@ -135,6 +137,9 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
                 t.getCourse() == null ? null : courseLookup(t.getCourse()),
                 t.getGoal() == null ? null : goalLookup(t.getGoal()),
                 t.getTags().stream().map(tag -> new TagDto(tag.getId(), tag.getName())).toList(),
+                t.getContacts().stream()
+                        .map(c -> new com.nibras.pim.web.dto.ContactRefDto(c.getId(), c.displayName()))
+                        .toList(),
                 coverExists(t.getId()),
                 t.getCompletedOn(),
                 t.getDateCreated(),
@@ -210,6 +215,7 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
         t.setCourse(ref(Course.class, dto.courseId()));
         t.setGoal(ref(Goal.class, dto.goalId()));
         t.setTags(resolveTags(dto.tagIds()));
+        t.setContacts(resolveContacts(dto.contactIds()));
         t.setUrgent(dto.urgent());
         t.setOrderNumber(dto.orderNumber());
         t.setRecurring(dto.recurring());
@@ -225,6 +231,8 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
                 "statuses", options(WorkStatus.class),
                 "departments", departmentOptions(),
                 "goals", bookmarkedGoalOptions(),
-                "tags", tagOptions());
+                "tags", tagOptions(),
+                // The "People" picker on the task form — tagging by contact alongside by tag.
+                "contacts", contactOptions());
     }
 }

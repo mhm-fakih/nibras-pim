@@ -42,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -159,7 +160,8 @@ fun FlashcardsScreen(store: FlashcardStore, baseUrl: String) {
         }
     }
 
-    LaunchedEffect(baseUrl) {
+    val tick by com.knotes.nibras.ServerRefresh.tick.collectAsState()
+    LaunchedEffect(baseUrl, tick) {
         // The saved copy first, before the network is tried at all.
         val cached = withContext(Dispatchers.IO) {
             FlashOutbox.seed(context)

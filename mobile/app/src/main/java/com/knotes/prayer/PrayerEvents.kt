@@ -94,6 +94,10 @@ object PrayerEvents {
             val within = settings.countdownWithinMin
                 .coerceIn(PrayerSettings.MIN_COUNTDOWN, PrayerSettings.MAX_COUNTDOWN)
             events += PrayerEvent(PrayerEventKind.COUNTDOWN, slot.prayer, at - within * 60_000L)
+            // And again AT the time. A countdown Chronometer does not stop at zero, so without
+            // this the strip sat reading "شروق بعد -0:12:34" until something else happened to be
+            // scheduled — and Shurooq in particular has no athan to redraw it.
+            events += PrayerEvent(PrayerEventKind.COUNTDOWN, slot.prayer, at)
         }
 
         // Sunrise ends the time in which Fajr can still be prayed, which is why it gets a countdown

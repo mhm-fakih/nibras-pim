@@ -241,6 +241,19 @@
                 android:resource="@xml/today_tasks_widget_info" />
         </receiver>
 
+        <!-- Home-screen widget: a read-only feed of recently written notes. -->
+        <receiver
+            android:name=".reminder.RecentNotesWidget"
+            android:exported="false"
+            android:label="Recent notes">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/recent_notes_widget_info" />
+        </receiver>
+
         <!-- Home-screen widget: today's journal entries, every priority. -->
         <receiver
             android:name=".reminder.TodayJournalWidget"

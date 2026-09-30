@@ -94,6 +94,17 @@ public abstract class AbstractCrudController<E extends com.nibras.pim.domain.Bas
         return service.removeTag(id, tagId);
     }
 
+    /** Attach a person from the detail pane — quick tagging, no form. */
+    @PostMapping("/{id}/contacts/{contactId}")
+    public D addContact(@PathVariable Long id, @PathVariable Long contactId) {
+        return service.addContact(id, contactId);
+    }
+
+    @DeleteMapping("/{id}/contacts/{contactId}")
+    public D removeContact(@PathVariable Long id, @PathVariable Long contactId) {
+        return service.removeContact(id, contactId);
+    }
+
     /** Set or clear a ManyToOne link by id, e.g. POST /api/journals/5/link?field=goal&targetId=12. */
     @PostMapping("/{id}/link")
     public D link(@PathVariable Long id,
