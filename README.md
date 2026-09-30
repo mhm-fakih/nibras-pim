@@ -216,7 +216,7 @@ nginx, and a Caddy-based HTTPS setup.
   selects the target module via its Settings code (N→note, T→task, …), priority/department/creation
   date come from the filename (department resolves to the legacy `department` lookup by its letter),
   the first suitable line becomes the title and the body the description. Imported files move to
-  `imported/`. Folder: `nibras.import.notes-dir` (default `<your-home>/knotes`, override
+  `imported/`. Folder: `nibras.import.notes-dir` (default `/my-home/knotes`, override
   `NIBRAS_KNOTES_DIR`). Every entity now also exposes its **Department** field for view/edit.
   **'R' notes need a resource type before import** (it places the type-bucketed repo folder,
   `R/<type>/…`): the page offers a session-wide default select plus per-note override chips, and

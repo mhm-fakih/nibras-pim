@@ -1,9 +1,9 @@
-cd /home/akil/dev/knotes
+cd /my-home/dev/knotes
 JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-ANDROID_HOME=/home/akil/Android/Sdk
+ANDROID_HOME=/my-home/Android/Sdk
 ./gradlew assembleRelease
-#/home/akil/Android/Sdk/platform-tools/adb install -r 
-#nemo ~/dev/knotes/app/build/outputs/apk/release
+#/my-home/Android/Sdk/platform-tools/adb install -r 
+#nemo /my-home/dev/knotes/app/build/outputs/apk/release
 
 # filesList, nbFiles 
 # I want new ui change and one major change: merge read/unread section into one "unbookmarked" section, as clicking on a record makes it read and moves it quickly to the read section thereby   dissapearing from the current view. merging unread/read should solve this problem. 2 - I want    to color the expanding record with a differenct color to easily distinguish it from the rest. 3   - I want a persistant status bar showing: nb. of queued notes, nb. of queued highlights, if    online/offline, syncing data indicator. 4 - I want to show and links the fields nbFiles, and    filesList in the exportJsonX actions data, and to be able to open such files as was the case in   the ionic4 old apsp. 5 - I want to know how difficult is it to introduce an audio player to   play the audio/video files contained in the record's folder in its phone file system as   explained in the previous notes, with strong bookmarking feature, and to save the bookmars to   the same folder with the same name with .txt extension.

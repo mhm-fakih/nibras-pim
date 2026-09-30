@@ -800,10 +800,10 @@ function RepositoriesSection() {
       </Typography>
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Stack spacing={2} sx={{ maxWidth: 560 }}>
-          {field('repo1', 'Repo 1 — sandbox / portable', 'e.g. /home/akil/rps1')}
+          {field('repo1', 'Repo 1 — sandbox / portable', 'e.g. /my-home/rps1')}
           {field('repo2', 'Repo 2 — main')}
           {field('repo3', 'Repo 3 — dismissed')}
-          {field('checkout', 'Checkout folder — bookmark symlinks', 'e.g. /home/akil/checkout')}
+          {field('checkout', 'Checkout folder — bookmark symlinks', 'e.g. /my-home/checkout')}
           {field('explorer', 'File-explorer command', 'e.g. xdg-open or "nemo --existing-window"')}
           <Stack direction="row" spacing={2} alignItems="center">
             <Button variant="contained" onClick={() => save.mutate()} disabled={save.isPending}>
