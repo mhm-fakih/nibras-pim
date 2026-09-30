@@ -67,7 +67,7 @@ nibras:
     max-items: 50
   import:
     # Folder of plain-text knotes to import. Imported files move to <dir>/imported/.
-    notes-dir: ${NIBRAS_KNOTES_DIR:/home/akil/knotes}
+    notes-dir: ${NIBRAS_KNOTES_DIR:/my-home/knotes}
   cors:
     allowed-origins: "http://localhost:5173,http://127.0.0.1:5173,https://nibras-prod"
   security:

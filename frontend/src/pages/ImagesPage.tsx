@@ -223,7 +223,7 @@ export function ImagesPage() {
               fullWidth
               size="small"
               label="Directory path"
-              placeholder="/home/akil/Pictures/screenshots"
+              placeholder="/my-home/Pictures/screenshots"
               value={dirInput}
               onChange={(e) => setDirInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && load()}

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-cd /home/akil/dev/knotes
+cd /my-home/dev/knotes
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-export ANDROID_HOME=/home/akil/Android/Sdk
+export ANDROID_HOME=/my-home/Android/Sdk
 ./gradlew installDebug && \
   "$ANDROID_HOME/platform-tools/adb" shell monkey -p com.knotes -c android.intent.category.LAUNCHER 1
 
