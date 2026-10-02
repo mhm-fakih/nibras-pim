@@ -2,6 +2,8 @@ package com.nibras.pim;
 
 import com.nibras.pim.service.NoteImportService;
 import com.nibras.pim.service.SettingService;
+import com.nibras.pim.domain.lookup.Course;
+import com.nibras.pim.repo.CourseRepository;
 import com.nibras.pim.service.localnotes.LocalNotesService;
 import com.nibras.pim.service.localnotes.LocalNotesService.NoteInput;
 import com.nibras.pim.support.AuthTestSupport;
@@ -33,13 +35,21 @@ class LocalNotesTests extends AuthTestSupport {
 
     @Autowired LocalNotesService notes;
     @Autowired SettingService settings;
+    @Autowired CourseRepository courseRepo;
+
+    /** Loaded per test; never written to. */
+    private java.util.List<Course> courses;
 
     private Path folder;
     private String previousDir;
+    private String previousBank;
 
     @BeforeEach
     void pointAtATempFolder() throws IOException {
         previousDir = settings.get(NoteImportService.DIR_KEY, "");
+        previousBank = settings.get(LocalNotesService.BANK_KEY, "");
+        courses = courseRepo.findAll();
+        settings.set(LocalNotesService.BANK_KEY, "");
         folder = Files.createTempDirectory("nbr-local-notes");
         settings.set(NoteImportService.DIR_KEY, folder.toString());
 
@@ -75,8 +85,9 @@ class LocalNotesTests extends AuthTestSupport {
     }
 
     @AfterEach
-    void putTheSettingBack() {
+    void putTheSettingsBack() {
         settings.set(NoteImportService.DIR_KEY, previousDir);
+        settings.set(LocalNotesService.BANK_KEY, previousBank);
     }
 
     private void write(String name, String body) throws IOException {
@@ -84,11 +95,12 @@ class LocalNotesTests extends AuthTestSupport {
     }
 
     @Test
-    void findsTheBankInsideACompanionFolder() {
+    void findsTheBankFileInsideACompanionFolder() {
         // The archive keeps it at <a note>.d/tag-bank.md, and that note can be renamed, so the
-        // path is searched for rather than configured.
+        // path is searched for rather than configured. This is about LOCATING the file; what the
+        // vocabulary ends up being is decided by precedence (courses first) — see below.
         assertThat(notes.tagBankPath().toString()).endsWith("~I.d/tag-bank.md");
-        assertThat(notes.bank().entries()).hasSize(3);
+        assertThat(java.nio.file.Files.isRegularFile(notes.tagBankPath())).isTrue();
     }
 
     @Test
@@ -227,6 +239,112 @@ class LocalNotesTests extends AuthTestSupport {
         notes.create(new NoteInput("N", 2, null, "fresh\n"));
         assertThat(notes.view().total()).isEqualTo(before + 1);
         assertThat(notes.search("fresh", 10)).hasSize(1);
+    }
+
+    @Test
+    void configReportsWhatEachPathActuallyYielded() {
+        var c = notes.config();
+        assertThat(c.dir()).isEqualTo(folder.toString());
+        assertThat(c.dirExists()).isTrue();
+        assertThat(c.notes()).isEqualTo(4);
+        assertThat(c.tagBankFound()).isTrue();
+        assertThat(c.tagBankCourses()).isPositive();
+        // The default is reported separately so Settings can show what blank would fall back to.
+        assertThat(c.defaultDir()).endsWith("/new/knotes");
+        // And it says which source won, so Settings can stop pointing at a file nobody reads.
+        assertThat(c.vocabularySource()).isNotBlank();
+    }
+
+    @Test
+    void aBlankFolderSettingFallsBackToTheDefault_notTheWorkingDirectory() {
+        // Paths.get("") is the process's current directory — a blank setting resolving to that
+        // would list whatever folder the server happened to start in and report "no notes".
+        notes.updateConfig("", null);
+        assertThat(notes.config().dir()).isEqualTo(notes.config().defaultDir());
+        assertThat(notes.config().dir()).doesNotStartWith(System.getProperty("user.dir"));
+    }
+
+    @Test
+    void clearingIsHowYouGetBackToTheDefault() {
+        notes.updateConfig(folder.toString(), null);
+        assertThat(notes.config().dir()).isEqualTo(folder.toString());
+        notes.updateConfig("", null);
+        assertThat(notes.config().dir()).isEqualTo(notes.config().defaultDir());
+    }
+
+    @Test
+    void pointingAtABankOutsideTheNotesFolderWorks() {
+        // The real archive keeps the bank on another machine; this is how you point at a copy.
+        java.nio.file.Path elsewhere = folder.resolve("2026_09_01-000000~N~p2~I.d/tag-bank.md");
+        var c = notes.updateConfig(null, elsewhere.toString());
+        assertThat(c.tagBankSetting()).isEqualTo(elsewhere.toString());
+        assertThat(c.tagBankPath()).isEqualTo(elsewhere.toString());
+        notes.updateConfig(null, "");   // back to searching
+        assertThat(notes.config().tagBankSetting()).isEmpty();
+        assertThat(notes.config().tagBankPath()).endsWith("~I.d/tag-bank.md");
+    }
+
+    @Test
+    void aFolderThatDoesNotExistIsReportedRatherThanThrowing() {
+        var c = notes.updateConfig("/definitely/not/here", null);
+        assertThat(c.dirExists()).isFalse();
+        assertThat(c.notes()).isZero();
+        assertThat(notes.view().total()).isZero();   // the page shows empty, it does not 500
+    }
+
+    // ---- the vocabulary now lives on the course records ----------------------------
+
+    @Test
+    void courseRecordsAreTheVocabulary_andBeatTheFile() {
+        // Read-only on purpose. An earlier version of this test wrote to course 9208 to prove the
+        // precedence; two non-transactional tests then raced the same detached row, the optimistic
+        // lock fired, and the restore never ran — leaving real data wrong. Assert, do not mutate.
+        Course tagged = courses.stream()
+                .filter(c -> c.getTags() != null && !c.getTags().isBlank())
+                .findFirst().orElse(null);
+        org.junit.jupiter.api.Assumptions.assumeTrue(tagged != null,
+                "no course carries tags here — run dist/sql/course-tags-*.sql first");
+
+        var bank = notes.bank();
+        assertThat(bank.sourcePath()).endsWith("course records");
+
+        String canonical = tagged.getTags().split(",")[0].strip();
+        var entry = bank.resolve(canonical);
+        assertThat(entry).isNotNull();
+        assertThat(entry.courseId()).isEqualTo(tagged.getId());
+        // The RECORD's name, not the file's — which is the whole point of the move.
+        assertThat(entry.courseName()).isEqualTo(tagged.getSummary());
+        assertThat(bank.resolve(canonical.toUpperCase())).isNotNull();   // still case-insensitive
+    }
+
+    @Test
+    void theConfigSaysWhereTheVocabularyCameFrom() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                courses.stream().anyMatch(c -> c.getTags() != null && !c.getTags().isBlank()));
+        var cfg = notes.config();
+        assertThat(cfg.vocabularyFromCourses()).isTrue();
+        assertThat(cfg.vocabularySource()).endsWith("course records");
+    }
+
+    @Test
+    void aCourseColumnIsParsedCanonicalFirstThenAliases() {
+        var e = com.nibras.pim.service.localnotes.TagBank.entryFromColumn(
+                1300L, "التخطيط وإدارة الوقت", "D.time, time, تخطيط, أجندة, planner");
+        assertThat(e.canonical()).isEqualTo("D.time");
+        assertThat(e.dept()).isEqualTo("D");
+        assertThat(e.aliases()).containsExactly("time", "تخطيط", "أجندة", "planner");
+    }
+
+    @Test
+    void anEmptyOrUnusableTagsColumnIsSkipped_notTurnedIntoADeadEntry() {
+        var TB = com.nibras.pim.service.localnotes.TagBank.class;
+        assertThat(com.nibras.pim.service.localnotes.TagBank.entryFromColumn(1L, "x", null)).isNull();
+        assertThat(com.nibras.pim.service.localnotes.TagBank.entryFromColumn(1L, "x", "   ")).isNull();
+        assertThat(com.nibras.pim.service.localnotes.TagBank.entryFromColumn(1L, "x", " , , ")).isNull();
+        // A bare slug with no department prefix still resolves; it just has no department.
+        var e = com.nibras.pim.service.localnotes.TagBank.entryFromColumn(1L, "x", "looseword");
+        assertThat(e.canonical()).isEqualTo("looseword");
+        assertThat(e.dept()).isNull();
     }
 
     private static LocalNotesViewDto.Dept deptOf(LocalNotesViewDto view, String code) {

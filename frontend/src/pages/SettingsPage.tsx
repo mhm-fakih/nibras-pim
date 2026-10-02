@@ -21,14 +21,16 @@ import {
 import {
   AppModule,
   RepoSettings,
-  getRepoSettings,
+  errorDetail,
+  getLocalNotesConfig,
   getLookups,
+  getRepoSettings,
   getSetting,
   getSettingsMulti,
   setSetting,
+  updateLocalNotesConfig,
   updateModule,
   updateRepoSettings,
-  errorDetail,
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { DEFAULT_MAX_SLOT_MINUTES } from '../hooks/useRunningTimer';
@@ -100,6 +102,7 @@ export function SettingsPage() {
         </Alert>
 
         <RepositoriesSection />
+        <LocalNotesSection />
 
         <ExportSection />
 
@@ -739,6 +742,122 @@ function LanguageCodesField() {
         sx={{ width: 380 }}
         helperText={`Comma-separated. Typing an apostrophe and one of these — 'ar, 'en — sets a record's language when editing or importing, and filters by it when searching. Anything not listed stays ordinary text. Default: ${DEFAULT}.`}
       />
+    </Box>
+  );
+}
+
+
+/**
+ * Where the Local notes page reads from.
+ *
+ * Two paths, and both are shown with the evidence that they resolved — the note count and the
+ * course count. A path field that only echoes what you typed is the least useful kind: the mistakes
+ * here are a folder that does not exist and a bank that is not where the search expects it, and
+ * both are invisible until something counts what it found.
+ */
+function LocalNotesSection() {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ['local-notes-config'], queryFn: getLocalNotesConfig });
+  const [dir, setDir] = useState('');
+  const [bank, setBank] = useState('');
+  const [touched, setTouched] = useState(false);
+
+  useEffect(() => {
+    if (data && !touched) {
+      setDir(data.dir);
+      setBank(data.tagBankSetting);
+    }
+  }, [data, touched]);
+
+  const save = useMutation({
+    mutationFn: () => updateLocalNotesConfig({ dir, tagBankPath: bank }),
+    onSuccess: (res) => {
+      setDir(res.dir);
+      setBank(res.tagBankSetting);
+      setTouched(false);
+      qc.invalidateQueries({ queryKey: ['local-notes-config'] });
+      qc.invalidateQueries({ queryKey: ['local-notes'] });
+    },
+  });
+
+  const edit = (set: (v: string) => void) => (e: { target: { value: string } }) => {
+    set(e.target.value);
+    setTouched(true);
+  };
+
+  return (
+    <Box sx={{ mt: 5 }}>
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        Local notes
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        The folder of plain markdown notes the desktop app writes. It is listed, searched, added to
+        and edited on the <Link to="/local-notes">Local notes</Link> page, and it is the same folder
+        the <Link to="/import">Import notes</Link> page consumes from. The server reads it off its
+        own disk, so it has to be a path on the machine running the backend. Leave blank for the
+        default.
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        The subject grouping resolves a note&rsquo;s <code>#A.salat</code> to a course through the{' '}
+        <strong>tags field on the course records</strong>, so it needs no file. The tag-bank file
+        below is only a fallback for an installation whose courses have not been given their tags
+        yet.
+      </Typography>
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Stack spacing={2} sx={{ maxWidth: 680 }}>
+          <TextField
+            size="small"
+            fullWidth
+            label="Notes folder"
+            helperText={
+              data
+                ? data.dirExists
+                  ? `${data.notes} note${data.notes === 1 ? '' : 's'} found · default is ${data.defaultDir}`
+                  : `That folder does not exist on the server · default is ${data.defaultDir}`
+                : ' '
+            }
+            error={Boolean(data && !data.dirExists)}
+            value={dir}
+            onChange={edit(setDir)}
+            onKeyDown={(e) => e.key === 'Enter' && !save.isPending && save.mutate()}
+            inputProps={{ style: { fontFamily: 'monospace' } }}
+          />
+          <TextField
+            size="small"
+            fullWidth
+            label="Tag bank file (fallback only)"
+            helperText={
+              data
+                ? data.vocabularyFromCourses
+                  ? `Not in use — the subject view is reading ${data.vocabularySource}`
+                  : data.tagBankFound
+                    ? `${data.tagBankCourses} courses loaded from this file (no course record carries tags yet)`
+                    : `No vocabulary: no course has tags, and no bank file at ${data.tagBankPath} — the subject view groups by department letter only`
+                : ' '
+            }
+            placeholder="blank = look for <notes folder>/*.d/tag-bank.md, then tag-bank.md beside it"
+            value={bank}
+            onChange={edit(setBank)}
+            onKeyDown={(e) => e.key === 'Enter' && !save.isPending && save.mutate()}
+            inputProps={{ style: { fontFamily: 'monospace' } }}
+          />
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Button variant="contained" onClick={() => save.mutate()} disabled={save.isPending}>
+              Save
+            </Button>
+            {!touched && save.isSuccess && (
+              <Alert severity="success" sx={{ py: 0 }}>
+                Saved.
+              </Alert>
+            )}
+            {save.isError && (
+              <Alert severity="error" sx={{ py: 0 }}>
+                {String(save.error)}
+              </Alert>
+            )}
+          </Stack>
+        </Stack>
+      </Paper>
     </Box>
   );
 }

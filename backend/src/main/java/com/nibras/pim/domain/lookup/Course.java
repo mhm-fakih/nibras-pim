@@ -35,6 +35,17 @@ public class Course extends BaseEntity {
     private Integer priority;
     private Boolean bookmarked;
 
+    /**
+     * The knotes vocabulary pointing at this course: canonical tag first, then aliases,
+     * comma-separated — {@code A.salat, salat, صلاة, تعقيبات}.
+     *
+     * <p>This is what lets a note's {@code #A.salat} resolve to this record. It lives here, on the
+     * course, so the subject view works off the database rather than a markdown file that may not
+     * be synced to whichever machine is running the backend.
+     */
+    @Column(columnDefinition = "varchar(255)")
+    private String tags;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
     private Department department;

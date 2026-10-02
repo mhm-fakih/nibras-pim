@@ -1,8 +1,10 @@
 package com.nibras.pim.service.localnotes;
 
 import com.nibras.pim.domain.AppModule;
+import com.nibras.pim.domain.lookup.Course;
 import com.nibras.pim.domain.lookup.Department;
 import com.nibras.pim.repo.AppModuleRepository;
+import com.nibras.pim.repo.CourseRepository;
 import com.nibras.pim.repo.DepartmentRepository;
 import com.nibras.pim.service.NoteImportService;
 import com.nibras.pim.service.SettingService;
@@ -61,17 +63,20 @@ public class LocalNotesService {
     private final SettingService settings;
     private final AppModuleRepository modules;
     private final DepartmentRepository departments;
+    private final CourseRepository courses;
 
     /** Cached scan, keyed by the folder fingerprint it was taken from. */
     private volatile String cachedFingerprint;
     private volatile List<Scanned> cached = List.of();
 
     public LocalNotesService(NoteImportService importer, SettingService settings,
-                             AppModuleRepository modules, DepartmentRepository departments) {
+                             AppModuleRepository modules, DepartmentRepository departments,
+                             CourseRepository courses) {
         this.importer = importer;
         this.settings = settings;
         this.modules = modules;
         this.departments = departments;
+        this.courses = courses;
     }
 
     /** A note as read off disk, before anything from the database is attached to it. */
@@ -118,14 +123,93 @@ public class LocalNotesService {
         }
     }
 
-    /** The bank, or an empty one. A missing bank degrades the subject view, it does not break it. */
+    /**
+     * What Settings shows and edits: where the notes are, where the vocabulary is, and — because a
+     * path typed into a box is worth nothing until something reads it — what each one actually
+     * yielded. A folder with 0 notes or a bank with 0 courses is the whole diagnosis, on the spot.
+     */
+    public record Config(String dir, String defaultDir, boolean dirExists, int notes,
+                         String tagBankPath, String tagBankSetting, boolean tagBankFound,
+                         int tagBankCourses,
+                         /** Where the vocabulary actually came from — course records or the file. */
+                         String vocabularySource,
+                         /** True when it came from the database rather than the markdown file. */
+                         boolean vocabularyFromCourses) {
+    }
+
+    /** Current folder + bank, each with the evidence that it resolved. */
+    @Transactional(readOnly = true)
+    public Config config() {
+        Path dir = dir();
+        boolean exists = Files.isDirectory(dir);
+        TagBank bank = bank();
+        boolean fromCourses = bank.sourcePath().endsWith("course records");
+        return new Config(dir.toString(), importer.defaultDirForDisplay(), exists,
+                exists ? scan().size() : 0,
+                tagBankPath().toString(), settings.get(BANK_KEY, ""),
+                !bank.isEmpty(), bank.entries().size(),
+                bank.sourcePath(), fromCourses);
+    }
+
+    /**
+     * Point the page at a different folder and/or bank. A blank value CLEARS that setting rather
+     * than being ignored, so the default is reachable from the UI; null leaves it alone, which is
+     * how a form that only edits one of the two says so.
+     */
+    public Config updateConfig(String dir, String tagBankPath) {
+        if (dir != null) {
+            importer.setDir(dir);
+        }
+        if (tagBankPath != null) {
+            settings.set(BANK_KEY, tagBankPath.trim());
+        }
+        cachedFingerprint = null;   // a new folder has nothing to do with the cached scan
+        return config();
+    }
+
+    /**
+     * The vocabulary. COURSE RECORDS FIRST, the markdown file only as a fallback.
+     *
+     * <p>The database is the right home for this: the courses are already there, and a mapping kept
+     * in a file inside the notes folder makes the subject view depend on that folder being synced
+     * to whichever machine runs the backend — which is exactly the dependency this removes.
+     *
+     * <p>The file is still read when no course carries tags, so an installation that has not run
+     * the data script yet keeps working instead of silently losing its course names. A missing
+     * vocabulary from BOTH sources degrades the subject view to department letters; it never breaks.
+     */
+    @Transactional(readOnly = true)
     public TagBank bank() {
+        TagBank fromCourses = bankFromCourses();
+        if (!fromCourses.isEmpty()) {
+            return fromCourses;
+        }
         Path path = tagBankPath();
         try {
             return TagBank.parse(Files.readString(path), path.toString());
         } catch (IOException e) {
             return TagBank.empty(path.toString());
         }
+    }
+
+    /** The vocabulary as the course records carry it. Empty when none of them do. */
+    private TagBank bankFromCourses() {
+        List<TagBank.Entry> entries = new ArrayList<>();
+        for (Course c : courses.findAll()) {
+            TagBank.Entry e = TagBank.entryFromColumn(c.getId(), c.getSummary(), c.getTags());
+            if (e != null) {
+                entries.add(e);
+            }
+        }
+        Map<String, String> deptNames = new LinkedHashMap<>();
+        departmentsByCode().forEach((code, d) -> {
+            if (d.getName() != null && !d.getName().isBlank()) {
+                deptNames.put(code, d.getName());
+            }
+        });
+        return TagBank.fromEntries(entries, deptNames,
+                entries.isEmpty() ? "course records (none tagged)"
+                        : entries.size() + " course records");
     }
 
     private static String expandHome(String p) {

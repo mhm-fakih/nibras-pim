@@ -15,6 +15,7 @@ import com.nibras.pim.repo.DepartmentRepository;
 import com.nibras.pim.web.dto.ImportNoteDto;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -86,10 +87,43 @@ public class NoteImportService {
         this.commands = commands;
     }
 
-    /** The configured import folder — from settings, defaulting to {@code $HOME/new/knotes}. */
+    /** Compile-time last resort, when neither the setting nor the config names a folder. */
+    private static final String FALLBACK_DIR = "/new/knotes";
+
+    /**
+     * {@code nibras.import.notes-dir} — the folder to use when the database has no setting for it.
+     * Blank (the shipped value) means {@link #defaultDir()}. Exists so a deployment can point a
+     * fresh install at the right folder without anyone having to open Settings first.
+     */
+    @Value("${nibras.import.notes-dir:}")
+    private String configuredDir = "";
+
+    /** {@code $HOME/new/knotes} — where the desktop app puts notes on a normal install. */
+    private static String defaultDir() {
+        return System.getProperty("user.home") + FALLBACK_DIR;
+    }
+
+    /**
+     * The notes folder, resolved in order: the database setting, then the configured default, then
+     * {@code $HOME/new/knotes}.
+     *
+     * <p>A BLANK stored setting falls through rather than resolving to the current directory, which
+     * is what {@code Paths.get("")} would otherwise give — a silent and very confusing "no notes
+     * found" against whatever folder the server happened to start in.
+     */
     private Path notesDir() {
-        String def = System.getProperty("user.home") + "/new/knotes";
-        return Paths.get(expandHome(settings.get(DIR_KEY, def))).toAbsolutePath().normalize();
+        String stored = settings.get(DIR_KEY, "");
+        String chosen = firstNonBlank(stored, configuredDir, defaultDir());
+        return Paths.get(expandHome(chosen)).toAbsolutePath().normalize();
+    }
+
+    private static String firstNonBlank(String... candidates) {
+        for (String c : candidates) {
+            if (c != null && !c.isBlank()) {
+                return c.trim();
+            }
+        }
+        return defaultDir();
     }
 
     /** Current import folder as a string (for the UI). */
@@ -97,11 +131,18 @@ public class NoteImportService {
         return notesDir().toString();
     }
 
-    /** Persist a new import folder (blank = leave unchanged); returns the resolved path. */
+    /** The folder that would be used if the setting were cleared — shown in Settings as the default. */
+    public String defaultDirForDisplay() {
+        return Paths.get(expandHome(firstNonBlank(configuredDir, defaultDir())))
+                .toAbsolutePath().normalize().toString();
+    }
+
+    /**
+     * Persist a new import folder. BLANK CLEARS IT, falling back to the default — without that
+     * there is no way back to the default from the UI except knowing what it was and retyping it.
+     */
     public String setDir(String dir) {
-        if (dir != null && !dir.isBlank()) {
-            settings.set(DIR_KEY, dir.trim());
-        }
+        settings.set(DIR_KEY, dir == null ? "" : dir.trim());
         return currentDir();
     }
 

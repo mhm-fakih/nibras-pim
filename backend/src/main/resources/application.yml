@@ -66,8 +66,10 @@ nibras:
     # Number of most-recent items per feed.
     max-items: 50
   import:
-    # Folder of plain-text knotes to import. Imported files move to <dir>/imported/.
-    notes-dir: ${NIBRAS_KNOTES_DIR:/my-home/knotes}
+    # Folder of plain-text knotes — listed, searched, added to and edited on the Local notes page,
+    # and the source for the import page (imported files move to <dir>/imported/).
+    # Blank means $HOME/new/knotes. Settings → Local notes overrides this per installation.
+    notes-dir: ${NIBRAS_KNOTES_DIR:}
   cors:
     allowed-origins: "http://localhost:5173,http://127.0.0.1:5173,https://nibras-prod"
   security:

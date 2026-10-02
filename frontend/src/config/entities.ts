@@ -298,6 +298,10 @@ ENTITIES.push(
       { name: 'code', label: 'Code', type: 'text' },
       { name: 'department', label: 'Department', type: 'department' },
       { name: 'notes', label: 'Notes', type: 'textarea' },
+      // The knotes vocabulary that points at this course. Canonical tag first, then aliases:
+      // `A.salat, salat, صلاة`. This is what resolves a note's #A.salat to this record on the
+      // Local notes page, which is why it is editable here rather than in a file.
+      { name: 'tags', label: 'Note tags — canonical first, then aliases', type: 'text' },
       { name: 'priority', label: 'Priority', type: 'number' },
       { name: 'bookmarked', label: 'Bookmarked', type: 'switch' },
     ],

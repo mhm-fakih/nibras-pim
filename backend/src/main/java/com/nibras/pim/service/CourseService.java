@@ -25,13 +25,13 @@ public class CourseService extends AbstractCrudService<Course, CourseDto> {
 
     @Override
     protected List<String> searchFields() {
-        return List.of("summary", "code");
+        return List.of("summary", "code", "tags");
     }
 
     @Override
     protected CourseDto toDto(Course c) {
         return new CourseDto(c.getId(), c.getVersion(), c.feedTitle(),
-                c.getSummary(), c.getCode(), c.getNotes(),
+                c.getSummary(), c.getCode(), c.getNotes(), c.getTags(),
                 c.getPriority(), c.getBookmarked(),
                 c.getDepartment() == null ? null : c.getDepartment().getId(),
                 c.getDepartment() == null ? null : deptLookup(c.getDepartment()),
@@ -50,6 +50,7 @@ public class CourseService extends AbstractCrudService<Course, CourseDto> {
         c.setSummary(dto.summary());
         c.setCode(dto.code());
         c.setNotes(dto.notes());
+        c.setTags(dto.tags());
         c.setPriority(dto.priority());
         c.setBookmarked(dto.bookmarked());
         c.setDepartment(ref(Department.class, dto.departmentId()));

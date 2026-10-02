@@ -77,6 +77,44 @@ public final class TagBank {
         return new TagBank(List.of(), Map.of(), sourcePath);
     }
 
+    /**
+     * A bank built from course RECORDS rather than the markdown file.
+     *
+     * <p>Same type on purpose. The vocabulary's shape does not change with where it was read from,
+     * so everything downstream — resolution, aliases, the subject grouping — stays identical and
+     * there is only one set of rules to get right.
+     */
+    public static TagBank fromEntries(List<Entry> entries, Map<String, String> deptNames,
+                                      String sourceLabel) {
+        return new TagBank(entries, deptNames, sourceLabel);
+    }
+
+    /**
+     * Parse one course's {@code tags} column: canonical first, then aliases, comma-separated.
+     * Returns null when the column is empty or holds nothing usable, so a half-filled course is
+     * skipped rather than becoming an entry that resolves nothing.
+     */
+    public static Entry entryFromColumn(long courseId, String courseName, String tags) {
+        if (tags == null || tags.isBlank()) {
+            return null;
+        }
+        List<String> parts = new ArrayList<>();
+        for (String raw : tags.split(",")) {
+            String t = raw.strip();
+            if (!t.isEmpty()) {
+                parts.add(t);
+            }
+        }
+        if (parts.isEmpty()) {
+            return null;
+        }
+        String canonical = parts.get(0);
+        int dot = canonical.indexOf('.');
+        String dept = dot > 0 ? canonical.substring(0, dot).toUpperCase(Locale.ROOT) : null;
+        return new Entry(courseId, courseName, canonical, dept,
+                List.copyOf(parts.subList(1, parts.size())));
+    }
+
     public static TagBank parse(String text, String sourcePath) {
         List<Entry> entries = new ArrayList<>();
         Map<String, String> depts = new LinkedHashMap<>();

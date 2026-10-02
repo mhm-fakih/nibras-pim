@@ -62,6 +62,21 @@ public class LocalNotesController {
                 "departments", bank.deptNames());
     }
 
+    /** Where the notes and the vocabulary live — read by Settings → Local notes. */
+    @GetMapping("/config")
+    public LocalNotesService.Config config() {
+        return service.config();
+    }
+
+    public record ConfigRequest(String dir, String tagBankPath) {
+    }
+
+    /** Change the folder and/or the tag-bank path. Blank clears a setting back to its default. */
+    @PutMapping("/config")
+    public LocalNotesService.Config updateConfig(@RequestBody ConfigRequest req) {
+        return service.updateConfig(req.dir(), req.tagBankPath());
+    }
+
     public record CreateRequest(String type, Integer priority, String dept, String body) {
     }
 
