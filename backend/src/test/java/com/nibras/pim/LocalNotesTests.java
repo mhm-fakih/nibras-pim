@@ -54,7 +54,7 @@ class LocalNotesTests extends AuthTestSupport {
         settings.set(NoteImportService.DIR_KEY, folder.toString());
 
         write("2026_09_20-090000~N~p2~A.md",
-                "Prayer and attention\n\nWhy the mind wanders in salat.\n\n#A.salat #D.attention\n");
+                "Prayer and attention\n\nWhy the mind wanders in salat.\n\n#A.salat #D.nosuchcourse\n");
         write("2026_09_20-110000~T~p3~D.md",
                 "Plan the week\n\nBlock out the mornings.\n\n#D.time\n");
         write("2026_09_21-080000~N~p2~A.md",
@@ -133,8 +133,8 @@ class LocalNotesTests extends AuthTestSupport {
 
     @Test
     void thePrimaryTagDecidesTheSubject_notTheSecondOne() {
-        // "#A.salat #D.attention": the note belongs to salat. D.attention is not even in the bank,
-        // and if the secondary tag were allowed to file the note it would land in the wrong place.
+        // "#A.salat #D.nosuchcourse": the note belongs to salat. If the secondary tag were allowed
+        // to file the note it would land in department D, which is the wrong place.
         LocalNotesViewDto.Dept d = deptOf(notes.view(), "D");
         assertThat(d.courses()).extracting(LocalNotesViewDto.Course::courseId).containsExactly(1300L);
         assertThat(d.count()).isEqualTo(1);
@@ -153,10 +153,13 @@ class LocalNotesTests extends AuthTestSupport {
     void tagCountsCarryWhatEachTagResolvesTo() {
         List<LocalNotesViewDto.TagCount> tags = notes.view().tags();
         assertThat(tags).extracting(LocalNotesViewDto.TagCount::tag)
-                .contains("a.salat", "d.time", "d.attention");
+                .contains("a.salat", "d.time", "d.nosuchcourse");
+        // Deliberately an invented tag. This assertion used to use d.attention, which was a real
+        // proposal in the bank — and the moment that course was created the test broke. An example
+        // of "resolves to nothing" has to be something that will never become a course.
         LocalNotesViewDto.TagCount unknown = tags.stream()
-                .filter(t -> t.tag().equals("d.attention")).findFirst().orElseThrow();
-        assertThat(unknown.courseId()).isNull();          // proposed, not in the bank
+                .filter(t -> t.tag().equals("d.nosuchcourse")).findFirst().orElseThrow();
+        assertThat(unknown.courseId()).isNull();          // no course carries this tag
         assertThat(unknown.dept()).isEqualTo("D");        // but its shape still says where it belongs
     }
 

@@ -1,5 +1,50 @@
 # Changelog
 
+## 2026-10-02b — Ten new courses, and a parser that was losing ten old ones
+
+### Fixed — the tag-bank parser silently dropped ten courses
+
+The bank's columns were split on a run of two or more spaces. The file is hand-aligned, and ten
+course names are long enough to leave only ONE space before the tag — `9162 الأدعية والأذكار
+والزيارات A.adhkar  duaa, …`. Those ten parsed into nothing: no error, just tags that resolved to no
+course. `A.adhkar`, `E.calc`, `E.prob`, `E.elec`, `F.aesthetic`, `L.disccrit`, `L.tourism`,
+`V.terror`, `Z.algo`, `Z.security`.
+
+It only surfaced when the corpus was audited against the database: `Z.security` and `L.disccrit`
+showed up as "tags with no course" and were about to be suggested as NEW courses that already
+existed. The tag is now found by shape — one letter, a dot, a slug, bounded by whitespace — while
+the original spacing is preserved so a trailing editorial comment still separates from the aliases.
+Four lines are still skipped, correctly: they are notes about retired, moved or mistyped courses.
+
+The regression test was checked by putting the two-space assumption back and watching it fail.
+
+### Added — ten courses the notes needed
+
+Chosen from the archive itself: 258 of the 281 `~N` notes carry a "Where this sits academically"
+block, and those name 140 distinct disciplines. Cross-referencing them against tags the notes
+already use but which resolve to no course gives the candidates, each accepted individually.
+
+`F.psychapp` (121 notes, 47 primary), `A.psychrel` (43/23), `I.pkm` (42/23), `D.attention` (32/12),
+`Z.ai` (8/5), `H.sleep` (5/2), `I.server` (4/3), `Y.langmethod` (2/1), `F.attachment`, and
+`L.socpsych` — the last on the strength of 31 academic blocks rather than any tag, since the
+material is scattered over four unrelated tags and has no home.
+
+Declined: `D.habits` (3 notes, 0 primary — below the bank's own retention rule), `A.familyethics`
+(covered by A.akhlaq, A.lifestyle and F.marriage), and `F.clinical` — 36 notes name clinical
+psychology, but 33 are already tagged `F.psychapp`, so a second course would split the same notes
+with no tag to tell them apart. No new department either: the archive's invariant ties a note's
+filename letter to its primary tag's department, so a Psychology department would mean renaming
+~165 files.
+
+`dist/sql/course-vocabulary-2026-10-02.sql` does both halves — 252 UPDATEs then 10 guarded INSERTs.
+Verified on a throwaway copy of the production course and department tables: it aborts naming the
+fix when `course.tags` is missing, loads 262 tagged courses with it, and a second run changes
+nothing.
+
+One test had to be rewritten. It used `d.attention` as its example of a tag that resolves to
+nothing — and broke the moment that course was created, which is the test working. An example of
+"resolves to nothing" now uses an invented tag that will never become a course.
+
 ## 2026-10-02 — The tag vocabulary moves into the course records
 
 ### Changed — a note's subject resolves through the database, not a file

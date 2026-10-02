@@ -34,6 +34,8 @@ class TagBankTest {
             9201 نهج البلاغة (duplicate)    — merge into A.nahj
             9212→V أعلام الشيعة             (see V)
             9208 آداب الصلاة                A.salat      salat, صلاة, تعقيبات
+            9162 الأدعية والأذكار والزيارات A.adhkar     duaa, أدعية, زيارة
+            4147 Security and Cryptography Z.security   cryptography, أمن
             ```
 
             ## D — التنمية الذاتية
@@ -122,6 +124,25 @@ class TagBankTest {
     void anUnknownTagResolvesToNothingRatherThanGuessing() {
         assertThat(bank.resolve("A.invented")).isNull();
         assertThat(bank.resolve(null)).isNull();
+    }
+
+    @Test
+    void aLongCourseNameLeavingOnlyOneSpaceStillParses() {
+        // The file is hand-aligned. A name long enough to fill the column leaves ONE space before
+        // the tag, not two. Splitting on a run of spaces silently dropped ten real courses — no
+        // error, just tags that resolved to nothing. Found only by auditing the corpus against the
+        // database, which is the expensive way to find it.
+        TagBank.Entry adhkar = bank.resolve("A.adhkar");
+        assertThat(adhkar).isNotNull();
+        assertThat(adhkar.courseId()).isEqualTo(9162L);
+        assertThat(adhkar.courseName()).isEqualTo("الأدعية والأذكار والزيارات");
+        assertThat(adhkar.aliases()).containsExactly("duaa", "أدعية", "زيارة");
+
+        // Same shape with a Latin name, and the alias column still splits on commas.
+        TagBank.Entry sec = bank.resolve("Z.security");
+        assertThat(sec.courseId()).isEqualTo(4147L);
+        assertThat(sec.courseName()).isEqualTo("Security and Cryptography");
+        assertThat(bank.resolve("أمن").courseId()).isEqualTo(4147L);
     }
 
     @Test
