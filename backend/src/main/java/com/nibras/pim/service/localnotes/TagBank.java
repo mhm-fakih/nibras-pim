@@ -25,16 +25,29 @@ import java.util.regex.Pattern;
 public final class TagBank {
 
     /**
-     * One bank line. Leading id, then the course name, then the canonical tag, then aliases.
+     * The start of a bank line: an id, plus whatever editorial mark follows it ({@code 9270*} for a
+     * provisional course, {@code 9212→V} for one that moved).
      *
-     * <p>The two-or-more-spaces separator is what makes the columns parseable while leaving the
-     * file comfortable to edit by hand: course names contain single spaces, so only a run of them
-     * can mean "next column". The {@code \S*} after the id absorbs the editorial marks the file
-     * uses — {@code 9270*} for a provisional course, {@code 9212→V} for one that moved — without
-     * needing a rule for each.
+     * <p>The columns are NOT split on a run of spaces, which is what this used to do. The file is
+     * hand-aligned, and a course name long enough to fill the column leaves only ONE space before
+     * the tag — {@code 9162 الأدعية والأذكار والزيارات A.adhkar  duaa, …}. That silently dropped
+     * ten real courses, which is the worst way to lose them: no error, just a tag that resolves to
+     * nothing. The canonical is found by SHAPE instead (see {@link #CANONICAL}).
      */
-    private static final Pattern ENTRY = Pattern.compile(
-            "^\\s*(\\d+)\\S*\\s+(\\S.*?)\\s{2,}([A-Za-z]\\.[\\w\\-]+)(?:\\s+(.*))?$");
+    private static final Pattern ENTRY_START = Pattern.compile("^\\s*(\\d+)\\S*\\s+(.*)$");
+
+    /**
+     * A canonical tag as a whole token inside the line: one letter, a dot, a slug, bounded by
+     * whitespace or the ends. Distinctive enough to find without knowing the column width.
+     */
+    private static final Pattern TAG_IN_LINE = Pattern.compile("(?<=^|\\s)([A-Za-z]\\.[\\w\\-]+)(?=\\s|$)");
+
+    /**
+     * Prose that means the line is a note ABOUT a course rather than an entry for one — a retired
+     * duplicate, a course that moved, a typo being merged away. These lines mention a real tag, so
+     * without this they would parse into an entry pointing at the wrong id.
+     */
+    private static final Pattern EDITORIAL = Pattern.compile("→|—|merge into|\\(see ");
 
     /** {@code ## A — الدين}: the department letter and the name the user actually calls it. */
     private static final Pattern DEPT_HEADING = Pattern.compile(
@@ -138,14 +151,26 @@ public final class TagBank {
                 depts.put(h.group(1).toUpperCase(Locale.ROOT), h.group(2));
                 continue;
             }
-            Matcher m = ENTRY.matcher(line);
-            if (!m.matches()) {
+            Matcher m = ENTRY_START.matcher(line);
+            if (!m.matches() || EDITORIAL.matcher(line).find()) {
                 continue;
             }
-            String canonical = m.group(3);
+            // Locate the tag by shape, but keep the ORIGINAL spacing either side of it: the alias
+            // column's trailing comment is marked by a run of spaces, so collapsing them first
+            // would turn "nahj, نهج-البلاغة   ⚠ see 9201" into one long alias.
+            String body = m.group(2);
+            Matcher tag = TAG_IN_LINE.matcher(body);
+            if (!tag.find()) {
+                continue;
+            }
+            String name = body.substring(0, tag.start()).strip();
+            if (name.isEmpty()) {
+                continue;               // a heading or a stray number, not an entry
+            }
+            String canonical = tag.group(1);
+            String rest = body.substring(tag.end());
             String dept = canonical.substring(0, canonical.indexOf('.')).toUpperCase(Locale.ROOT);
-            entries.add(new Entry(Long.parseLong(m.group(1)), m.group(2).strip(), canonical, dept,
-                    aliases(m.group(4))));
+            entries.add(new Entry(Long.parseLong(m.group(1)), name, canonical, dept, aliases(rest)));
         }
         return new TagBank(entries, depts, sourcePath);
     }
