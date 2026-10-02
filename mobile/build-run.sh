@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
-cd /my-home/dev/knotes
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-export ANDROID_HOME=/my-home/Android/Sdk
+set -euo pipefail
+
+# Build the debug APK, install it, and launch it.
+#
+# The script finds its own directory rather than naming one: that directory IS the
+# mobile module root (gradlew sits beside this file), so the repo can be moved,
+# renamed or unpacked on another machine without editing anything here. It also
+# means the script works from any working directory.
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+# Honour what the environment already sets; fall back to this machine's layout.
+export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}"
+export ANDROID_HOME="${ANDROID_HOME:-/my-home/Android/Sdk}"
+
 ./gradlew installDebug && \
   "$ANDROID_HOME/platform-tools/adb" shell monkey -p com.knotes -c android.intent.category.LAUNCHER 1
 

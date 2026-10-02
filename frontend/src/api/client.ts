@@ -1952,3 +1952,33 @@ export async function searchEverything(q: string, limit = 100): Promise<Consolid
   const { data } = await http.get('/search/all', { params: { q, limit } });
   return data;
 }
+
+/** Where the Local notes page reads from, and what each path actually yielded. */
+export interface LocalNotesConfig {
+  dir: string;
+  defaultDir: string;
+  dirExists: boolean;
+  notes: number;
+  tagBankPath: string;
+  /** The stored override, blank when the bank is being searched for. */
+  tagBankSetting: string;
+  tagBankFound: boolean;
+  tagBankCourses: number;
+  /** Where the vocabulary came from: "242 course records", or the markdown file's path. */
+  vocabularySource: string;
+  vocabularyFromCourses: boolean;
+}
+
+export async function getLocalNotesConfig(): Promise<LocalNotesConfig> {
+  const { data } = await http.get('/local-notes/config');
+  return data;
+}
+
+/** Blank clears a setting back to its default; omit a field to leave it alone. */
+export async function updateLocalNotesConfig(body: {
+  dir?: string;
+  tagBankPath?: string;
+}): Promise<LocalNotesConfig> {
+  const { data } = await http.put('/local-notes/config', body);
+  return data;
+}

@@ -9,6 +9,8 @@ public record CourseDto(
         String summary,
         String code,
         String notes,
+        /** knotes vocabulary: canonical tag first, then aliases — "A.salat, salat, صلاة". */
+        String tags,
         Integer priority,
         Boolean bookmarked,
         Long departmentId,

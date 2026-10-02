@@ -1,5 +1,50 @@
 # Changelog
 
+## 2026-10-02 — The tag vocabulary moves into the course records
+
+### Changed — a note's subject resolves through the database, not a file
+
+The mapping from a note's `#A.salat` to course 9208 lived in a markdown file inside the notes
+folder. That made the subject view depend on that folder being synced to whichever machine runs the
+backend — and it was not: the bank arrived on this machine hours after the notes did, and until it
+did the view degraded to bare department letters with no course names.
+
+The courses were already in the database. Their tags belong there too. `course.tags` (V11) holds the
+vocabulary in the bank's own format — canonical tag first, then aliases, comma-separated:
+`A.salat, salat, صلاة, تعقيبات`. Keeping the file's convention means the file stays a readable
+source for the column rather than a competing truth.
+
+Course records now win; the file is read only when no course carries tags, so an installation that
+has not loaded the vocabulary yet keeps working instead of silently losing its course names. With
+neither, the view still groups by department letter — it degrades, it never breaks.
+
+`dist/sql/course-tags-2026-10-02.sql` loads all 242 courses, generated from section 2 of the bank.
+Every statement is an UPDATE keyed on `course.id`, so it is safe to re-run; it never inserts or
+deletes a course, and it deliberately does NOT clear tags from courses the bank omits — a course
+tagged by hand would otherwise be wiped by the next regeneration. All 242 ids matched real rows in
+both the production and the test database before it was written.
+
+The field is editable on the Courses page and searchable, so the vocabulary is now maintained where
+the courses are. That also answers the 17 tags the archive uses which the bank's section 2 never
+adopted (`F.psychapp`, `I.pkm`, `A.psychrel` and friends): give the course the tag.
+
+### Added — Settings → Local notes
+
+The notes folder is a setting with a UI, defaulting to `$HOME/new/knotes`. Blank CLEARS it back to
+the default rather than being ignored — without that there is no way back to the default except
+knowing what it was and retyping it. A blank stored value also falls through to the default instead
+of resolving to `Paths.get("")`, which is the server's working directory and would have produced a
+silent "no notes found" against whatever folder it started in.
+
+Both paths are shown with the evidence that they resolved — the note count and the course count. A
+path field that only echoes what you typed is the least useful kind: the mistakes here are a folder
+that does not exist and a vocabulary nobody loaded, and both are invisible until something counts
+what it found.
+
+9 new tests (246). Two older ones were rewritten after they corrupted real data: they wrote to a
+course to prove the new precedence, two non-transactional tests then raced the same detached row,
+the optimistic lock fired, and the restore never ran. They assert now, and mutate nothing.
+
 ## 2026-09-29b — The notes folder, in the browser
 
 ### Added — a local-notes page, and one search over both halves of the archive
