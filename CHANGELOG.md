@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-10-10 — Import a note straight from the Local notes page
+
+### Added — an import action on every note
+
+The Local notes page could read, search and write notes but not promote one into a record; that
+still meant going to the Import notes page and finding it again. Each row now carries an import
+button, and the reading dialog carries the same action.
+
+**It asks first, and says what will happen.** Importing is not just "create a record": the server
+creates it, copies any companion-folder files into the record's repo folder, and then MOVES the note
+into `imported/`. That move is right — it is what stops the same note being imported twice — but it
+is not what a small icon on a row implies, so the dialog spells out all three effects before
+anything happens, naming the module and, when the note's tag resolves, the course it will land
+under. The companion-files line appears only when there are files.
+
+A note whose filename type letter maps to no module cannot be imported; the server refuses it. The
+button is disabled for those with a tooltip saying why, rather than being a control that always
+fails.
+
+After a successful import the dialog reports the record it created and offers to open it, and the
+listing refreshes — the note is gone from the page, which is the one consequence worth confirming
+visually.
+
+2 new tests (249): a note imports into the right module and leaves the folder for `imported/`, and
+a note with an unmapped type letter is refused **without** being moved — a half-import that took the
+file but created nothing would be the damaging failure.
+
+Verified in a browser against the real 349-note folder, using a throwaway note created for the
+purpose rather than one of the archive's: record created, file moved, count restored, both artefacts
+then removed.
+
 ## 2026-10-02b — Ten new courses, and a parser that was losing ten old ones
 
 ### Fixed — the tag-bank parser silently dropped ten courses

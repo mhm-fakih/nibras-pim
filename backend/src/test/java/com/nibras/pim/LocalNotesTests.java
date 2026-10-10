@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -348,6 +349,43 @@ class LocalNotesTests extends AuthTestSupport {
         var e = com.nibras.pim.service.localnotes.TagBank.entryFromColumn(1L, "x", "looseword");
         assertThat(e.canonical()).isEqualTo("looseword");
         assertThat(e.dept()).isNull();
+    }
+
+    // ---- importing a note from the Local notes page --------------------------------
+
+    @Autowired com.nibras.pim.service.NoteImportService importer;
+
+    @Test
+    void importingANoteCreatesARecordAndMovesTheFileOutOfTheFolder() {
+        // What the page's Import action promises, end to end. The move is the part worth pinning:
+        // it is what stops the same note being imported twice, and it is why the note leaves the
+        // listing afterwards.
+        int before = notes.view().total();
+        var created = importer.importOne("2026_09_20-110000~T~p3~D.md", folder.toString(), null);
+
+        assertThat(created.module()).isEqualTo("tasks");     // ~T
+        assertThat(created.id()).isNotNull();
+
+        assertThat(folder.resolve("2026_09_20-110000~T~p3~D.md")).doesNotExist();
+        assertThat(folder.resolve("imported/2026_09_20-110000~T~p3~D.md")).exists();
+        assertThat(notes.view().total()).isEqualTo(before - 1);
+        // The archive is not rescanned as part of the folder — only the top level is listed.
+        assertThat(notes.search("Block the mornings", 10)).isEmpty();
+    }
+
+    @Test
+    void aNoteWhoseTypeLetterHasNoModuleIsRefused_notHalfImported() {
+        // The page disables its button for these; the server must refuse them too, and must not
+        // move the file when it does.
+        try {
+            java.nio.file.Files.writeString(folder.resolve("2026_09_22-100000~Q~p2~A.md"), "odd type\n");
+        } catch (java.io.IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        assertThatThrownBy(() -> importer.importOne("2026_09_22-100000~Q~p2~A.md", folder.toString(), null))
+                .isInstanceOf(ResponseStatusException.class);
+        assertThat(folder.resolve("2026_09_22-100000~Q~p2~A.md")).exists();
+        assertThat(folder.resolve("imported/2026_09_22-100000~Q~p2~A.md")).doesNotExist();
     }
 
     private static LocalNotesViewDto.Dept deptOf(LocalNotesViewDto view, String code) {
