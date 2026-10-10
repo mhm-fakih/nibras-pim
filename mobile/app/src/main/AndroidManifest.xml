@@ -152,6 +152,12 @@
             android:name=".reminder.ReminderReceiver"
             android:exported="false" />
 
+        <!-- User-defined alarms: clock, countdown and prayer-relative. One receiver for all of
+             them; each firing re-arms the next, so the schedule survives the app being closed. -->
+        <receiver
+            android:name=".alarm.AlarmReceiver"
+            android:exported="false" />
+
         <!-- Re-arm alarms after a reboot. -->
         <receiver
             android:name=".reminder.BootReceiver"
@@ -265,6 +271,20 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/today_journal_widget_info" />
+        </receiver>
+
+        <!-- Home-screen widget: countdown to the day's remaining alarms. Ticks itself every
+             minute while placed; see AlarmsWidget. -->
+        <receiver
+            android:name=".reminder.AlarmsWidget"
+            android:exported="false"
+            android:label="Alarms countdown">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/alarms_widget_info" />
         </receiver>
 
         <!-- Home-screen widget: prayer times, the Islamic date, and what is next. -->

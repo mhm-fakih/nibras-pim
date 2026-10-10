@@ -1,5 +1,63 @@
 # Changelog
 
+## 2026-10-10d — Alarms
+
+### Added — an alarms page, replacing a separate alarm app
+
+Three kinds in one list, because they differ only in *when*. Everything that happens when one fires
+— which sound, how many times, how loud — is the same, and is one set of fields at the bottom of
+the one form.
+
+**Time.** An hour and minute, on chosen days. No days selected means once, at the next occurrence,
+which is what a phone alarm does and is a different thing from never.
+
+**Countdown.** 5, 10, 15, 20, 30 minutes, 1h, 1h 30m, 2h, or any number of minutes typed. It is
+armed by being STARTED, not by existing: the row has a play button, and a countdown with nothing
+running has no next time. One that elapsed while the phone was off does not fire late on boot — an
+alarm going off hours after its moment is a worse failure than one that is silently spent.
+
+**Prayer-relative.** An offset from any of the six prayers, negative for before. It moves with the
+prayer every day, reading the prayer page's own settings, so there is one definition of when Fajr
+is. Yesterday is searched as well as today, because a large negative offset pulls the time back
+across midnight — seven hours before tomorrow's Fajr is ten tonight, and starting from today would
+skip it.
+
+Every row says when it will actually next ring, computed by the same code the scheduler uses. A list
+that says "07:00, Mondays" without saying "in 3 days" is the list that lets a wrong alarm sit there
+looking right. "Not scheduled" is said out loud, so an alarm that is on but has nowhere to fire does
+not look identical to one that is armed.
+
+Sound is any audio file, with a persistable read grant taken at the picker — the receiver opens that
+URI months later, after reboots, with the app closed. It plays [n] times at that alarm's own volume,
+set on the alarm stream and then put back, so a quiet alarm does not leave the stream turned down
+for the next one. MediaPlayer rather than the Ringtone the prayer chime uses, because a per-alarm
+volume means owning the stream.
+
+One pending intent for the whole list, not one per alarm: the soonest is armed, and every edit and
+every firing re-arms. A per-alarm scheme has to cancel exactly the right ones when the list changes,
+and the bug there is a deleted alarm that still goes off. Saving IS re-arming, so there is no path
+that edits an alarm and leaves a stale one armed. Reboot re-arms too.
+
+### Added — a countdown widget
+
+The day's remaining alarms with the time left on each. It ticks itself: a widget's update floor is
+thirty minutes and a countdown refreshed half-hourly is wrong for twenty-nine of them, so while at
+least one instance is placed it schedules its own redraw on the next minute boundary. Inexact on
+purpose — spending the exact-alarm budget on a cosmetic refresh would take it from the alarms that
+have to ring. The tick is cancelled when the last instance is removed.
+
+16 new tests (300). They cover the cases that fail silently, which is the whole risk here: a day
+already past this week, a prayer time that has gone, exactly-now not counting as later, and a
+countdown spent while the phone was off.
+
+Verified on the device: a "30m before Fajr" alarm showed "rings tomorrow 04:56", and `dumpsys alarm`
+has an exact RTC_WAKEUP armed for 2026-10-11 04:56:00 with window=0.
+
+### Fixed — hour and minute shared a row badly
+
+The minute field was a sliver. Neither had a width, so the first took its preferred size and the
+second got the remainder. Both carry equal weight now.
+
 ## 2026-10-10c — A full calendar in the notes filters, and an even rail
 
 ### Changed — the filter calendar is a navigable month, not a fixed fortnight
