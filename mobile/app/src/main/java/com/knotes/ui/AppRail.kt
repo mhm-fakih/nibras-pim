@@ -146,6 +146,7 @@ fun AppRail(
                         contentDescription = "Prayer times",
                         tint = if (selected == PRAYER_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                         else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(RAIL_ICON_WIDE),
                     )
                 }
             }
@@ -374,6 +375,21 @@ private fun RailSection(
  */
 private const val LOCAL_ALPHA = 0.07f
 private const val SERVER_ALPHA = 0.20f
+
+/**
+ * Rail destination glyphs.
+ *
+ * [RAIL_ICON] is Material's own default, stated explicitly so a new cell inherits it rather than
+ * whatever the next icon happens to draw. [RAIL_ICON_WIDE] is an OPTICAL correction, not a second
+ * size: a few glyphs fill their 24dp box almost edge to edge while most leave a margin, so at the
+ * same nominal size they read as bigger. Measured on a 720px-wide device, the mosque's ink was 45px
+ * across against 33-41 for its neighbours; 20dp brings it into the same range.
+ *
+ * Applied per glyph and never by default — shrinking every icon to suit one of them would make the
+ * rest small.
+ */
+internal val RAIL_ICON = 24.dp
+internal val RAIL_ICON_WIDE = 20.dp
 
 /** Heading glyph size, shared by both bands and both states so they read as one control. */
 private val SECTION_ICON = 20.dp

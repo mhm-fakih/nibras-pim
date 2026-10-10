@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-10c — A full calendar in the notes filters, and an even rail
+
+### Changed — the filter calendar is a navigable month, not a fixed fortnight
+
+Both notes pages share one filter panel, so this lands on the local notes and the AI answers
+together.
+
+The two-week strip was defensible while the only question was "what did I write recently". The
+folder now holds years, and there was no way to reach any of it: a window that always shows the last
+fortnight cannot answer "what did I write in March". It is now a full month, Monday-first, with
+back/forward arrows and a Today button that appears only when you have navigated away.
+
+The month on show is a VIEW preference, not a filter. Moving to September selects nothing, and days
+already picked stay picked while you navigate away from them — which is why it lives in local
+saveable state rather than in the filter state. Putting it there would make "which month am I
+looking at" part of what the filter means, so clearing the filters would move the calendar.
+
+Six rows always, even for a month that fits in five: otherwise the panel changes height as you page
+through it. Days from the neighbouring months are dimmed but still live — a week straddling two
+months has real notes in both halves. The "14 (3)" one-line cell is kept from the strip; stacked
+counts used to fall outside the cell on a tablet and simply not be readable.
+
+### Fixed — the prayer icon read larger than its neighbours
+
+Not a size difference: every rail glyph is Material's default 24dp. The mosque simply fills its box
+almost edge to edge while most glyphs leave a margin. Measured on the device, its ink was 45px
+across against 33-41 for its neighbours. It now draws at 20dp, which brings it into the same range,
+as an optical correction applied to that one glyph — shrinking every icon to suit one of them would
+make the rest small. The two sizes are named constants so a new cell inherits the right one.
+
 ## 2026-10-10b — AI answers, read-only, on the phone
 
 ### Added — a second notes page for the AI-answers folder
