@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
@@ -27,12 +27,15 @@ import Clear from '@mui/icons-material/Clear';
 import Refresh from '@mui/icons-material/Refresh';
 import SmartToy from '@mui/icons-material/SmartToy';
 import AttachFile from '@mui/icons-material/AttachFile';
+import MoveToInbox from '@mui/icons-material/MoveToInbox';
 import {
+  ImportResult,
   LocalNote,
   LocalNotesView,
   createLocalNote,
   getLocalNote,
   getLocalNotes,
+  importNote,
   updateLocalNote,
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
@@ -57,6 +60,7 @@ export function LocalNotesPage() {
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  const [importing, setImporting] = useState<LocalNote | null>(null);
 
   // A search result links straight to the note it found. Consumed into state and cleared from the
   // URL, so closing the dialog doesn't leave a link that reopens it on the next render.
@@ -176,7 +180,7 @@ export function LocalNotesPage() {
                 <SectionHeading primary={dayLabel(d.day)} secondary={`${d.notes.length}`} />
                 <Stack spacing={1}>
                   {d.notes.map((n) => (
-                    <NoteRow key={n.filename} note={n} onOpen={setOpen} showSubject />
+                    <NoteRow key={n.filename} note={n} onOpen={setOpen} onImport={setImporting} showSubject />
                   ))}
                 </Stack>
               </Box>
@@ -211,7 +215,7 @@ export function LocalNotesPage() {
                       </Stack>
                       <Stack spacing={1}>
                         {c.notes.map((n) => (
-                          <NoteRow key={n.filename} note={n} onOpen={setOpen} />
+                          <NoteRow key={n.filename} note={n} onOpen={setOpen} onImport={setImporting} />
                         ))}
                       </Stack>
                     </Box>
@@ -223,8 +227,13 @@ export function LocalNotesPage() {
           </Stack>
         )}
 
+        {importing && (
+          <ImportNoteDialog note={importing} onClose={() => setImporting(null)} />
+        )}
         {adding && <AddNoteDialog onClose={() => setAdding(false)} />}
-        {open && <NoteDialog filename={open} onClose={() => setOpen(null)} />}
+        {open && (
+          <NoteDialog filename={open} onClose={() => setOpen(null)} onImport={setImporting} />
+        )}
       </Box>
     </Box>
   );
@@ -290,10 +299,12 @@ function Empty({ filtered }: { filtered: boolean }) {
 function NoteRow({
   note,
   onOpen,
+  onImport,
   showSubject,
 }: {
   note: LocalNote;
   onOpen: (f: string) => void;
+  onImport: (n: LocalNote) => void;
   showSubject?: boolean;
 }) {
   const title = note.title ?? note.filename;
@@ -349,13 +360,139 @@ function NoteRow({
             #{t}
           </Typography>
         ))}
+        {/* Import is the row's only action, so it sits at the end and stops the click from also
+            opening the note. Disabled when the file name's type letter maps to no module — the
+            server would refuse, and a button that always fails is worse than one that explains. */}
+        <Tooltip
+          title={
+            note.moduleKey
+              ? `Import as a ${note.moduleLabel ?? note.moduleKey} record`
+              : `No module for type "${note.type ?? '—'}" — this note cannot be imported`
+          }
+        >
+          <span>
+            <IconButton
+              size="small"
+              disabled={!note.moduleKey}
+              onClick={(e) => {
+                e.stopPropagation();
+                onImport(note);
+              }}
+            >
+              <MoveToInbox fontSize="inherit" />
+            </IconButton>
+          </span>
+        </Tooltip>
       </Stack>
     </Box>
   );
 }
 
+/**
+ * Turn a note into a record.
+ *
+ * Confirmed rather than one-click, because importing MOVES the file: the server creates the record,
+ * copies any companion-folder files into the record's repo folder, and then moves the note into
+ * `imported/`. The note therefore leaves this page. That is the importer's long-standing behaviour
+ * and the right one — it is what stops the same note being imported twice — but it is not what a
+ * small icon on a row implies, so the dialog says it in full before anything happens.
+ */
+function ImportNoteDialog({ note, onClose }: { note: LocalNote; onClose: () => void }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [done, setDone] = useState<ImportResult | null>(null);
+
+  const run = useMutation({
+    mutationFn: () => importNote(note.filename),
+    onSuccess: (res) => {
+      setDone(res);
+      // The folder changed under the page: the note has moved to imported/.
+      qc.invalidateQueries({ queryKey: ['local-notes'] });
+      qc.invalidateQueries({ queryKey: ['local-notes-config'] });
+      // And a record now exists in whichever module took it.
+      qc.invalidateQueries({ queryKey: ['list', res.module] });
+    },
+  });
+
+  const title = note.title ?? note.filename;
+
+  return (
+    <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>{done ? 'Imported' : 'Import this note?'}</DialogTitle>
+      <DialogContent>
+        {done ? (
+          <Stack spacing={1}>
+            <Alert severity="success">
+              Created {done.module} #{done.id}
+            </Alert>
+            <Typography dir={dirOf(done.displayTitle)}>{done.displayTitle || '(untitled)'}</Typography>
+            <Typography variant="caption" color="text.secondary">
+              The note has moved to <code>imported/</code> and has left this page.
+            </Typography>
+          </Stack>
+        ) : (
+          <Stack spacing={1.5}>
+            <Typography dir={dirOf(title)} sx={{ fontWeight: 600 }}>
+              {title}
+            </Typography>
+            <Typography variant="caption" sx={{ fontFamily: 'monospace' }} color="text.secondary">
+              {note.filename}
+            </Typography>
+            <Typography variant="body2">This will:</Typography>
+            <Typography variant="body2" component="ul" sx={{ m: 0, pl: 3 }}>
+              <li>
+                create a <strong>{note.moduleLabel ?? note.moduleKey}</strong> record from the note
+                {note.courseName ? <> under <strong>{note.courseName}</strong></> : null}
+              </li>
+              {note.files > 0 && (
+                <li>
+                  copy its <strong>{note.files}</strong> companion file
+                  {note.files === 1 ? '' : 's'} into the record&rsquo;s folder
+                </li>
+              )}
+              <li>
+                <strong>move the note into <code>imported/</code></strong>, so it disappears from
+                this page
+              </li>
+            </Typography>
+            {run.isError && <Alert severity="error">{String(run.error)}</Alert>}
+          </Stack>
+        )}
+      </DialogContent>
+      <DialogActions>
+        {done ? (
+          <>
+            <Button onClick={onClose}>Close</Button>
+            <Button
+              variant="contained"
+              onClick={() => navigate(`/${done.module}?select=${done.id}`)}
+            >
+              Open the record
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button onClick={onClose}>Cancel</Button>
+            <Button variant="contained" disabled={run.isPending} onClick={() => run.mutate()}>
+              {run.isPending ? 'Importing…' : 'Import'}
+            </Button>
+          </>
+        )}
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 /** Read one note, and edit it in place. */
-function NoteDialog({ filename, onClose }: { filename: string; onClose: () => void }) {
+function NoteDialog({
+  filename,
+  onClose,
+  onImport,
+}: {
+  filename: string;
+  onClose: () => void;
+  onImport: (n: LocalNote) => void;
+}) {
   const qc = useQueryClient();
   const [draft, setDraft] = useState<string | null>(null);
   const { data, isLoading } = useQuery({
@@ -407,6 +544,18 @@ function NoteDialog({ filename, onClose }: { filename: string; onClose: () => vo
         )}
       </DialogContent>
       <DialogActions>
+        {data?.note.moduleKey && (
+          <Button
+            startIcon={<MoveToInbox />}
+            onClick={() => {
+              onClose();
+              onImport(data.note);
+            }}
+            sx={{ mr: 'auto' }}
+          >
+            Import as {data.note.moduleLabel ?? data.note.moduleKey}
+          </Button>
+        )}
         <Button onClick={onClose}>Close</Button>
         <Button
           variant="contained"
