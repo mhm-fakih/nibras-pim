@@ -82,7 +82,9 @@ import com.knotes.ui.CollectScreen
 import com.knotes.ui.GALLERY_DEST
 import com.knotes.ui.GalleryScreen
 import com.knotes.ui.AI_NOTES_DEST
+import com.knotes.ui.ALARMS_DEST
 import com.knotes.ui.AiNotesScreen
+import com.knotes.ui.AlarmsScreen
 import com.knotes.ui.NoteReadScreen
 import com.knotes.ui.HOME_DEST
 import com.knotes.ui.FLASHCARDS_DEST
@@ -406,6 +408,7 @@ private fun AppShell(
                 collectEnabled = settings.collectEnabled,
                 onHome = { onDest(HOME_DEST) },
                 onAiNotes = { onDest(AI_NOTES_DEST) },
+                onAlarms = { onDest(ALARMS_DEST) },
                 onAudiobooks = { onDest(AUDIOBOOKS_DEST) },
                 onGallery = { onDest(GALLERY_DEST) },
                 onCalendar = { onDest(CALENDAR_DEST) },
@@ -432,6 +435,39 @@ private fun AppShell(
                             onSharedTextConsumed = onSharedTextConsumed,
                             onPlayMedia = onPlayMedia,
                         )
+                        ALARMS_DEST -> {
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            val alarmList by com.knotes.alarm.AlarmStore.alarms.collectAsState()
+                            LaunchedEffect(Unit) { com.knotes.alarm.AlarmStore.load(context) }
+                            // The picker's callback is handed down rather than the launcher: the
+                            // editor should not know what a launcher is, and the persistable grant
+                            // has to be taken HERE, where the result arrives.
+                            var pendingSound by remember { mutableStateOf<((String) -> Unit)?>(null) }
+                            val soundPicker = rememberLauncherForActivityResult(
+                                ActivityResultContracts.OpenDocument(),
+                            ) { uri ->
+                                if (uri != null) {
+                                    runCatching {
+                                        context.contentResolver.takePersistableUriPermission(
+                                            uri, Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                                        )
+                                    }
+                                    pendingSound?.invoke(uri.toString())
+                                }
+                                pendingSound = null
+                            }
+                            AlarmsScreen(
+                                alarms = alarmList,
+                                exactAllowed = com.knotes.alarm.AlarmScheduler.canBeExact(context),
+                                prayerTimeAt = com.knotes.alarm.AlarmScheduler.prayerTimes(context),
+                                onSave = { com.knotes.alarm.AlarmStore.put(context, it) },
+                                onDelete = { com.knotes.alarm.AlarmStore.remove(context, it) },
+                                onPickSound = { accept ->
+                                    pendingSound = accept
+                                    soundPicker.launch(arrayOf("audio/*"))
+                                },
+                            )
+                        }
                         // Read-only by construction: the screen is given notes and an open
                         // callback, and no way to write. The reader it opens is told readOnly too.
                         AI_NOTES_DEST -> {

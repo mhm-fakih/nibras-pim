@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.knotes.SettingsStore
+import com.knotes.alarm.AlarmScheduler
 import com.knotes.collect.CollectScheduler
 import com.knotes.prayer.PrayerScheduler
 import com.knotes.prayer.SilenceState
@@ -26,6 +27,9 @@ class BootReceiver : BroadcastReceiver() {
         // alarm that would have ended it did not survive the reboot either.
         SilenceState.restoreIfInterrupted(context)
         PrayerScheduler.sync(context)
+        // The user's own alarms. A reboot clears them like every other exact alarm, and an alarm
+        // that silently stops existing after a restart is the worst failure this feature has.
+        AlarmScheduler.rearm(context)
         PrayerWidget.refresh(context)
         // The daily collection alarm, which the reboot also cleared.
         CollectScheduler.sync(context)

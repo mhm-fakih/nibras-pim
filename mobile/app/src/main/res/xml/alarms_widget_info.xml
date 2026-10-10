@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A title and three countdown rows. 2 cells wide by 1 tall is enough for the next alarm and two
+     behind it; it resizes up for more room.
+
+     updatePeriodMillis is the system minimum of 30 minutes and is a BACKSTOP only — a countdown
+     that only refreshed half-hourly would be wrong almost all the time. The real refresh is the
+     per-minute tick the widget schedules for itself while it is on a home screen. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_alarms"
+    android:minHeight="40dp"
+    android:minWidth="110dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="1"
+    android:targetCellWidth="2"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />
