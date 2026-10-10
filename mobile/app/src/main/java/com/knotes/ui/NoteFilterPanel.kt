@@ -48,6 +48,16 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.TextStyle as JavaTextStyle
+import java.util.Locale
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import java.time.temporal.TemporalAdjusters
 
 /**
@@ -143,7 +153,7 @@ fun NoteFilterPanel(
             if (expanded) {
                 Spacer(Modifier.height(6.dp))
 
-                TwoWeekStrip(state, onState, counts)
+                MonthCalendar(state, onState, counts)
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     DateField.entries.forEach { field ->
@@ -221,80 +231,137 @@ private fun SectionLabel(text: String) {
 }
 
 /**
- * Two weeks — last week and this one, Monday-first — shaded by note count.
+ * A full month, Monday-first, shaded by note count, with navigation.
  *
- * A full month grid is what the desktop rail shows, but 6x7 cells don't fit beside a phone list
- * without shrinking them past the point of being tappable. Two weeks is the window that actually
- * gets used for "what did I write recently", and it keeps 48dp-ish targets.
+ * This replaced a fixed two-week strip. The strip was defensible while the only question was "what
+ * did I write recently", but the folder now holds years and the AI-answers page holds a second
+ * archive, and neither can be reached from a window that always shows the last fortnight.
+ *
+ * The month on show is a VIEW preference, not a filter: moving to March selects nothing, and the
+ * days already picked stay picked while you navigate away from them. That is why it lives in local
+ * saveable state rather than in [NoteFilterState] — putting it there would make "which month am I
+ * looking at" part of what the filter means, and clearing the filters would move the calendar.
+ *
+ * Cells carry "14 (3)" on ONE line, kept from the strip: stacked counts used to fall outside the
+ * cell on a tablet and simply not be readable. Seven columns of equal weight leave roughly 44dp
+ * each on a phone, which fits that text and stays tappable.
  */
 @Composable
-private fun TwoWeekStrip(
+private fun MonthCalendar(
     state: NoteFilterState,
     onState: (NoteFilterState) -> Unit,
     counts: NoteFacetCounts,
 ) {
     val today = LocalDate.now()
-    val start = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks(1)
-    val days = (0 until 14).map { start.plusDays(it.toLong()) }
+    var shown by rememberSaveable(stateSaver = yearMonthSaver) { mutableStateOf(YearMonth.from(today)) }
+
+    val first = shown.atDay(1)
+    val gridStart = first.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    // Six rows always. A month that fits in five would otherwise make the panel jump in height as
+    // you page through it, which is worse than one quiet row.
+    val days = (0 until 42).map { gridStart.plusDays(it.toLong()) }
     val peak = days.maxOf { counts.days[it.toEpochDay()] ?: 0 }
 
     Column {
-        listOf(days.take(7), days.drop(7)).forEach { week ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            IconButton(onClick = { shown = shown.minusMonths(1) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous month")
+            }
+            Text(
+                "${shown.month.getDisplayName(JavaTextStyle.FULL, Locale.getDefault())} ${shown.year}",
+                style = MaterialTheme.typography.labelLarge,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = { shown = shown.plusMonths(1) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next month")
+            }
+        }
+        // Getting back is one tap, not a dozen. Hidden on the current month, where it would do
+        // nothing and only take the eye.
+        if (shown != YearMonth.from(today)) {
+            TextButton(onClick = { shown = YearMonth.from(today) }) { Text("Today") }
+        }
+
+        Row(modifier = Modifier.fillMaxWidth()) {
+            for (d in 0 until 7) {
+                Text(
+                    DayOfWeek.MONDAY.plus(d.toLong())
+                        .getDisplayName(JavaTextStyle.NARROW, Locale.getDefault()),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        days.chunked(7).forEach { week ->
+            Row(modifier = Modifier.fillMaxWidth()) {
                 week.forEach { day ->
                     val epoch = day.toEpochDay()
                     val n = counts.days[epoch] ?: 0
                     val picked = epoch in state.days
-                    // Shade by share of the busiest day on show, so a quiet fortnight still reads as
-                    // a gradient rather than one flat wash.
+                    val inMonth = YearMonth.from(day) == shown
                     val shade = if (n == 0 || peak == 0) 0f else 0.18f + 0.55f * (n.toFloat() / peak)
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .padding(1.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(
-                                when {
-                                    picked -> MaterialTheme.colorScheme.primary
-                                    n > 0 -> MaterialTheme.colorScheme.primary.copy(alpha = shade)
-                                    else -> Color.Transparent
-                                },
-                            )
-                            .clickable {
-                                onState(state.copy(days = state.days.toggled(epoch, epoch !in state.days)))
-                            }
-                            .padding(horizontal = 6.dp, vertical = 3.dp),
-                    ) {
-                        // Date and count on ONE line — "14 (3)". They used to be stacked, and on a
-                        // tablet the second line fell outside the cell and the counts were simply
-                        // not there to read. Beside the number they can't be clipped away.
-                        Text(
-                            text = buildAnnotatedString {
-                                withStyle(
-                                    SpanStyle(
-                                        fontWeight = if (day == today) FontWeight.Bold else FontWeight.Normal,
-                                    ),
-                                ) {
-                                    append(day.dayOfMonth.toString())
+                    Box(modifier = Modifier.weight(1f).padding(1.dp)) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(32.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(
+                                    when {
+                                        picked -> MaterialTheme.colorScheme.primary
+                                        n > 0 -> MaterialTheme.colorScheme.primary.copy(alpha = shade)
+                                        else -> Color.Transparent
+                                    },
+                                )
+                                // A day outside the month is still a real day with real notes, so
+                                // it is dimmed rather than disabled — the grid's edges are where a
+                                // week straddling two months lives.
+                                .clickable {
+                                    onState(state.copy(days = state.days.toggled(epoch, epoch !in state.days)))
                                 }
-                                if (n > 0) {
-                                    withStyle(SpanStyle(fontSize = 9.sp)) {
-                                        append(" ($n)")
+                                .padding(vertical = 6.dp),
+                        ) {
+                            Text(
+                                text = buildAnnotatedString {
+                                    withStyle(
+                                        SpanStyle(
+                                            fontWeight = if (day == today) FontWeight.Bold else FontWeight.Normal,
+                                        ),
+                                    ) {
+                                        append(day.dayOfMonth.toString())
                                     }
-                                }
-                            },
-                            style = MaterialTheme.typography.labelMedium,
-                            maxLines = 1,
-                            color = if (picked) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center,
-                        )
+                                    if (n > 0) {
+                                        withStyle(SpanStyle(fontSize = 9.sp)) { append(" ($n)") }
+                                    }
+                                },
+                                style = MaterialTheme.typography.labelMedium,
+                                maxLines = 1,
+                                color = when {
+                                    picked -> MaterialTheme.colorScheme.onPrimary
+                                    inMonth -> MaterialTheme.colorScheme.onSurface
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                                },
+                                textAlign = TextAlign.Center,
+                            )
+                        }
                     }
                 }
             }
         }
     }
 }
+
+/** Survives the panel collapsing and the process dying; "yyyy-MM" is the whole of a YearMonth. */
+private val yearMonthSaver: Saver<YearMonth, String> =
+    Saver(save = { it.toString() }, restore = { YearMonth.parse(it) })
 
 /** One facet dimension as a wrapping row of chips with counts. Hidden when it has no options. */
 @OptIn(ExperimentalLayoutApi::class)
