@@ -69,6 +69,7 @@ import { useFeatureFlags } from '../hooks/useFeature';
 import { useModules } from '../hooks/useModules';
 import { AuthImage } from './AuthImage';
 import { TaskTimeTracker } from './TaskTimeTracker';
+import { AddNoteToResource } from './AddNoteToResource';
 import { GoalHabits } from './HabitHeatmap';
 
 interface Props {
@@ -329,6 +330,12 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
       {/* A contact's open work, listed under their details. The count on the list row comes from
           the same rule, so the two cannot tell different stories. */}
       {config.key === 'contacts' && <ContactTaskList id={id} />}
+
+      {/* Writing a note ABOUT a resource, from the resource. Separate from the append bar on the
+          resource's own notes field: that is a scratch column, this makes a real record. */}
+      {config.key === 'resources' && canWriteContent && (
+        <AddNoteToResource record={record} module={config.key} />
+      )}
 
       <Divider sx={{ my: 2 }} />
 

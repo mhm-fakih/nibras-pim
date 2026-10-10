@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-10-10e — Notes about a resource
+
+### Added — write a note from a resource's page, and see the ones already written
+
+A resource's detail pane could already append text to its own `notes` column. That column is a
+scratch field on the resource; this is different. The new form creates a real record in the notes
+module — summary, description, priority, course — linked back to the resource. Reading a book
+produces notes that outlive the book's own margin.
+
+The course is pre-filled from the resource's own, because a note about a book nearly always belongs
+to the same course as the book, and it stays editable because "nearly always" is not always. When
+the resource has no course the form says so before anything is typed — **"Book not linked to a
+course"** — since the real fix is on the resource and the honest moment to mention it is first. That
+is the common case: only 2826 of 25659 resources carry one.
+
+The notes written against a resource list under its Related records, which came almost free: the
+relation table is declarative, so it is one row once the mapping exists.
+
+### Added — a note says which resource it is about
+
+On the note's detail pane and on its list card, when it has one. The chip falls back to `#id` for
+the legacy resources that have neither title nor author, where `feedTitle()` is null — an id is a
+worse label than a name and a far better one than a blank chip.
+
+### Fixed — index_card.book_id was never mapped
+
+The column has been populated for years — **1063 of 13315 cards carry one** — but the entity never
+mapped it, so nothing in the app could read or set it. It is on the DTO now, both ways.
+
+The risk was not the mapping. `bookId` is absent from the notes field config, so an ordinary edit
+from the notes page sends a body without it, and an `apply()` that took that absence for "clear it"
+would silently detach every note from its resource on the next edit. The codebase already carries
+that warning for `writingId`; `bookId` now has the same guard, and a test that was checked by
+removing the guard and watching it fail.
+
+3 new tests (252). Verified in a browser against real data: the form on a resource with a course
+pre-fills it, the one without shows the warning, the note carries the resource on its detail and its
+card, and the nameless-book fallback renders as `#298`.
+
 ## 2026-10-10d — Alarms
 
 ### Added — an alarms page, replacing a separate alarm app

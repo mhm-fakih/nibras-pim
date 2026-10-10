@@ -185,6 +185,9 @@ export const ENTITIES: EntityConfig[] = [
       { name: 'notes', label: 'Notes', type: 'textarea' },
       { name: 'type', label: 'Type', type: 'type' },
       { name: 'status', label: 'Status', type: 'status' },
+      // The resource the note is about. The column (index_card.book_id) has been populated all
+      // along — 1063 of 13315 cards carry one — but was never mapped, so nothing could show it.
+      { name: 'book', label: 'Resource', type: 'book' },
       { name: 'pages', label: 'Pages', type: 'text' },
       ...common,
     ],
