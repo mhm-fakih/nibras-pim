@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.filled.DriveFolderUpload
 import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.Mosque
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.Groups
@@ -51,6 +52,7 @@ import com.knotes.nibras.NIBRAS_TYPES
 
 /** Constant destination id for the local-notes home screen. */
 const val HOME_DEST = "home"
+const val AI_NOTES_DEST = "ai_notes"
 const val AUDIOBOOKS_DEST = "audiobooks"
 const val GALLERY_DEST = "gallery"
 const val CALENDAR_DEST = "calendar"
@@ -67,7 +69,7 @@ private enum class RailBand { LOCAL, SERVER }
 
 /** The band a destination lives in, or null for one that sits outside both (Settings). */
 private fun bandOf(dest: String): RailBand? = when (dest) {
-    HOME_DEST, AUDIOBOOKS_DEST, GALLERY_DEST, PRAYER_DEST, COLLECT_DEST -> RailBand.LOCAL
+    HOME_DEST, AI_NOTES_DEST, AUDIOBOOKS_DEST, GALLERY_DEST, PRAYER_DEST, COLLECT_DEST -> RailBand.LOCAL
     SETTINGS_DEST -> null
     else -> RailBand.SERVER          // the calendar, every record type, search, flash cards, highlights
 }
@@ -98,6 +100,7 @@ fun AppRail(
     prayerEnabled: Boolean = true,
     collectEnabled: Boolean = true,
     onHome: () -> Unit,
+    onAiNotes: () -> Unit,
     onAudiobooks: () -> Unit,
     onGallery: () -> Unit,
     onCalendar: () -> Unit,
@@ -153,6 +156,16 @@ fun AppRail(
                     Icons.AutoMirrored.Filled.StickyNote2,
                     contentDescription = "Notes",
                     tint = if (selected == HOME_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // Directly under the notes cell, because it is the same thing read a different way: a
+            // folder of notes. Read-only, and the robot says so before the page does.
+            RailCell(selected == AI_NOTES_DEST, onAiNotes) {
+                Icon(
+                    Icons.Filled.SmartToy,
+                    contentDescription = "AI answers",
+                    tint = if (selected == AI_NOTES_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

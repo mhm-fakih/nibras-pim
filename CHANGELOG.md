@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-10-10b — AI answers, read-only, on the phone
+
+### Added — a second notes page for the AI-answers folder
+
+A new page under the notes icon in the rail, showing a second folder: the AI answers synced in from
+the desktop's `knotes-ai`. It is deliberately NOT the local notes page pointed elsewhere.
+
+**Nothing on it writes.** No add button, no editor, no tag bar — notes are still only ever created
+in the main folder, which is what was asked for and also what the sync demands: an edit made here
+would either be overwritten on the next sync or win and diverge from the desktop. The reader gained
+a `readOnly` flag that hides the Read/Edit control and the tag bar, because passing no-op callbacks
+alone leaves buttons that look like they work and silently do nothing.
+
+**It keeps the filters.** Type, priority, category, tags, the taxonomy and non-standard switches and
+the two-week day strip — the whole panel, reused as-is. A few hundred answers are no more browsable
+than a few hundred notes without them. The search box narrows first and the facet counts follow it,
+the same relationship the local notes page has.
+
+**Ordered by the file-name timestamp, never by mtime.** These files arrive over Syncthing, which
+rewrites mtimes on transfer, so an mtime sort would list them by when they happened to sync rather
+than when they were written — the same bug the player had with "play next: newest". The local notes
+page still sorts by mtime, which is right for notes authored on the phone.
+
+The folder defaults to the notes folder with `-ai` appended, so moving the notes folder takes the AI
+folder with it; Settings has an override, and its hint names the derived path rather than showing an
+empty box. A folder that is not there yet is reported as "not synced yet" rather than created —
+conjuring an empty one would hide the real state and hand Syncthing a directory it did not make.
+
+4 new tests (284), including that the two orderings genuinely differ, so the mtime assertion proves
+something.
+
 ## 2026-10-10 — Import a note straight from the Local notes page
 
 ### Added — an import action on every note

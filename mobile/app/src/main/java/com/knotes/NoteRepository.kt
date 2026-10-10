@@ -119,13 +119,32 @@ fun startOfToday(): Long = java.util.Calendar.getInstance().apply {
 private fun String.withTrailingNewline(): String = if (endsWith("\n")) this else this + "\n"
 
 /** Reads and writes notes as plain-text files in the configured directory. */
-class NoteRepository(private val settings: SettingsStore) {
+/**
+ * The notes in a folder.
+ *
+ * [dirOverride] points the repository at a folder other than the configured notes folder — the
+ * AI-answers page uses it. When it is set the folder is NOT created if missing: that folder is
+ * filled by Syncthing, and conjuring an empty one here would both hide the real problem (it has not
+ * synced yet) and hand Syncthing a directory it did not make.
+ */
+class NoteRepository(
+    private val settings: SettingsStore,
+    private val dirOverride: (() -> String)? = null,
+) {
 
     private fun dir(): File {
+        val override = dirOverride?.invoke()
+        if (override != null) return File(override)
         val d = File(settings.value.notesDir)
         if (!d.exists()) d.mkdirs()
         return d
     }
+
+    /** True when the folder is actually there — the read-only pages say so instead of showing 0. */
+    fun dirExists(): Boolean = dir().isDirectory
+
+    /** The folder this repository reads, for the UI to name. */
+    fun dirPath(): String = dir().absolutePath
 
     /** Note files directly in the dir (non-recursive), matching the canonical `.md` name, oldest first. */
     fun listNotes(): List<Note> {

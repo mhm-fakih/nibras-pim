@@ -83,11 +83,18 @@ fun NoteReadScreen(
     startInEdit: Boolean = false,
     /** Reports a Read⇄Edit switch, so the caller can reopen in the same mode after a rename. */
     onModeChange: (Boolean) -> Unit = {},
+    /**
+     * Hide every control that writes. Used by the AI-answers page, whose folder is Syncthing's:
+     * an edit made here would be overwritten on the next sync, or worse, would win and diverge from
+     * the desktop. Passing no-op save/tag callbacks alone is not enough — that leaves buttons that
+     * appear to work and silently do nothing.
+     */
+    readOnly: Boolean = false,
 ) {
     // Read and edit are two views of one screen, as on the desktop's side pane: the same note, the
     // same full height, one tap apart. Editing in a six-line bar at the bottom of the list was the
     // thing that made a long note unworkable.
-    var editing by remember(note.file.absolutePath) { mutableStateOf(startInEdit) }
+    var editing by remember(note.file.absolutePath) { mutableStateOf(startInEdit && !readOnly) }
     // The body as edited so far, so successive taps compose instead of each starting from the
     // note as it was when the screen opened.
     var source by remember(note.file.absolutePath) { mutableStateOf(note.content) }
@@ -135,35 +142,45 @@ fun NoteReadScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                title = { Text(if (editing) "Edit" else "Read", style = MaterialTheme.typography.titleMedium) },
+                title = {
+                    Text(
+                        if (readOnly) "AI answer" else if (editing) "Edit" else "Read",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                },
                 actions = {
-                    FilterChip(
-                        selected = !editing,
-                        onClick = { editing = false; onModeChange(false) },
-                        label = { Text("Read") },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    FilterChip(
-                        selected = editing,
-                        onClick = { editing = true; onModeChange(true) },
-                        label = { Text("Edit") },
-                        leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                    )
-                    Spacer(Modifier.width(6.dp))
+                    if (!readOnly) {
+                        FilterChip(
+                            selected = !editing,
+                            onClick = { editing = false; onModeChange(false) },
+                            label = { Text("Read") },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        FilterChip(
+                            selected = editing,
+                            onClick = { editing = true; onModeChange(true) },
+                            label = { Text("Edit") },
+                            leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        )
+                        Spacer(Modifier.width(6.dp))
+                    }
                 },
             )
         },
         bottomBar = {
-            NoteTagBar(
-                settings = settings,
-                type = note.type,
-                priority = note.priority ?: settings.priorityMin,
-                category = note.category,
-                onType = { onTags(source, it, note.priority ?: settings.priorityMin, note.category) },
-                onPriority = { onTags(source, note.type, it, note.category) },
-                onCategory = { onTags(source, note.type, note.priority ?: settings.priorityMin, it) },
-            )
+            // The tag bar renames the file. Nothing on a synced folder may do that from here.
+            if (!readOnly) {
+                NoteTagBar(
+                    settings = settings,
+                    type = note.type,
+                    priority = note.priority ?: settings.priorityMin,
+                    category = note.category,
+                    onType = { onTags(source, it, note.priority ?: settings.priorityMin, note.category) },
+                    onPriority = { onTags(source, note.type, it, note.category) },
+                    onCategory = { onTags(source, note.type, note.priority ?: settings.priorityMin, it) },
+                )
+            }
         },
     ) { padding ->
         if (editing) {
