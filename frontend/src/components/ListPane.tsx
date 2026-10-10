@@ -488,6 +488,19 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
                         sx={{ height: 18, fontSize: 11 }}
                       />
                     )}
+                    {/* The resource a note is about. Shown only when set, and outlined rather than
+                        filled: it is context for the row, not a status to scan for. */}
+                    {it.book && (
+                      <Chip
+                        component="span"
+                        size="small"
+                        /* Some legacy books have neither title nor author, so feedTitle() is null.
+                           The id is a worse label than a name and a far better one than blank. */
+                        label={it.book.name || `#${it.book.id}`}
+                        variant="outlined"
+                        sx={{ height: 18, fontSize: 11, maxWidth: 220 }}
+                      />
+                    )}
                     {it.status && (
                       <Chip
                         component="span"

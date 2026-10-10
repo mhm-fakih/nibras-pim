@@ -81,6 +81,17 @@ public class IndexCard extends BaseEntity implements SyncMutable, Taggable, HasS
     @JoinColumn(name = "writing_id")
     private Writing writing;
 
+    /**
+     * The resource this note is about.
+     *
+     * The column has been there and populated all along — 1063 of 13315 cards carry one — it was
+     * simply never mapped, so nothing in the app could read or set it. Mapping it is what lets a
+     * note be made from a resource's own page and listed back under it.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "book_id")
+    private Book book;
+
     // --- Legacy columns used by the mobile-sync API (exportJsonN / mobilePush*). ---
     private String language;
 

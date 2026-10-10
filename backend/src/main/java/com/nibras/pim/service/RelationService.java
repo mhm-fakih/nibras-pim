@@ -56,6 +56,7 @@ public class RelationService {
             // A task: the journal entries (e.g. time-tracking sessions) logged against it.
             new Rel("tasks", "journals", Journal.class, "task", "Journal entries"),
             // A resource (book): its excerpts + journal/planner entries that read/plan it.
+            new Rel("resources", "notes", IndexCard.class, "book", "Notes"),
             new Rel("resources", "excerpts", Excerpt.class, "book", "Excerpts"),
             new Rel("resources", "journals", Journal.class, "book", "Journal entries"),
             new Rel("resources", "planners", Planner.class, "book", "Planner entries"),

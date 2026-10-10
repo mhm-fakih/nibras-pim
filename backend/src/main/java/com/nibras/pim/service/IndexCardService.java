@@ -8,6 +8,7 @@ import com.nibras.pim.domain.lookup.WritingStatus;
 import com.nibras.pim.domain.lookup.WritingType;
 import com.nibras.pim.repo.IndexCardRepository;
 import com.nibras.pim.web.dto.IndexCardDto;
+import com.nibras.pim.domain.Book;
 import com.nibras.pim.web.dto.LookupDto;
 import com.nibras.pim.web.dto.TagDto;
 import org.springframework.stereotype.Service;
@@ -46,11 +47,13 @@ public class IndexCardService extends AbstractCrudService<IndexCard, IndexCardDt
                 c.getDepartment() == null ? null : c.getDepartment().getId(),
                 c.getCourse() == null ? null : c.getCourse().getId(),
                 c.getWriting() == null ? null : c.getWriting().getId(),
+                c.getBook() == null ? null : c.getBook().getId(),
                 c.getTags().stream().map(t -> t.getId()).toList(),
                 c.getType() == null ? null : lookup(c.getType()),
                 c.getStatus() == null ? null : lookup(c.getStatus()),
                 c.getDepartment() == null ? null : deptLookup(c.getDepartment()),
                 c.getCourse() == null ? null : courseLookup(c.getCourse()),
+                c.getBook() == null ? null : new LookupDto(c.getBook().getId(), c.getBook().feedTitle(), null, null),
                 c.getTags().stream().map(t -> new TagDto(t.getId(), t.getName())).toList(),
                 coverExists(c.getId()), c.getDateCreated(), c.getLastUpdated());
     }
@@ -90,6 +93,12 @@ public class IndexCardService extends AbstractCrudService<IndexCard, IndexCardDt
         c.setCourse(ref(Course.class, dto.courseId()));
         if (dto.writingId() != null) {
             c.setWriting(ref(Writing.class, dto.writingId()));
+        }
+        // bookId is not in entities.ts either, so a plain note edit omits it. Same guard, same
+        // reason: without it, editing a note from the notes page would quietly detach it from the
+        // resource it was made on.
+        if (dto.bookId() != null) {
+            c.setBook(ref(Book.class, dto.bookId()));
         }
         c.setTags(resolveTags(dto.tagIds()));
     }
