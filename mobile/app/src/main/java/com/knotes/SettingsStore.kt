@@ -33,6 +33,15 @@ enum class StarAction {
 /** All user-configurable settings. */
 data class AppSettings(
     val notesDir: String,
+    /**
+     * Folder of AI answers, shown read-only on its own page. Synced in from the desktop's
+     * knotes-ai folder, never written to here — notes are only ever created in [notesDir].
+     *
+     * Blank means "beside the notes folder, with -ai appended", which is how the folder is made:
+     * a copy of the notes folder under a sibling name. Deriving it rather than hard-coding a path
+     * keeps the two together wherever the notes folder has been moved to.
+     */
+    val aiNotesDir: String = "",
     val timestampFormat: String,
     val previewLines: Int,
     val priorityMin: Int,
@@ -126,6 +135,9 @@ data class AppSettings(
     /** What the star on a Nibras record row does — see [StarAction]. */
     val starAction: StarAction = StarAction.LOCAL_BOOKMARK,
 ) {
+    /** The AI-answers folder, with the blank-means-derive rule applied. Never blank. */
+    fun aiDir(): String = aiNotesDir.trim().ifBlank { SettingsStore.aiDirFor(notesDir) }
+
     val priorities: IntRange get() = priorityMin..priorityMax.coerceAtLeast(priorityMin)
 
     /** Effective default type code for a new note: the configured one, else the first type. */
@@ -152,6 +164,7 @@ class SettingsStore(context: Context) {
 
     private fun load(): AppSettings = AppSettings(
         notesDir = prefs.getString(K_DIR, defaultDir()) ?: defaultDir(),
+        aiNotesDir = prefs.getString(K_AI_DIR, "") ?: "",
         timestampFormat = prefs.getString(K_FMT, DEFAULT_FORMAT) ?: DEFAULT_FORMAT,
         previewLines = prefs.getInt(K_PREVIEW, 3),
         topPriority = prefs.getInt(K_TOP_PRIORITY, 4),
@@ -217,6 +230,8 @@ class SettingsStore(context: Context) {
         val max = settings.priorityMax.coerceAtLeast(min)
         prefs.edit()
             .putString(K_DIR, settings.notesDir.trim().ifBlank { defaultDir() })
+            // Blank is meaningful here: it means "derive it", so it is stored as typed.
+            .putString(K_AI_DIR, settings.aiNotesDir.trim())
             .putString(K_FMT, settings.timestampFormat.trim().ifBlank { DEFAULT_FORMAT })
             .putInt(K_PREVIEW, settings.previewLines.coerceIn(1, 20))
             .putInt(K_TOP_PRIORITY, settings.topPriority.coerceIn(1, 99))
@@ -271,6 +286,7 @@ class SettingsStore(context: Context) {
     companion object {
         private const val K_STAR_ACTION = "star_action"
         private const val K_DIR = "notes_dir"
+        private const val K_AI_DIR = "ai_notes_dir"
         private const val K_FMT = "timestamp_format"
         private const val K_PREVIEW = "preview_lines"
         private const val K_TOP_PRIORITY = "top_priority"
@@ -346,6 +362,15 @@ class SettingsStore(context: Context) {
             Environment.getExternalStorageDirectory().absolutePath + "/Notes"
 
         fun defaultNewDir(): String = defaultDir()
+
+        /**
+         * Where the AI answers are, given the notes folder: the same path with `-ai` appended.
+         * `/storage/emulated/0/knotes` -> `/storage/emulated/0/knotes-ai`.
+         *
+         * Derived rather than fixed so the two folders travel together. A configured override wins;
+         * a blank one falls through to this, which is why blank is stored rather than replaced.
+         */
+        fun aiDirFor(notesDir: String): String = notesDir.trimEnd('/') + "-ai"
 
         fun defaultNibrasFilesDir(): String =
             Environment.getExternalStorageDirectory().absolutePath + "/Nibras"

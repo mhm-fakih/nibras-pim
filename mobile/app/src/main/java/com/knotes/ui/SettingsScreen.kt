@@ -72,6 +72,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
     val current = store.value
 
     var dir by remember { mutableStateOf(current.notesDir) }
+    var aiDir by remember { mutableStateOf(current.aiNotesDir) }
     var format by remember { mutableStateOf(current.timestampFormat) }
     var previewLines by remember { mutableStateOf(current.previewLines.toString()) }
     var priorityMin by remember { mutableStateOf(current.priorityMin.toString()) }
@@ -178,6 +179,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
         store.save(
             AppSettings(
                 notesDir = dir,
+                aiNotesDir = aiDir,
                 timestampFormat = format,
                 previewLines = previewLines.toIntOrNull() ?: 3,
                 priorityMin = priorityMin.toIntOrNull() ?: 1,
@@ -300,6 +302,17 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 label = "Notes directory",
                 supportingText = "Absolute path, e.g. /storage/emulated/0/Notes",
                 onPick = { pickFolder { path -> dir = path } },
+            )
+
+            FolderField(
+                value = aiDir,
+                onValueChange = { aiDir = it },
+                label = "AI answers directory",
+                // Blank is the normal state: the folder is a sibling of the notes folder, and
+                // saying where it would be is more use than an empty box.
+                supportingText = "Read-only, synced from the desktop. " +
+                    "Blank = ${SettingsStore.aiDirFor(dir.ifBlank { current.notesDir })}",
+                onPick = { pickFolder { path -> aiDir = path } },
             )
 
             OutlinedTextField(

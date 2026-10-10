@@ -81,6 +81,9 @@ import com.knotes.ui.CalendarScreen
 import com.knotes.ui.CollectScreen
 import com.knotes.ui.GALLERY_DEST
 import com.knotes.ui.GalleryScreen
+import com.knotes.ui.AI_NOTES_DEST
+import com.knotes.ui.AiNotesScreen
+import com.knotes.ui.NoteReadScreen
 import com.knotes.ui.HOME_DEST
 import com.knotes.ui.FLASHCARDS_DEST
 import com.knotes.ui.CONTACTS_DEST
@@ -402,6 +405,7 @@ private fun AppShell(
                 prayerEnabled = settings.prayerEnabled,
                 collectEnabled = settings.collectEnabled,
                 onHome = { onDest(HOME_DEST) },
+                onAiNotes = { onDest(AI_NOTES_DEST) },
                 onAudiobooks = { onDest(AUDIOBOOKS_DEST) },
                 onGallery = { onDest(GALLERY_DEST) },
                 onCalendar = { onDest(CALENDAR_DEST) },
@@ -428,6 +432,32 @@ private fun AppShell(
                             onSharedTextConsumed = onSharedTextConsumed,
                             onPlayMedia = onPlayMedia,
                         )
+                        // Read-only by construction: the screen is given notes and an open
+                        // callback, and no way to write. The reader it opens is told readOnly too.
+                        AI_NOTES_DEST -> {
+                            val aiNotes by vm.aiNotes.collectAsState()
+                            var reading by remember { mutableStateOf<Note?>(null) }
+                            val open = reading
+                            if (open == null) {
+                                AiNotesScreen(
+                                    notes = aiNotes,
+                                    settings = settings,
+                                    dirPath = vm.aiDirPath(),
+                                    dirExists = vm.aiDirExists(),
+                                    onOpen = { reading = it },
+                                    onRefresh = { vm.refreshAiNotes() },
+                                )
+                            } else {
+                                NoteReadScreen(
+                                    note = open,
+                                    settings = settings,
+                                    onSave = {},
+                                    onTags = { _, _, _, _ -> },
+                                    onBack = { reading = null },
+                                    readOnly = true,
+                                )
+                            }
+                        }
                         COLLECT_DEST -> CollectScreen(
                             sourceDirs = settings.collectSourceDirs,
                             newDir = settings.collectNewDir,

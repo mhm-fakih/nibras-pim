@@ -14,6 +14,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val settingsStore = SettingsStore(app)
     private val repo = NoteRepository(settingsStore)
+
+    /**
+     * The AI-answers folder. A second repository rather than a second mode on the first: this one
+     * is read-only and may point at a folder that does not exist yet, and giving [repo] an optional
+     * directory would put that "might not be there" case on the path the editor uses.
+     */
+    private val aiRepo = NoteRepository(settingsStore) { settingsStore.value.aiDir() }
+
+    private val _aiNotes = MutableStateFlow<List<Note>>(emptyList())
+    val aiNotes: StateFlow<List<Note>> = _aiNotes.asStateFlow()
+
+    /** Where the AI answers are read from, and whether that folder is actually there. */
+    fun aiDirPath(): String = aiRepo.dirPath()
+    fun aiDirExists(): Boolean = aiRepo.dirExists()
+
+    /**
+     * Re-read the AI folder. Called when the page opens and when its refresh is tapped, not on a
+     * timer: the folder changes only when Syncthing writes to it, and polling a few hundred files
+     * in the background is work nobody asked for.
+     */
+    fun refreshAiNotes() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _aiNotes.value = if (aiRepo.dirExists()) aiRepo.listNotes() else emptyList()
+        }
+    }
     private val nibras = com.knotes.nibras.NibrasApi()
 
     private val _notes = MutableStateFlow<List<Note>>(emptyList())
