@@ -61,6 +61,17 @@ data class Note(
     fun timeText(): String =
         SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(lastModified))
 
+    /**
+     * When the note was WRITTEN, from its file name — not when the file was last touched.
+     *
+     * For a folder that arrives over Syncthing the two are different things: Syncthing rewrites
+     * mtimes on transfer, so [timeText] on a synced note reads as the moment it reached this
+     * phone. [createdMillis] already falls back to the file's own time when the name can't be
+     * parsed, so this is never worse than [timeText], only sometimes righter.
+     */
+    fun createdText(): String =
+        SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(createdMillis))
+
     /** The `<stem>.d` folder holding the note's attached files, next to the .md (may not exist). */
     fun companionDir(): File = companionDirOf(file)
 }

@@ -1,6 +1,5 @@
 package com.knotes.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,8 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,8 +34,8 @@ import androidx.compose.ui.unit.dp
 import com.knotes.AppSettings
 import com.knotes.Note
 import com.knotes.NoteFilterState
-import com.knotes.NoteFilters
 import com.knotes.computeFacets
+import java.io.File
 
 /**
  * The AI answers, read-only.
@@ -47,6 +44,10 @@ import com.knotes.computeFacets
  * notes page pointed somewhere else: notes are only ever created in the main folder, so this page
  * has no add button and no editor. What it keeps is the filtering, because a few hundred answers
  * are no more browsable than a few hundred notes without it.
+ *
+ * The cards are the local notes page's own cards ([NoteCard] with `readOnly`), so an answer that
+ * arrived with files beside it lists them and opens them the same way — the one thing the earlier
+ * hand-written card on this page could not do.
  *
  * Nothing here writes. The folder is Syncthing's to fill, which is also why a missing folder is
  * reported rather than created — an empty folder conjured here would hide the real state (it has
@@ -59,6 +60,8 @@ fun AiNotesScreen(
     dirPath: String,
     dirExists: Boolean,
     onOpen: (Note) -> Unit,
+    /** Plays a media attachment in the app's player; anything else goes to the external chooser. */
+    onPlayMedia: (File) -> Unit,
     onRefresh: () -> Unit,
 ) {
     LaunchedEffect(Unit) { onRefresh() }
@@ -142,11 +145,18 @@ fun AiNotesScreen(
             Empty("No answer matches.", "${notes.size} in the folder; the search or filters exclude them all.")
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 8.dp),
             ) {
                 items(shown, key = { it.file.absolutePath }) { note ->
-                    AiNoteCard(note, settings, onClick = { onOpen(note) })
+                    NoteCard(
+                        note = note,
+                        settings = settings,
+                        readOnly = true,
+                        whenText = note.createdText(),
+                        onRead = { onOpen(note) },
+                        onPlayMedia = onPlayMedia,
+                    )
                 }
             }
         }
@@ -163,53 +173,5 @@ private fun Empty(title: String, detail: String) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-    }
-}
-
-/**
- * One answer. No action buttons at all — not even a menu — because every action the local notes
- * card offers (edit, delete, retag) writes, and nothing on this page may write.
- */
-@Composable
-private fun AiNoteCard(note: Note, settings: AppSettings, onClick: () -> Unit) {
-    val tags = remember(note.content) { NoteFilters.tagsOf(note).take(4) }
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                note.preview(settings.previewLines),
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = settings.previewLines.coerceAtLeast(1),
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.size(6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    note.timestamp,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                note.type?.let {
-                    Spacer(Modifier.size(8.dp))
-                    Text(it, style = MaterialTheme.typography.labelSmall)
-                }
-                note.priority?.let {
-                    Spacer(Modifier.size(8.dp))
-                    Text("p$it", style = MaterialTheme.typography.labelSmall)
-                }
-                if (tags.isNotEmpty()) {
-                    Spacer(Modifier.size(8.dp))
-                    Text(
-                        tags.joinToString(" ") { "#$it" },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
     }
 }

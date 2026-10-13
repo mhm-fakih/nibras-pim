@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-10-12a — One note card, on both notes pages (mobile)
+
+### Changed — the AI answers page uses the local notes card
+
+The AI answers page had a card of its own, written out separately from the local notes card. The
+two had drifted, and the gap that mattered was attachments: the local card lists a note's companion
+`.d` files and opens them — media in the app's player, anything else in whatever app claims it —
+while the AI card listed nothing. An answer that arrived with a PDF beside it looked, on the phone,
+like an answer with nothing beside it. The files were there all along; the repository is the same
+one and already populated `fileNames`. Only the card ignored them.
+
+There is now one `NoteCard`, shared, with a `readOnly` flag. Read-only draws the same preview,
+attachment rows, type/priority/category badges and timestamp, and omits every control that writes —
+no Edit, no delete, no push, no ⋮ menu — keeping a single folder button for the notes that have
+files. The page stays read-only by construction: it is handed no callback that could write.
+
+What the AI card loses is its `#tag` line, which the local card has never shown. Tags still drive
+the filter panel above the list.
+
+### Fixed — an answer is dated when it was written, not when it synced
+
+The shared card labels a note with its mtime, which on the local folder means "last edited". AI
+answers arrive over Syncthing, which rewrites mtimes on transfer, so that reading would have dated
+every answer to the moment it landed on the phone — and the list is *sorted* by the file-name
+timestamp, so it would have been ordered one way and dated another. The AI page passes
+`Note.createdText()` instead, which falls back to the file's own time when the name cannot be
+parsed: never worse, sometimes righter.
+
 ## 2026-10-10e — Notes about a resource
 
 ### Added — write a note from a resource's page, and see the ones already written
