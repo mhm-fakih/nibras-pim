@@ -58,6 +58,27 @@ class AiNotesFolderTest {
         assertTrue("the two orders must genuinely differ, or this proves nothing", byName != byMtime)
     }
 
+    /**
+     * The card's date must come from the file name, not the file.
+     *
+     * Same rule as the ordering above, one step further on: having sorted the answers by when they
+     * were written, labelling each with its mtime would print the moment Syncthing delivered it —
+     * so the list would be in one order and dated in another.
+     */
+    @Test
+    fun anAnswerIsDatedWhenItWasWrittenNotWhenItSynced() {
+        val written = 1_600_000_000_000L   // the name's timestamp
+        val synced = 1_700_000_000_000L    // what Syncthing left as the mtime
+        val n = note(timestamp = "2020_09_13-142640", createdMillis = written, lastModified = synced)
+
+        assertEquals(stamp(written), n.createdText())
+        assertTrue("the two must genuinely differ, or this proves nothing", n.createdText() != n.timeText())
+    }
+
+    private fun stamp(millis: Long) = java.text.SimpleDateFormat(
+        "yyyy-MM-dd HH:mm", java.util.Locale.getDefault(),
+    ).format(java.util.Date(millis))
+
     private fun note(timestamp: String, createdMillis: Long, lastModified: Long) = Note(
         file = java.io.File("/tmp/$timestamp~N~p2~A.md"),
         timestamp = timestamp,

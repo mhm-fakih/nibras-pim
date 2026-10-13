@@ -481,6 +481,7 @@ private fun AppShell(
                                     dirPath = vm.aiDirPath(),
                                     dirExists = vm.aiDirExists(),
                                     onOpen = { reading = it },
+                                    onPlayMedia = onPlayMedia,
                                     onRefresh = { vm.refreshAiNotes() },
                                 )
                             } else {
