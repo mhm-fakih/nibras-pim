@@ -115,7 +115,6 @@
     <string name="prayer_shurooq_note">Shurooq is sunrise, not a prayer, so it is never on this list.</string>
     <string name="prayer_choose_athan_file">Choose athan file</string>
     <string name="prayer_hear_it">Hear it</string>
-    <string name="prayer_builtin_athan">Built-in athan (Mohammad Kazem-Zadeh)</string>
     <string name="prayer_athan_file_note">Any audio file on the phone. Played on the alarm stream, so it is still heard while the phone is silenced for the prayer below.</string>
     <string name="prayer_volume_each">Volume for each</string>
     <string name="prayer_volume_note">Sets the phone\'s alarm volume to this level while the athan plays, then puts it back — so 25% is the same loudness whatever the alarm volume was left at. 0 mutes that one.</string>

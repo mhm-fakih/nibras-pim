@@ -88,7 +88,7 @@ See [Background sync](sync.md#background-sync).
 | **Prayer times are hidden** | (only shown when off) | Brings back the Prayer times page after it was switched off on that page. |
 | **File collection** | On | The Collect page and its daily run. Off removes both. |
 | **15-minute chime** | On | A chime at :00, :15, :30 and :45. |
-| **Choose chime file** | built-in chime | Any audio file. |
+| **Choose chime file** | phone's notification sound | Any audio file. |
 | **Chime start hour**, **Chime end hour** | 8, 22 | The window the chime sounds in. |
 
 ## File collection

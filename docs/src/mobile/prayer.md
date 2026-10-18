@@ -56,7 +56,7 @@ The times depend on where you are. Open **Method → Where you are**:
 ### The athan
 
 - **Call the athan at**: choose the prayers that get the athan (Dhuhr and Maghrib by default). Shurooq is sunrise, not a prayer, so it's never on this list.
-- **The sound**: a **Built-in athan (Mohammad Kazem-Zadeh)** is included, so the athan works from the first day with no file to find. To use a different recording, tap **Choose athan file** and pick any audio file. **Clear** goes back to the built-in one. **Hear it** plays it now; **Stop** stops it.
+- **The sound**: with no file chosen, the athan plays the **phone's default alarm sound**. To hear an actual athan, tap **Choose athan file** and pick any audio file of the recording you want. **Clear** goes back to the default alarm sound. **Hear it** plays it now; **Stop** stops it.
 - The athan plays on the **alarm** sound channel, so it is still heard while the phone is silenced for the prayer.
 - **Volume for each**: a separate volume per prayer (80% by default). It can make an athan quieter than the phone's alarm volume, never louder; 0 mutes that one. **Hear:** buttons let you test each.
 

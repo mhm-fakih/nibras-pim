@@ -698,7 +698,7 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
             }
         }
         Text(
-            soundLabel(context, settings.athanSoundUri, stringResource(R.string.prayer_builtin_athan)),
+            soundLabel(context, settings.athanSoundUri),
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,

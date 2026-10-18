@@ -68,7 +68,7 @@ android {
         targetSdk = 35
         // Bumped with each released versionName: Android refuses to install over a build with a
         // higher code, so a weekly versionName needs this to move too.
-        versionCode = 5
+        versionCode = 6
         versionName = APP_VERSION_NAME
         buildConfigField("int", "BUILD_NUMBER", "$buildNumber")
         buildConfigField("String", "CODENAME", "\"$APP_CODENAME\"")
@@ -116,6 +116,14 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    // No "dependency metadata" block in the APK. AGP writes it encrypted with a Google key, so
+    // nobody but Google can read it — free-software repositories (IzzyOnDroid, F-Droid) reject
+    // APKs that carry an opaque blob like that. Nothing on the device ever uses it.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     // Carries assets/build.txt (see buildStampDir) alongside the normal assets.

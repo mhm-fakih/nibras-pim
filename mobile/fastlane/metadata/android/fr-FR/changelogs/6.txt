@@ -1,0 +1,5 @@
+• Première version sur IzzyOnDroid.
+• Page Vidéos ; onglets du lecteur en pleine page ; vidéo agrandie ; dossier et partage.
+• Prière : minuteur après chaque heure ; l'athan démarre à l'heure et règle son propre volume.
+• Décrire une collecte avant de l'enregistrer.
+• Aucun son intégré : l'athan utilise le fichier choisi ou le son d'alarme par défaut.

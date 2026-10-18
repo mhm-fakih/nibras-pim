@@ -423,3 +423,16 @@ The six components share one version and codename — see the top of `backend/bu
 `frontend/package.json`, `mobile/app/build.gradle.kts` and the `VERSION` constants in the three
 Python apps. `file-watch/`, `scr-annotator/` and `window-tracker/` are separate small tools, each
 its own git repo, carrying the same tag in a plain `VERSION` file.
+
+## License
+
+Nibras PIM is free software, licensed under the **GNU Affero General Public License v3.0** —
+see [`LICENSE`](LICENSE). SPDX: `AGPL-3.0-only`.
+
+In short: you may use, study, change and share it. If you distribute it (the Android app, a
+desktop app, the WAR) or run a modified version as a service other people use, you must offer
+them the complete source of your version under the same license.
+
+The repository bundles no third-party media. The mobile app ships no sounds of its own: with no
+file chosen, the athan uses the phone's default alarm sound and the quarter-hour chime its
+default notification sound. All images are the project's own artwork.

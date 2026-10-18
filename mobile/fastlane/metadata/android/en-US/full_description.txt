@@ -1,0 +1,24 @@
+knotes is the phone side of Nibras PIM, a personal information manager built around plain files. Everything works on the phone without a server; with one, your notes and records sync both ways.
+
+<b>Notes</b>
+• Quick capture: type and send, no dialogs. Each note is a plain .md file in a folder you choose.
+• Type, priority and category are encoded in the file name, so any tool can read them.
+• Arabic and right-to-left text are handled properly. The interface is in English, Arabic and French.
+• Collect screenshots, photos and recordings into a note, with a few lines describing the set.
+
+<b>Media player</b>
+• Built for long recordings: lectures, audiobooks, voice memos. Remembers where you stopped in every file.
+• Bookmarks in plain .tmk files beside the media, shared with the desktop player.
+• Subtitles and transcripts, playback speed, volume boost, sleep timer.
+• A Videos page with thumbnails; enlarge the video while keeping the controls.
+
+<b>Prayer times</b>
+• Computed on the phone for your location, with the Hijri date.
+• Athan on time from any audio file you pick, at its own volume level; optional silence after it.
+• Home-screen widget with a countdown, and an elapsed timer after each time.
+
+<b>Also</b>
+• Alarms, calendar, photo gallery with annotation, flash cards, and home-screen widgets.
+• Optional sync with your own Nibras server.
+
+knotes asks for all-files access because notes, media and bookmarks are ordinary files in your folders — that is what lets other apps and computers read them. No ads, no tracking, no accounts with anyone but your own server.

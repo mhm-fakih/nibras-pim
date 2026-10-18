@@ -88,7 +88,7 @@ Voir [Synchronisation en arrière-plan](sync.md#background-sync).
 | **Les heures de prière sont masquées** | (affiché uniquement lorsque désactivé) | Fait revenir la page Heures de prière après qu'elle a été désactivée sur cette page. |
 | **Collecte de fichiers** | Activé | La page Collecte et son exécution quotidienne. Désactivé, les deux disparaissent. |
 | **Carillon toutes les 15 minutes** | Activé | Un carillon à :00, :15, :30 et :45. |
-| **Choisir le fichier du carillon** | carillon intégré | N'importe quel fichier audio. |
+| **Choisir le fichier du carillon** | son de notification du téléphone | N'importe quel fichier audio. |
 | **Heure de début du carillon**, **Heure de fin du carillon** | 8, 22 | La plage horaire pendant laquelle le carillon sonne. |
 
 ## Collecte de fichiers { #file-collection }

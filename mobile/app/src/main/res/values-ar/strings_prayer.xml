@@ -115,7 +115,6 @@
     <string name="prayer_shurooq_note">الشروق ليس صلاة، لذا لا يظهر في هذه القائمة.</string>
     <string name="prayer_choose_athan_file">اختيار ملف الأذان</string>
     <string name="prayer_hear_it">استماع</string>
-    <string name="prayer_builtin_athan">الأذان المدمج (محمد كاظم زاده)</string>
     <string name="prayer_athan_file_note">أي ملف صوتي على الهاتف. يُشغَّل عبر صوت المنبّه، فيُسمَع حتى أثناء إسكات الهاتف للصلاة أدناه.</string>
     <string name="prayer_volume_each">مستوى الصوت لكل صلاة</string>
     <string name="prayer_volume_note">يضبط مستوى صوت المنبّه في الهاتف على هذه النسبة أثناء الأذان ثم يعيده كما كان — فتبقى 25% بالارتفاع نفسه أيًّا كان مستوى المنبّه. الصفر يكتم ذلك الأذان.</string>

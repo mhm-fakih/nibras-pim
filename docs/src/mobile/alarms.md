@@ -81,7 +81,7 @@ A soft chime at **:00, :15, :30 and :45**, so you notice time passing without lo
 
 - **15-minute chime**: on or off (on by default; also offered in the setup tour as **Quarter-hour chime**).
 - **Chime start hour** and **Chime end hour**: it only sounds inside this window (8 to 22 by default).
-- **Choose chime file**: any audio file. If none is chosen, a short chime built into the app is used.
+- **Choose chime file**: any audio file. If none is chosen, the phone's default notification sound is used.
 
 The chime plays at your phone's **notification** volume, so it's as loud as your other notifications and respects that slider.
 

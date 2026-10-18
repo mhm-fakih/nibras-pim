@@ -56,7 +56,7 @@ Les horaires dépendent de l'endroit où vous êtes. Ouvrez **Méthode → Votre
 ### L'adhan { #the-athan }
 
 - **Appeler l’adhan à** : choisissez les prières qui ont droit à l'adhan (Dhohr et Maghrib par défaut). Le Chourouq est le lever du soleil, pas une prière : il ne figure donc jamais dans cette liste.
-- **Le son** : un **Adhan intégré (Mohammad Kazem-Zadeh)** est fourni, de sorte que l'adhan fonctionne dès le premier jour sans fichier à chercher. Pour utiliser un autre enregistrement, touchez **Choisir un fichier d’adhan** et sélectionnez n'importe quel fichier audio. **Effacer** revient à l'adhan intégré. **Écouter** le joue tout de suite ; **Arrêter** l'arrête.
+- **Le son** : sans fichier choisi, l'adhan joue le **son d'alarme par défaut du téléphone**. Pour entendre un véritable adhan, touchez **Choisir un fichier d’adhan** et sélectionnez le fichier audio de l'enregistrement voulu. **Effacer** revient au son d'alarme par défaut. **Écouter** le joue tout de suite ; **Arrêter** l'arrête.
 - L'adhan est joué sur le canal sonore des **alarmes** : il reste donc audible lorsque le téléphone est mis en silence pour la prière.
 - **Volume pour chacune** : un volume distinct par prière (80 % par défaut). Il peut rendre un adhan plus doux que le volume d'alarme du téléphone, jamais plus fort ; 0 le coupe. Les boutons **Écouter :** permettent de tester chacun.
 

@@ -81,7 +81,7 @@ Un carillon doux à **:00, :15, :30 et :45**, pour sentir le temps passer sans r
 
 - **Carillon toutes les 15 minutes** : activé ou désactivé (activé par défaut ; également proposé dans la visite de configuration sous le nom **Carillon tous les quarts d’heure**).
 - **Heure de début du carillon** et **Heure de fin du carillon** : il ne sonne que dans cette plage (de 8 à 22 par défaut).
-- **Choisir le fichier du carillon** : n'importe quel fichier audio. Si aucun n'est choisi, un court carillon intégré à l'application est utilisé.
+- **Choisir le fichier du carillon** : n'importe quel fichier audio. Si aucun n'est choisi, le son de notification par défaut du téléphone est utilisé.
 
 Le carillon est joué au volume des **notifications** de votre téléphone : il est donc aussi fort que vos autres notifications et respecte ce curseur.
 

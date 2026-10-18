@@ -1,0 +1,24 @@
+knotes est la partie téléphone de Nibras PIM, un gestionnaire d'informations personnelles construit sur de simples fichiers texte. Tout fonctionne sur le téléphone sans serveur ; avec le vôtre, notes et fiches se synchronisent dans les deux sens.
+
+<b>Notes</b>
+• Saisie rapide : tapez et envoyez, sans boîte de dialogue. Chaque note est un fichier .md dans le dossier de votre choix.
+• Type, priorité et catégorie sont inscrits dans le nom du fichier, lisibles par n'importe quel outil.
+• L'arabe et l'écriture de droite à gauche sont bien gérés. Interface en français, anglais et arabe.
+• Rassemblez captures, photos et enregistrements dans une note, avec quelques lignes pour décrire l'ensemble.
+
+<b>Lecteur multimédia</b>
+• Pensé pour les longs enregistrements : cours, livres audio, mémos vocaux. Reprend là où vous vous êtes arrêté.
+• Signets dans des fichiers .tmk à côté des médias, partagés avec le lecteur de bureau.
+• Sous-titres et transcriptions, vitesse, amplification du volume, minuterie de sommeil.
+• Une page Vidéos avec miniatures ; agrandissez la vidéo en gardant les commandes.
+
+<b>Heures de prière</b>
+• Calculées sur le téléphone pour votre position, avec la date hégirienne.
+• L'athan à l'heure, depuis le fichier audio de votre choix, à son propre niveau de volume ; silence facultatif ensuite.
+• Widget d'écran d'accueil avec compte à rebours, et un minuteur « depuis » après chaque heure.
+
+<b>Aussi</b>
+• Alarmes, calendrier, galerie photo avec annotations, cartes mémoire et widgets.
+• Synchronisation facultative avec votre propre serveur Nibras.
+
+knotes demande l'accès à tous les fichiers parce que notes, médias et signets sont des fichiers ordinaires dans vos dossiers — c'est ce qui permet à d'autres applications et ordinateurs de les lire. Ni publicité, ni pistage, ni compte ailleurs que sur votre propre serveur.

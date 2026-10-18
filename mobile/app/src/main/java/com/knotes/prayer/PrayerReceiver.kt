@@ -215,7 +215,8 @@ class PrayerReceiver : BroadcastReceiver() {
             playOnce(
                 context, settings.athanSoundUri, AudioAttributes.USAGE_ALARM,
                 RingtoneManager.TYPE_ALARM, volumePercent = volumePercent,
-                fallback = com.knotes.util.DefaultSounds.athan(context),
+                // No athan ships with the app (the recordings we had were not openly licensed),
+                // so with no file chosen this is the phone's default alarm sound.
                 startNow = startNow,
                 alarmLevel = setDeviceLevel,
             )

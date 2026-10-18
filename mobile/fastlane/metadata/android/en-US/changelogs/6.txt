@@ -1,0 +1,5 @@
+• First release on IzzyOnDroid.
+• Videos page; full-page player tabs; enlarged video; folder and share actions.
+• Prayer: elapsed timer after each time; athan starts on time at its own volume.
+• Describe a collection before saving it.
+• No bundled sounds: the athan plays a file you choose, or the default alarm.
