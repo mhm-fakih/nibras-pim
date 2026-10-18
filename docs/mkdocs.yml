@@ -1,0 +1,171 @@
+# Public user documentation for the Nibras ecosystem — published at https://nib-ras.org/pkm/docs/
+# Build: docs/build.sh   ·   Preview: docs/build.sh serve
+# Translations sit next to each page by suffix: page.md (English), page.ar.md, page.fr.md.
+# A page with no translation falls back to the English text.
+site_name: Nibras documentation
+site_description: User guide and concepts for Nibras — a personal, off-the-cloud knowledge system.
+site_url: https://nib-ras.org/pkm/docs/
+docs_dir: src
+site_dir: site
+copyright: Nibras · nib-ras.org
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: amber
+      toggle: { icon: material/weather-night, name: Dark mode }
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: amber
+      toggle: { icon: material/weather-sunny, name: Light mode }
+  icon:
+    logo: material/lightbulb-on-outline
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: en
+          name: English
+          default: true
+          build: true
+        - locale: ar
+          name: عربي
+          build: true
+          site_name: توثيق نبراس
+          nav_translations:
+            Home: الرئيسية
+            Concepts: المفاهيم
+            Android app: تطبيق أندرويد
+            Web app: تطبيق الويب
+            Desktop: سطح المكتب
+            Terminal: الطرفية
+            Audio player: مشغّل الصوت
+        - locale: fr
+          name: Français
+          build: true
+          site_name: Documentation Nibras
+          nav_translations:
+            Home: Accueil
+            Concepts: Concepts
+            Android app: Application Android
+            Web app: Application web
+            Desktop: Bureau
+            Terminal: Terminal
+            Audio player: Lecteur audio
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Concepts:
+      - concepts/index.md
+      - concepts/plain-text-notes.md
+      - concepts/filenames-and-tags.md
+      - concepts/capture-then-classify.md
+      - concepts/companion-folders.md
+      - concepts/bookmarks-tmk.md
+      - concepts/sync.md
+      - concepts/languages.md
+  - Android app:
+      - mobile/index.md
+      - mobile/navigation.md
+      - mobile/notes.md
+      - mobile/search-filters.md
+      - mobile/ai-answers.md
+      - mobile/capture.md
+      - mobile/collect.md
+      - mobile/player.md
+      - mobile/gallery.md
+      - mobile/prayer.md
+      - mobile/alarms.md
+      - mobile/widgets.md
+      - mobile/calendar.md
+      - mobile/sync.md
+      - mobile/server-pages.md
+      - mobile/settings.md
+      - mobile/troubleshooting.md
+  - Web app:
+      - web/index.md
+      - web/records.md
+      - web/search.md
+      - web/batch-commands.md
+      - web/calendar.md
+      - web/tasks-kanban-sprints.md
+      - web/goals-indicators.md
+      - web/dashboards.md
+      - web/reading-review.md
+      - web/writings-fulltext.md
+      - web/rss.md
+      - web/import-capture.md
+      - web/administration.md
+      - web/settings.md
+      - web/keyboard-shortcuts.md
+      - web/faq.md
+  - Desktop:
+      - desktop/index.md
+      - desktop/writing-notes.md
+      - desktop/tagging.md
+      - desktop/board-and-filters.md
+      - desktop/attached-files.md
+      - desktop/organizing-notes.md
+      - desktop/nibras-server.md
+      - desktop/settings.md
+      - desktop/keyboard-shortcuts.md
+  - Terminal:
+      - terminal/index.md
+      - terminal/writing-notes.md
+      - terminal/commands.md
+      - terminal/server.md
+      - terminal/configuration.md
+  - Audio player:
+      - audio-player/index.md
+      - audio-player/library.md
+      - audio-player/playback.md
+      - audio-player/bookmarks.md
+      - audio-player/subtitles-and-transcripts.md
+      - audio-player/tag-editing.md
+      - audio-player/keyboard-shortcuts.md
+      - audio-player/settings.md
