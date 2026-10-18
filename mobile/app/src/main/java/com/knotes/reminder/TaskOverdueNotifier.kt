@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.knotes.MainActivity
+import com.knotes.R
 
 /**
  * Posts one consolidated "N tasks overdue" notification when [PlansRepository.refresh] finds
@@ -45,14 +46,14 @@ object TaskOverdueNotifier {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val body = if (overdue.size == 1) {
-            overdue[0].summary.ifBlank { "1 task overdue" }
+            overdue[0].summary.ifBlank { context.resources.getQuantityString(R.plurals.widgets_tasks_overdue, 1, 1) }
         } else {
-            overdue.take(3).joinToString(", ") { it.summary.ifBlank { "(untitled)" } } +
+            overdue.take(3).joinToString(", ") { it.summary.ifBlank { context.getString(R.string.widgets_untitled) } } +
                 if (overdue.size > 3) "…" else ""
         }
         val builder = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle("${overdue.size} task${if (overdue.size == 1) "" else "s"} overdue")
+            .setContentTitle(context.resources.getQuantityString(R.plurals.widgets_tasks_overdue, overdue.size, overdue.size))
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setContentIntent(openApp)
@@ -67,7 +68,7 @@ object TaskOverdueNotifier {
         val mgr = context.getSystemService(NotificationManager::class.java) ?: return
         if (mgr.getNotificationChannel(CHANNEL) == null) {
             mgr.createNotificationChannel(
-                NotificationChannel(CHANNEL, "Plan reminders", NotificationManager.IMPORTANCE_HIGH),
+                NotificationChannel(CHANNEL, context.getString(R.string.widgets_reminder_channel), NotificationManager.IMPORTANCE_HIGH),
             )
         }
     }

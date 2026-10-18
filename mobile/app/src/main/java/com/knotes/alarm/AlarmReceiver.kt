@@ -105,14 +105,18 @@ class AlarmReceiver : BroadcastReceiver() {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL, "Alarms", NotificationManager.IMPORTANCE_HIGH).apply {
+                NotificationChannel(
+                    CHANNEL,
+                    context.getString(R.string.prayer_alarms_title),
+                    NotificationManager.IMPORTANCE_HIGH,
+                ).apply {
                     // The channel is silent: the receiver plays the sound itself, at this alarm's
                     // own volume. Letting the channel sound it too would double it.
                     setSound(null, null)
                 },
             )
         }
-        val text = alarm.label.ifBlank { "Alarm" }
+        val text = alarm.label.ifBlank { context.getString(R.string.prayer_alarm_default_title) }
         nm.notify(
             alarm.id.hashCode(),
             NotificationCompat.Builder(context, CHANNEL)

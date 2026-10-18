@@ -159,9 +159,7 @@ class PlaybackService : MediaSessionService() {
         // of bookmarks all reading "auto" is a list of timestamps with no reason attached.
         val label = runCatching { Subtitles.labelFor(file, pos) }.getOrDefault("")
             .ifEmpty { AUTO_BOOKMARK_LABEL }
-        val updated = (Bookmarks.load(file) + Bookmark(pos, label))
-            .sortedBy { it.positionMs }
-        Bookmarks.save(file, updated)
+        Bookmarks.update(file) { it + Bookmark(pos, label) }
         // Leave the playhead on the bookmark so pressing play resumes from it.
         player.seekTo(pos)
     }

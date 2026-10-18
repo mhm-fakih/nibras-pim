@@ -88,12 +88,12 @@ class KpiWidget : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.widget_kpi)
             setThreshold(
                 views, R.id.kpi_notes_value,
-                "${notes.today} nt. td. / ${notes.total}",
+                context.getString(R.string.widgets_kpi_notes, notes.today, notes.total),
                 notes.today <= TOO_MANY_NOTES,
             )
-            views.setTextViewText(R.id.kpi_free_value, "%.1f gb f.".format(freeGb))
-            views.setTextViewText(R.id.kpi_folders_value, "$knotesCount f.")
-            views.setTextViewText(R.id.kpi_folders_today_value, "$knotesToday f. td.")
+            views.setTextViewText(R.id.kpi_free_value, context.getString(R.string.widgets_kpi_free_gb, freeGb))
+            views.setTextViewText(R.id.kpi_folders_value, context.getString(R.string.widgets_kpi_files, knotesCount))
+            views.setTextViewText(R.id.kpi_folders_today_value, context.getString(R.string.widgets_kpi_files_today, knotesToday))
 
             // Top-priority notes: how big the "do this first" pile has grown. The priority is a
             // setting because which number means "top" is a matter of how someone uses the scale.
@@ -115,7 +115,7 @@ class KpiWidget : AppWidgetProvider() {
             }.getOrDefault(0)
             setThreshold(
                 views, R.id.kpi_plans_value,
-                "$upcoming pl.",
+                context.getString(R.string.widgets_kpi_plans, upcoming),
                 upcoming >= TOO_FEW_PLANS,
             )
 

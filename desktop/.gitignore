@@ -1,0 +1,13 @@
+# The live settings file: it holds a real backend password, the nibras server URL and the
+# absolute paths of personal note folders. It sits next to the program by design (the app is
+# self-contained), which makes it the one file in here that must never be tracked or shipped.
+config.json
+
+# Runtime state, not source: bumped on every single launch.
+build-number.txt
+
+# Build artifacts — regenerate with the bundle step rather than tracking ~140 KB a time.
+*.zip
+
+__pycache__/
+*.pyc

@@ -214,12 +214,12 @@ class PrayerEventsTest {
     fun `the countdown wake-up lands one window before each shown time`() {
         // The widget redraws only when an event fires, so this alarm is what makes the countdown
         // appear at the start of its window rather than whenever the next alarm happened to be.
-        val s = base().copy(countdownWithinMin = 60)
+        val s = base().copy(countdownWithinMin = 60, elapsedForMin = 0)
         val day = PrayerCalendar.dayOf(s, date, beirut)
         val events = PrayerEvents.forDay(s, day, countdownWakeups = true)
             .filter { it.kind == PrayerEventKind.COUNTDOWN }
 
-        // Two per shown time: one when the countdown becomes due, one AT the time so the strip
+        // With the elapsed timer off: two per shown time: one when the countdown becomes due, one AT the time so the strip
         // flips from "بعد" to "منذ" instead of counting into negatives.
         assertEquals(s.visible.size * 2, events.size)
         events.groupBy { it.prayer }.forEach { (prayer, list) ->
@@ -229,6 +229,36 @@ class PrayerEventsTest {
                 list.map { it.atMillis }.sorted(),
             )
         }
+    }
+
+    @Test
+    fun `the elapsed timer adds a wake-up when its window closes`() {
+        // Without it the strip would keep counting "منذ" past the window, until the next event.
+        val s = base().copy(countdownWithinMin = 60, elapsedForMin = 30)
+        val day = PrayerCalendar.dayOf(s, date, beirut)
+        val events = PrayerEvents.forDay(s, day, countdownWakeups = true)
+            .filter { it.kind == PrayerEventKind.COUNTDOWN }
+        assertEquals(s.visible.size * 3, events.size)
+        events.groupBy { it.prayer }.forEach { (prayer, list) ->
+            val prayerAt = day.timeOf(prayer)!!
+            assertEquals(
+                listOf(prayerAt - 60 * 60_000L, prayerAt, prayerAt + 30 * 60_000L),
+                list.map { it.atMillis }.sorted(),
+            )
+        }
+    }
+
+    @Test
+    fun `the recent prayer is the one that arrived inside the elapsed window`() {
+        val s = base().copy(elapsedForMin = 30)
+        val day = PrayerCalendar.dayOf(s, date, beirut)
+        val dhuhr = day.timeOf(Prayer.DHUHR)!!
+        assertEquals(null, PrayerCalendar.recentPrayer(s, beirut, dhuhr - 1_000L))
+        assertEquals(Prayer.DHUHR, PrayerCalendar.recentPrayer(s, beirut, dhuhr)?.prayer)
+        assertEquals(Prayer.DHUHR, PrayerCalendar.recentPrayer(s, beirut, dhuhr + 29 * 60_000L)?.prayer)
+        assertEquals(null, PrayerCalendar.recentPrayer(s, beirut, dhuhr + 30 * 60_000L))
+        // Off means off.
+        assertEquals(null, PrayerCalendar.recentPrayer(s.copy(elapsedForMin = 0), beirut, dhuhr + 60_000L))
     }
 
     @Test
@@ -251,5 +281,30 @@ class PrayerEventsTest {
         val dhuhr = day.timeOf(Prayer.DHUHR)!!
         assertEquals(dhuhr - 30 * 60_000L, firstCountdown(30))
         assertEquals(dhuhr - 120 * 60_000L, firstCountdown(120))
+    }
+
+    @Test
+    fun anAthanAndItsSilenceAreBothDueAtTheSameInstant() {
+        // One alarm is armed per instant, so the receiver must find BOTH here — acting on the
+        // event the alarm carried alone used to leave the ringer on through the prayer.
+        val s = base().copy(
+            athanPrayers = setOf(Prayer.MAGHRIB),
+            silenceEnabled = true, silencePrayers = setOf(Prayer.MAGHRIB),
+        )
+        val maghrib = PrayerCalendar.dayOf(s, date, beirut).timeOf(Prayer.MAGHRIB)!!
+        val due = PrayerEvents.at(s, beirut, maghrib).map { it.kind }.toSet()
+        assertEquals(setOf(PrayerEventKind.ATHAN, PrayerEventKind.SILENCE_START), due)
+    }
+
+    @Test
+    fun theAlarmChainSkipsTheWidgetsCountdownWakeUps() {
+        // The athan rides its own chain: a countdown redraw armed ahead of it must not be a link
+        // that can hold it back.
+        val s = base().copy(athanPrayers = setOf(Prayer.DHUHR))
+        val dhuhr = PrayerCalendar.dayOf(s, date, beirut).timeOf(Prayer.DHUHR)!!
+        val kinds = PrayerEventKind.entries.toSet() - PrayerEventKind.COUNTDOWN
+        val next = PrayerEvents.next(s, beirut, dhuhr - 2 * 3_600_000L, countdownWakeups = true, kinds = kinds)!!
+        assertEquals(PrayerEventKind.ATHAN, next.kind)
+        assertEquals(dhuhr, next.atMillis)
     }
 }

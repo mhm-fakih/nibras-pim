@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.filled.DriveFolderUpload
 import androidx.compose.material.icons.filled.Headset
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Mosque
 import androidx.compose.material.icons.filled.SmartToy
@@ -45,6 +46,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.knotes.R
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -57,6 +60,7 @@ const val AI_NOTES_DEST = "ai_notes"
 const val ALARMS_DEST = "alarms"
 const val AUDIOBOOKS_DEST = "audiobooks"
 const val GALLERY_DEST = "gallery"
+const val VIDEOS_DEST = "videos"
 const val CALENDAR_DEST = "calendar"
 const val PRAYER_DEST = "prayer"
 const val FLASHCARDS_DEST = "flashcards"
@@ -71,10 +75,10 @@ private enum class RailBand { LOCAL, SERVER }
 
 /** The band a destination lives in, or null for one that sits outside both (Settings). */
 private fun bandOf(dest: String): RailBand? = when (dest) {
-    HOME_DEST, AI_NOTES_DEST, ALARMS_DEST, AUDIOBOOKS_DEST, GALLERY_DEST, PRAYER_DEST,
-    COLLECT_DEST -> RailBand.LOCAL
+    HOME_DEST, AI_NOTES_DEST, CALENDAR_DEST, ALARMS_DEST, AUDIOBOOKS_DEST, GALLERY_DEST, VIDEOS_DEST,
+    PRAYER_DEST, COLLECT_DEST -> RailBand.LOCAL
     SETTINGS_DEST -> null
-    else -> RailBand.SERVER          // the calendar, every record type, search, flash cards, highlights
+    else -> RailBand.SERVER          // every record type, search, flash cards, highlights, contacts
 }
 
 /**
@@ -107,6 +111,7 @@ fun AppRail(
     onAlarms: () -> Unit,
     onAudiobooks: () -> Unit,
     onGallery: () -> Unit,
+    onVideos: () -> Unit,
     onCalendar: () -> Unit,
     onPrayer: () -> Unit,
     onFlashcards: () -> Unit,
@@ -134,7 +139,7 @@ fun AppRail(
     ) {
         RailSection(
             icon = Icons.Filled.PhoneAndroid,
-            label = "On this phone",
+            label = stringResource(R.string.notes_rail_on_this_phone),
             tint = MaterialTheme.colorScheme.tertiary,
             alpha = LOCAL_ALPHA,
             expanded = open == RailBand.LOCAL.name,
@@ -147,7 +152,7 @@ fun AppRail(
                 RailCell(selected == PRAYER_DEST, onPrayer) {
                     Icon(
                         Icons.Filled.Mosque,
-                        contentDescription = "Prayer times",
+                        contentDescription = stringResource(R.string.notes_rail_prayer_times),
                         tint = if (selected == PRAYER_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(RAIL_ICON_WIDE),
@@ -160,7 +165,7 @@ fun AppRail(
             RailCell(selected == ALARMS_DEST, onAlarms) {
                 Icon(
                     Icons.Filled.Alarm,
-                    contentDescription = "Alarms",
+                    contentDescription = stringResource(R.string.notes_rail_alarms),
                     tint = if (selected == ALARMS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -170,7 +175,7 @@ fun AppRail(
             RailCell(selected == HOME_DEST, onHome) {
                 Icon(
                     Icons.AutoMirrored.Filled.StickyNote2,
-                    contentDescription = "Notes",
+                    contentDescription = stringResource(R.string.notes_rail_notes),
                     tint = if (selected == HOME_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -180,15 +185,25 @@ fun AppRail(
             RailCell(selected == AI_NOTES_DEST, onAiNotes) {
                 Icon(
                     Icons.Filled.SmartToy,
-                    contentDescription = "AI answers",
+                    contentDescription = stringResource(R.string.notes_rail_ai_answers),
                     tint = if (selected == AI_NOTES_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // On this side of the rail because it works without the server: entries are saved on
+            // the phone first and pushed by the outbox when a network appears.
+            RailCell(selected == CALENDAR_DEST, onCalendar) {
+                Icon(
+                    Icons.Filled.CalendarMonth,
+                    contentDescription = stringResource(R.string.notes_rail_calendar),
+                    tint = if (selected == CALENDAR_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             RailCell(selected == GALLERY_DEST, onGallery) {
                 Icon(
                     Icons.Filled.PhotoLibrary,
-                    contentDescription = "Gallery",
+                    contentDescription = stringResource(R.string.notes_rail_gallery),
                     tint = if (selected == GALLERY_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -196,8 +211,17 @@ fun AppRail(
             RailCell(selected == AUDIOBOOKS_DEST, onAudiobooks) {
                 Icon(
                     Icons.Filled.Headset,
-                    contentDescription = "Media",
+                    contentDescription = stringResource(R.string.notes_rail_media),
                     tint = if (selected == AUDIOBOOKS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // Beside the audio browser: the same player plays both, this page just shows pictures.
+            RailCell(selected == VIDEOS_DEST, onVideos) {
+                Icon(
+                    Icons.Filled.VideoLibrary,
+                    contentDescription = stringResource(R.string.notes_rail_videos),
+                    tint = if (selected == VIDEOS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -207,7 +231,7 @@ fun AppRail(
                 RailCell(selected == COLLECT_DEST, onCollect) {
                     Icon(
                         Icons.Filled.DriveFolderUpload,
-                        contentDescription = "Collect files",
+                        contentDescription = stringResource(R.string.notes_rail_collect_files),
                         tint = if (selected == COLLECT_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -217,21 +241,12 @@ fun AppRail(
 
         RailSection(
             icon = Icons.Filled.CloudQueue,
-            label = "From the server",
+            label = stringResource(R.string.notes_rail_from_the_server),
             tint = MaterialTheme.colorScheme.primary,
             alpha = SERVER_ALPHA,
             expanded = open == RailBand.SERVER.name,
             onToggle = { open = RailBand.SERVER.name },
         ) {
-            RailCell(selected == CALENDAR_DEST, onCalendar) {
-                Icon(
-                    Icons.Filled.CalendarMonth,
-                    contentDescription = "Calendar",
-                    tint = if (selected == CALENDAR_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            HorizontalDivider(modifier = Modifier.width(36.dp))
             NIBRAS_TYPES.forEach { type ->
                 val sel = type.code == selected
                 // Letter + count on one line, e.g. "T (12)", so the cell stays short.
@@ -258,7 +273,7 @@ fun AppRail(
             RailCell(selected == FLASHCARDS_DEST, onFlashcards) {
                 Icon(
                     Icons.Filled.Style,
-                    contentDescription = "Flash cards",
+                    contentDescription = stringResource(R.string.notes_rail_flash_cards),
                     tint = if (selected == FLASHCARDS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -266,7 +281,7 @@ fun AppRail(
             RailCell(selected == HIGHLIGHTS_DEST, onHighlights) {
                 Icon(
                     Icons.Filled.FormatQuote,
-                    contentDescription = "Highlights",
+                    contentDescription = stringResource(R.string.notes_rail_highlights),
                     tint = if (selected == HIGHLIGHTS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -276,7 +291,7 @@ fun AppRail(
             RailCell(selected == CONTACTS_DEST, onContacts) {
                 Icon(
                     Icons.Filled.Groups,
-                    contentDescription = "Contacts",
+                    contentDescription = stringResource(R.string.notes_rail_contacts),
                     tint = if (selected == CONTACTS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -287,7 +302,7 @@ fun AppRail(
             RailCell(selected == SEARCH_DEST, onSearch) {
                 Icon(
                     Icons.Filled.TravelExplore,
-                    contentDescription = "Search server",
+                    contentDescription = stringResource(R.string.notes_rail_search_server),
                     tint = if (selected == SEARCH_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -298,7 +313,7 @@ fun AppRail(
             RailCell(false, onRefreshServer) {
                 Icon(
                     Icons.Filled.Refresh,
-                    contentDescription = "Refresh server pages",
+                    contentDescription = stringResource(R.string.notes_rail_refresh_server_pages),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -309,7 +324,7 @@ fun AppRail(
         RailCell(selected == SETTINGS_DEST, onSettings) {
             Icon(
                 Icons.Filled.Settings,
-                contentDescription = "Settings",
+                contentDescription = stringResource(R.string.notes_rail_settings),
                 tint = if (selected == SETTINGS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                 else MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -236,6 +236,20 @@ class FilterState:
         self.nonstandard = NS_INCLUDE
         self.taxonomy = TX_INCLUDE
 
+    def snapshot(self) -> "FilterState":
+        """An independent copy — what a folder switch stashes so the folder can be returned to."""
+        return FilterState(set(self.types), set(self.categories), set(self.priorities),
+                           set(self.days), set(self.tags), self.nonstandard, self.taxonomy,
+                           self.date_field)
+
+    def restore(self, saved: "FilterState") -> None:
+        """Take on [saved]'s picks IN PLACE — the sidebar holds a reference to this object, so it
+        must not be replaced. The date field is left alone: it's the global heat-map metric, not a
+        per-folder pick."""
+        self.types, self.categories = set(saved.types), set(saved.categories)
+        self.priorities, self.days, self.tags = set(saved.priorities), set(saved.days), set(saved.tags)
+        self.nonstandard, self.taxonomy = saved.nonstandard, saved.taxonomy
+
     def set_option(self, dim: str, key, on: bool) -> None:
         sel = self.selection(dim)
         sel.add(key) if on else sel.discard(key)

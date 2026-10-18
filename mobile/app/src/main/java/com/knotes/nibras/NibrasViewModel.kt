@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import com.knotes.R
 
 enum class ConnState { Unknown, Connecting, Online, Offline }
 
@@ -41,6 +42,8 @@ class NibrasViewModel(app: Application) : AndroidViewModel(app) {
     val message: StateFlow<String?> = _message.asStateFlow()
 
     fun consumeMessage() { _message.value = null }
+
+    private fun str(id: Int): String = getApplication<Application>().getString(id)
 
     private fun beginSync() { syncOps++; _syncing.value = true }
     private fun endSync() { syncOps = (syncOps - 1).coerceAtLeast(0); if (syncOps == 0) _syncing.value = false }
@@ -114,7 +117,7 @@ class NibrasViewModel(app: Application) : AndroidViewModel(app) {
                     if (code == "T") com.knotes.reminder.KpiWidget.refresh(getApplication())
                 }
                 result.onFailure {
-                    if (_records.value.isEmpty()) _message.value = "Offline — no cached records for this type yet"
+                    if (_records.value.isEmpty()) _message.value = str(R.string.server_browser_offline_no_cache)
                 }
             } finally {
                 _loading.value = false
@@ -152,13 +155,13 @@ class NibrasViewModel(app: Application) : AndroidViewModel(app) {
                 }.getOrDefault(false)
                 if (pushed) {
                     store.unqueueBookmark(record.ecode, record.id)
-                    _message.value = if (wantBookmarked) "Bookmarked again" else "Un-bookmarked — tap the star to undo"
+                    _message.value = if (wantBookmarked) str(R.string.server_browser_bookmarked_again) else str(R.string.server_browser_unbookmarked_undo)
                 } else {
                     store.queueBookmark(record.ecode, record.id, wantBookmarked)
                     _message.value = if (wantBookmarked) {
-                        "Saved — will re-bookmark when online"
+                        str(R.string.server_browser_rebookmark_when_online)
                     } else {
-                        "Saved — will un-bookmark when online"
+                        str(R.string.server_browser_unbookmark_when_online)
                     }
                 }
             } finally {
@@ -191,9 +194,9 @@ class NibrasViewModel(app: Application) : AndroidViewModel(app) {
                 val synced = runCatching { api.pushCompletes(base, pending) }.getOrDefault(false)
                 if (synced) {
                     store.removeCompletes(pending)
-                    _message.value = "Marked complete"
+                    _message.value = str(R.string.server_browser_marked_complete)
                 } else {
-                    _message.value = "Saved — will mark complete when online"
+                    _message.value = str(R.string.server_browser_complete_when_online)
                 }
             } finally {
                 endSync()
@@ -208,7 +211,7 @@ class NibrasViewModel(app: Application) : AndroidViewModel(app) {
         if (text.isEmpty()) return
         store.addRecordNote(record.key, text)
         store.queueNote(PendingPush(record.ecode, record.id, text))
-        _message.value = "Note saved"
+        _message.value = str(R.string.server_browser_note_saved)
         viewModelScope.launch {
             beginSync()
             try {

@@ -46,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -81,6 +82,8 @@ import com.knotes.ui.CalendarScreen
 import com.knotes.ui.CollectScreen
 import com.knotes.ui.GALLERY_DEST
 import com.knotes.ui.GalleryScreen
+import com.knotes.ui.VIDEOS_DEST
+import com.knotes.ui.VideosScreen
 import com.knotes.ui.AI_NOTES_DEST
 import com.knotes.ui.ALARMS_DEST
 import com.knotes.ui.AiNotesScreen
@@ -108,6 +111,11 @@ class MainActivity : ComponentActivity() {
     private val requestedDest = mutableStateOf<String?>(null)
     // An audio/video file opened from another app ("Open with"), pending playback in the player.
     private val requestedMedia = mutableStateOf<File?>(null)
+
+    // The app's own language below Android 13 — see AppLanguage.
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.knotes.util.AppLanguage.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -341,6 +349,7 @@ private fun AppRoot(
             onDest = { dest = it },
             player = playerVm,
             onPlayMedia = onPlayMedia,
+            onPlayVideo = { file -> playerVm.openVideo(file); showPlayer = true },
             onExpandPlayer = { showPlayer = true },
             onReplayTour = { showWelcome = true },
             prayerStore = prayerStore,
@@ -374,6 +383,7 @@ private fun AppShell(
     onDest: (String) -> Unit,
     player: PlayerController,
     onPlayMedia: (File) -> Unit,
+    onPlayVideo: (File) -> Unit,
     onExpandPlayer: () -> Unit,
     onReplayTour: () -> Unit,
     prayerStore: PrayerSettingsStore,
@@ -411,6 +421,7 @@ private fun AppShell(
                 onAlarms = { onDest(ALARMS_DEST) },
                 onAudiobooks = { onDest(AUDIOBOOKS_DEST) },
                 onGallery = { onDest(GALLERY_DEST) },
+                onVideos = { onDest(VIDEOS_DEST) },
                 onCalendar = { onDest(CALENDAR_DEST) },
                 onPrayer = { onDest(PRAYER_DEST) },
                 onFlashcards = { onDest(FLASHCARDS_DEST) },
@@ -517,6 +528,12 @@ private fun AppShell(
                             onPlayMedia = onPlayMedia,
                         )
                         GALLERY_DEST -> GalleryScreen(dir = settings.galleryDir)
+                        VIDEOS_DEST -> VideosScreen(
+                            dir = settings.videosDir.ifBlank { SettingsStore.defaultVideosDir() },
+                            currentPath = player.currentFile?.absolutePath,
+                            resumePositionOf = player::resumePositionOf,
+                            onPlayVideo = onPlayVideo,
+                        )
                         SEARCH_DEST -> BackendSearchScreen(
                             baseUrl = settings.nibrasBaseUrl,
                             username = settings.nibrasUsername,
@@ -578,8 +595,7 @@ private fun PermissionGate(onGranted: () -> Unit) {
                 style = MaterialTheme.typography.headlineMedium,
             )
             Text(
-                text = "knotes stores your notes as plain text files. " +
-                    "Grant file access to read and save them.",
+                text = stringResource(R.string.notes_permission_explanation),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(vertical = 16.dp),
@@ -595,7 +611,7 @@ private fun PermissionGate(onGranted: () -> Unit) {
                     legacyLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 }
             }) {
-                Text("Grant file access")
+                Text(stringResource(R.string.notes_permission_grant))
             }
         }
     }

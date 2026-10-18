@@ -19,7 +19,7 @@ import sys
 import threading
 import traceback
 import warnings
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import gi
 
@@ -29,14 +29,20 @@ from gi.repository import Gtk, Gdk, GLib, Pango, Gio  # noqa: E402
 
 from config import Settings, RepoConfig, parse_tag_block, format_tag_block  # noqa: E402
 from notes import (NoteRepository, Note, is_rtl, companion_dir, companion_files,  # noqa: E402
-                   companion_has_content, parse_created,
-                   fmt_count, split_highlights, apply_highlights, clause_bounds)
-from backend import fetch_taxonomy  # noqa: E402
-from filters import FilterState, Taxonomy  # noqa: E402
+                   companion_has_content, parse_created, QuickFile, QuickEntry,
+                   QUICK_NOTES_FILE, QUICK_TASKS_FILE, markdown_spans,
+                   fmt_count, split_highlights, apply_highlights, clause_bounds,
+                   parse as parse_name)
+from backend import fetch_taxonomy, import_note  # noqa: E402
+from filters import FilterState, Taxonomy, BY_CREATED, NS_INCLUDE, NS_ONLY, TX_INCLUDE, TX_ONLY  # noqa: E402
 import tagbank  # noqa: E402
 from sidebar import FilterSidebar  # noqa: E402
 
-APP_ID = "org.knotes.desktop"
+# A development copy (run-dev.sh sets KNOTES_DEV=1) registers its own application ID. GTK apps are
+# single-instance per ID, so with a shared one, launching the dev copy while the installed one is
+# open would just raise the installed window — and you'd be testing the old code without noticing.
+DEV_MODE = os.environ.get("KNOTES_DEV") == "1"
+APP_ID = "org.knotes.desktop.dev" if DEV_MODE else "org.knotes.desktop"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 # Platform switches for the handful of places that shell out (open a file / reveal a folder).
@@ -44,8 +50,13 @@ IS_WINDOWS = os.name == "nt"
 IS_MACOS = sys.platform == "darwin"
 DEFAULT_OPENER = "start" if IS_WINDOWS else ("open" if IS_MACOS else "xdg-open")
 
-VERSION = "1.2.36"
-CODENAME = "Gratitude"
+# The name the app calls itself, everywhere a person reads it. The *identifiers* stay "knotes" on
+# purpose — the module names, knotes.svg, the wmclass, GLib.set_prgname, the config file's location
+# next to the program — because renaming those would orphan an installed launcher and the settings
+# file beside it. Display name and identity are allowed to differ; that's what this constant is for.
+APP_NAME = "Nibras Notes (dev)" if DEV_MODE else "Nibras Notes"
+
+VERSION = "1.6.0"
 
 
 def _data_dir() -> str:
@@ -79,6 +90,15 @@ BUILD_NUMBER = _bump_build_number()
 # same in both themes (the accent/violet/cyan are theme-independent).
 TAG_COLOR_PRIO = "#6c71c5"  # violet
 TAG_COLOR_TYPE = "#268bd2"  # accent
+
+# The week calendar view. Its notes are the journal and planner types — matched by code, so a
+# folder that names them differently still gets them; the names here are only the fallback for a
+# folder whose tag set doesn't define the code at all.
+CALENDAR_TYPES = {"J": "Journal", "P": "Planner"}
+WEEK_SLOT_MINUTES = 30     # one row per half hour, as Outlook's default
+WEEK_SCROLL_HOUR = 7       # the hour a freshly opened week is scrolled to
+WEEK_GUTTER = 52           # width of the time column, px
+WEEK_TOOLTIP_LINES = 40    # an entry's hover shows its note up to this many lines
 TAG_COLOR_CAT = "#2aa198"   # cyan
 TAG_COLOR_HASH = "#859900"  # green — inline #hashtags pulled from the note body
 
@@ -385,6 +405,9 @@ def _rgba_hex(colour: Gdk.RGBA) -> str:
 
 # Narrowest the side editor pane may be dragged (px) — below this a wrapped note is unreadable.
 EDITOR_PANE_MIN = 240
+# Quick-capture strip under the pane: a floor low enough that it can be dragged down to a couple of
+# rows, and the same settle delay the editor width uses (see _relax_editor_width for the why).
+QUICK_PANELS_MIN_H = 84
 # How long (ms) the pane's remembered width is enforced as a size request before being relaxed back
 # to EDITOR_PANE_MIN. Only has to outlast the layout pass that follows showing the pane.
 EDITOR_PANE_SETTLE_MS = 300
@@ -397,13 +420,54 @@ SCROLL_PIN_MS = 350
 
 def _tag_span(text: str, color: str) -> str:
     """An inline, badge-like Pango span: bold coloured text on a faint tint of the same colour, with
-    surrounding spaces for a little horizontal padding."""
+    surrounding spaces for a little horizontal padding.
+
+    Still used where the chips have to sit INSIDE a run of text (tooltips, the one-line hashtag
+    index). Where they stand on their own, _tag_chip gives a real widget instead — Pango paints a
+    background run as a hard rectangle and has no corner radius at all."""
     t = GLib.markup_escape_text(text)
     return f'<span fgcolor="{color}" bgcolor="{color}" bgalpha="18%" weight="bold">  {t}  </span>'
 
-# Colour blocks prepended to style.css at runtime. Both are Solarized palettes — a dark slate
-# (the default; grey/teal rather than pure black) and the matching light parchment. Only these
-# named colours change between themes; the structural rules in style.css reference them.
+
+def _tag_chip(text: str, color: str) -> Gtk.Label:
+    """One tag chip as a widget: same bold-on-a-tint look as _tag_span, but with rounded corners,
+    which only CSS can give it. The colour varies per chip (type / priority / category / hashtag)
+    and CSS can't be parameterised, so the two colour properties are set inline through a provider
+    and the shape comes from the .tag-pill class."""
+    label = Gtk.Label(label=text)
+    label.get_style_context().add_class("tag-pill")
+    provider = Gtk.CssProvider()
+    provider.load_from_data(
+        f"label {{ color: {color}; background-color: alpha({color}, 0.18); }}".encode())
+    label.get_style_context().add_provider(provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    return label
+
+
+def _tag_chip_row(pairs: list[tuple[str, str]], rtl: bool = False) -> Gtk.Widget:
+    """A row of chips that wraps. A FlowBox rather than a Box so a card carrying a dozen hashtags
+    doesn't force the column wider than the board can give it."""
+    flow = Gtk.FlowBox()
+    flow.set_selection_mode(Gtk.SelectionMode.NONE)
+    flow.set_max_children_per_line(99)   # let the width, not a count, decide the wrap
+    flow.set_column_spacing(4)
+    flow.set_row_spacing(3)
+    flow.get_style_context().add_class("tag-pill-row")
+    # Direction, NOT halign, is what puts an Arabic card's chips on the right. A halign of
+    # START/END makes the FlowBox take its NATURAL width instead of the card's — and a FlowBox's
+    # natural width is one child, so every chip ends up on a line of its own.
+    flow.set_direction(Gtk.TextDirection.RTL if rtl else Gtk.TextDirection.LTR)
+    for text, color in pairs:
+        flow.add(_tag_chip(text, color))
+    return flow
+
+# Colour blocks prepended to style.css at runtime. Only these named colours change between themes;
+# the structural rules in style.css reference them and never name a literal colour.
+#
+# TWO FOREGROUND FAMILIES, deliberately. The plain tokens (@bg/@fg/@card_bg…) dress the WORK AREA —
+# board, cards, editor pane, add form — and the @chrome_* ones dress the surrounding furniture:
+# header bar, toolbar, status bar and the whole filter sidebar. They are separate so a theme can
+# make the two halves different, which "light" now does: brand-navy chrome around a light board.
+# A theme that wants one flat surface just sets @chrome_bg to @bg_alt's value, as "dark" does.
 THEMES = {
     "dark": """
         @define-color bg        #002b36;
@@ -419,8 +483,17 @@ THEMES = {
         @define-color chip_hover #0e5b6e;
         @define-color violet    #6c71c5;
         @define-color cyan      #2aa198;
+        /* Chrome == work area here: one flat slate, exactly as before. */
+        @define-color chrome_bg        #073642;
+        @define-color chrome_fg        #93a1a1;
+        @define-color chrome_fg_strong #fdf6e3;
+        @define-color chrome_fg_muted  #657b83;
     """,
     "light": """
+        /* Solarized parchment, shared with the sibling audio-player app
+           so the two apps read as one set: light beige under the notes, the DARK beige on the
+           furniture around them. The two are deliberately close — Solarized separates base3 from
+           base2 by a hair, and the borders do the rest of the work. */
         @define-color bg        #fdf6e3;
         @define-color bg_alt    #eee8d5;
         @define-color card_bg   #fdf6e3;
@@ -434,13 +507,117 @@ THEMES = {
         @define-color chip_hover #e3dcc4;
         @define-color violet    #6c71c5;
         @define-color cyan      #2aa198;
+        @define-color chrome_bg        #eee8d5;
+        @define-color chrome_fg        #586e75;
+        @define-color chrome_fg_strong #002b36;
+        @define-color chrome_fg_muted  #93a1a1;
     """,
 }
+
+# Per-folder chrome tint, so a Ctrl+1/2/3 switch is visible at a glance: the header bar, toolbar,
+# sidebar and status bar take the folder's colour while the board keeps the theme's own (readable)
+# surface. Set per folder in Settings ("Folder colours", stored as Settings.repo_colors by code).
+# A folder with no colour set gets one of these light defaults by its position in the picker; the
+# first folder wears the theme unchanged, and folders past the end of the list cycle.
+REPO_CHROME_DEFAULTS = ["", "#d6e4f5", "#d8eedd", "#eadcf0", "#f5e6cc"]
+
+
+def repo_color(settings: Settings, code: str) -> str:
+    """The chrome colour for folder [code]: its own setting, else the positional default ("" = none)."""
+    if code in settings.repo_colors:
+        return settings.repo_colors[code]
+    codes = [c for c, _ in settings.repos()]
+    index = codes.index(code) if code in codes else 0
+    return REPO_CHROME_DEFAULTS[index % len(REPO_CHROME_DEFAULTS)] if index > 0 else ""
+
+
+def repo_chrome_css(colour: str) -> str:
+    """@chrome_* overrides for a chrome painted [colour], or "" for none. The text colours follow
+    the background's lightness, so a light pick gets dark text and a dark pick light text."""
+    rgba = Gdk.RGBA()
+    if not colour or not rgba.parse(colour):
+        return ""
+    luminance = 0.2126 * rgba.red + 0.7152 * rgba.green + 0.0722 * rgba.blue
+    if luminance > 0.5:
+        fg, strong, muted = "#3d4f56", "#002b36", "#6c7d83"
+    else:
+        fg, strong, muted = "#d4dde2", "#ffffff", "#9aaab1"
+    return (f"@define-color chrome_bg {_rgba_hex(rgba)};\n@define-color chrome_fg {fg};\n"
+            f"@define-color chrome_fg_strong {strong};\n@define-color chrome_fg_muted {muted};\n")
+
+
+class MonthPicker(Gtk.Box):
+    """A month of day buttons, Monday first — the entry form's date picker.
+
+    Not Gtk.Calendar: that takes its first weekday from the system locale (en_US starts on Sunday)
+    and GTK3 offers no per-widget override, while the week view, the sidebar calendar and the user
+    all count Monday to Sunday. ``selected`` is the picked day (midnight); ``on_pick`` is called
+    with it on every click.
+    """
+
+    def __init__(self, initial: datetime, on_pick=None):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.set_border_width(8)
+        self.selected = initial.replace(hour=0, minute=0, second=0, microsecond=0)
+        self._month = self.selected.replace(day=1)
+        self._on_pick = on_pick
+        nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        for icon, step, tip in (("go-previous-symbolic", -1, "Previous month"),
+                                ("go-next-symbolic", 1, "Next month")):
+            btn = Gtk.Button()
+            btn.add(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.BUTTON))
+            btn.set_relief(Gtk.ReliefStyle.NONE)
+            btn.set_tooltip_text(tip)
+            btn.connect("clicked", lambda _b, k=step: self._shift(k))
+            (nav.pack_start if step < 0 else nav.pack_end)(btn, False, False, 0)
+        self._title = Gtk.Label()
+        nav.set_center_widget(self._title)
+        self.pack_start(nav, False, False, 0)
+        self._grid = Gtk.Grid(row_spacing=2, column_spacing=2, column_homogeneous=True)
+        self.pack_start(self._grid, False, False, 0)
+        self._fill()
+
+    def _shift(self, months: int) -> None:
+        y, m = divmod(self._month.year * 12 + self._month.month - 1 + months, 12)
+        self._month = self._month.replace(year=y, month=m + 1)
+        self._fill()
+
+    def _fill(self) -> None:
+        for child in self._grid.get_children():
+            self._grid.remove(child)
+        self._title.set_markup(f"<b>{self._month:%B %Y}</b>")
+        for col, name in enumerate(("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")):
+            head = Gtk.Label(label=name)
+            head.get_style_context().add_class("dim-label")
+            self._grid.attach(head, col, 0, 1, 1)
+        today = datetime.now().date()
+        day = self._month - timedelta(days=self._month.weekday())   # the Monday on or before the 1st
+        for row in range(1, 7):
+            for col in range(7):
+                btn = Gtk.ToggleButton(label=str(day.day))
+                btn.set_relief(Gtk.ReliefStyle.NONE)
+                btn.set_active(day == self.selected)
+                if day.month != self._month.month:
+                    btn.get_child().get_style_context().add_class("dim-label")
+                if day.date() == today:
+                    btn.get_child().set_markup(f"<u><b>{day.day}</b></u>")
+                btn.connect("clicked", lambda _b, d=day: self._pick(d))
+                self._grid.attach(btn, col, row, 1, 1)
+                day += timedelta(days=1)
+        self._grid.show_all()
+
+    def _pick(self, day: datetime) -> None:
+        self.selected = day
+        if day.month != self._month.month:
+            self._month = day.replace(day=1)
+        GLib.idle_add(lambda: self._fill() and False)   # not from inside the clicked button's own signal
+        if self._on_pick is not None:
+            self._on_pick(day)
 
 
 class KnotesWindow(Gtk.ApplicationWindow):
     def __init__(self, app: "KnotesApp"):
-        super().__init__(application=app, title="knotes")
+        super().__init__(application=app, title=APP_NAME)
         # Start at the minimal width the layout needs (compact, focused note-taking) rather than
         # maximized: a width of 1 makes GTK fall back to the natural minimum; the height stays tall.
         self.set_default_size(1, 780)
@@ -494,6 +671,11 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self._board_active = False                          # True while navigating cards (not typing)
         self._scroll_pin: list[tuple[object, int]] = []     # (object, handler_id) held by _pin_scroll
         self._scroll_pin_timeout: int | None = None         # its release timer
+        # Week calendar view: the Monday (midnight) of the week on screen, and the hour grid's
+        # scroll offset — kept across the reloads a save or a folder change triggers, so the grid
+        # doesn't jump back to the morning under the pointer. None = scroll to WEEK_SCROLL_HOUR.
+        self._week_start = self._monday_of(datetime.now())
+        self._week_scroll: float | None = None
         self.minimal_mode = self.settings.minimal_mode      # side-note mode (Ctrl+L), overlays view_mode
         self._pre_minimal_size: tuple[int, int] | None = None   # window size to restore on exit
         self._suppress_minimal_toggle = False                   # guards the header toggle button
@@ -509,11 +691,13 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # the sidebar widget only drives it. Which options are picked is per-session (see
         # Settings.sidebar_visible for what IS persisted) — only the heat-map metric is restored.
         self.filters = FilterState(date_field=self.settings.heatmap_metric)
-        # Open on today's captures (Settings.start_filter_today) — the same state a click on today
-        # in the calendar produces, so the day reads as selected in the sidebar and the sidebar's
-        # "Clear all filters" drops back to the whole board.
-        if self.settings.start_filter_today:
-            self.filters.days = {datetime.now().date()}
+        # Open on today's and yesterday's captures (Settings.start_filter_today) — the same state a
+        # shift-click range in the calendar produces, so the days read as selected in the sidebar
+        # and the sidebar's "Clear all filters" drops back to the whole board.
+        self._apply_start_filter()
+        # Each folder's sidebar picks, stashed when it is switched away from and restored on return
+        # (per-session, keyed by repo code). See _on_repo_changed.
+        self._repo_filters: dict[str, FilterState] = {}
         self.tax = Taxonomy()                    # the active folder's options, see _refresh_taxonomy
         # "columns" view: how many columns the last render laid out, so a resize can re-flow.
         self._columns_ncols = 0
@@ -532,6 +716,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # Restore the pane's open/closed state without re-saving it or taking the cursor — the add
         # field keeps the focus on launch whether the pane is up or not.
         self._set_editor_pane(self.settings.editor_pane_visible, persist=False, focus=False)
+        # …and the quick strip inside it, likewise without re-saving what was restored.
+        self._set_quick_panels(self.settings.quick_panels_visible, persist=False)
         self._setup_layout_watch()
         self._setup_note_dir_watch()
         self._sync_backend_taxonomy()  # best-effort; offline/misconfigured → keeps current codes
@@ -543,7 +729,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # only. All the actual controls live in their own toolbar row below it (see `self.toolbar`)
         # instead of crowding into the title bar, so each row has one job.
         self.header = Gtk.HeaderBar(
-            title=f'knotes v{VERSION}.b{BUILD_NUMBER} "{CODENAME}"', show_close_button=True)
+            title=f'{APP_NAME} v{VERSION}.b{BUILD_NUMBER}', show_close_button=True)
         self.set_titlebar(self.header)
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -552,7 +738,10 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # Row 2 — the toolbar: every view/action control, left-to-right in the same order they used
         # to appear (right-to-left) packed into the title bar.
         self.toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        self.toolbar.set_border_width(6)
+        # Spacing comes from CSS padding, NOT set_border_width: a GtkBox insets its CSS background
+        # by its border width, so a bar with one paints short of its own allocation and the window
+        # colour shows through as a frame around it — invisible while both were parchment, glaring
+        # the moment the chrome stopped matching the board. Same for the status bar below.
         self.toolbar.get_style_context().add_class("toolbar")
         root.pack_start(self.toolbar, False, False, 0)
 
@@ -596,11 +785,17 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.columns_button.set_tooltip_text(
             "Columns — the same flat list with no headings, wrapped into as many columns as fit "
             "(card width in Settings)")
+        self.week_button = Gtk.ToggleButton()
+        self.week_button.add(Gtk.Image.new_from_icon_name("x-office-calendar-symbolic", Gtk.IconSize.BUTTON))
+        self.week_button.set_tooltip_text(
+            "Week calendar — journal (J) and planner (P) notes in their time slots; click an empty "
+            "slot to add one dated then (Ctrl+PgUp / Ctrl+PgDn change week)")
         self.minimal_button = Gtk.ToggleButton()
         self.minimal_button.add(Gtk.Image.new_from_icon_name("view-restore-symbolic", Gtk.IconSize.BUTTON))
         self.minimal_button.set_tooltip_text("Minimal side-note mode (Ctrl+L)")
         for btn, mode in ((self.kanban_button, "kanban"), (self.list_button, "list"),
-                          (self.columns_button, "columns"), (self.minimal_button, "minimal")):
+                          (self.columns_button, "columns"), (self.week_button, "week"),
+                          (self.minimal_button, "minimal")):
             btn.connect("toggled", lambda b, m=mode: self._on_mode_button(b, m))
             mode_box.pack_start(btn, False, False, 0)
         self.toolbar.pack_start(mode_box, False, False, 0)
@@ -670,10 +865,51 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.search_bar = Gtk.SearchBar()
         self.search_entry = Gtk.SearchEntry()
         self.search_entry.set_width_chars(30)
+        # Says what it searches, because "filenames too" is not a guessable feature and the tag
+        # block only lives in the name — nothing on the card would hint that "n~p2" is a valid query.
+        self.search_entry.set_placeholder_text("Search text or file name, then Enter…")
+        self.search_entry.set_tooltip_text(
+            "Press Enter to search. Matches note text, the type/category codes, and the file name —\n"
+            "any part of it. So a whole name (2026_08_17-101705~N~p2~I) finds one note, and a\n"
+            "fragment (N~p2) lists every note tagged that way. Clearing the box shows everything again.")
+        # The query is applied on Enter, not per keystroke: every reload re-reads the folder and
+        # rebuilds every card widget, and doing that for each typed letter — most of which match
+        # hundreds of notes — made the entry lag and pinned a core. The one live reaction kept is
+        # emptying the box (Escape, the clear icon, backspacing to nothing) restoring the board.
+        self._search_query = ""   # the SUBMITTED query, which is what the board reflects
+        self.search_entry.connect("activate", self._on_search_activate)
         self.search_entry.connect("search-changed", self._on_search_changed)
-        self.search_bar.add(self.search_entry)
+        # …and again beside the box, because GTK3 hides an entry's placeholder while it has focus,
+        # which — since opening the bar focuses it — is exactly whenever anyone is looking. A dim
+        # label costs one line of height only while searching and states the non-obvious half.
+        search_hint = Gtk.Label(label="Enter to search · text or file name — try  N~p2", xalign=0)
+        search_hint.get_style_context().add_class("search-hint")
+        search_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        search_row.pack_start(self.search_entry, False, False, 0)
+        search_row.pack_start(search_hint, False, False, 0)
+        self.search_bar.add(search_row)
         self.search_bar.connect_entry(self.search_entry)
         right.pack_start(self.search_bar, False, False, 0)
+
+        # A one-line answer to "why am I not seeing everything?", directly above the cards.
+        # The sidebar already shows what's picked, but it is collapsible, scrollable and often
+        # scrolled away from the section doing the filtering — so a narrowed board could look like
+        # an empty folder. This states the whole state in one place, at the top of what it filters.
+        self.filter_summary_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.filter_summary_row.get_style_context().add_class("filter-summary")
+        self.filter_summary = Gtk.Label(xalign=0)
+        self.filter_summary.set_ellipsize(3)   # END — a dozen picked tags must not widen the board
+        self.filter_summary.set_use_markup(True)
+        self.filter_summary_row.pack_start(self.filter_summary, True, True, 0)
+        clear_all = Gtk.Button(label="clear")
+        clear_all.get_style_context().add_class("filter-summary-clear")
+        clear_all.set_tooltip_text("Clear every filter and the search box")
+        clear_all.connect("clicked", lambda _b: self._clear_everything())
+        self.filter_summary_row.pack_end(clear_all, False, False, 0)
+        self.filter_summary_row.set_no_show_all(True)
+        for child in self.filter_summary_row.get_children():
+            child.show_all()
+        right.pack_start(self.filter_summary_row, False, False, 0)
 
         # Display area. In kanban mode it holds category columns spread across a configurable number
         # of equal-height rows, the columns stretching to fill each row (so they're screen-size
@@ -699,7 +935,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # Status bar: the full path of the active note folder (left) and the current save key (right).
         self.statusbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         self.statusbar.get_style_context().add_class("statusbar")
-        self.statusbar.set_border_width(4)
+        # No border width — see the toolbar's note; the padding is in .statusbar.
         self.status_path = Gtk.Label(xalign=0)
         self.status_path.set_ellipsize(1)  # MIDDLE — keep both ends of a long path readable
         self.status_key = Gtk.Label(xalign=1)
@@ -752,6 +988,15 @@ class KnotesWindow(Gtk.ApplicationWindow):
             mode_box.pack_start(button, False, False, 0)
         header.pack_start(mode_box, False, False, 0)
 
+        self.quick_toggle = Gtk.ToggleButton()
+        self.quick_toggle.add(Gtk.Image.new_from_icon_name("view-list-symbolic", Gtk.IconSize.MENU))
+        self.quick_toggle.get_style_context().add_class("iconbtn")
+        self.quick_toggle.set_tooltip_text(
+            "Show / hide the quick note + task lists under the pane  (Ctrl+J / Ctrl+K jump straight "
+            "into one)")
+        self.quick_toggle.connect("toggled", self._on_quick_toggle_button)
+        header.pack_end(self.quick_toggle, False, False, 0)
+
         close = Gtk.Button(relief=Gtk.ReliefStyle.NONE)
         close.add(Gtk.Image.new_from_icon_name("window-close-symbolic", Gtk.IconSize.MENU))
         close.get_style_context().add_class("iconbtn")
@@ -761,7 +1006,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
         pane.pack_start(header, False, False, 0)
 
         self.editor_scroller = scroller = Gtk.ScrolledWindow()
-        scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        # EXTERNAL, not NEVER, horizontally — see the add field's scroller for why.
+        scroller.set_policy(Gtk.PolicyType.EXTERNAL, Gtk.PolicyType.AUTOMATIC)
         # Overlay scrolling off, as in the add field: an overlay scrollbar floats ON TOP of the text
         # and covers the last few characters of every wrapped line it crosses. Off, it gets its own
         # gutter and the text keeps its full width.
@@ -786,7 +1032,6 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # has to be re-asserted once that has run. See _apply_editor_cursor.
         self.editor_view.connect_after("motion-notify-event", self._apply_editor_cursor)
         scroller.add(self.editor_view)
-        pane.pack_start(scroller, True, True, 0)
 
         self.editor_status = Gtk.Label(xalign=0)
         self.editor_status.set_ellipsize(3)  # END
@@ -794,7 +1039,18 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.editor_status.set_margin_start(10)
         self.editor_status.set_margin_end(10)
         self.editor_status.set_margin_bottom(6)
-        pane.pack_start(self.editor_status, False, False, 0)
+
+        # The note being read/edited on top, the two quick lists underneath, splitter between them.
+        # pack2 takes resize=False so the strip keeps its height when the WINDOW grows — the note is
+        # what should get the new pixels — while the splitter still lets it be dragged either way.
+        note_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        note_box.pack_start(scroller, True, True, 0)
+        note_box.pack_start(self.editor_status, False, False, 0)
+        note_box.pack_start(self._build_files_panel(), False, False, 0)
+        self.right_split = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
+        self.right_split.pack1(note_box, True, False)
+        self.right_split.pack2(self._build_quick_panels(), False, False)
+        pane.pack_start(self.right_split, True, True, 0)
 
         self.editor_pane = pane
         # The window's show_all() must not reveal a pane the user left closed. no_show_all stops it
@@ -814,11 +1070,89 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self._cursors: dict[str, Gdk.Cursor | None] = {}   # see _apply_editor_cursor
         # One tag, recoloured in place whenever the setting changes — a buffer tag is looked up by
         # name, so re-creating it on every render would throw on the second one.
+        self._build_markup_tags()
+        # Created LAST on purpose: GtkTextTag priority follows creation order, so the highlight's
+        # background wins over a #tag chip's where a marked clause contains one.
         self._hl_tag = self.editor_buffer.create_tag("clause-highlight")
         self._refresh_highlight_tag()
         self._sync_pane_mode_buttons()
         self._editor_load(None)
         return pane
+
+    def _theme_color(self, token: str, fallback: str = "#808080") -> str:
+        """One `@define-color` value out of the ACTIVE theme block. The pane's styling has to be
+        given real colours — a GtkTextTag takes a colour, not a CSS token — and reading them back
+        out of THEMES is what keeps those colours in step with the stylesheet instead of being a
+        second palette that drifts."""
+        block = THEMES.get(self.settings.theme) or THEMES["dark"]
+        m = re.search(rf"@define-color\s+{re.escape(token)}\s+([^;]+);", block)
+        return m.group(1).strip() if m else fallback
+
+    @staticmethod
+    def _blend(colour: str, onto: str, alpha: float) -> str:
+        """[colour] at [alpha] over [onto], as a solid hex. The card chips get their tint from
+        `alpha()` in CSS, but a GtkTextTag background has no alpha at all — so the same tint has to
+        be mixed by hand against the surface it will sit on."""
+        a, b = Gdk.RGBA(), Gdk.RGBA()
+        if not (a.parse(colour) and b.parse(onto)):
+            return onto
+        mix = tuple(round(255 * (getattr(a, c) * alpha + getattr(b, c) * (1 - alpha)))
+                    for c in ("red", "green", "blue"))
+        return "#{:02x}{:02x}{:02x}".format(*mix)
+
+    def _build_markup_tags(self) -> None:
+        """Create the reading-mode markdown tags once, then keep them pointed at the live theme.
+
+        Styling is applied IN PLACE: the markers stay in the buffer and are merely dimmed, so the
+        buffer still matches the file character for character. That is what lets clause-clicking and
+        the write-back in _on_editor_click stay exactly as they were — see notes.markdown_spans.
+        """
+        buffer = self.editor_buffer
+        table = buffer.get_tag_table()
+        if table.lookup("md-bold") is None:
+            for kind in ("marker", "bold", "italic", "bolditalic", "code",
+                         "heading", "link", "url", "tag"):
+                buffer.create_tag(f"md-{kind}")
+        self._md_tags = {k: table.lookup(f"md-{k}") for k in
+                         ("marker", "bold", "italic", "bolditalic", "code",
+                          "heading", "link", "url", "tag")}
+
+        surface = self._theme_color("card_bg", "#ffffff")
+        muted = self._theme_color("fg_muted", "#808080")
+        accent = self._theme_color("accent", "#268bd2")
+
+        def style(kind: str, **props) -> None:
+            for name, value in props.items():
+                self._md_tags[kind].set_property(name, value)
+
+        # The markers themselves: still there to be read (and to be edited in the other mode), but
+        # pushed back far enough that the text reads as emphasised rather than as punctuation.
+        style("marker", foreground=muted, scale=0.85)
+        style("bold", weight=Pango.Weight.BOLD)
+        style("italic", style=Pango.Style.ITALIC)
+        style("bolditalic", weight=Pango.Weight.BOLD, style=Pango.Style.ITALIC)
+        style("code", family="monospace",
+                background=self._blend(muted, surface, 0.18))
+        style("heading", weight=Pango.Weight.BOLD, scale=1.15)
+        style("link", foreground=accent, underline=Pango.Underline.SINGLE)
+        style("url", foreground=muted, scale=0.9)
+        # Same green the cards use for a #hashtag chip, tinted onto the pane the way CSS alpha()
+        # tints it there, so a tag looks like the same object in both places.
+        style("tag", foreground=TAG_COLOR_HASH,
+                background=self._blend(TAG_COLOR_HASH, surface, 0.18))
+
+    def _paint_markup(self, text: str) -> None:
+        """Apply the markdown tags over the reading buffer. Offsets come straight from
+        markdown_spans, which reads the same string the buffer was filled with."""
+        buffer = self.editor_buffer
+        for start, end, kind in markdown_spans(text):
+            # "highlight" comes back only for the editing buffer (reading mode strips the markers
+            # before scanning) and maps to the real highlight tag, so a marked clause looks the
+            # same in both modes instead of only being visible in one.
+            tag = self._hl_tag if kind == "highlight" else self._md_tags.get(kind)
+            if tag is not None:
+                buffer.apply_tag(tag, buffer.get_iter_at_offset(start),
+                                 buffer.get_iter_at_offset(end))
 
     def _refresh_highlight_tag(self) -> None:
         """Point the highlight tag at the configured colour, with a foreground that survives it.
@@ -967,6 +1301,416 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.editor_pane.set_size_request(EDITOR_PANE_MIN, -1)
         return False
 
+    # ------------------------------------------------------- quick capture
+
+    def _build_quick_panels(self) -> Gtk.Widget:
+        """The two lists under the editor pane: quick notes on the left, quick tasks on the right.
+
+        They exist to remove every decision from capture. A real note needs a type, a priority, a
+        category and a file name before it exists; these need a sentence and the Enter key. What
+        lands here is explicitly NOT a note — it never reaches the board (see
+        NoteRepository.IGNORED_FILE_STEMS) and is never promoted — so nothing has to be settled
+        later either. Anything that turns out to deserve a note gets written as one.
+
+        Both are plain markdown at the root of the folder, so they sync and can be read or edited
+        anywhere: a bullet list and a GFM task list.
+        """
+        self.quick_files: dict[str, QuickFile] = {}
+        self.quick_lists: dict[str, Gtk.ListBox] = {}
+        self.quick_entries: dict[str, Gtk.Entry] = {}
+        self.quick_counts: dict[str, Gtk.Label] = {}
+        self._quick_stamp: dict[str, float] = {}
+        self._quick_rebuilding = False
+
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        box.get_style_context().add_class("quick-strip")
+        box.pack_start(self._build_quick_panel("note"), True, True, 0)
+        box.pack_start(self._build_quick_panel("task"), True, True, 0)
+        self.quick_box = box
+        # Same no_show_all dance as the pane itself: the window's show_all() must not reveal a strip
+        # the user closed, but the children still have to be shown once so show() has something.
+        box.set_no_show_all(True)
+        for child in box.get_children():
+            child.show_all()
+        self._quick_settle_tries = 0
+        return box
+
+    def _build_quick_panel(self, kind: str) -> Gtk.Widget:
+        """One of the two columns. [kind] is "note" or "task" — the only difference is that a task
+        row carries a checkbox and its file uses ``- [ ]`` instead of ``- ``."""
+        tasks = kind == "task"
+        panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        panel.get_style_context().add_class("quick-panel")
+        if tasks:
+            panel.get_style_context().add_class("quick-panel-right")
+
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        title = Gtk.Label(label="Quick tasks" if tasks else "Quick notes", xalign=0)
+        title.get_style_context().add_class("quick-title")
+        header.pack_start(title, True, True, 0)
+        count = Gtk.Label(xalign=1)
+        count.get_style_context().add_class("quick-count")
+        header.pack_end(count, False, False, 0)
+        self.quick_counts[kind] = count
+        panel.pack_start(header, False, False, 0)
+
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroller.set_overlay_scrolling(False)   # as everywhere else: no bar floating over the text
+        listbox = Gtk.ListBox()
+        listbox.set_selection_mode(Gtk.SelectionMode.NONE)
+        listbox.get_style_context().add_class("quick-list")
+        scroller.add(listbox)
+        panel.pack_start(scroller, True, True, 0)
+        self.quick_lists[kind] = listbox
+
+        entry = Gtk.Entry()
+        entry.get_style_context().add_class("quick-entry")
+        entry.set_placeholder_text("a task…  (Enter)" if tasks else "a note…  (Enter)")
+        entry.connect("activate", self._on_quick_activate, kind)
+        panel.pack_start(entry, False, False, 0)
+        self.quick_entries[kind] = entry
+        return panel
+
+    def _quick_file(self, kind: str) -> QuickFile:
+        """The backing file for [kind] in the ACTIVE folder, rebuilt when the folder changes — the
+        lists belong to the note folder, so switching folders (Ctrl+1…9) switches lists too."""
+        path = os.path.join(self.repo.directory,
+                            QUICK_TASKS_FILE if kind == "task" else QUICK_NOTES_FILE)
+        quick = self.quick_files.get(kind)
+        if quick is None or quick.path != path:
+            quick = QuickFile(path, tasks=kind == "task")
+            self.quick_files[kind] = quick
+            self._quick_stamp[kind] = -1.0   # force a rebuild against the new file
+        return quick
+
+    def _sync_quick_panels(self, force: bool = False) -> None:
+        """Refresh either list whose file has changed since it was last drawn.
+
+        Called from reload_notes, so an edit made on the phone, in another editor, or by the other
+        panel shows up on its own — but guarded on mtime, because reload_notes runs on every folder
+        event and rebuilding the rows unprompted would fight whatever is being typed.
+        """
+        for kind in ("note", "task"):
+            quick = self._quick_file(kind)
+            stamp = quick.mtime()
+            if not force and stamp == self._quick_stamp.get(kind):
+                continue
+            self._quick_stamp[kind] = stamp
+            self._fill_quick_list(kind, quick)
+
+    def _fill_quick_list(self, kind: str, quick: QuickFile) -> None:
+        listbox = self.quick_lists[kind]
+        # Guard the rebuild: adding a CheckButton fires "toggled" as it takes its initial state,
+        # which would write the file back for every task in the list on every refresh.
+        self._quick_rebuilding = True
+        try:
+            for child in listbox.get_children():
+                listbox.remove(child)
+            entries = quick.entries()
+            for entry in entries:
+                listbox.add(self._quick_row(kind, quick, entry))
+            listbox.show_all()
+        finally:
+            self._quick_rebuilding = False
+        if kind == "task":
+            left = sum(1 for e in entries if not e.done)
+            self.quick_counts[kind].set_text(f"{fmt_count(left)} left" if entries else "")
+        else:
+            self.quick_counts[kind].set_text(fmt_count(len(entries)) if entries else "")
+
+    def _quick_row(self, kind: str, quick: QuickFile, entry: QuickEntry) -> Gtk.Widget:
+        row = Gtk.ListBoxRow()
+        row.set_activatable(False)
+        row.get_style_context().add_class("quick-row")
+        line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        # Per-item direction: half these notes are Arabic, and a mixed list where every row is
+        # laid out left-to-right puts Arabic punctuation on the wrong end.
+        line.set_direction(Gtk.TextDirection.RTL if is_rtl(entry.text) else Gtk.TextDirection.LTR)
+
+        if kind == "task":
+            check = Gtk.CheckButton(label=entry.text)
+            check.set_active(bool(entry.done))
+            check.get_style_context().add_class("quick-check")
+            if entry.done:
+                check.get_style_context().add_class("quick-done")
+            label = check.get_child()
+            if isinstance(label, Gtk.Label):
+                label.set_line_wrap(True)
+                label.set_xalign(0)
+            check.connect("toggled", self._on_quick_toggled, kind, quick, entry)
+            line.pack_start(check, True, True, 0)
+        else:
+            label = Gtk.Label(label=entry.text, xalign=0)
+            label.set_line_wrap(True)
+            label.set_selectable(True)   # a jotted phone number is there to be copied back out
+            label.get_style_context().add_class("quick-text")
+            line.pack_start(label, True, True, 0)
+
+        drop = Gtk.Button(relief=Gtk.ReliefStyle.NONE)
+        drop.add(Gtk.Image.new_from_icon_name("window-close-symbolic", Gtk.IconSize.MENU))
+        drop.get_style_context().add_class("card-action")
+        drop.set_can_focus(False)
+        drop.set_tooltip_text("Remove this line")
+        drop.connect("clicked", self._on_quick_remove, kind, quick, entry)
+        line.pack_end(drop, False, False, 0)
+
+        row.add(line)
+        return row
+
+    def _on_quick_activate(self, entry: Gtk.Entry, kind: str) -> None:
+        """Enter in a quick field: append the line and clear the field, ready for the next one.
+        The field keeps the focus — capture comes in bursts, and re-aiming after every item is the
+        friction this whole strip exists to remove."""
+        text = entry.get_text().strip()
+        if not text:
+            return
+        quick = self._quick_file(kind)
+        if not quick.append(text):
+            self._flash_status(f"Could not write {os.path.basename(quick.path)}")
+            return
+        entry.set_text("")
+        self._quick_stamp[kind] = quick.mtime()
+        self._fill_quick_list(kind, quick)
+        self._scroll_quick_to_end(kind)
+
+    def _scroll_quick_to_end(self, kind: str) -> None:
+        """Put the newest line in view. Deferred: the row that was just added has no allocation
+        yet, so the adjustment's upper bound is still the pre-insert one."""
+        def later() -> bool:
+            adj = self.quick_lists[kind].get_parent().get_vadjustment()
+            if adj is not None:
+                adj.set_value(max(0.0, adj.get_upper() - adj.get_page_size()))
+            return False
+        GLib.idle_add(later)
+
+    def _on_quick_toggled(self, button: Gtk.CheckButton, kind: str,
+                          quick: QuickFile, entry: QuickEntry) -> None:
+        if self._quick_rebuilding:
+            return
+        if not quick.set_done(entry, button.get_active()):
+            self._flash_status(f"Could not write {os.path.basename(quick.path)}")
+            return
+        self._quick_stamp[kind] = quick.mtime()
+        ctx = button.get_style_context()
+        (ctx.add_class if button.get_active() else ctx.remove_class)("quick-done")
+        entries = quick.entries()
+        self.quick_counts[kind].set_text(
+            f"{fmt_count(sum(1 for e in entries if not e.done))} left" if entries else "")
+
+    def _on_quick_remove(self, _button: Gtk.Button, kind: str,
+                         quick: QuickFile, entry: QuickEntry) -> None:
+        if not quick.remove(entry):
+            self._flash_status(f"Could not write {os.path.basename(quick.path)}")
+            return
+        self._quick_stamp[kind] = quick.mtime()
+        self._fill_quick_list(kind, quick)
+
+    def _on_quick_toggle_button(self, button: Gtk.ToggleButton) -> None:
+        if button.get_active() != self.settings.quick_panels_visible:
+            self._set_quick_panels(button.get_active())
+
+    def _set_quick_panels(self, visible: bool, persist: bool = True, focus: str | None = None) -> None:
+        """Show or hide the quick strip. [focus] names the field to land in ("note"/"task")."""
+        if visible:
+            # Remember the height before showing, then re-apply it: a strip that came back at the
+            # splitter's default would have to be dragged into place every time.
+            self.quick_box.show()
+            self._apply_quick_height()
+            self._sync_quick_panels(force=True)
+        else:
+            self._save_quick_height()
+            self.quick_box.hide()
+        self.settings.quick_panels_visible = visible
+        if self.quick_toggle.get_active() != visible:
+            self.quick_toggle.set_active(visible)
+        if persist:
+            self.settings.save()
+        if visible and focus:
+            self.quick_entries[focus].grab_focus()
+
+    def _focus_quick(self, kind: str) -> None:
+        """Ctrl+J / Ctrl+K from anywhere: open whatever has to be open and put the caret in the
+        field. One keystroke from any state to typing is the point of the feature."""
+        if not self.settings.editor_pane_visible:
+            self._set_editor_pane(True, focus=False)
+        if not self.settings.quick_panels_visible:
+            self._set_quick_panels(True, focus=kind)
+        else:
+            self.quick_entries[kind].grab_focus()
+
+    def _apply_quick_height(self) -> None:
+        """Give the strip its remembered height. Same two-step as the editor pane's width, and for
+        the same reason — see _relax_editor_width: a size request survives any window size, and the
+        position is what makes it stick once the layout has happened."""
+        self.quick_box.set_size_request(-1, max(QUICK_PANELS_MIN_H, self.settings.quick_panels_height))
+        self._quick_settle_tries = 20
+        GLib.timeout_add(EDITOR_PANE_SETTLE_MS, self._relax_quick_height)
+
+    def _relax_quick_height(self) -> bool:
+        total = self.right_split.get_allocated_height()
+        height = self.quick_box.get_allocated_height()
+        self._quick_settle_tries -= 1
+        if total <= 1 or height <= 1:
+            return self._quick_settle_tries > 0
+        self.right_split.set_position(total - height)
+        self.quick_box.set_size_request(-1, QUICK_PANELS_MIN_H)
+        return False
+
+    def _save_quick_height(self) -> None:
+        height = self.quick_box.get_allocated_height()
+        if height > QUICK_PANELS_MIN_H:
+            self.settings.quick_panels_height = height
+
+    def _build_files_panel(self) -> Gtk.Widget:
+        """The strip under the note listing its companion folder (``<stem>.d/``): one row per file,
+        a click opens it; "Add files…" (or a drop from the file manager) copies files in. The folder
+        is still only created when something is actually added — browsing a note never makes one."""
+        panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        panel.get_style_context().add_class("files-panel")
+
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        title = Gtk.Label(label="Files", xalign=0)
+        title.get_style_context().add_class("quick-title")
+        header.pack_start(title, False, False, 0)
+        self.files_count = Gtk.Label(xalign=0)
+        self.files_count.get_style_context().add_class("quick-count")
+        header.pack_start(self.files_count, True, True, 0)
+        for icon, label, tip, handler in (
+                ("folder-open-symbolic", "open folder", "Open the note's files folder  (Ctrl+O)",
+                 lambda _b: self._open_files_folder()),
+                ("list-add-symbolic", "add files…",
+                 "Copy files into the note's folder — or drop them on this panel",
+                 lambda _b: self._choose_note_files())):
+            button = Gtk.Button(relief=Gtk.ReliefStyle.NONE)
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+            row.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU), False, False, 0)
+            row.pack_start(Gtk.Label(label=label), False, False, 0)
+            button.add(row)
+            button.get_style_context().add_class("card-action")
+            button.set_can_focus(False)
+            button.set_tooltip_text(tip)
+            button.connect("clicked", handler)
+            header.pack_end(button, False, False, 0)
+        panel.pack_start(header, False, False, 0)
+
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_policy(Gtk.PolicyType.EXTERNAL, Gtk.PolicyType.AUTOMATIC)
+        scroller.set_overlay_scrolling(False)
+        scroller.set_propagate_natural_height(True)
+        scroller.set_max_content_height(120)   # a handful of rows, then it scrolls
+        self.files_list = Gtk.ListBox()
+        self.files_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.files_list.get_style_context().add_class("quick-list")
+        self.files_list.connect("row-activated", self._on_note_file_activated)
+        placeholder = Gtk.Label(label="No files yet — add some, or drop them here", xalign=0)
+        placeholder.get_style_context().add_class("files-empty")
+        placeholder.show()
+        self.files_list.set_placeholder(placeholder)
+        scroller.add(self.files_list)
+        panel.pack_start(scroller, False, False, 0)
+
+        # Files dragged in from the file manager arrive as a uri-list.
+        panel.drag_dest_set(Gtk.DestDefaults.ALL, [], Gdk.DragAction.COPY)
+        panel.drag_dest_add_uri_targets()
+        panel.connect("drag-data-received", self._on_note_files_dropped)
+        self.files_panel = panel
+        return panel
+
+    def _files_panel_note(self) -> Note | None:
+        """The note the files panel is about: the pane's note, if it's a real (settled) one. An
+        unsettled item has no companion folder of its own — see _open_files_folder."""
+        note = self._editor_note
+        if note is None or note.path in self._unrecognized_paths:
+            return None
+        return note
+
+    def _refresh_note_files(self) -> None:
+        """Re-list the pane note's companion folder (folders first, then files, by name)."""
+        if not hasattr(self, "files_list"):
+            return
+        for child in self.files_list.get_children():
+            self.files_list.remove(child)
+        note = self._files_panel_note()
+        self.files_panel.set_visible(note is not None)
+        if note is None:
+            return
+        folder = companion_dir(note.path)
+        try:
+            names = os.listdir(folder) if os.path.isdir(folder) else []
+        except OSError:
+            names = []
+        entries = sorted(((os.path.isdir(os.path.join(folder, n)), n) for n in names
+                          if not n.startswith(".")), key=lambda e: (not e[0], e[1].lower()))
+        for is_dir, name in entries:
+            path = os.path.join(folder, name)
+            row = Gtk.ListBoxRow()
+            row.get_style_context().add_class("quick-row")
+            row.file_path = path
+            line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            line.set_margin_start(4)
+            line.set_margin_end(4)
+            icon = "folder-symbolic" if is_dir else "text-x-generic-symbolic"
+            line.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU), False, False, 0)
+            label = Gtk.Label(label=name, xalign=0)
+            label.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+            label.get_style_context().add_class("quick-text")
+            line.pack_start(label, True, True, 0)
+            if not is_dir:
+                try:
+                    size = Gtk.Label(label=GLib.format_size(os.path.getsize(path)), xalign=1)
+                    size.get_style_context().add_class("quick-count")
+                    line.pack_end(size, False, False, 0)
+                except OSError:
+                    pass
+            row.set_tooltip_text(f"{path}\nClick to open")
+            row.add(line)
+            self.files_list.add(row)
+        self.files_list.show_all()
+        self.files_count.set_text(fmt_count(len(entries)) if entries else "")
+
+    def _on_note_file_activated(self, _listbox: Gtk.ListBox, row: Gtk.ListBoxRow) -> None:
+        path = getattr(row, "file_path", None)
+        if path:
+            self._open_attachment(path)
+
+    def _choose_note_files(self) -> None:
+        note = self._files_panel_note()
+        if note is None:
+            return
+        dialog = Gtk.FileChooserDialog(title="Add files to this note", transient_for=self,
+                                       action=Gtk.FileChooserAction.OPEN)
+        dialog.add_buttons("_Cancel", Gtk.ResponseType.CANCEL, "_Add", Gtk.ResponseType.ACCEPT)
+        dialog.set_select_multiple(True)
+        paths = dialog.get_filenames() if dialog.run() == Gtk.ResponseType.ACCEPT else []
+        dialog.destroy()
+        self._attach_to_pane_note(paths)
+
+    def _on_note_files_dropped(self, _widget, _context, _x, _y, data, _info, _time) -> None:
+        paths = []
+        for uri in data.get_uris() or []:
+            try:
+                path, _host = GLib.filename_from_uri(uri)
+            except GLib.Error:
+                continue   # not a local file (a web link dragged from a browser)
+            paths.append(path)
+        self._attach_to_pane_note(paths)
+
+    def _attach_to_pane_note(self, paths: list[str]) -> None:
+        """Copy [paths] into the pane note's companion folder, then refresh the list and the board
+        (the card's file count comes from the same folder)."""
+        note = self._files_panel_note()
+        if note is None or not paths:
+            return
+        added = self.repo.attach(note, paths)
+        skipped = len(paths) - added
+        self._refresh_note_files()
+        self.reload_notes()
+        message = f"Added {added} file{'s' if added != 1 else ''}"
+        if skipped:
+            message += f" · {skipped} skipped (folders or unreadable)"
+        self._flash_status(message)
+
     def _editor_load(self, note: Note | None) -> None:
         """Point the pane at a note (or at nothing). Flushes whatever was being edited first, so
         moving the selection can't strand an unsaved change on the note you just left."""
@@ -977,6 +1721,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self._editor_path = note.path if note is not None else None
         self._editor_saved_text = note.content if note is not None else ""
         self._editor_render()
+        self._refresh_note_files()
 
     def _editor_render(self, keep_scroll: bool = False) -> None:
         """Fill the buffer from the current note in the current mode. Reading mode hides the ``==``
@@ -998,7 +1743,13 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self._editor_loading = True   # our own set_text must not look like a user edit
         try:
             self.editor_buffer.set_text(text)
+            # Both modes get the markdown styling. Editing mode shows the file's text as it is,
+            # markers and all — styling it costs nothing there either, since the markers were
+            # always going to be on screen in that mode.
+            self._paint_markup(text)
             if reading and any(flags):
+                # Highlights last: the tag is younger than the markup ones, so it wins on the one
+                # property they both set (background).
                 self._paint_highlights(flags)
         finally:
             self._editor_loading = False
@@ -1108,7 +1859,25 @@ class KnotesWindow(Gtk.ApplicationWindow):
     def _editor_timer_fired(self) -> bool:
         self._editor_timer = 0
         self._editor_flush()
+        # Restyle now the typing has settled. GtkTextBuffer extends whatever tags border an
+        # insertion point over the new text, so typing just after a "**bold**" run drags the bold
+        # with it; and a marker only becomes a pair once its closing half is typed. Re-scanning on
+        # the autosave beat keeps the styling honest without restyling on every keystroke.
+        self._restyle_editor()
         return False  # one-shot
+
+    def _restyle_editor(self) -> None:
+        """Re-apply the markdown tags to the buffer as it currently stands. Tags only — the text
+        is not touched, so this can never interfere with what gets saved."""
+        if self._editor_note is None:
+            return
+        buffer = self.editor_buffer
+        start, end = buffer.get_bounds()
+        for tag in self._md_tags.values():
+            buffer.remove_tag(tag, start, end)
+        if self._editor_mode == "edit":
+            buffer.remove_tag(self._hl_tag, start, end)   # re-applied from the text below
+        self._paint_markup(buffer.get_text(start, end, False))
 
     def _editor_text(self) -> str:
         start, end = self.editor_buffer.get_bounds()
@@ -1232,9 +2001,14 @@ class KnotesWindow(Gtk.ApplicationWindow):
         input_row.pack_start(self.layout_label, False, False, 0)
 
         self.text_scroller = Gtk.ScrolledWindow()
-        # Horizontal NEVER (the text wraps); overlay scrolling off so the vertical scrollbar gets its
-        # own gutter instead of covering the last line.
-        self.text_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        # No horizontal scrollbar (the text wraps) — but EXTERNAL, not NEVER. A wrapping GtkTextView
+        # reports the width its text was last laid out at as its MINIMUM width, and NEVER makes the
+        # scroller demand its child's minimum: so every line typed (or every note loaded into the
+        # pane) ratcheted the window wider and it never came back. EXTERNAL hides the bar without
+        # inheriting the child's width, and the view simply wraps at whatever width it is given.
+        # Overlay scrolling off so the vertical scrollbar gets its own gutter instead of covering
+        # the last line.
+        self.text_scroller.set_policy(Gtk.PolicyType.EXTERNAL, Gtk.PolicyType.AUTOMATIC)
         self.text_scroller.set_overlay_scrolling(False)
         # Start a single line tall; we grow it ourselves to fit the content (capped) on each edit.
         # (Deliberately NOT using propagate_natural_height: with a wrapping TextView its height-for-
@@ -1252,6 +2026,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.textview.set_bottom_margin(7)
         self.buffer = self.textview.get_buffer()
         self.buffer.connect("changed", lambda *_: GLib.idle_add(self._sync_editor_height))
+        # The quick-capture entries copy this field's resting (one-line) height — measured from its
+        # real allocation, since theme padding and font make it more than the text margins suggest.
+        self.text_scroller.connect("size-allocate", self._sync_quick_entry_height)
         self.text_scroller.add(self.textview)
         input_row.pack_start(self.text_scroller, True, True, 0)
 
@@ -1423,8 +2200,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # actual newest item regardless of which list it came from).
         unrecognized = self.repo.list_unrecognized()
         self._unrecognized_paths = {n.path for n in unrecognized}
+        self._refresh_note_files()   # files may have been added or removed outside the app
         all_notes = sorted(self.repo.list_notes() + unrecognized, key=lambda n: n.mtime)
-        query = self.search_entry.get_text().strip().lower()
+        query = self._search_query
         searched = [n for n in all_notes if not query or self._matches(n, query)]
         # Two stages, in this order on purpose: the search box narrows the folder, then the sidebar
         # counts every filter option against what's left (so its numbers track the search), and only
@@ -1441,9 +2219,13 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # showing "0 to settle" on a folder that has nothing to do.
         if unrecognized:
             count += f" · {fmt_count(len(unrecognized))} to settle"
-        self._base_title = f'knotes v{VERSION}.b{BUILD_NUMBER} "{CODENAME}" · {count}'
+        self._base_title = f'{APP_NAME} v{VERSION}.b{BUILD_NUMBER} · {count}'
         self._apply_header_title()
+        self._update_filter_summary(query, len(notes), len(all_notes))
         self._update_tags_summary(all_notes)
+        # The quick lists live in this folder too, so a folder event may be about one of them (or
+        # about a switch to a different folder entirely). Guarded on mtime — see _sync_quick_panels.
+        self._sync_quick_panels()
 
         # "Just added" — the newest note (the repo lists oldest→newest, so it's the last one).
         self._render_last_note(notes[-1] if notes else None)
@@ -1451,7 +2233,12 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if self.minimal_mode:
             self._editor_sync_after_reload(all_notes)
             return   # side-note mode: the board is hidden, only the just-added card is shown
-        if not notes:
+        if self.settings.view_mode == "week":
+            # The calendar answers "what did I journal / plan, when", so it takes the whole
+            # (searched) folder rather than the sidebar's selection — the sidebar opens filtered to
+            # today, which would leave six empty days on a week view.
+            self._render_week(searched)
+        elif not notes:
             self._render_empty(bool(all_notes), query)
         elif self.settings.view_mode == "list":
             self._render_list(notes)
@@ -1548,6 +2335,418 @@ class KnotesWindow(Gtk.ApplicationWindow):
                 grid_row.append(col_cards)
             self._grid.append(grid_row)
 
+    # ---------------------------------------------------------- week calendar
+
+    @staticmethod
+    def _monday_of(moment: datetime) -> datetime:
+        """Midnight on the Monday of ``moment``'s week (the sidebar's calendar starts on Monday too)."""
+        day = moment.replace(hour=0, minute=0, second=0, microsecond=0)
+        return day - timedelta(days=day.weekday())
+
+    def _calendar_type_name(self, code: str) -> str:
+        return dict(self.repo_cfg.types).get(code) or CALENDAR_TYPES.get(code, code)
+
+    def _shift_week(self, step: int) -> None:
+        """‹ / › (and Ctrl+PgUp / Ctrl+PgDn): move the calendar ``step`` weeks; 0 = this week."""
+        self._week_start = (self._monday_of(datetime.now()) if step == 0
+                            else self._week_start + timedelta(weeks=step))
+        self.reload_notes()
+
+    def _render_week(self, notes: list[Note]) -> None:
+        """An Outlook-style week: seven day columns of WEEK_SLOT_MINUTES slots, with every journal /
+        planner note in the slot its file-name timestamp falls in — however the note was created.
+        Clicking an empty slot opens _new_calendar_entry dated at that slot."""
+        self.board_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.NEVER)
+        self.board.set_homogeneous(False)
+        fmt = self.settings.timestamp_format
+        start = self._week_start
+        end = start + timedelta(days=7)
+        today = datetime.now().date()
+
+        # Bucket the week's J/P notes by (day, slot), each slot in time order.
+        slot_len = WEEK_SLOT_MINUTES
+        buckets: dict[tuple[int, int], list[tuple[datetime, Note]]] = {}
+        for note in notes:
+            if note.type not in CALENDAR_TYPES or note.path in self._unrecognized_paths:
+                continue
+            when = datetime.fromtimestamp(parse_created(note.timestamp, fmt, note.mtime))
+            if not (start <= when < end):
+                continue
+            key = ((when - start).days, (when.hour * 60 + when.minute) // slot_len)
+            buckets.setdefault(key, []).append((when, note))
+        shown = sum(len(v) for v in buckets.values())
+
+        # The bar: week navigation, what the week holds, and the one non-obvious gesture.
+        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        bar.get_style_context().add_class("week-bar")
+        for icon, tip, step in (("go-previous-symbolic", "Previous week (Ctrl+PgUp)", -1),
+                                (None, "Back to this week", 0),
+                                ("go-next-symbolic", "Next week (Ctrl+PgDn)", 1)):
+            btn = Gtk.Button(label="Today") if icon is None else Gtk.Button()
+            if icon is not None:
+                btn.add(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.BUTTON))
+            btn.get_style_context().add_class("week-nav")
+            btn.set_tooltip_text(tip)
+            btn.connect("clicked", lambda _b, k=step: self._shift_week(k))
+            bar.pack_start(btn, False, False, 0)
+        last = end - timedelta(days=1)
+        span = (f"{start.day} – {last.day} {last:%b %Y}" if start.month == last.month
+                else f"{start.day} {start:%b} – {last.day} {last:%b %Y}")
+        title = Gtk.Label(label=f"{span}   ·   week {start.isocalendar()[1]}", xalign=0)
+        title.get_style_context().add_class("week-title")
+        bar.pack_start(title, False, False, 8)
+        codes = "/".join(CALENDAR_TYPES)
+        count = Gtk.Label(label=f"{fmt_count(shown)} {codes} " + ("entry" if shown == 1 else "entries")
+                          + "  ·  click a slot to add", xalign=0)
+        count.get_style_context().add_class("week-hint")
+        count.set_ellipsize(3)
+        count.set_tooltip_text(
+            "Shows every " + " and ".join(f"{self._calendar_type_name(c).lower()} ({c})"
+                                          for c in CALENDAR_TYPES)
+            + " note in this folder by the time in its file name — including ones added from the "
+            "normal form. Click an empty slot to add one dated then. The search box narrows the "
+            "week; the sidebar filters don't apply here.")
+        bar.pack_start(count, True, True, 0)
+        self.board.pack_start(bar, False, False, 0)
+
+        # Day headings and the slot grid share per-column size groups, so the headings stay over
+        # their columns although they sit outside the grid's scroller (and so don't scroll away).
+        groups = [Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL) for _ in range(8)]
+        head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        head.get_style_context().add_class("week-head")
+        gutter = Gtk.Label(label="")
+        gutter.set_size_request(WEEK_GUTTER, -1)
+        groups[0].add_widget(gutter)
+        head.pack_start(gutter, False, False, 0)
+        for d in range(7):
+            day = start + timedelta(days=d)
+            lbl = Gtk.Label(label=f"{day:%a} {day.day}")
+            lbl.set_max_width_chars(1)   # natural width ~0, so hexpand shares the width equally
+            ctx = lbl.get_style_context()
+            ctx.add_class("week-day-head")
+            if day.date() == today:
+                ctx.add_class("today")
+            lbl.set_hexpand(True)
+            groups[d + 1].add_widget(lbl)
+            head.pack_start(lbl, True, True, 0)
+        self.board.pack_start(head, False, False, 0)
+
+        grid = Gtk.Grid()
+        grid.get_style_context().add_class("week-grid")
+        columns: list[list[tuple[Note, Gtk.Widget]]] = [[] for _ in range(7)]
+        hour_labels: dict[int, Gtk.Widget] = {}
+        for slot in range(24 * 60 // slot_len):
+            minute = slot * slot_len
+            on_hour = minute % 60 == 0
+            tlabel = Gtk.Label(label=f"{minute // 60:02d}:00" if on_hour else "", xalign=1, yalign=0)
+            tlabel.get_style_context().add_class("week-time")
+            tlabel.set_size_request(WEEK_GUTTER, -1)
+            groups[0].add_widget(tlabel)
+            grid.attach(tlabel, 0, slot, 1, 1)
+            if on_hour:
+                hour_labels[minute // 60] = tlabel
+            for d in range(7):
+                when = start + timedelta(days=d, minutes=minute)
+                cell = Gtk.EventBox()
+                ctx = cell.get_style_context()
+                ctx.add_class("week-slot")
+                if on_hour:
+                    ctx.add_class("hour")
+                if when.date() == today:
+                    ctx.add_class("today")
+                cell.set_hexpand(True)
+                cell.set_tooltip_text(f"Add a journal / planner entry at {when:%a %d %b, %H:%M}")
+                cell.connect("button-press-event", self._on_week_slot_click, when)
+                # A drop target too: dragging an entry here moves it to this slot's time.
+                cell.drag_dest_set(Gtk.DestDefaults.ALL, [], Gdk.DragAction.MOVE)
+                cell.drag_dest_add_text_targets()
+                cell.connect("drag-data-received", self._on_week_drop, when)
+                inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+                inner.set_border_width(2)   # an EventBox ignores CSS padding (see _build_card)
+                for at, note in sorted(buckets.get((d, slot), []), key=lambda p: p[0]):
+                    entry = self._build_week_entry(note, at)
+                    inner.pack_start(entry, False, False, 0)
+                    columns[d].append((note, entry))
+                cell.add(inner)
+                groups[d + 1].add_widget(cell)
+                grid.attach(cell, d + 1, slot, 1, 1)
+
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroller.add(grid)
+        self.board.pack_start(scroller, True, True, 0)
+        # Each day is a column of its entries in time order, so ↑/↓ walk a day and ←/→ step
+        # across days, the same as the kanban's columns.
+        self._grid = [columns]
+
+        adj = scroller.get_vadjustment()
+        target = self._week_scroll
+        anchor = hour_labels[WEEK_SCROLL_HOUR]
+
+        def restore() -> bool:
+            # Only once the grid has a real allocation; until then there's nothing to scroll to.
+            if anchor.get_allocated_height() <= 1:
+                return True
+            adj.set_value(target if target is not None else anchor.get_allocation().y)
+            adj.connect("value-changed", lambda a: setattr(self, "_week_scroll", a.get_value()))
+            return False
+
+        GLib.timeout_add(30, restore)
+
+    def _build_week_entry(self, note: Note, when: datetime) -> Gtk.Widget:
+        """One note inside a slot: its time and title, coloured by type. Selecting and opening go
+        through the board's own handlers, so it behaves exactly like a card."""
+        box = Gtk.EventBox()
+        ctx = box.get_style_context()
+        ctx.add_class("week-entry")
+        ctx.add_class(f"type-{note.type}")
+        box.set_can_focus(True)
+        # Drag source BEFORE the click handler: both listen to button-press, and the click handler
+        # returns True, which would stop emission before GTK's drag code ever saw the press.
+        box.drag_source_set(Gdk.ModifierType.BUTTON1_MASK, [], Gdk.DragAction.MOVE)
+        box.drag_source_add_text_targets()
+        box.drag_source_set_icon_name("x-office-calendar-symbolic")
+        box.connect("drag-data-get",
+                    lambda _w, _ctx, data, _info, _t, p=note.path: data.set_text(p, -1))
+        box.connect("button-press-event", self._on_week_entry_press, note)
+        label = Gtk.Label(label=f"{when:%H:%M}  {note.title(80)}", xalign=0)
+        label.set_ellipsize(3)
+        label.set_max_width_chars(1)   # natural width ~0: the slot's width decides, not the title
+        box.add(label)
+        # The whole note on hover — a slot is too narrow to show more than the first words. Capped
+        # in lines only because a tooltip taller than the screen is clipped, not scrolled.
+        body, _flags = split_highlights(note.content)
+        lines = body.strip().splitlines() or ["(empty)"]
+        if len(lines) > WEEK_TOOLTIP_LINES:
+            lines = lines[:WEEK_TOOLTIP_LINES] + [f"… {len(lines) - WEEK_TOOLTIP_LINES} more lines "
+                                                  f"— click to read it all in the pane"]
+        box.set_tooltip_text(
+            f"{self._calendar_type_name(note.type)} · {when:%a %d %b %Y, %H:%M}\n\n"
+            + "\n".join(lines)
+            + "\n\nClick: read it in the pane · double-click: change its time or details · "
+              "drag: move it to another slot")
+        return box
+
+    def _on_week_entry_press(self, _box, event, note: Note) -> bool:
+        """Click selects (like a card); double-click opens the entry form to edit it — the
+        calendar's "open appointment", rather than the card's open-in-your-editor."""
+        if event.button == 1 and event.type == Gdk.EventType._2BUTTON_PRESS:
+            # Deferred: a modal dialog's nested loop shouldn't run inside the press handler.
+            GLib.idle_add(lambda: self._new_calendar_entry(None, note) and False)
+            return True
+        return self._on_card_click(note, event if event.type != Gdk.EventType._2BUTTON_PRESS else None)
+
+    def _on_week_drop(self, _cell, _ctx, _x, _y, data, _info, _time, when: datetime) -> None:
+        """An entry dropped on a slot: rename it to that slot's time (snapped to the slot start,
+        the way Outlook moves an appointment). Dropping it back into its own slot does nothing."""
+        path = (data.get_text() or "").strip()
+        if not path or not os.path.isfile(path):
+            return
+        old = datetime.fromtimestamp(parse_created(parse_name(os.path.basename(path)).timestamp,
+                                                   self.settings.timestamp_format,
+                                                   os.path.getmtime(path)))
+        slot = timedelta(minutes=WEEK_SLOT_MINUTES)
+        if when <= old < when + slot:
+            return
+        # The drag's source widget is still alive until the drag ends, so the rebuild that
+        # destroys it waits for the main loop.
+        GLib.idle_add(self._retime_entry, path, when)
+
+    def _retime_entry(self, path: str, when: datetime) -> bool:
+        if self._editor_path == path:
+            self._editor_flush()   # a pending pane edit must land in the file before it's renamed
+        try:
+            new_path = self.repo.retime(path, when, self.settings.timestamp_format)
+        except OSError as err:
+            self._message("Couldn't move the entry", f"{os.path.basename(path)}\n\n{err}")
+            return False
+        if self._sel_path == path:
+            self._sel_path = new_path
+        self.reload_notes()
+        self._flash_status(f"Moved to {when:%a %d %b %Y, %H:%M}")
+        return False
+
+    def _on_week_slot_click(self, _cell, event, when: datetime) -> bool:
+        if event.button == 1 and event.type == Gdk.EventType.BUTTON_PRESS:
+            self._new_calendar_entry(when)
+        return True
+
+    def _new_calendar_entry(self, when: datetime | None, note: Note | None = None) -> None:
+        """The calendar's appointment form: a journal or planner note, dated at the clicked slot
+        (adjustable), with its priority, category and text. A past slot defaults to Journal, a
+        future one to Planner. Given ``note`` it edits that entry instead — same fields, prefilled,
+        and a changed date/time renames the file (see NoteRepository.retime)."""
+        self._editor_flush()
+        fmt = self.settings.timestamp_format
+        if note is not None:
+            if not os.path.isfile(note.path):
+                return   # gone since the click (synced away, or moved by a drop)
+            note = self.repo._to_note(note.path)   # fresh from disk — the pane may just have saved it
+            when = datetime.fromtimestamp(parse_created(note.timestamp, fmt, note.mtime))
+        dialog = Gtk.Dialog(title="Edit calendar entry" if note is not None else "New calendar entry",
+                            transient_for=self, modal=True)
+        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        save = dialog.add_button("Save", Gtk.ResponseType.OK)
+        save.get_style_context().add_class("suggested-action")
+        save.set_tooltip_text("Save (Ctrl+Enter)")
+        dialog.set_default_size(620, 420)
+        area = dialog.get_content_area()
+        area.set_spacing(10)
+        area.set_border_width(12)
+
+        form = Gtk.Grid(column_spacing=12, row_spacing=8)
+        area.pack_start(form, False, False, 0)
+
+        def caption(text: str, row: int) -> None:
+            lbl = Gtk.Label(label=text, xalign=1)
+            lbl.get_style_context().add_class("dim-label")
+            form.attach(lbl, 0, row, 1, 1)
+
+        # Type — a two-button radio, J and P.
+        caption("Type", 0)
+        type_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        type_box.get_style_context().add_class("linked")
+        type_buttons: dict[str, Gtk.RadioButton] = {}
+        group = None
+        for code in CALENDAR_TYPES:
+            btn = Gtk.RadioButton.new_with_label_from_widget(
+                group, f"{code} · {self._calendar_type_name(code)}")
+            btn.set_mode(False)   # draw as a toggle button, not a radio dot
+            group = group or btn
+            type_buttons[code] = btn
+            type_box.pack_start(btn, False, False, 0)
+        if note is not None and note.type in type_buttons:
+            type_buttons[note.type].set_active(True)
+        else:
+            type_buttons["J" if when <= datetime.now() else "P"].set_active(True)
+        form.attach(type_box, 1, 0, 1, 1)
+
+        # When — a date picker and the slot's time, both prefilled and adjustable.
+        caption("When", 1)
+        when_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        date_button = Gtk.MenuButton()
+        date_label = Gtk.Label()
+        date_button.add(date_label)
+        popover = Gtk.Popover()
+        picker = MonthPicker(when, on_pick=lambda _d: (show_date(), popover.popdown()))
+        popover.add(picker)
+        picker.show_all()
+        date_button.set_popover(popover)
+
+        def picked_date() -> datetime:
+            return picker.selected
+
+        def show_date(*_a) -> None:
+            date_label.set_text(f"{picked_date():%a %d %b %Y}")
+
+        show_date()
+        when_box.pack_start(date_button, False, False, 0)
+
+        def spin(value: int, upper: int) -> Gtk.SpinButton:
+            sb = Gtk.SpinButton.new_with_range(0, upper, 1)
+            sb.set_value(value)
+            sb.set_wrap(True)
+            sb.set_width_chars(2)
+            sb.connect("output", lambda b: (b.set_text(f"{int(b.get_value()):02d}"), True)[1])
+            return sb
+
+        hour = spin(when.hour, 23)
+        minute = spin(when.minute, 59)
+        # Seconds aren't on the form, so an edit that leaves the time alone keeps the original's.
+        seconds = when.second if note is not None else 0
+        when_box.pack_start(hour, False, False, 0)
+        when_box.pack_start(Gtk.Label(label=":"), False, False, 0)
+        when_box.pack_start(minute, False, False, 0)
+        form.attach(when_box, 1, 1, 1, 1)
+
+        # Priority and category, from this folder's own tag set.
+        caption("Priority", 2)
+        prio = Gtk.ComboBoxText()
+        for p in self.repo_cfg.priorities():
+            prio.append(str(p), f"P{p}")
+        prio.set_active_id(str(note.priority if note is not None and note.priority is not None
+                               else self.repo_cfg.priority_default))
+        if prio.get_active_id() is None:
+            prio.set_active(0)
+        form.attach(prio, 1, 2, 1, 1)
+        caption("Category", 3)
+        cat = Gtk.ComboBoxText()
+        cat.append("", "—  none")
+        for code, name in self.repo_cfg.categories:
+            cat.append(code, f"{code} · {name}" if name else code)
+        cat.set_active_id((note.category or "") if note is not None
+                          else (self.selected_category or self.repo_cfg.default_category or ""))
+        if cat.get_active_id() is None:
+            cat.set_active_id("")
+        form.attach(cat, 1, 3, 1, 1)
+
+        # The text.
+        view = Gtk.TextView()
+        view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        view.set_left_margin(6)
+        view.set_right_margin(6)
+        view.set_top_margin(6)
+        view.get_style_context().add_class("calendar-entry-text")
+        text_scroller = Gtk.ScrolledWindow()
+        text_scroller.set_shadow_type(Gtk.ShadowType.IN)
+        text_scroller.set_min_content_height(160)
+        text_scroller.add(view)
+        if note is not None:
+            view.get_buffer().set_text(note.content.rstrip("\n"))
+        area.pack_start(text_scroller, True, True, 0)
+        hint = Gtk.Label(label="Ctrl+Enter saves · Esc cancels", xalign=0)
+        hint.get_style_context().add_class("dim-label")
+        area.pack_start(hint, False, False, 0)
+
+        def on_key(_w, ev) -> bool:
+            ctrl_down = ev.state & Gdk.ModifierType.CONTROL_MASK
+            if ctrl_down and ev.keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+                dialog.response(Gtk.ResponseType.OK)
+                return True
+            return False
+
+        dialog.connect("key-press-event", on_key)
+        dialog.show_all()
+        view.grab_focus()
+
+        while True:
+            resp = dialog.run()
+            if resp != Gtk.ResponseType.OK:
+                break
+            buf = view.get_buffer()
+            text = buf.get_text(buf.get_start_iter(), buf.get_end_iter(), True).strip()
+            if not text:
+                hint.set_text("Write something first — an empty entry isn't saved.")
+                view.grab_focus()
+                continue
+            type_ = next(c for c, b in type_buttons.items() if b.get_active())
+            at = picked_date().replace(hour=int(hour.get_value()), minute=int(minute.get_value()),
+                                       second=seconds)
+            priority, category = int(prio.get_active_id()), cat.get_active_id() or None
+            try:
+                if note is None:
+                    path = self.repo.save_new(text, type_, priority, category, fmt, when=at)
+                else:
+                    # Tags and text first (that rename keeps the timestamp), then the time.
+                    path = self.repo.update(note, text, type_, priority, category)
+                    path = self.repo.retime(path, at, fmt)
+            except OSError as err:
+                hint.set_text(f"Couldn't save: {err}")
+                continue
+            # Jump the calendar to the week the entry landed in (the date may have been changed),
+            # and select it so it opens in the pane.
+            if not (self._week_start <= at < self._week_start + timedelta(days=7)):
+                self._week_start = self._monday_of(at)
+                self._week_scroll = None
+            self._sel_path = path
+            self.reload_notes()
+            self._flash_status(f"{'Updated' if note is not None else 'Saved'} "
+                               f"{self._calendar_type_name(type_).lower()} entry for "
+                               f"{at:%a %d %b %Y, %H:%M}")
+            break
+        dialog.destroy()
+
+
     def _render_empty(self, folder_has_notes: bool, query: str) -> None:
         """A line of text where the cards would be, so a blank board always says WHY it's blank.
 
@@ -1557,12 +2756,16 @@ class KnotesWindow(Gtk.ApplicationWindow):
         """
         if not folder_has_notes:
             text = "No notes in this folder yet"
+        elif not query and self.filters == FilterState(
+                date_field=self.filters.date_field,
+                days={datetime.now().date(), datetime.now().date() - timedelta(days=1)}):
+            # Today and yesterday, and nothing else — the state the app opens in.
+            text = "No notes entered today or yesterday"
         elif not query and self.filters == FilterState(date_field=self.filters.date_field,
                                                        days={datetime.now().date()}):
-            # Today, and nothing else — the state the app opens in.
             text = "No notes entered today"
         elif query:
-            text = "No notes match the search"
+            text = f"No note's text or file name contains “{query}”"
         else:
             text = "No notes match the filters"
         self._grid = []   # nothing to walk with the arrow keys; a stale grid would point at dead cards
@@ -1646,6 +2849,105 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self.reload_notes()
         return False
 
+    def _describe_filters(self, query: str) -> list[tuple[str, str]]:
+        """The active filters as ``(dimension, what's picked)`` pairs, in the sidebar's own order so
+        the line and the panel read the same way round.
+
+        Values are spelled the way the sidebar spells them — "N · Note", "P2", a day as a date —
+        rather than as raw codes, because the point is to be readable at a glance by someone who
+        has just come back to a board they narrowed twenty minutes ago.
+        """
+        f = self.filters
+        parts: list[tuple[str, str]] = []
+        if query:
+            parts.append(("Search", f'"{query}"'))
+
+        type_names = dict(self.repo_cfg.types)
+        cat_names = dict(self.repo_cfg.categories)
+
+        def named(keys: set, names: dict, blank: str) -> str:
+            out = []
+            for key in sorted(keys, key=lambda k: (k is None, str(k))):
+                if key is None:
+                    out.append(blank)
+                else:
+                    label = names.get(key, "")
+                    out.append(f"{key} · {label}" if label else str(key))
+            return ", ".join(out)
+
+        if f.types:
+            parts.append(("Type", named(f.types, type_names, "untyped")))
+        if f.categories:
+            parts.append(("Category", named(f.categories, cat_names, "uncategorized")))
+        if f.priorities:
+            parts.append(("Priority", ", ".join(
+                "no priority" if p is None else f"P{p}"
+                for p in sorted(f.priorities, key=lambda p: (p is None, p)))))
+        if f.days:
+            parts.append(("Created" if f.date_field == BY_CREATED else "Updated",
+                          self._describe_days(f.days)))
+        if f.tags:
+            parts.append(("Tag", ", ".join(f"#{t}" for t in sorted(f.tags))))
+        if f.nonstandard != NS_INCLUDE:
+            parts.append(("Non-standard",
+                          "only these" if f.nonstandard == NS_ONLY else "hidden"))
+        if f.taxonomy != TX_INCLUDE:
+            parts.append(("Bad taxonomy",
+                          "only these" if f.taxonomy == TX_ONLY else "hidden"))
+        return parts
+
+    @staticmethod
+    def _describe_days(days: set) -> str:
+        """A day selection in as few words as it takes. One day is a date; a contiguous run is a
+        range (which is what a shift-click in the calendar makes, and listing thirty dates for it
+        would be unreadable); anything scattered is just counted."""
+        ordered = sorted(days)
+        if len(ordered) == 1:
+            return ordered[0].strftime("%-d %b %Y")
+        contiguous = (ordered[-1].toordinal() - ordered[0].toordinal() + 1) == len(ordered)
+        if contiguous:
+            first, last = ordered[0], ordered[-1]
+            if (first.year, first.month) == (last.year, last.month):
+                return f"{first.strftime('%-d')}–{last.strftime('%-d %b %Y')}"
+            return f"{first.strftime('%-d %b')} – {last.strftime('%-d %b %Y')}"
+        return f"{fmt_count(len(ordered))} days"
+
+    def _update_filter_summary(self, query: str, shown: int, total: int) -> None:
+        """Draw (or hide) the line above the board. Hidden when nothing is filtering: a permanent
+        "no filters" strip would be a line of furniture that never says anything."""
+        # Remembered so a theme switch can redraw the line without a full reload — its colours are
+        # baked in as markup, so they'd otherwise stay light-on-light until the next render.
+        self._filter_summary_args = (query, shown, total)
+        parts = self._describe_filters(query)
+        if not parts or (self.settings.view_mode == "week" and not self.minimal_mode):
+            # The week view ignores the sidebar filters (see reload_notes), so a line saying the
+            # board is narrowed would be wrong there; the calendar's own bar says what it shows.
+            self.filter_summary_row.hide()
+            return
+        muted = self._theme_color("fg_muted", "#808080")
+        strong = self._theme_color("fg_strong", "#000000")
+        chunks = [f'<span foreground="{muted}">{GLib.markup_escape_text(dim)}</span> '
+                  f'<span foreground="{strong}" weight="bold">{GLib.markup_escape_text(value)}</span>'
+                  for dim, value in parts]
+        # A vertical bar between chunks, NOT the "·" the values themselves use: a type prints as
+        # "N · Note", so "Type N · Note · Priority P2" reads as three filters instead of two.
+        separator = f'<span foreground="{muted}">   │   </span>'
+        count = f'<span foreground="{muted}">{fmt_count(shown)} of {fmt_count(total)}</span>'
+        self.filter_summary.set_markup(separator.join([count] + chunks))
+        self.filter_summary.set_tooltip_text(
+            "\n".join(f"{dim}: {value}" for dim, value in parts))   # the full text when it ellipsises
+        self.filter_summary_row.show()
+
+    def _clear_everything(self) -> None:
+        """The summary line's "clear": drop every filter AND the search box in one go. They are one
+        thing from where the user is sitting — both narrow the board, and the line lists them
+        together — so clearing half of it would leave the line still showing."""
+        if self.search_bar.get_search_mode():
+            self._set_search(False)      # also clears the entry text
+        if self.filters.active():
+            self.filters.clear()
+        self.reload_notes()
+
     def _update_tags_summary(self, notes: list[Note]) -> None:
         """Refresh the one-line #hashtag strip under the add field. With "show tags under add
         form" on: each tag + the number of notes that use it, most-used first. Off: a single
@@ -1680,9 +2982,22 @@ class KnotesWindow(Gtk.ApplicationWindow):
 
     @staticmethod
     def _matches(note: Note, query: str) -> bool:
+        """Does [note] match the search box text (already stripped and lowercased)?
+
+        Content, then the metadata codes, then the FILE NAME — plain substring throughout. The name
+        matters because in knotes the name IS the metadata: a whole name pasted off the copy button
+        finds its one note, and a fragment of the tag block ("n~p2") lists every note carrying it,
+        which no content search could do.
+
+        The extension is part of what's matched, so a pasted "…~I.md" still lands. A query that came
+        off the copy-PATH button instead is reduced to its last component first: matching the folder
+        part would match every note in the folder, which is the opposite of a search."""
+        name = os.path.basename(note.path.rstrip(os.sep + "/")).lower()
+        wanted = query.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
         return (query in note.content.lower()
                 or (note.type or "").lower().find(query) >= 0
-                or (note.category or "").lower().find(query) >= 0)
+                or (note.category or "").lower().find(query) >= 0
+                or (bool(wanted) and wanted in name))
 
     def _build_column(self, cat_code: str, name: str, notes: list[Note],
                       col_cards: list[tuple[Note, Gtk.Widget]]) -> Gtk.Widget:
@@ -1788,22 +3103,25 @@ class KnotesWindow(Gtk.ApplicationWindow):
 
         tags = []
         if note.type:
-            tags.append(_tag_span(note.type, TAG_COLOR_TYPE))
-        tags.append(_tag_span(f"P{note.priority}" if note.priority is not None else "P·", TAG_COLOR_PRIO))
+            tags.append((note.type, TAG_COLOR_TYPE))
+        tags.append((f"P{note.priority}" if note.priority is not None else "P·", TAG_COLOR_PRIO))
         if note.category:
-            tags.append(_tag_span(note.category, TAG_COLOR_CAT))
+            tags.append((note.category, TAG_COLOR_CAT))
         # The three meta tags get their OWN label in a fixed left gutter, never inlined into the
         # body text. An RTL note right-aligns its body (below), which — with the tags inline — swept
         # them over to the right edge, so the type/priority/category landed in a different place on
         # an Arabic card than on an English one. In a gutter the eye runs straight down one column
         # whatever the note's language. (The trade: a wrapped body's later lines start after the
         # gutter rather than under it.)
-        # Order is type · priority · category, and the cluster sits in an LTR isolate (U+2066…U+2069)
-        # so it reads left-to-right ("T P3 Z") even when the tag text itself neighbours RTL content.
-        tag_label = Gtk.Label(xalign=0)
-        tag_label.set_markup("⁦" + " ".join(tags) + "⁩")
-        tag_label.set_valign(Gtk.Align.START)
+        # Order is type · priority · category, and the cluster is forced LTR so it reads
+        # left-to-right ("T P3 Z") even on an Arabic card. (It used to be one label carrying an
+        # LTR isolate, U+2066…U+2069; separate widgets get the same ordering from the box direction
+        # and can be given a corner radius, which a Pango background run cannot have.)
+        tag_label = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         tag_label.set_direction(Gtk.TextDirection.LTR)
+        tag_label.set_valign(Gtk.Align.START)
+        for text, colour in tags:
+            tag_label.pack_start(_tag_chip(text, colour), False, False, 0)
 
         # A "needs metadata" placeholder: show its actual file/folder name (note.title() would show
         # its raw content, or "(empty)" for a folder — neither identifies which item this is).
@@ -1824,6 +3142,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
             marks = note.time_mark_count()
             if marks:
                 parts.append(f'{fmt_count(marks)} time mark{"" if marks == 1 else "s"}')
+        # The attached files are listed in the pane's files panel; the card only says how many.
+        if note.n_files:
+            parts.append(f'{fmt_count(note.n_files)} file{"" if note.n_files == 1 else "s"}')
         # Rendered at the end of the action row rather than trailing the title: the title is what the
         # eye lands on when scanning the board, and a parenthetical of three numbers in front of the
         # note's own first words got in the way of reading it. Down with the actions it's a footer.
@@ -1860,49 +3181,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # when the content above is truncated.
         hashtags = _hashtags(note.content)
         if hashtags:
-            ht = Gtk.Label(xalign=0)
-            ht.set_markup("  ".join(_tag_span("#" + h, TAG_COLOR_HASH) for h in hashtags))
-            ht.set_line_wrap(True)
-            ht.set_xalign(1.0 if note.is_rtl else 0.0)
-            outer.pack_start(ht, False, False, 0)
-
-        # Attached files (companion folder): a quick overview — up to 5 names (each truncated to the
-        # configured leading chars + its extension), then "…" if there are more, and the total count.
-        # Every name is a link that opens that file; the trailing "…" and the count reveal the folder.
-        if note.file_names:
-            chars = max(1, self.settings.card_file_chars)
-
-            def _short(fn: str) -> str:
-                stem, ext = os.path.splitext(fn)
-                trimmed = stem[:chars] + ("…" if len(stem) > chars else "")
-                return GLib.markup_escape_text(trimmed + ext)
-
-            def _title(fn: str) -> str:
-                """A file name safe to put in a link's ``title``. Escaped TWICE: once for this
-                label's markup, and again because GtkLabel hands a title to gtk_tooltip_set_markup()
-                — a second parse, which a raw '&' in a name would fail, leaving an empty tooltip."""
-                return GLib.markup_escape_text(GLib.markup_escape_text(fn))
-
-            # The href is the file's INDEX, not its name: a name can hold '&', '"' or '%' and would
-            # need escaping on the way in and unescaping on the way out. _on_file_link resolves it.
-            # A link's `title` is GtkLabel's own per-link tooltip — the way to show the untruncated
-            # name, since the label handles link hit-testing internally and a query-tooltip handler
-            # of ours would never be asked.
-            shown = "   ".join(f'<a href="{i}" title="{_title(f)}">{_short(f)}</a>'
-                               for i, f in enumerate(note.file_names[:5]))
-            # The "…" and the count reveal the folder; their tooltip is the full list, the only
-            # place the names past the fifth are readable at all. The separator is a literal "&#10;"
-            # because a real newline in an XML attribute is normalised away to a space.
-            every = "&#10;".join(_title(f) for f in note.file_names)
-            folder_link = f'<a href="folder" title="{every}">'
-            more = f"   {folder_link}…</a>" if note.n_files > 5 else ""
-            files = Gtk.Label(xalign=0)
-            files.set_markup(f'<span alpha="70%">📎 {shown}{more}  '
-                             f'{folder_link}({fmt_count(note.n_files)})</a></span>')
-            files.set_line_wrap(True)
-            files.set_xalign(1.0 if note.is_rtl else 0.0)
-            files.connect("activate-link", self._on_file_link, note)
-            outer.pack_start(files, False, False, 0)
+            outer.pack_start(
+                _tag_chip_row([("#" + h, TAG_COLOR_HASH) for h in hashtags], note.is_rtl),
+                False, False, 0)
 
         outer.pack_start(self._build_card_actions(note, counts), False, False, 0)
 
@@ -2019,6 +3300,16 @@ class KnotesWindow(Gtk.ApplicationWindow):
         add("insert-link-symbolic", "", f"Copy the full path to the clipboard\n{note.path}",
             lambda: self._copy_to_clipboard(note.path, "path"))
 
+        # Import: the backend files the note by its filename's type code, so a "needs metadata"
+        # placeholder can't go yet — disabled with the reason, like "open folder" above.
+        add("document-send-symbolic", "",
+            "Import this note into the Nibras backend — it becomes a record there and the file "
+            "moves to this folder's imported/ archive  (Ctrl+I)"
+            if settled else
+            "Needs metadata before it can be imported — retag it with Ctrl+Shift+<key> first",
+            # Deferred like delete: a successful import rebuilds the board, destroying this button.
+            lambda: GLib.idle_add(self._import_to_backend, note), enabled=settled)
+
         # Delete: on the card as well as on Ctrl+D, and disabled — with the reason in the tooltip —
         # for a note that still owns files. The row keeps its shape either way, so the button never
         # moves under the pointer between one card and the next.
@@ -2044,9 +3335,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if counts:
             # No LTR isolate needed here, unlike when this rode on the title: the row itself is
             # forced LTR (above), so an Arabic note can't reverse "(4 words)" into "(words 4)".
-            label = Gtk.Label(xalign=0)
-            label.set_markup(f'<span alpha="60%">{GLib.markup_escape_text(counts)}</span>')
+            label = Gtk.Label(label=counts, xalign=0)
             label.get_style_context().add_class("card-counts")
+            label.get_style_context().add_class("card-counts-strong")
             label.set_margin_start(8)
             row.pack_start(label, False, False, 0)
         return row
@@ -2066,24 +3357,6 @@ class KnotesWindow(Gtk.ApplicationWindow):
             elif event is not None and event.type == Gdk.EventType._2BUTTON_PRESS:
                 self._open_external(note)
         return True  # don't propagate
-
-    def _on_file_link(self, _label: Gtk.Label, href: str, note: Note) -> bool:
-        """A click on an attached file's name on a card: open that file.
-
-        ``href`` is the file's index in ``note.file_names`` (see _build_card), or "folder" for the
-        "…"/count, which reveals the companion folder instead — those files aren't listed, so
-        there's nothing to name. Always returns True: the href is an index, not a URI, and letting
-        GTK's default handler see it would just log a "no application for uri" warning.
-        """
-        if href == "folder":
-            self._reveal_folder(note.path)
-            return True
-        try:
-            name = note.file_names[int(href)]
-        except (ValueError, IndexError):
-            return True  # card rebuilt under the click; the next render has the right indices
-        self._open_attachment(os.path.join(companion_dir(note.path), name))
-        return True
 
     def _pos_of_path(self, path: str | None) -> tuple[int, int, int] | None:
         if not path:
@@ -2135,7 +3408,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
         pane's autosave writes the note, the folder watch sees the write and reloads the board a
         moment later, and this runs — so re-grabbing unconditionally pulls the caret out of the note
         roughly a second and a half into every sentence typed in the pane, which reads as the app
-        randomly refusing to be typed into.
+        randomly refusing to be typed into. Same for a quick-list burst: each Enter writes the list's
+        file, and the reload that follows would pull the caret out before the next line.
         """
         self._selected_widget = None
         self.selected_note = None
@@ -2146,7 +3420,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if pos is None:
             self._sel_path = None
             return
-        writing = self.editor_view.has_focus() or self.textview.has_focus()
+        # Any text field counts — the add field, the pane, and the quick note/task entries, whose
+        # own file write triggers this same watch reload right after each Enter.
+        writing = isinstance(self.get_focus(), (Gtk.TextView, Gtk.Entry))
         self._apply_select(*pos, grab=self._board_active and not writing)
 
     def _focus_board(self) -> None:
@@ -2165,8 +3441,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
 
     def _toggle_card_focus(self) -> None:
         """F12: flip focus between the card area and the add field. In minimal mode the board is
-        hidden, so it selects/deselects the lone 'just added' card (then Ctrl+Shift+<code> retags it
-        and Ctrl+D deletes it)."""
+        hidden, so it selects/deselects the lone 'just added' card (then Ctrl+Shift+<code> retags it,
+        Ctrl+D deletes it and Ctrl+I imports it)."""
         if self.minimal_mode:
             if self._minimal_card_selected:
                 self._deselect_minimal_card()
@@ -2220,6 +3496,82 @@ class KnotesWindow(Gtk.ApplicationWindow):
                     self._select(gr, c, min(idx, len(self._grid[gr][c]) - 1))
                     return
                 c += step
+
+    def _import_selected(self) -> None:
+        """Ctrl+I: import the selected card. Said as a message for a "needs metadata" placeholder,
+        because the key never sees the card button's disabled state."""
+        note = self.selected_note
+        minimal_card = self.minimal_mode and self._minimal_card_selected
+        if note is None or (self._sel is None and not minimal_card):
+            return
+        if note.path in self._unrecognized_paths:
+            self._message("This note needs metadata first",
+                          "The backend picks the record type from the file name's type code — "
+                          "retag it with Ctrl+Shift+<key>, then import.")
+            return
+        self._import_to_backend(note)
+
+    def _import_to_backend(self, note: Note) -> bool:
+        """Push one note to the backend as a record (POST /api/import/notes). Confirmed first: on
+        success the backend moves the file into imported/, so the card leaves the board. The call
+        runs off the UI thread; the outcome comes back via idle_add."""
+        self._editor_flush()   # import what's on disk, so an unsaved pane edit must land first
+        url, user, pw = self._backend_conn()
+        if not url:
+            self._message("No backend configured",
+                          "Set the backend URL in Settings (Nibras backend) to import notes.")
+            return False
+        kind = dict(self.repo_cfg.types).get(note.type) or note.type or "?"
+        dialog = Gtk.MessageDialog(
+            transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION,
+            buttons=Gtk.ButtonsType.YES_NO, text=f"Import this note into the backend as a {kind}?")
+        dialog.format_secondary_text(
+            f"{note.title(80)}\n\nBackend: {url}\n"
+            "The file moves to this folder's imported/ archive afterwards.")
+        dialog.set_default_response(Gtk.ResponseType.YES)
+        resp = dialog.run()
+        dialog.destroy()
+        if resp != Gtk.ResponseType.YES:
+            return False
+
+        self._flash_status("Importing to backend…")
+        path = note.path
+
+        def worker():
+            record, error = import_note(url, user, pw, path)
+            GLib.idle_add(self._import_done, path, record, error)
+
+        threading.Thread(target=worker, daemon=True).start()
+        return False
+
+    def _import_done(self, path: str, record: dict | None, error: str) -> bool:
+        if record is None:
+            self._message("Import failed", f"{os.path.basename(path)}\n\n{error}")
+            return False
+        self._merge_marks = [p for p in self._merge_marks if p != path]
+        if self._sel_path == path:
+            self._sel_path = None   # moved to imported/; don't try to restore it
+        if self.minimal_mode and self._minimal_card_selected and self.selected_note \
+                and self.selected_note.path == path:
+            # Same as deleting the lone minimal card: drop the selection, back to the add field.
+            self._minimal_card_selected = False
+            self.selected_note = None
+            self._board_active = False
+            self.reload_notes()
+            self.textview.grab_focus()
+        else:
+            self.reload_notes()
+        self._flash_status(f"Imported → {record.get('module', '?')} #{record.get('id', '?')}:  "
+                           f"{record.get('displayTitle') or ''}")
+        return False
+
+    def _message(self, text: str, detail: str) -> None:
+        dialog = Gtk.MessageDialog(
+            transient_for=self, modal=True, message_type=Gtk.MessageType.INFO,
+            buttons=Gtk.ButtonsType.OK, text=text)
+        dialog.format_secondary_text(detail)
+        dialog.run()
+        dialog.destroy()
 
     def _delete_selected(self) -> None:
         self._editor_flush()   # the pane may hold an unwritten edit to the note being confirmed
@@ -2297,7 +3649,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
     def _open_files_folder(self) -> None:
         """Ctrl+O on a selected card: create the note's companion folder *on demand* and reveal it in
         the file manager (Nemo), so files can be dropped straight in. Nothing is created until you ask
-        for it here — plain notes never get an empty folder. The 📎 count refreshes on the next
+        for it here — plain notes never get an empty folder. The card's file count refreshes on the next
         reload (e.g. saving a note or switching folders).
 
         A "needs metadata" placeholder has no companion folder of its own — note.path *is* the raw
@@ -2449,7 +3801,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         the mark registered and how many are staged."""
         n = len(self._merge_marks)
         hint = f"   ·   ⛓ {fmt_count(n)} marked — Ctrl+Shift+M to merge, Esc to clear" if n else ""
-        self.header.set_title(getattr(self, "_base_title", "knotes") + hint)
+        self.header.set_title(getattr(self, "_base_title", APP_NAME) + hint)
 
     def _clear_merge_marks(self) -> None:
         if self._merge_marks:
@@ -2559,6 +3911,11 @@ class KnotesWindow(Gtk.ApplicationWindow):
 
     def _on_delete_event(self, _widget, _event) -> bool:
         self._save_draft()
+        # The strip's height is only knowable while it's on screen, so read it now rather than
+        # from a settings value that a drag never updated.
+        if self.settings.quick_panels_visible:
+            self._save_quick_height()
+            self.settings.save()
         return False  # proceed with closing
 
     def _render_last_note(self, note: Note | None) -> None:
@@ -2667,7 +4024,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.minimal_button.set_active(self.minimal_mode)
         self.list_button.set_active(not self.minimal_mode and mode == "list")
         self.columns_button.set_active(not self.minimal_mode and mode == "columns")
-        self.kanban_button.set_active(not self.minimal_mode and mode not in ("list", "columns"))
+        self.week_button.set_active(not self.minimal_mode and mode == "week")
+        self.kanban_button.set_active(not self.minimal_mode and mode not in ("list", "columns", "week"))
         self._suppress_minimal_toggle = False
 
     def _on_sort_selected(self, combo: Gtk.ComboBoxText) -> None:
@@ -3013,6 +4371,13 @@ class KnotesWindow(Gtk.ApplicationWindow):
             if os.path.isdir(full):
                 RepoConfig.load(full, self.settings)
 
+    def _apply_start_filter(self) -> None:
+        """The launch view: today and yesterday selected in the calendar (Settings.start_filter_today),
+        or nothing when that's off. Also what a folder opens on the first time it's switched to."""
+        if self.settings.start_filter_today:
+            today = datetime.now().date()
+            self.filters.select_range(today - timedelta(days=1), today)
+
     def _on_repo_changed(self, combo: Gtk.ComboBoxText) -> None:
         """Switch the active note folder: new notes go there and the board shows its notes. The text
         being composed stays in the field, so the menu redirects where the current note will land."""
@@ -3022,15 +4387,23 @@ class KnotesWindow(Gtk.ApplicationWindow):
         code = combo.get_active_id()
         if not code or code == self.settings.active_repo_code():
             return
+        old_code = self.settings.active_repo_code()
         self.settings.active_repo = code
         self.settings.save()
         self.repo = NoteRepository(self.settings.active_repo_path())
         # Each folder has its own tag options — load them and rebuild the chips for the new folder.
         self.repo_cfg = RepoConfig.load(self.settings.active_repo_path(), self.settings)
         self._build_chips()
-        # Filters name codes/dates from the folder we're leaving; carried over they'd silently hide
-        # most of the new folder — so the sidebar starts clean on every switch.
-        self.filters.clear()
+        # Filters name codes from the folder we're leaving; carried over they'd silently hide most
+        # of the new folder. Starting clean was worse: the whole folder rendered, pinning the CPU on
+        # a big one. So each folder keeps its own picks — stash the old folder's, bring back the new
+        # one's, and a folder not yet visited this session opens like a launch (today + yesterday).
+        self._repo_filters[old_code] = self.filters.snapshot()
+        if code in self._repo_filters:
+            self.filters.restore(self._repo_filters[code])
+        else:
+            self.filters.clear()
+            self._apply_start_filter()
         self._refresh_taxonomy()
         self._apply_defaults()
         self._sel_path = None      # selection belonged to the previous folder's board
@@ -3039,6 +4412,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.reload_notes()
         self._rearm_note_dir_watch()   # follow the switch — watch the new folder, not the old one
         self._sync_backend_taxonomy()  # the new folder may bind its own backend
+        self._apply_app_theme()        # recolour the chrome so the switch is visible
 
     def _reset_input(self) -> None:
         """Clear the editor; tag selections are kept (sticky) for the next note."""
@@ -3057,6 +4431,18 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if self.text_scroller.get_min_content_height() != target:
             self.text_scroller.set_min_content_height(target)
         return False  # don't repeat the idle callback
+
+    def _sync_quick_entry_height(self, scroller: Gtk.ScrolledWindow, alloc) -> None:
+        """Make the quick note/task entries as tall as the add field at rest. Only read while the
+        field is empty; once it grows with its text the entries stay where they were."""
+        if self.buffer.get_char_count() > 0 or not getattr(self, "quick_entries", None):
+            return
+        for entry in self.quick_entries.values():
+            # A size request counts the CSS margin (.quick-entry's gap above it); add it back.
+            margin = entry.get_style_context().get_margin(entry.get_state_flags())
+            height = alloc.height + margin.top + margin.bottom
+            if entry.get_size_request()[1] != height:
+                entry.set_size_request(-1, height)
 
     def _open_external(self, note: Note) -> None:
         """Open the note's .md in the configured opener, or the system default."""
@@ -3114,8 +4500,18 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self.search_entry.grab_focus()
         return False
 
+    def _on_search_activate(self, entry: Gtk.SearchEntry) -> None:
+        """Enter in the search box: apply what's typed."""
+        query = entry.get_text().strip().lower()
+        if query != self._search_query:
+            self._search_query = query
+            self.reload_notes()
+
     def _on_search_changed(self, entry: Gtk.SearchEntry) -> None:
-        self.reload_notes()
+        """Typing doesn't search (see the entry's setup) — but emptying the box does un-search."""
+        if not entry.get_text().strip() and self._search_query:
+            self._search_query = ""
+            self.reload_notes()
 
     # -------------------------------------------------------- shortcuts
 
@@ -3137,8 +4533,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # Board mode = a card is selected and we're not typing in the text field / search.
         # The editor pane counts as a text field: without it the arrow keys would walk the board
         # instead of the cursor, and Ctrl+D would delete the note being typed into.
+        in_quick = any(e.has_focus() for e in self.quick_entries.values())
         in_text = (self.textview.has_focus() or self.search_entry.has_focus()
-                   or self.editor_view.has_focus()
+                   or self.editor_view.has_focus() or in_quick
                    or (self._append_entry is not None and self._append_entry.has_focus()))
         board = self._board_active and self.selected_note is not None and not in_text
 
@@ -3190,6 +4587,10 @@ class KnotesWindow(Gtk.ApplicationWindow):
                 self._clear_merge_marks()  # a pending merge set: first Esc just clears it
             elif self.search_bar.get_search_mode():
                 self._set_search(False)
+            elif in_quick:
+                # Out of a quick field and back to the cards. Whatever was half-typed is dropped:
+                # nothing is written until Enter, so there is no unsaved state to protect here.
+                self._focus_board()
             elif self.editor_view.has_focus():
                 # Out of the side pane and back to the cards — saving on the way, so the next
                 # keystroke (a retag, a delete) can't get ahead of a pending autosave.
@@ -3241,6 +4642,17 @@ class KnotesWindow(Gtk.ApplicationWindow):
             if ctrl and not shift and not alt and self._base_char(event).lower() == "o":
                 self._open_files_folder()
                 return True
+            # Ctrl+I ("import"): push this note to the backend. Layout-independent via _base_char.
+            if ctrl and not shift and not alt and self._base_char(event).lower() == "i":
+                self._import_selected()
+                return True
+
+        # Ctrl+PgUp / Ctrl+PgDn: previous / next week in the calendar view. The same keys as the
+        # bar's ‹ › buttons, which name them in their tooltips.
+        if ctrl and not shift and not alt and kv in (Gdk.KEY_Page_Up, Gdk.KEY_Page_Down) \
+                and self.settings.view_mode == "week" and not self.minimal_mode:
+            self._shift_week(-1 if kv == Gdk.KEY_Page_Up else 1)
+            return True
 
         # Ctrl+1 … Ctrl+9: switch to the 1st … 9th configured note folder. (Priority uses
         # Ctrl+Shift+digit, so a plain Ctrl+digit is free for this.) Layout-independent via _base_char.
@@ -3255,6 +4667,12 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # Ctrl+E ("edit"): the side editor pane. Layout-independent via _base_char.
         if ctrl and not shift and not alt and self._base_char(event).lower() == "e":
             self._set_editor_pane(not self.settings.editor_pane_visible)
+            return True
+        # Ctrl+J ("jot") / Ctrl+K: straight into the quick note or quick task field, opening the
+        # pane and the strip if they're closed. Both are plain Ctrl chords on purpose —
+        # Ctrl+Shift+<letter> is taken by retagging, and J is itself a type code there.
+        if ctrl and not shift and not alt and self._base_char(event).lower() in ("j", "k"):
+            self._focus_quick("note" if self._base_char(event).lower() == "j" else "task")
             return True
         if ctrl and not shift and not alt and kv in (Gdk.KEY_q, Gdk.KEY_Q):
             self._save_draft()
@@ -3330,11 +4748,23 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.theme_button.add(image)
         image.show()
 
+    def _apply_app_theme(self) -> None:
+        """Restyle for the current theme AND active folder (each folder tints the chrome)."""
+        self.get_application().apply_theme(
+            self.settings.theme, repo_color(self.settings, self.settings.active_repo_code()))
+
     def _toggle_theme(self) -> None:
         self.settings.theme = "light" if self.settings.theme == "dark" else "dark"
         self.settings.save()
-        self.get_application().apply_theme(self.settings.theme)
+        self._apply_app_theme()
         self._refresh_theme_icon()
+        # The pane's markdown tags hold real colours read out of the theme block, so they don't
+        # follow a stylesheet swap on their own — a code span keeps the old ground until they're
+        # rebuilt, and the note already on screen has to be repainted with them.
+        self._build_markup_tags()
+        if self._editor_mode == "read":
+            self._editor_render(keep_scroll=True)
+        self._update_filter_summary(*getattr(self, "_filter_summary_args", ("", 0, 0)))
 
     # --------------------------------------------------------- settings
 
@@ -3355,6 +4785,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self._refresh_taxonomy()
             self._apply_defaults()
             self._populate_repo_combo()
+            self._apply_app_theme()        # the dialog may have switched or reordered folders
             self._refresh_status()
             self._refresh_highlight_tag()  # a new highlight colour shows without reopening the pane
             self._editor_render(keep_scroll=True)
@@ -3378,9 +4809,19 @@ class KnotesWindow(Gtk.ApplicationWindow):
             ("Ctrl+Shift+M", "Merge marked notes into the survivor, rest → .merged folder"),
             ("Space (card selected)", "Quick-append a comment to the note (inline field · Enter adds · Esc cancels)"),
             ("Ctrl+O (card selected)", "Open the note's files folder in the file manager (created on demand)"),
+            ("Ctrl+I (card selected)",
+             "Import the note into the Nibras backend (with confirmation); the file moves to imported/"),
             ("Ctrl+1 … Ctrl+9", "Switch to the 1st … 9th note folder"),
+            ("Ctrl+PgUp / Ctrl+PgDn",
+             "Week calendar: previous / next week. Click an empty slot to add a journal (J) or "
+             "planner (P) note dated at that slot's time"),
             ("Ctrl+E", "Side editor pane — edit the selected note in place, saved as you type"),
-            ("Ctrl+F", "Toggle search"),
+            ("Ctrl+J / Ctrl+K",
+             "Quick note / quick task — jump into the capture strip under the pane (opens it if "
+             "closed). Enter files the line and keeps the field, Esc returns to the cards. They go "
+             "to quick-notes.md / quick-tasks.md in the folder, never to the board"),
+            ("Ctrl+F", "Toggle search — matches note text, the type/category codes, and any part "
+                       "of the file name (so \"N~p2\" lists every note tagged that way)"),
             ("Ctrl+B", "Show / hide the filter sidebar (calendar heat map, tags, counts)"),
             ("Ctrl+R", "Refresh from disk (pick up notes synced from another machine)"),
             ("Ctrl+T", "Toggle light / dark theme"),
@@ -3434,6 +4875,33 @@ class SettingsDialog(Gtk.Dialog):
         self.repos_view.set_tooltip_text(
             "One folder per line as code:path (e.g. A:~/personal). Mark the active one with * .")
         add("Note folders (code:path per line; * = active)", self._wrap_scroller(self.repos_view))
+
+        # One colour button per folder (as configured when the dialog opened), plus a reset to the
+        # theme's own chrome. A folder added in the box above gets its default until it's reopened.
+        self.repo_color_buttons: dict[str, Gtk.ColorButton] = {}
+        self.repo_color_cleared: set[str] = set()
+        colours = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, column_spacing=12, row_spacing=4)
+        colours.set_max_children_per_line(4)
+        for code, _path in settings.repos():
+            cell = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+            cell.pack_start(Gtk.Label(label=code), False, False, 0)
+            rgba = Gdk.RGBA()
+            current = repo_color(settings, code)
+            if not current:
+                self.repo_color_cleared.add(code)
+            rgba.parse(current or "#eee8d5")
+            button = Gtk.ColorButton.new_with_rgba(rgba)
+            button.set_tooltip_text(f"Toolbar, sidebar and status bar colour while folder {code} is active")
+            button.connect("color-set", lambda _b, c=code: self.repo_color_cleared.discard(c))
+            cell.pack_start(button, False, False, 0)
+            reset = Gtk.Button(relief=Gtk.ReliefStyle.NONE)
+            reset.add(Gtk.Image.new_from_icon_name("edit-clear-symbolic", Gtk.IconSize.MENU))
+            reset.set_tooltip_text("No tint — use the theme's own colours for this folder")
+            reset.connect("clicked", lambda _b, c=code: self.repo_color_cleared.add(c))
+            cell.pack_start(reset, False, False, 0)
+            self.repo_color_buttons[code] = button
+            colours.add(cell)
+        add("Folder colours", colours)
 
         self.format_entry = Gtk.Entry(text=settings.timestamp_format)
         self.format_entry.set_tooltip_text("Python strftime, e.g. %Y_%m_%d-%H%M%S")
@@ -3497,12 +4965,13 @@ class SettingsDialog(Gtk.Dialog):
             "total-uses count in its place — the strip stays, but without spelling out every tag.")
         add("Tags", self.show_tags_summary_check)
 
-        self.start_today_check = Gtk.CheckButton(label="Open filtered to today's notes")
+        self.start_today_check = Gtk.CheckButton(label="Open filtered to today's and yesterday's notes")
         self.start_today_check.set_active(settings.start_filter_today)
         self.start_today_check.set_tooltip_text(
-            "On: launch with today selected in the calendar, so the board opens on what you've "
-            "captured today — or says \"No notes entered today\" if that's nothing yet. \"Clear "
-            "all filters\" at the foot of the sidebar shows everything. Off: the whole board.")
+            "On: launch with today and yesterday selected in the calendar, so the board opens on "
+            "what you've captured lately — a folder switched to for the first time opens the same "
+            "way. \"Clear all filters\" at the foot of the sidebar shows everything. Off: the "
+            "whole board.")
         add("Startup", self.start_today_check)
 
         # Colour of a ==highlighted== clause in the side pane's reading mode. A colour button rather
@@ -3641,6 +5110,9 @@ class SettingsDialog(Gtk.Dialog):
             settings.repositories = repos
             settings.active_repo = active or repos[0][0]
             settings.notes_dir = repos[0][1]  # keep notes_dir pointing at the first folder
+        for code, button in self.repo_color_buttons.items():
+            settings.repo_colors[code] = ("" if code in self.repo_color_cleared
+                                          else _rgba_hex(button.get_rgba()))
         settings.timestamp_format = self.format_entry.get_text().strip() or settings.timestamp_format
         settings.opener = self.opener_entry.get_text().strip()
         settings.preview_chars = int(self.preview_spin.get_value())
@@ -3727,18 +5199,20 @@ class KnotesApp(Gtk.Application):
         self._css_provider = Gtk.CssProvider()
         Gtk.StyleContext.add_provider_for_screen(
             Gdk.Screen.get_default(), self._css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-        self.apply_theme(self.settings.theme)
+        self.apply_theme(self.settings.theme,
+                         repo_color(self.settings, self.settings.active_repo_code()))
 
-    def apply_theme(self, theme: str) -> None:
+    def apply_theme(self, theme: str, chrome_colour: str = "") -> None:
         """Recolour the whole app: swap the named-colour block and nudge the base GTK theme to its
-        dark/light variant so the chrome (entries, scrollbars, dialogs) matches."""
+        dark/light variant so the chrome (entries, scrollbars, dialogs) matches. [chrome_colour] is
+        the active folder's tint (repo_color); later @define-colors win, so it goes after the theme."""
         if theme not in THEMES:
             theme = "dark"
         gtk_settings = Gtk.Settings.get_default()
         if gtk_settings is not None:
             gtk_settings.set_property("gtk-application-prefer-dark-theme", theme == "dark")
         if self._css_provider is not None:
-            css = THEMES[theme] + self._structural_css
+            css = THEMES[theme] + repo_chrome_css(chrome_colour) + self._structural_css
             self._css_provider.load_from_data(css.encode("utf-8"))
 
 

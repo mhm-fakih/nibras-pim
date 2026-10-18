@@ -2,6 +2,8 @@ package com.knotes.nibras
 
 import android.content.Context
 import android.widget.Toast
+import androidx.annotation.StringRes
+import com.knotes.R
 import com.knotes.SettingsStore
 import com.knotes.status.StatusService
 import kotlinx.coroutines.Dispatchers
@@ -52,7 +54,7 @@ object SyncCenter {
         SyncStatusStore.recordOnline(context, online)
         StatusService.refresh(context)
         if (!online) {
-            toast(context, "Offline — can't sync")
+            toast(context, R.string.server_sync_offline)
             return@withLock false
         }
 
@@ -99,18 +101,18 @@ object SyncCenter {
         val ok = fetched.get() > 0
         when {
             unauthorized.get() && !ok ->
-                toast(context, "Sign-in failed — check the username and password in Settings")
-            !ok -> toast(context, "Sync failed")
+                toast(context, R.string.server_sync_signin_failed)
+            !ok -> toast(context, R.string.server_sync_failed)
             else -> {
                 SyncStatusStore.recordSyncSuccess(context)
-                toast(context, "Synced")
+                toast(context, R.string.server_sync_done)
             }
         }
         StatusService.refresh(context)
         ok
     }
 
-    private suspend fun toast(context: Context, message: String) = withContext(Dispatchers.Main) {
-        Toast.makeText(context.applicationContext, message, Toast.LENGTH_SHORT).show()
+    private suspend fun toast(context: Context, @StringRes message: Int) = withContext(Dispatchers.Main) {
+        Toast.makeText(context.applicationContext, context.getString(message), Toast.LENGTH_SHORT).show()
     }
 }

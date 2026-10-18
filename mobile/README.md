@@ -170,7 +170,8 @@ same All-files-access permission as notes.
 
 - Kotlin 2.0.21, Jetpack Compose (Material 3), OkHttp 4.12
 - Android Gradle Plugin 8.7.3, Gradle 8.14.4, JDK 21
-- `compileSdk`/`targetSdk` 35, `minSdk` 23
+- `compileSdk`/`targetSdk` 35, `minSdk` 23 — one APK installs on Android 6 (API 23) through
+  Android 16; `setup-android-sdk.sh` installs the SDK packages the build needs
 - No database — filesystem + `SharedPreferences` (local notes, settings, and Nibras
   read/bookmark/highlight tracking).
 
@@ -193,12 +194,14 @@ app/src/main/java/com/knotes/
   ui/        // screens — MainScreen (capture+list+filter panel), AppRail (Nibras type rail),
              // NibrasBrowserScreen, BackendSearchScreen (search the server + flag results),
              // CalendarScreen, AudiobookScreen (Library/Folders/Bookmarked tabs),
-             // GalleryScreen (viewer + annotator), CollectScreen, SettingsScreen, Theme
+             // GalleryScreen (viewer + annotator), VideosScreen (thumbnail cards),
+             // CollectScreen, SettingsScreen, Theme
 
   gallery/   // photo annotation — Mark/Renamer (what a mark is, what the file is called),
              // AnnotationBurner (writes marks into the file at full resolution), ImageSize
 
-  player/    // audio/video player — PlayerController + PlayerScreen, PlaybackService
+  player/    // audio/video player — PlayerController + PlayerScreen (full-page tabs: player,
+             // bookmarks, folder, recent folders, recently played, settings), PlaybackService
              // (media3), Bookmark (.tmk sidecars), Subtitles, VolumeController
 
   nibras/    // Nibras browser data layer — NibrasApi (HTTP client), NibrasCache

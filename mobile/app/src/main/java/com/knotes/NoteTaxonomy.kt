@@ -1,5 +1,7 @@
 package com.knotes
 
+import androidx.annotation.StringRes
+
 /**
  * "Is this note tagged with values the folder actually defines?" — the mobile half of the desktop
  * sidebar's *Bad taxonomy* filter (see `desktop/filters.py:taxonomy_issues`). Both must answer the
@@ -17,7 +19,11 @@ package com.knotes
 object NoteTaxonomy {
 
     /** A dimension whose value the folder doesn't define. Also the chip label in the UI. */
-    enum class Issue(val label: String) { TYPE("type"), PRIORITY("priority"), CATEGORY("category") }
+    enum class Issue(val label: String, @StringRes val labelRes: Int) {
+        TYPE("type", R.string.notes_issue_type),
+        PRIORITY("priority", R.string.notes_issue_priority),
+        CATEGORY("category", R.string.notes_issue_category),
+    }
 
     /**
      * Which of [note]'s tags carry a value [settings] doesn't define. Empty means the note is fine.
@@ -40,10 +46,10 @@ object NoteTaxonomy {
 }
 
 /** The tri-state of the taxonomy filter, mirroring the desktop sidebar's include / hide / only. */
-enum class TaxonomyFilter(val label: String) {
-    INCLUDE("All"),
-    HIDE("Valid only"),
-    ONLY("Bad only"),
+enum class TaxonomyFilter(val label: String, @StringRes val labelRes: Int) {
+    INCLUDE("All", R.string.notes_filter_all),
+    HIDE("Valid only", R.string.notes_filter_valid_only),
+    ONLY("Bad only", R.string.notes_filter_bad_only),
     ;
 
     fun accepts(note: Note, settings: AppSettings): Boolean = when (this) {

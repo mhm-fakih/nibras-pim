@@ -1,0 +1,12 @@
+[Unit]
+Description=Capture Telegram into knotes every night
+Documentation=file://%h/dev/spring-boot-react-v1/capture/README.md
+
+[Timer]
+OnCalendar=*-*-* 03:30
+# A laptop asleep at 03:30 still gets its run when it wakes.
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

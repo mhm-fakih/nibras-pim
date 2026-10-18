@@ -83,6 +83,8 @@ data class AppSettings(
      */
     val feedDays: Int = 3,
     val feedWords: Int = 40,
+    /** Note text size in the recent-notes widget, in sp; the date line above it is 2sp smaller. */
+    val feedTextSp: Int = 15,
 
     val collectEnabled: Boolean = true,
     val collectAutoEnabled: Boolean = false,
@@ -94,6 +96,8 @@ data class AppSettings(
     val audioLibraryRoots: List<String>,
     /** Folder shown by the Gallery page. */
     val galleryDir: String,
+    /** Folder (searched recursively) shown by the Videos page. Blank = [SettingsStore.defaultVideosDir]. */
+    val videosDir: String = "",
     /** Calendar visible time range (hours 0..23). */
     val calendarStartHour: Int,
     val calendarEndHour: Int,
@@ -188,6 +192,7 @@ class SettingsStore(context: Context) {
             ?: prefs.getString(K_AUDIOBOOK, null)?.trim()?.trimEnd('/')?.takeIf { it.isNotBlank() }?.let { listOf(it) }
             ?: defaultAudioLibraryRoots(),
         galleryDir = prefs.getString(K_GALLERY, defaultGalleryDir()) ?: defaultGalleryDir(),
+        videosDir = prefs.getString(K_VIDEOS, defaultVideosDir()) ?: defaultVideosDir(),
         calendarStartHour = prefs.getInt(K_CAL_START, 5),
         calendarEndHour = prefs.getInt(K_CAL_END, 22),
         calendarEnabled = prefs.getBoolean(K_CAL_ENABLED, true),
@@ -195,6 +200,7 @@ class SettingsStore(context: Context) {
         collectEnabled = prefs.getBoolean(K_COLLECT_ENABLED, true),
         feedDays = prefs.getInt(K_FEED_DAYS, 3),
         feedWords = prefs.getInt(K_FEED_WORDS, 40),
+        feedTextSp = prefs.getInt(K_FEED_TEXT_SP, 15),
         reminderOffsetsMin = decodeInts(prefs.getString(K_REM_OFFSETS, DEFAULT_REM_OFFSETS) ?: DEFAULT_REM_OFFSETS),
         reminderSoundUri = prefs.getString(K_REM_SOUND, "") ?: "",
         reminderRequireDismiss = prefs.getBoolean(K_REM_DISMISS, false),
@@ -255,6 +261,7 @@ class SettingsStore(context: Context) {
                     .ifEmpty { defaultAudioLibraryRoots() }.joinToString("\n"),
             )
             .putString(K_GALLERY, settings.galleryDir.trim().trimEnd('/').ifBlank { defaultGalleryDir() })
+            .putString(K_VIDEOS, settings.videosDir.trim().trimEnd('/').ifBlank { defaultVideosDir() })
             .putInt(K_CAL_START, settings.calendarStartHour.coerceIn(0, 23))
             .putInt(K_CAL_END, settings.calendarEndHour.coerceIn(settings.calendarStartHour + 1, 24))
             .putBoolean(K_CAL_ENABLED, settings.calendarEnabled)
@@ -262,6 +269,7 @@ class SettingsStore(context: Context) {
             .putBoolean(K_COLLECT_ENABLED, settings.collectEnabled)
             .putInt(K_FEED_DAYS, settings.feedDays.coerceIn(1, 60))
             .putInt(K_FEED_WORDS, settings.feedWords.coerceIn(10, 400))
+            .putInt(K_FEED_TEXT_SP, settings.feedTextSp.coerceIn(10, 28))
             .putString(K_REM_OFFSETS, settings.reminderOffsetsMin.filter { it >= 0 }.joinToString(","))
             .putString(K_REM_SOUND, settings.reminderSoundUri.trim())
             .putBoolean(K_REM_DISMISS, settings.reminderRequireDismiss)
@@ -311,6 +319,7 @@ class SettingsStore(context: Context) {
         private const val K_AUDIOBOOK = "audiobook_dir"
         private const val K_AUDIO_ROOTS = "audio_library_roots"
         private const val K_GALLERY = "gallery_dir"
+        private const val K_VIDEOS = "videos_dir"
         private const val K_CAL_START = "calendar_start_hour"
         private const val K_CAL_END = "calendar_end_hour"
         private const val K_CAL_ENABLED = "calendar_enabled"
@@ -318,6 +327,7 @@ class SettingsStore(context: Context) {
         private const val K_COLLECT_ENABLED = "collect_enabled"
         private const val K_FEED_DAYS = "feed_days"
         private const val K_FEED_WORDS = "feed_words"
+        private const val K_FEED_TEXT_SP = "feed_text_sp"
         private const val K_REM_OFFSETS = "reminder_offsets_min"
         private const val K_REM_SOUND = "reminder_sound_uri"
         private const val K_REM_DISMISS = "reminder_require_dismiss"
@@ -382,6 +392,10 @@ class SettingsStore(context: Context) {
 
         fun defaultGalleryDir(): String =
             Environment.getExternalStorageDirectory().absolutePath + "/Pictures"
+
+        /** The Nibras files folder: that's where the server's video attachments land on the phone. */
+        fun defaultVideosDir(): String =
+            Environment.getExternalStorageDirectory().absolutePath + "/Nibras"
 
         fun defaultSourceDirs(): List<String> {
             val root = Environment.getExternalStorageDirectory().absolutePath

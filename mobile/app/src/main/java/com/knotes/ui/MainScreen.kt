@@ -35,7 +35,7 @@ import androidx.compose.material.icons.filled.DriveFolderUpload
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.filled.Edit
@@ -88,6 +88,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
@@ -96,6 +98,7 @@ import com.knotes.AppSettings
 import com.knotes.BuildConfig
 import com.knotes.DraftStore
 import com.knotes.MainViewModel
+import com.knotes.R
 import com.knotes.Note
 import com.knotes.NoteFiles
 import com.knotes.NoteFilterState
@@ -113,6 +116,8 @@ import java.time.LocalDate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.knotes.reminder.PlansStore
+import android.content.Context
+import androidx.annotation.StringRes
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -120,13 +125,15 @@ import java.util.Date
 import java.util.Locale
 
 /** Ordering for the home note list. [DATE] is the default chat-like oldest→newest order. */
-private enum class SortMode(val label: String) {
-    DATE("Date"), CATEGORY("Category"), PRIORITY("Priority"), TYPE("Type"),
+private enum class SortMode(@StringRes val menuRes: Int) {
+    DATE(R.string.notes_sort_by_date), CATEGORY(R.string.notes_sort_by_category),
+    PRIORITY(R.string.notes_sort_by_priority), TYPE(R.string.notes_sort_by_type),
 }
 
 /** Optional grouping of the note list into labelled sections (or a flat list when NONE). */
-private enum class GroupMode(val label: String) {
-    NONE("None"), TYPE("Type"), PRIORITY("Priority"), CATEGORY("Category"),
+private enum class GroupMode(@StringRes val menuRes: Int) {
+    NONE(R.string.notes_group_none), TYPE(R.string.notes_group_by_type),
+    PRIORITY(R.string.notes_group_by_priority), CATEGORY(R.string.notes_group_by_category),
 }
 
 /** A flattened list-row: either a group header or a note (so grouped/ungrouped share one LazyColumn). */
@@ -136,10 +143,13 @@ private sealed interface NoteListRow {
 }
 
 /** The section a note falls under for the given grouping (tag names resolved from settings). */
-private fun groupLabelOf(note: Note, mode: GroupMode, settings: AppSettings): String = when (mode) {
-    GroupMode.TYPE -> note.type?.let { c -> settings.types.firstOrNull { it.code == c }?.name?.ifBlank { c } ?: c } ?: "Untyped"
-    GroupMode.CATEGORY -> note.category?.let { c -> settings.categories.firstOrNull { it.code == c }?.name?.ifBlank { c } ?: c } ?: "Uncategorized"
-    GroupMode.PRIORITY -> note.priority?.let { "Priority $it" } ?: "No priority"
+private fun groupLabelOf(context: Context, note: Note, mode: GroupMode, settings: AppSettings): String = when (mode) {
+    GroupMode.TYPE -> note.type?.let { c -> settings.types.firstOrNull { it.code == c }?.name?.ifBlank { c } ?: c }
+        ?: context.getString(R.string.notes_group_untyped)
+    GroupMode.CATEGORY -> note.category?.let { c -> settings.categories.firstOrNull { it.code == c }?.name?.ifBlank { c } ?: c }
+        ?: context.getString(R.string.notes_group_uncategorized)
+    GroupMode.PRIORITY -> note.priority?.let { context.getString(R.string.notes_group_priority, it) }
+        ?: context.getString(R.string.notes_group_no_priority)
     GroupMode.NONE -> ""
 }
 
@@ -186,8 +196,9 @@ fun MainScreen(
         }
     }
     val syncLabel = remember(lastSyncMillis, syncOnline, syncNowTick) {
-        val ago = FriendlyTime.ago(lastSyncMillis)
-        if (syncOnline == false) "offline · last synced $ago" else "synced $ago"
+        val ago = FriendlyTime.ago(pushContext, lastSyncMillis)
+        if (syncOnline == false) pushContext.getString(R.string.notes_sync_offline_last, ago)
+        else pushContext.getString(R.string.notes_sync_synced, ago)
     }
     // Note counts shown under the app title: total, and how many were WRITTEN today.
     // createdMillis (from the file name), not lastModified: a Syncthing pass rewrites files it did
@@ -304,7 +315,7 @@ fun MainScreen(
             sorted.map { NoteListRow.Item(it) }
         } else {
             buildList {
-                sorted.groupBy { groupLabelOf(it, groupMode, settings) }.forEach { (label, groupNotes) ->
+                sorted.groupBy { groupLabelOf(pushContext, it, groupMode, settings) }.forEach { (label, groupNotes) ->
                     add(NoteListRow.Header(label, groupNotes.size))
                     if (label !in collapsedGroups) groupNotes.forEach { add(NoteListRow.Item(it)) }
                 }
@@ -369,7 +380,7 @@ fun MainScreen(
                             value = query,
                             onValueChange = { query = it },
                             singleLine = true,
-                            placeholder = { Text("Search notes…") },
+                            placeholder = { Text(stringResource(R.string.notes_search_placeholder)) },
                             modifier = Modifier.fillMaxWidth().focusRequester(searchFocus),
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
@@ -389,7 +400,11 @@ fun MainScreen(
                                 )
                             }
                             Text(
-                                "${notes.size} notes · $todayCount today",
+                                stringResource(
+                                    R.string.notes_header_counts,
+                                    pluralStringResource(R.plurals.notes_count, notes.size, notes.size),
+                                    todayCount,
+                                ),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -406,12 +421,12 @@ fun MainScreen(
                 actions = {
                     Box {
                         IconButton(onClick = { sortMenuOpen = true }) {
-                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort notes")
+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(R.string.notes_sort_notes))
                         }
                         DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
                             SortMode.entries.forEach { mode ->
                                 DropdownMenuItem(
-                                    text = { Text("Sort by ${mode.label}") },
+                                    text = { Text(stringResource(mode.menuRes)) },
                                     leadingIcon = {
                                         if (mode == sortMode) {
                                             Icon(Icons.Filled.Check, contentDescription = null)
@@ -427,7 +442,7 @@ fun MainScreen(
                             GroupMode.entries.forEach { mode ->
                                 DropdownMenuItem(
                                     text = {
-                                        Text(if (mode == GroupMode.NONE) "No grouping" else "Group by ${mode.label}")
+                                        Text(stringResource(mode.menuRes))
                                     },
                                     leadingIcon = {
                                         if (mode == groupMode) {
@@ -456,7 +471,7 @@ fun MainScreen(
                     }) {
                         Icon(
                             if (searchOpen) Icons.Filled.Close else Icons.Filled.Search,
-                            contentDescription = "Search",
+                            contentDescription = stringResource(R.string.notes_search),
                         )
                     }
                 },
@@ -559,14 +574,14 @@ fun MainScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     if (scrollable) {
-                        ScrollJumpButton(Icons.Filled.VerticalAlignTop, "Go to top") {
+                        ScrollJumpButton(Icons.Filled.VerticalAlignTop, stringResource(R.string.notes_go_to_top)) {
                             scope.launch { listState.animateScrollToItem(0) }
                         }
                     }
                     // Refresh everything: re-list the notes (and their counts in the status
                     // notification / widget), re-pull the type/department codes from the backend,
                     // and force an immediate full sync (same as the periodic background one).
-                    ScrollJumpButton(Icons.Filled.Refresh, "Refresh notes + sync now") {
+                    ScrollJumpButton(Icons.Filled.Refresh, stringResource(R.string.notes_refresh_and_sync)) {
                         vm.refresh()
                         vm.syncTaxonomy()
                         scope.launch { SyncCenter.syncNow(refreshContext) }
@@ -579,14 +594,14 @@ fun MainScreen(
                         val allCollapsed = headerLabels.isNotEmpty() && collapsedGroups.containsAll(headerLabels)
                         ScrollJumpButton(
                             if (allCollapsed) Icons.Filled.UnfoldMore else Icons.Filled.UnfoldLess,
-                            if (allCollapsed) "Expand all groups" else "Collapse all groups",
+                            stringResource(if (allCollapsed) R.string.notes_expand_all_groups else R.string.notes_collapse_all_groups),
                         ) {
                             collapsedGroups.clear()
                             if (!allCollapsed) collapsedGroups.addAll(headerLabels)
                         }
                     }
                     if (scrollable) {
-                        ScrollJumpButton(Icons.Filled.VerticalAlignBottom, "Go to bottom") {
+                        ScrollJumpButton(Icons.Filled.VerticalAlignBottom, stringResource(R.string.notes_go_to_bottom)) {
                             scope.launch { listState.animateScrollToItem(rows.lastIndex) }
                         }
                     }
@@ -660,8 +675,8 @@ private fun NoteGroupHeader(label: String, count: Int, collapsed: Boolean, onTog
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
             Icon(
-                if (collapsed) Icons.Filled.ChevronRight else Icons.Filled.ExpandMore,
-                contentDescription = if (collapsed) "Expand" else "Collapse",
+                if (collapsed) Icons.AutoMirrored.Filled.KeyboardArrowRight else Icons.Filled.ExpandMore,
+                contentDescription = stringResource(if (collapsed) R.string.notes_expand else R.string.notes_collapse),
                 tint = MaterialTheme.colorScheme.primary,
             )
             Spacer(Modifier.width(6.dp))
@@ -702,7 +717,7 @@ private fun UpcomingPlansPanel() {
                 Icon(Icons.Filled.Event, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Upcoming plans (${plans.size})",
+                    stringResource(R.string.notes_upcoming_plans, plans.size),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
@@ -713,13 +728,13 @@ private fun UpcomingPlansPanel() {
                 plans.take(5).forEach { p ->
                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                         Text(
-                            planLead(p.startMillis),
+                            planLead(context, p.startMillis),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.width(104.dp),
                         )
                         Text(
-                            p.summary.ifBlank { "(no summary)" },
+                            p.summary.ifBlank { stringResource(R.string.notes_plan_no_summary) },
                             style = MaterialTheme.typography.bodyMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -732,13 +747,13 @@ private fun UpcomingPlansPanel() {
     }
 }
 
-private fun planLead(startMillis: Long): String {
+private fun planLead(context: Context, startMillis: Long): String {
     val today = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
     val day = Calendar.getInstance().apply { timeInMillis = startMillis }.get(Calendar.DAY_OF_YEAR)
     val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(startMillis))
     return when (day - today) {
-        0 -> "Today $time"
-        1 -> "Tom $time"
+        0 -> context.getString(R.string.notes_plan_today, time)
+        1 -> context.getString(R.string.notes_plan_tomorrow, time)
         else -> SimpleDateFormat("EEE d", Locale.getDefault()).format(Date(startMillis)) + " " + time
     }
 }
@@ -809,7 +824,7 @@ private fun InputBar(
                     },
             ) {
                 Text(
-                    text = if (open) "New note" else "New note — tap to expand",
+                    text = stringResource(if (open) R.string.notes_new_note else R.string.notes_new_note_tap_to_expand),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
@@ -817,7 +832,7 @@ private fun InputBar(
                 if (!isEditing) {
                     Icon(
                         imageVector = if (open) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
-                        contentDescription = if (open) "Collapse the add form" else "Expand the add form",
+                        contentDescription = stringResource(if (open) R.string.notes_collapse_add_form else R.string.notes_expand_add_form),
                     )
                 }
             }
@@ -825,17 +840,17 @@ private fun InputBar(
             if (isEditing) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "Editing note",
+                        text = stringResource(R.string.notes_editing_note),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Spacer(Modifier.weight(1f))
-                    TextButton(onClick = onCancelEdit) { Text("Cancel") }
+                    TextButton(onClick = onCancelEdit) { Text(stringResource(R.string.notes_cancel)) }
                 }
             }
 
             if (settings.types.isNotEmpty()) {
-                TagRow("Type") {
+                TagRow(stringResource(R.string.notes_tag_type)) {
                     settings.types.forEach { tag ->
                         // Type is always set: tapping selects, but never toggles back to "none".
                         CompactChip(tag.code, tag.code == selectedType) {
@@ -845,14 +860,14 @@ private fun InputBar(
                 }
             }
 
-            TagRow("Prio") {
+            TagRow(stringResource(R.string.notes_tag_prio)) {
                 for (p in settings.priorities) {
                     CompactChip("P$p", p == priority) { onPriority(p) }
                 }
             }
 
             if (settings.categories.isNotEmpty()) {
-                TagRow("Cat") {
+                TagRow(stringResource(R.string.notes_tag_cat)) {
                     settings.categories.forEach { tag ->
                         // Category (dept) must never be "none": tapping only ever switches the value.
                         CompactChip(tag.code, tag.code == selectedCategory) {
@@ -884,7 +899,7 @@ private fun InputBar(
                         decorationBox = { inner ->
                             if (input.isEmpty()) {
                                 Text(
-                                    "Write a quick note…",
+                                    stringResource(R.string.notes_write_quick_note),
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -899,7 +914,7 @@ private fun InputBar(
                     enabled = input.isNotBlank(),
                     modifier = Modifier.padding(bottom = 4.dp),
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Save note")
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.notes_save_note))
                 }
             }
         }

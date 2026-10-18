@@ -1,6 +1,7 @@
 package com.knotes.ui
 
 import android.content.Context
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -19,14 +20,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Brush
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FormatColorFill
 import androidx.compose.material.icons.filled.PanTool
-import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -57,9 +58,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.knotes.R
 import com.knotes.gallery.AnnotationBurner
 import com.knotes.gallery.AnnotationStyle
 import com.knotes.gallery.Mark
@@ -81,8 +84,11 @@ import java.io.File
  * annotator's toolbar button or Alt+P — and nothing else stands between you and drawing: there is
  * no editor screen to enter and no save button to press.
  */
-private enum class Tool(val label: String) {
-    NONE("View"), PEN("Pen"), HIGHLIGHT("Highlight"), CROP("Crop")
+private enum class Tool(@StringRes val labelRes: Int) {
+    NONE(R.string.widgets_gallery_tool_view),
+    PEN(R.string.widgets_gallery_tool_pen),
+    HIGHLIGHT(R.string.widgets_gallery_tool_highlight),
+    CROP(R.string.widgets_gallery_tool_crop),
 }
 
 /**
@@ -105,7 +111,7 @@ fun GalleryScreen(dir: String) {
     if (images.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                "No images in\n$dir",
+                stringResource(R.string.widgets_gallery_no_images, dir),
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(24.dp),
@@ -165,7 +171,7 @@ fun GalleryScreen(dir: String) {
             images.getOrNull(page)?.let { saveLastViewedPath(context, dir, it.absolutePath) }
             // Arriving at a new page: whatever is in hand belongs to the one just left.
             if (marks.isNotEmpty() || label.isNotBlank()) {
-                error = if (commit()) null else "Couldn't save that image — its marks are still here."
+                error = if (commit()) null else context.getString(R.string.widgets_gallery_save_failed_marks_kept)
             }
         }
     }
@@ -222,12 +228,12 @@ fun GalleryScreen(dir: String) {
                         // Disarming is a natural "done with this one" moment — save then too.
                         if (t == Tool.NONE && (marks.isNotEmpty() || label.isNotBlank())) {
                             scope.launch {
-                                error = if (commit()) null else "Couldn't save that image."
+                                error = if (commit()) null else context.getString(R.string.widgets_gallery_save_failed)
                             }
                         }
                         tool = t
                     },
-                    label = { Text(t.label, style = MaterialTheme.typography.labelSmall) },
+                    label = { Text(stringResource(t.labelRes), style = MaterialTheme.typography.labelSmall) },
                     leadingIcon = {
                         Icon(
                             when (t) {
@@ -249,7 +255,7 @@ fun GalleryScreen(dir: String) {
             }
             if (marks.isNotEmpty()) {
                 IconButton(onClick = { marks.removeAt(marks.lastIndex) }) {
-                    Icon(Icons.Filled.Undo, "Undo last mark", tint = Color.White)
+                    Icon(Icons.AutoMirrored.Filled.Undo, stringResource(R.string.widgets_gallery_undo_mark), tint = Color.White)
                 }
             }
         }
@@ -263,8 +269,8 @@ fun GalleryScreen(dir: String) {
         // Moving pages is also what triggers the autosave (see commit), so these are the save
         // button in disguise; that is another reason not to hide them.
         PageButton(
-            icon = Icons.Filled.ChevronLeft,
-            description = "Previous image",
+            icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+            description = stringResource(R.string.widgets_gallery_previous),
             enabled = pagerState.currentPage > 0,
             alignment = Alignment.CenterStart,
             onClick = {
@@ -274,8 +280,8 @@ fun GalleryScreen(dir: String) {
             },
         )
         PageButton(
-            icon = Icons.Filled.ChevronRight,
-            description = "Next image",
+            icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            description = stringResource(R.string.widgets_gallery_next),
             enabled = pagerState.currentPage < images.lastIndex,
             alignment = Alignment.CenterEnd,
             onClick = {
@@ -294,7 +300,7 @@ fun GalleryScreen(dir: String) {
                 if (markedFile == null) markedFile = images.getOrNull(pagerState.currentPage)
             },
             singleLine = true,
-            placeholder = { Text("Label (renames the file)", color = Color.White.copy(alpha = 0.6f)) },
+            placeholder = { Text(stringResource(R.string.widgets_gallery_label_hint), color = Color.White.copy(alpha = 0.6f)) },
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color.Black.copy(alpha = 0.5f),
                 unfocusedContainerColor = Color.Black.copy(alpha = 0.5f),
@@ -336,7 +342,7 @@ fun GalleryScreen(dir: String) {
             contentColor = MaterialTheme.colorScheme.onErrorContainer,
             modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(20.dp),
         ) {
-            Icon(Icons.Filled.Delete, contentDescription = "Delete photo")
+            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.widgets_gallery_delete_photo))
         }
     }
 }

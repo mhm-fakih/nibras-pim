@@ -17,7 +17,7 @@
         android:layout_height="wrap_content"
         android:ellipsize="end"
         android:maxLines="1"
-        android:text="Alarms"
+        android:text="@string/widgets_alarms_title"
         android:textSize="12sp"
         android:textStyle="bold" />
 

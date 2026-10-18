@@ -45,7 +45,7 @@ data class ContactWithTasks(
             val arr = o.optJSONArray("tasks")
             ContactWithTasks(
                 id = o.getLong("id"),
-                name = str(o, "name").ifBlank { "(unnamed)" },
+                name = str(o, "name"),   // blank when unnamed; the screen shows a localized fallback
                 jobTitle = str(o, "jobTitle"),
                 telephones = str(o, "telephones"),
                 email = str(o, "email"),

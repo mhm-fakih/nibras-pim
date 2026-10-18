@@ -37,7 +37,7 @@
             android:layout_width="11dp"
             android:layout_height="11dp"
             android:layout_marginEnd="3dp"
-            android:contentDescription="أذان"
+            android:contentDescription="@string/widgets_prayer_adhan"
             android:src="@drawable/ic_pw_athan"
             android:visibility="gone" />
 
@@ -46,7 +46,7 @@
             android:layout_width="11dp"
             android:layout_height="11dp"
             android:layout_marginEnd="3dp"
-            android:contentDescription="كتم الهاتف"
+            android:contentDescription="@string/widgets_prayer_mute_phone"
             android:src="@drawable/ic_pw_silence"
             android:visibility="gone" />
 
@@ -54,7 +54,7 @@
             android:id="@+id/pw_col_beeps"
             android:layout_width="11dp"
             android:layout_height="11dp"
-            android:contentDescription="تنبيهات قبل"
+            android:contentDescription="@string/widgets_prayer_alerts_before"
             android:src="@drawable/ic_pw_beeps"
             android:visibility="gone" />
     </LinearLayout>

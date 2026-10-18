@@ -151,6 +151,30 @@ def _group_runs(chars: list[tuple[str, bool]]) -> Runs:
     return runs
 
 
+def _is_break(text: str, i: int) -> bool:
+    """Is ``text[i]`` a clause break *here*?
+
+    A bare membership test in CLAUSE_BREAKS is not enough, because the same characters do two jobs.
+    A "." ends a sentence — but it also sits inside `#A.tafsir`, `notes.sqlite`, `3.14` and a URL,
+    and treating those as sentence ends chops a clause through the middle of a token. Highlighting
+    one then wrapped the ``==`` around a fragment (`#A.==tafsir #I==.digprod`), which is nonsense
+    to read and nonsense in the file.
+
+    So a "." only breaks when it is NOT between two word characters. Every other break character is
+    unconditional: a comma or a "?" inside a word is not a thing worth protecting. (A hyphen needs
+    no guard — it was never a break character here, which is why "- call Sara" is one clause.)
+    """
+    ch = text[i]
+    if ch not in CLAUSE_BREAKS:
+        return False
+    if ch == ".":
+        before = text[i - 1] if i > 0 else " "
+        after = text[i + 1] if i + 1 < len(text) else " "
+        if (before.isalnum() or before == "_") and (after.isalnum() or after == "_"):
+            return False
+    return True
+
+
 def clause_bounds(plain: str, offset: int) -> tuple[int, int]:
     """The clause containing ``offset``, as a ``[start, end)`` range of ``plain``.
 
@@ -172,7 +196,7 @@ def clause_bounds(plain: str, offset: int) -> tuple[int, int]:
     if offset >= n:
         offset = n - 1
     newlines = 0
-    while offset >= 0 and plain[offset] in CLAUSE_BREAKS:
+    while offset >= 0 and _is_break(plain, offset):
         if plain[offset] == "\n":
             newlines += 1
             if newlines > 1:
@@ -181,10 +205,10 @@ def clause_bounds(plain: str, offset: int) -> tuple[int, int]:
     if offset < 0:
         return 0, 0
     start = offset
-    while start > 0 and plain[start - 1] not in CLAUSE_BREAKS:
+    while start > 0 and not _is_break(plain, start - 1):
         start -= 1
     end = offset
-    while end < n and plain[end] not in CLAUSE_BREAKS:
+    while end < n and not _is_break(plain, end):
         end += 1
     while start < end and plain[start].isspace():   # hug the words, not the gap before them
         start += 1
@@ -281,6 +305,126 @@ def parse_created(timestamp: str, fmt: str, fallback_epoch: float) -> float:
     return fallback_epoch
 
 
+# ---------------------------------------------------------------- markdown styling
+# Reading mode styles the note's markdown IN PLACE: the markers stay on screen (dimmed) and only
+# the text they wrap is restyled. That is a deliberate limit, not a half-measure — see
+# markdown_spans for why hiding them would cost data.
+#
+# Everything here works on the ALREADY highlight-stripped text (what split_highlights returns),
+# because that is exactly what the reading buffer holds, so every offset lines up with the buffer,
+# with the clause flags and with clause_bounds.
+
+# Marker pairs, longest first: ** must be tried before * or "**bold**" reads as an empty italic.
+_MD_CODE_RE = re.compile(r"`([^`\n]+)`")
+_MD_HEADING_RE = re.compile(r"^(#{1,6})([ \t]+)(.+)$", re.MULTILINE)
+_MD_LINK_RE = re.compile(r"\[([^\]\n]*)\]\(([^)\n]*)\)")
+_MD_BOLDITALIC_RE = re.compile(r"(\*\*\*)(\S(?:[^\n]*?\S)?)(\*\*\*)")
+_MD_BOLD_RE = re.compile(r"(\*\*)(\S(?:[^\n]*?\S)?)(\*\*)")
+_MD_ITALIC_RE = re.compile(r"(?<![\w*])(\*)(\S(?:[^\n*]*?\S)?)(\*)(?![\w*])")
+_MD_ITALIC_US_RE = re.compile(r"(?<![\w_])(_)(\S(?:[^\n_]*?\S)?)(_)(?![\w_])")
+# Same shape as knotes._HASHTAG_RE and filters.TAG_RE — the three must agree on what a tag is.
+_MD_TAG_RE = re.compile(r"(?<!\w)#\w[\w.\-]*", re.UNICODE)
+# The highlight pair, for the editing buffer only — reading mode strips these before scanning.
+_MD_HIGHLIGHT_RE = re.compile(r"(?<!=)(==)([^\n=]+)(==)(?!=)")
+
+# The kinds a span can carry. The UI maps each to a GtkTextTag; anything it doesn't know is ignored,
+# so adding a kind here can't break the pane.
+MARKUP_KINDS = ("marker", "bold", "italic", "bolditalic", "code", "heading", "link", "url", "tag",
+                "highlight")
+
+
+def markdown_spans(text: str) -> list[tuple[int, int, str]]:
+    """Style runs for reading mode: ``(start, end, kind)`` offsets into [text], kind in
+    :data:`MARKUP_KINDS`. Never modifies the text and never returns an offset outside it.
+
+    **The markers are reported, not removed** — as their own "marker" spans, for the caller to dim.
+    Hiding them would mean the buffer no longer matched the file, and the pane writes a highlight
+    back by rebuilding the whole note from what the buffer holds (see apply_highlights and
+    KnotesWindow._on_editor_click): the first clause clicked would save the note with every ``**``
+    and ``[]()`` silently deleted. Dimming costs one visible pair of asterisks and cannot lose a
+    byte.
+
+    Nesting is not attempted beyond ``***both***``, and a marker inside code is left alone. This is
+    a reading aid over notes people type by hand, not a CommonMark implementation; the failure mode
+    of guessing wrong is text that looks emphasised when it isn't, which is worse than plain.
+    """
+    spans: list[tuple[int, int, str]] = []
+    taken = bytearray(len(text))       # 1 where an earlier, higher-priority rule already claimed
+
+    def free(start: int, end: int) -> bool:
+        return not any(taken[start:end])
+
+    def claim(start: int, end: int) -> None:
+        taken[start:end] = b"\x01" * (end - start)   # slice, not a loop: some notes are ~1 MB
+
+    def add(start: int, end: int, kind: str) -> None:
+        if end > start:
+            spans.append((start, end, kind))
+
+    # 0. Highlights. Reading mode has already removed these markers by the time it calls, so this
+    #    only ever fires for the editing buffer, which shows the file's text as it is. Marking them
+    #    here means one scanner serves both modes instead of two that can disagree.
+    for m in _MD_HIGHLIGHT_RE.finditer(text):
+        add(m.start(1), m.end(1), "marker")      # opening ==
+        add(m.start(2), m.end(2), "highlight")
+        add(m.start(3), m.end(3), "marker")      # closing ==
+        # Only the markers are claimed. The CONTENT stays available to the rules below, so
+        # "==a **bold** clause==" is both highlighted and bold — the tags compose, and a mark
+        # placed over a sentence shouldn't flatten the formatting inside it.
+        claim(m.start(1), m.end(1))
+        claim(m.start(3), m.end(3))
+
+    # 1. Code first, and it swallows its contents: a `**` inside backticks is literal.
+    for m in _MD_CODE_RE.finditer(text):
+        if not free(m.start(), m.end()):
+            continue
+        add(m.start(), m.start() + 1, "marker")
+        add(m.start(1), m.end(1), "code")
+        add(m.end(1), m.end(), "marker")
+        claim(m.start(), m.end())
+
+    # 2. Headings. "#tag" is NOT one — a heading needs whitespace after the hashes, which is the
+    #    same rule that keeps the tag bank's "#A.quran" out of the heading syntax.
+    for m in _MD_HEADING_RE.finditer(text):
+        if not free(m.start(), m.end()):
+            continue
+        add(m.start(1), m.end(2), "marker")
+        add(m.start(3), m.end(3), "heading")
+        claim(m.start(), m.end())
+
+    # 3. Links, before emphasis, so an underscore in a URL isn't read as italic.
+    for m in _MD_LINK_RE.finditer(text):
+        if not free(m.start(), m.end()):
+            continue
+        add(m.start(), m.start(1), "marker")        # [
+        add(m.start(1), m.end(1), "link")
+        add(m.end(1), m.start(2), "marker")         # ](
+        add(m.start(2), m.end(2), "url")
+        add(m.end(2), m.end(), "marker")            # )
+        claim(m.start(), m.end())
+
+    # 4. Emphasis, strongest first.
+    for regex, kind in ((_MD_BOLDITALIC_RE, "bolditalic"), (_MD_BOLD_RE, "bold"),
+                        (_MD_ITALIC_RE, "italic"), (_MD_ITALIC_US_RE, "italic")):
+        for m in regex.finditer(text):
+            if not free(m.start(), m.end()):
+                continue
+            add(m.start(1), m.end(1), "marker")
+            add(m.start(2), m.end(2), kind)
+            add(m.start(3), m.end(3), "marker")
+            claim(m.start(), m.end())
+
+    # 5. Hashtags last: the whole token, "#" included, is the chip — the "#" is part of the tag
+    #    here, not punctuation to be dimmed like a marker.
+    for m in _MD_TAG_RE.finditer(text):
+        if free(m.start(), m.end()):
+            add(m.start(), m.end(), "tag")
+            claim(m.start(), m.end())
+
+    spans.sort(key=lambda s: (s[0], s[1]))
+    return spans
+
+
 def companion_has_content(note_path: str) -> bool:
     """True if the note's companion folder holds any file, at any depth.
 
@@ -294,6 +438,124 @@ def companion_has_content(note_path: str) -> bool:
         if files:
             return True
     return False
+
+
+# ---------------------------------------------------------------- quick capture
+# Two scratch lists living at the root of the note folder: somewhere to put a thought or a to-do
+# without deciding a type, a priority, a category or a file name first. They are deliberately NOT
+# notes — they carry no metadata, never appear on the board (see IGNORED_FILE_STEMS) and are never
+# promoted. Anything that earns a place in the folder gets written as a real note instead.
+#
+# Plain GitHub-flavoured markdown so they stay useful outside knotes: a bullet list and a task
+# list, editable in any editor, renderable anywhere, diffable and syncable like everything else.
+QUICK_NOTES_FILE = "quick-notes.md"
+QUICK_TASKS_FILE = "quick-tasks.md"
+
+# A bullet, then for a task list a [ ] / [x] box. Both accept "-" or "*" and any indent, because
+# these files are meant to be edited by hand elsewhere and come back parseable.
+_QUICK_TASK_RE = re.compile(r"^(\s*[-*]\s+)\[([ xX])\]\s?(.*)$")
+_QUICK_BULLET_RE = re.compile(r"^(\s*[-*]\s+)(.*)$")
+
+
+@dataclass(frozen=True)
+class QuickEntry:
+    """One line of a quick list. [line] is its index in the file, which is what write-back uses —
+    the entry is edited in place so that everything else in the file (a heading, a hand-written
+    note between items, a blank line) survives untouched."""
+    line: int
+    text: str
+    done: bool | None = None   # None for the notes list, which has nothing to complete
+
+
+class QuickFile:
+    """One quick list, backed by a markdown file that may also be edited by hand.
+
+    Re-read on every access rather than cached: the file is a handful of lines, it is synced
+    between machines like everything else here, and a stale in-memory copy would silently
+    overwrite what the phone added. Cheap enough that correctness wins.
+    """
+
+    def __init__(self, path: str, tasks: bool):
+        self.path = path
+        self.tasks = tasks
+
+    # ---- reading
+    def _lines(self) -> list[str]:
+        try:
+            with open(self.path, encoding="utf-8") as f:
+                return f.read().split("\n")
+        except (OSError, UnicodeDecodeError):
+            return []
+
+    def entries(self) -> list[QuickEntry]:
+        """The list items, in file order. Lines that aren't list items (the heading, blank lines,
+        a stray paragraph someone typed in) are skipped here and preserved on write."""
+        out = []
+        for i, line in enumerate(self._lines()):
+            if self.tasks:
+                m = _QUICK_TASK_RE.match(line)
+                if m and m.group(3).strip():
+                    out.append(QuickEntry(i, m.group(3).strip(), m.group(2).lower() == "x"))
+            else:
+                m = _QUICK_BULLET_RE.match(line)
+                # A task-shaped line in the notes file is still just a note; keep its text whole.
+                if m and m.group(2).strip():
+                    out.append(QuickEntry(i, m.group(2).strip()))
+        return out
+
+    def mtime(self) -> float:
+        try:
+            return os.path.getmtime(self.path)
+        except OSError:
+            return 0.0
+
+    # ---- writing
+    def _write(self, lines: list[str]) -> bool:
+        try:
+            os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+            tmp = self.path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines))
+            os.replace(tmp, self.path)   # atomic: a sync mid-write can't leave half a list
+            return True
+        except OSError:
+            return False
+
+    def _heading(self) -> list[str]:
+        title = "Quick tasks" if self.tasks else "Quick notes"
+        what = ("to-dos captured without leaving knotes" if self.tasks
+                else "thoughts captured without leaving knotes")
+        return [f"# {title}", "", f"<!-- {what}. Plain markdown: edit anywhere. -->", ""]
+
+    def append(self, text: str) -> bool:
+        """Add one item at the end. Creates the file, with a heading, if it isn't there yet."""
+        text = " ".join(text.split())          # a pasted multi-line blob must not break the list
+        if not text:
+            return False
+        lines = self._lines() or self._heading()
+        item = f"- [ ] {text}" if self.tasks else f"- {text}"
+        while lines and not lines[-1].strip():  # append after the last item, not after the padding
+            lines.pop()
+        lines.append(item)
+        lines.append("")
+        return self._write(lines)
+
+    def set_done(self, entry: QuickEntry, done: bool) -> bool:
+        lines = self._lines()
+        if not (0 <= entry.line < len(lines)):
+            return False
+        m = _QUICK_TASK_RE.match(lines[entry.line])
+        if not m:
+            return False
+        lines[entry.line] = f"{m.group(1)}[{'x' if done else ' '}] {m.group(3)}"
+        return self._write(lines)
+
+    def remove(self, entry: QuickEntry) -> bool:
+        lines = self._lines()
+        if not (0 <= entry.line < len(lines)):
+            return False
+        del lines[entry.line]
+        return self._write(lines)
 
 
 def is_companion_dir(dir_path: str) -> bool:
@@ -516,7 +778,8 @@ class NoteRepository:
     # exactly what it must never be (promoting it would rename the live database).
     # ``claude.md`` is here for the same reason as the database: it's an instruction file for a
     # tool that reads the folder, not a note, and it isn't dotted, so nothing else would hide it.
-    IGNORED_FILE_STEMS = frozenset({"notes.sqlite", "claude.md"})
+    IGNORED_FILE_STEMS = frozenset({"notes.sqlite", "claude.md",
+                                    QUICK_NOTES_FILE, QUICK_TASKS_FILE})
 
     # What SQLite writes alongside an open database. They appear and vanish as the DB is used, so
     # ignoring only the .sqlite itself would still let two mystery cards blink onto the board.
@@ -607,7 +870,9 @@ class NoteRepository:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 content = f.read()
-        except OSError:
+        except (OSError, UnicodeDecodeError):
+            # A body that isn't UTF-8 text (a corrupted/binary file wearing a note's name) must not
+            # take the whole folder down with it: show the card with an empty body instead.
             content = ""
         return Note(
             path=path,
@@ -622,8 +887,10 @@ class NoteRepository:
         )
 
     def save_new(self, text: str, type_: str | None, priority: int, category: str | None,
-                 fmt: str) -> str:
-        token = now_token(fmt)
+                 fmt: str, when: datetime | None = None) -> str:
+        """Write a new note. Its timestamp is "now" unless ``when`` is given — the week calendar
+        passes the slot it was entered into, so a past journal entry lands on its own day."""
+        token = when.strftime(fmt) if when is not None else now_token(fmt)
         path = os.path.join(self._dir(), build_name(token, type_, priority, category))
         counter = 2
         while os.path.exists(path):
@@ -708,6 +975,21 @@ class NoteRepository:
         os.rename(note.path, target)
         with open(target, "w", encoding="utf-8") as f:
             f.write(_with_trailing_newline(new_body))
+        return target
+
+    def retime(self, path: str, when: datetime, fmt: str) -> str:
+        """Give the note at ``path`` a new creation time — the week calendar's move. The time IS the
+        start of the file name, so this is a rename (de-duplicated, companion folder following) and
+        the body is never touched. Returns the new path, or ``path`` if the time is unchanged."""
+        name = os.path.basename(path)
+        p = parse(name)
+        token = when.strftime(fmt)
+        if p.timestamp == token:
+            return path
+        priority = p.priority if p.priority is not None else 0
+        target = self._free_path(os.path.dirname(path), token, p.type, priority, p.category)
+        os.rename(path, target)
+        self._relocate_companion(path, target)
         return target
 
     def _relocate_companion(self, old_note_path: str, new_note_path: str) -> None:

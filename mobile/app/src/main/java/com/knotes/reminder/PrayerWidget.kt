@@ -66,6 +66,8 @@ class PrayerWidget : AppWidgetProvider() {
             val today = LocalDate.ofInstant(Instant.ofEpochMilli(now), zone)
             val day = PrayerCalendar.dayOf(settings, today, zone)
             val upcoming = PrayerCalendar.nextPrayer(settings, zone, now)
+            // A time that has just arrived — the elapsed timer counts up from it for a while.
+            val recent = PrayerCalendar.recentPrayer(settings, zone, now)
 
             val hijri = PrayerCalendar.hijriNow(settings, zone, now)
             // "12 ربيع الأول 1448" — the year is back. It was dropped to buy width for the
@@ -82,7 +84,13 @@ class PrayerWidget : AppWidgetProvider() {
                 PrayerSettings.MIN_COUNTDOWN, PrayerSettings.MAX_COUNTDOWN,
             ) * 60_000L
             val due = upcoming?.atMillis?.takeIf { it - now <= withinMs }
-            setCountdown(views, upcoming?.prayer?.arabicShort, due, now)
+            // Just after a time, the line counts UP from it ("ظهر منذ 4:12") instead of falling
+            // silent because the next time is hours off. setCountdown already words and runs a
+            // past target that way.
+            if (recent != null) setCountdown(views, recent.prayer.arabicShort, recent.atMillis, now)
+            else setCountdown(views, upcoming?.prayer?.arabicShort, due, now)
+            // The highlighted column follows whatever the line is timing.
+            val marked = recent?.prayer ?: upcoming?.prayer
 
             val rows = day.visibleSlots(settings)
             if (rows.isEmpty()) {
@@ -95,7 +103,7 @@ class PrayerWidget : AppWidgetProvider() {
                     // tomorrow's Fajr once the day is spent. Restricting it to today left the strip
                     // with nothing marked all evening while the header still named a prayer, which
                     // read as a fault rather than as a distinction.
-                    val isNext = upcoming?.prayer == slot.prayer
+                    val isNext = marked == slot.prayer
                     // Dimmed only when it has gone AND is not what we are now counting towards.
                     val passed = !isNext && slot.atMillis != null && slot.atMillis < now
                     val col = RemoteViews(context.packageName, R.layout.widget_prayer_col)

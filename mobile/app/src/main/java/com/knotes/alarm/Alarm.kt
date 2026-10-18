@@ -1,5 +1,7 @@
 package com.knotes.alarm
 
+import android.content.Context
+import com.knotes.R
 import com.knotes.prayer.Prayer
 import java.time.DayOfWeek
 
@@ -75,13 +77,30 @@ data class Alarm(
 }
 
 /** A human label for a duration in minutes: 90 -> "1h 30m". */
+fun minutesLabel(context: Context, min: Int): String = when {
+    min < 60 -> context.getString(R.string.prayer_dur_minutes, min)
+    min % 60 == 0 -> context.getString(R.string.prayer_dur_hours, min / 60)
+    else -> context.getString(R.string.prayer_dur_hours_minutes, min / 60, min % 60)
+}
+
+/** "30m before Fajr", "at Maghrib", "10m after Isha". */
+fun offsetLabel(context: Context, prayer: Prayer, offsetMin: Int): String {
+    val name = context.getString(prayer.labelRes)
+    return when {
+        offsetMin == 0 -> context.getString(R.string.prayer_offset_at, name)
+        offsetMin < 0 -> context.getString(R.string.prayer_offset_before, minutesLabel(context, -offsetMin), name)
+        else -> context.getString(R.string.prayer_offset_after, minutesLabel(context, offsetMin), name)
+    }
+}
+
+/** English-only form of [minutesLabel], kept for the unit tests; the UI uses the Context overload. */
 fun minutesLabel(min: Int): String = when {
     min < 60 -> "${min}m"
     min % 60 == 0 -> "${min / 60}h"
     else -> "${min / 60}h ${min % 60}m"
 }
 
-/** "30m before Fajr", "at Maghrib", "10m after Isha". */
+/** English-only form of [offsetLabel], kept for the unit tests; the UI uses the Context overload. */
 fun offsetLabel(prayer: Prayer, offsetMin: Int): String = when {
     offsetMin == 0 -> "at ${prayer.label}"
     offsetMin < 0 -> "${minutesLabel(-offsetMin)} before ${prayer.label}"

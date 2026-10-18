@@ -43,10 +43,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.knotes.R
 import com.knotes.Tag
 import com.knotes.nibras.NibrasApi
 import com.knotes.nibras.NibrasRecord
@@ -74,6 +77,7 @@ fun BackendSearchScreen(
     types: List<Tag>,
 ) {
     val api = remember { NibrasApi() }
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var query by rememberSaveable { mutableStateOf("") }
@@ -87,7 +91,7 @@ fun BackendSearchScreen(
 
     fun runSearch() {
         if (query.isBlank() || baseUrl.isBlank()) {
-            message = if (baseUrl.isBlank()) "Set the Nibras server URL in Settings first" else null
+            message = if (baseUrl.isBlank()) context.getString(R.string.server_search_set_url_first) else null
             return
         }
         searching = true
@@ -100,24 +104,24 @@ fun BackendSearchScreen(
                     results = hits
                     flagged.clear()
                     hits.forEach { flagged["${it.ecode}:${it.id}"] = it.bookmarked }
-                    message = if (hits.isEmpty()) "No matches" else null
+                    message = if (hits.isEmpty()) context.getString(R.string.server_search_no_matches) else null
                 }
                 .onFailure { e ->
                     results = emptyList()
-                    message = describeFailure(e, baseUrl)
+                    message = describeFailure(context, e, baseUrl)
                 }
         }
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Search server") }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.server_search_title)) }) }) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
                 singleLine = true,
-                label = { Text("Search the Nibras server") },
+                label = { Text(stringResource(R.string.server_search_field_label)) },
                 trailingIcon = {
-                    IconButton(onClick = { runSearch() }) { Icon(Icons.Filled.Search, "Search") }
+                    IconButton(onClick = { runSearch() }) { Icon(Icons.Filled.Search, stringResource(R.string.server_search_action)) }
                 },
                 keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { runSearch() }),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Search),
@@ -133,7 +137,7 @@ fun BackendSearchScreen(
                 FilterChip(
                     selected = ecode.isEmpty(),
                     onClick = { ecode = ""; if (query.isNotBlank()) runSearch() },
-                    label = { Text("All", style = MaterialTheme.typography.labelSmall) },
+                    label = { Text(stringResource(R.string.server_search_filter_all), style = MaterialTheme.typography.labelSmall) },
                 )
                 types.forEach { t ->
                     FilterChip(
@@ -180,7 +184,7 @@ fun BackendSearchScreen(
                                     }.getOrDefault(false)
                                     if (!ok) {
                                         flagged[key] = !next             // put it back; nothing was saved
-                                        message = "Couldn't reach the server — not flagged"
+                                        message = context.getString(R.string.server_search_flag_failed)
                                     }
                                 }
                             },
@@ -200,20 +204,19 @@ fun BackendSearchScreen(
  * older build that had no such endpoint — a 404. A message that names the status points at the
  * right thing straight away.
  */
-private fun describeFailure(e: Throwable, baseUrl: String): String = when {
+private fun describeFailure(context: android.content.Context, e: Throwable, baseUrl: String): String = when {
     e is NibrasApi.ApiException && e.status == 404 ->
-        "This server has no search endpoint (404). It's probably running an older build — " +
-            "deploy the current WAR to $baseUrl and restart it."
+        context.getString(R.string.server_search_error_404, baseUrl)
     e is NibrasApi.ApiException && e.status == 401 ->
-        "The server rejected the sign-in (401). Check the username and password in Settings."
+        context.getString(R.string.server_search_error_401)
     e is NibrasApi.ApiException && e.status == 403 ->
-        "Signed in, but not allowed to search (403). This account needs the content.write permission."
+        context.getString(R.string.server_search_error_403)
     e is NibrasApi.ApiException && (e.status ?: 0) >= 500 ->
-        "The server errored (${e.status}). Check its log."
+        context.getString(R.string.server_search_error_5xx, e.status ?: 0)
     e is NibrasApi.ApiException && e.status != null ->
-        "The server returned HTTP ${e.status}."
+        context.getString(R.string.server_search_error_http, e.status ?: 0)
     // No status at all: the request never got a reply.
-    else -> "Couldn't reach $baseUrl — check the address in Settings and that the server is running."
+    else -> context.getString(R.string.server_search_error_unreachable, baseUrl)
 }
 
 /** One server record: the fields worth seeing on a phone, plus the flag button. */
@@ -247,7 +250,7 @@ private fun SearchResultCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    record.summary.ifBlank { "(untitled)" },
+                    record.summary.ifBlank { stringResource(R.string.server_untitled) },
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
@@ -278,8 +281,8 @@ private fun SearchResultCard(
             IconButton(onClick = onToggleBookmark) {
                 Icon(
                     if (bookmarked) Icons.Filled.BookmarkAdded else Icons.Filled.BookmarkAdd,
-                    contentDescription = if (bookmarked) "Flagged — will sync to this phone"
-                    else "Flag to sync to this phone",
+                    contentDescription = if (bookmarked) stringResource(R.string.server_search_flagged_cd)
+                    else stringResource(R.string.server_search_flag_cd),
                     tint = if (bookmarked) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )

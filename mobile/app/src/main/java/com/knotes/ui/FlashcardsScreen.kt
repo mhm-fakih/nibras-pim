@@ -21,13 +21,13 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Replay
-import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -50,11 +50,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.knotes.R
 import com.knotes.flash.CardState
 import com.knotes.flash.FlashCache
 import com.knotes.flash.FlashOutbox
@@ -151,7 +154,7 @@ fun FlashcardsScreen(store: FlashcardStore, baseUrl: String) {
                         // Named rather than swallowed: an empty page and an unreachable server look
                         // identical otherwise, and only one of them is something you can act on.
                         error = (e.message?.takeIf { m -> m.isNotBlank() }
-                            ?: "Could not reach the server, and no cards are saved on this phone yet.")
+                            ?: context.getString(R.string.widgets_flash_no_server))
                     } else {
                         offlineSince = savedAt
                     }
@@ -246,13 +249,13 @@ fun FlashcardsScreen(store: FlashcardStore, baseUrl: String) {
         Column(modifier = Modifier.padding(horizontal = 10.dp)) {
             Spacer(Modifier.height(4.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                TabChip("Review", queue.orEmpty().size, tab == FlashTab.QUEUE) {
+                TabChip(stringResource(R.string.widgets_flash_tab_review), queue.orEmpty().size, tab == FlashTab.QUEUE) {
                     tab = FlashTab.QUEUE; store.tab = tab.name
                 }
-                TabChip("Repeat", repeatList.size, tab == FlashTab.REPEAT) {
+                TabChip(stringResource(R.string.widgets_flash_tab_repeat), repeatList.size, tab == FlashTab.REPEAT) {
                     tab = FlashTab.REPEAT; store.tab = tab.name
                 }
-                TabChip("Kept", keptList.size, tab == FlashTab.KEPT) {
+                TabChip(stringResource(R.string.widgets_flash_tab_kept), keptList.size, tab == FlashTab.KEPT) {
                     tab = FlashTab.KEPT; store.tab = tab.name
                 }
             }
@@ -263,10 +266,10 @@ fun FlashcardsScreen(store: FlashcardStore, baseUrl: String) {
                 Text(
                     error ?: when (tab) {
                         FlashTab.QUEUE ->
-                            if (summary.total == 0) "No passages on the server yet."
-                            else "Nothing left to review — every passage has been dealt with."
-                        FlashTab.REPEAT -> "Nothing set to repeat."
-                        FlashTab.KEPT -> "Nothing kept yet."
+                            if (summary.total == 0) stringResource(R.string.widgets_flash_empty_server)
+                            else stringResource(R.string.widgets_flash_empty_queue)
+                        FlashTab.REPEAT -> stringResource(R.string.widgets_flash_empty_repeat)
+                        FlashTab.KEPT -> stringResource(R.string.widgets_flash_empty_kept)
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -285,8 +288,8 @@ fun FlashcardsScreen(store: FlashcardStore, baseUrl: String) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "${grouped(index + 1)} of ${grouped(shown.size)}" + when (tab) {
-                    FlashTab.QUEUE -> " · ${grouped(summary.remaining)} left of ${grouped(summary.total)}"
+                stringResource(R.string.widgets_flash_position, grouped(index + 1), grouped(shown.size)) + when (tab) {
+                    FlashTab.QUEUE -> " · " + stringResource(R.string.widgets_flash_left_of, grouped(summary.remaining), grouped(summary.total))
                     else -> ""
                 } + offlineNote(offlineSince, waiting),
                 style = MaterialTheme.typography.labelSmall,
@@ -300,13 +303,13 @@ fun FlashcardsScreen(store: FlashcardStore, baseUrl: String) {
                 onClick = { fontScale = (fontScale - 0.1f).coerceAtLeast(FlashcardStore.MIN_FONT).also { store.fontScale = it } },
                 enabled = fontScale > FlashcardStore.MIN_FONT,
                 modifier = Modifier.size(30.dp),
-            ) { Icon(Icons.Filled.Remove, "Smaller text", modifier = Modifier.size(17.dp)) }
+            ) { Icon(Icons.Filled.Remove, stringResource(R.string.widgets_flash_smaller_text), modifier = Modifier.size(17.dp)) }
             Text("A", style = MaterialTheme.typography.labelMedium)
             IconButton(
                 onClick = { fontScale = (fontScale + 0.1f).coerceAtMost(FlashcardStore.MAX_FONT).also { store.fontScale = it } },
                 enabled = fontScale < FlashcardStore.MAX_FONT,
                 modifier = Modifier.size(30.dp),
-            ) { Icon(Icons.Filled.Add, "Larger text", modifier = Modifier.size(17.dp)) }
+            ) { Icon(Icons.Filled.Add, stringResource(R.string.widgets_flash_larger_text), modifier = Modifier.size(17.dp)) }
         }
         HorizontalDivider()
 
@@ -370,7 +373,7 @@ private fun CardFace(
             ) {
                 Icon(
                     Icons.Filled.ContentCopy,
-                    contentDescription = "Copy this passage",
+                    contentDescription = stringResource(R.string.widgets_flash_copy_passage),
                     modifier = Modifier.size(17.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -397,15 +400,19 @@ private fun CardFace(
              * settles both, because it is the labels that differ, not the screens.
              */
             if (tab != FlashTab.QUEUE) {
-                ActionButton(Icons.Filled.Undo, "Unset", labelWeight("Unset"), onClick = onUndecide)
+                val unset = stringResource(R.string.widgets_flash_unset)
+                ActionButton(Icons.AutoMirrored.Filled.Undo, unset, labelWeight(unset), onClick = onUndecide)
             }
             if (tab != FlashTab.KEPT) {
-                ActionButton(Icons.Filled.Bookmark, "Keep", labelWeight("Keep")) { onDecide(CardState.KEPT) }
+                val keep = stringResource(R.string.widgets_flash_keep)
+                ActionButton(Icons.Filled.Bookmark, keep, labelWeight(keep)) { onDecide(CardState.KEPT) }
             }
             if (tab != FlashTab.REPEAT) {
-                ActionButton(Icons.Filled.Replay, "Repeat", labelWeight("Repeat")) { onDecide(CardState.REPEAT) }
+                val repeat = stringResource(R.string.widgets_flash_repeat)
+                ActionButton(Icons.Filled.Replay, repeat, labelWeight(repeat)) { onDecide(CardState.REPEAT) }
             }
-            ActionButton(Icons.Filled.CheckCircle, "Reviewed", labelWeight("Reviewed"), primary = true) {
+            val reviewed = stringResource(R.string.widgets_flash_reviewed)
+            ActionButton(Icons.Filled.CheckCircle, reviewed, labelWeight(reviewed), primary = true) {
                 onDecide(CardState.REVIEWED)
             }
         }
@@ -516,15 +523,16 @@ private fun TabChip(label: String, count: Int, selected: Boolean, onClick: () ->
         selected = selected,
         onClick = onClick,
         label = {
-            Text("$label ${grouped(count)}", style = MaterialTheme.typography.labelSmall,
+            Text(stringResource(R.string.widgets_flash_tab_count, label, grouped(count)), style = MaterialTheme.typography.labelSmall,
                 maxLines = 1, softWrap = false)
         },
     )
 }
 
+@Composable
 private fun topicLabel(topic: String): String? = when (topic) {
-    "r" -> "religious"
-    "p" -> "psychological"
+    "r" -> stringResource(R.string.widgets_flash_topic_religious)
+    "p" -> stringResource(R.string.widgets_flash_topic_psychological)
     else -> null
 }
 
@@ -539,10 +547,10 @@ private object FlashBank { const val QUEUE_SIZE = 40 }
  * decided was kept; a waiting count alone does not say whether the cards themselves are current.
  * Empty string when everything is up to date, so the line reads normally in the ordinary case.
  */
+@Composable
 private fun offlineNote(savedAt: Long?, waiting: Int): String {
-    val parts = buildList {
-        savedAt?.let { add("saved copy, ${FriendlyTime.ago(it)}") }
-        if (waiting > 0) add(if (waiting == 1) "1 decision to sync" else "$waiting decisions to sync")
-    }
+    val savedText = savedAt?.let { stringResource(R.string.widgets_flash_saved_copy, FriendlyTime.ago(LocalContext.current, it)) }
+    val waitingText = if (waiting > 0) pluralStringResource(R.plurals.widgets_flash_decisions_to_sync, waiting, waiting) else null
+    val parts = listOfNotNull(savedText, waitingText)
     return if (parts.isEmpty()) "" else " · " + parts.joinToString(" · ")
 }

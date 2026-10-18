@@ -39,10 +39,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.knotes.AppSettings
 import com.knotes.Note
+import com.knotes.R
 import com.knotes.companionFileNames
 import com.knotes.companionHasContent
 import com.knotes.player.isMediaFile
@@ -146,7 +149,10 @@ internal fun NoteCard(
                 }
                 if (note.fileNames.size > 5) {
                     Text(
-                        text = "… +${note.fileNames.size - 5} more (${note.fileNames.size} files)",
+                        text = pluralStringResource(
+                            R.plurals.notes_card_more_files, note.fileNames.size,
+                            note.fileNames.size - 5, note.fileNames.size,
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
@@ -173,11 +179,11 @@ internal fun NoteCard(
                 // Backend-push status: outlined up-cloud while queued, filled done-cloud once synced.
                 when (pushState) {
                     PushState.QUEUED -> Icon(
-                        Icons.Filled.CloudUpload, contentDescription = "Queued for Nibras",
+                        Icons.Filled.CloudUpload, contentDescription = stringResource(R.string.notes_card_queued_for_nibras),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp),
                     )
                     PushState.PUSHED -> Icon(
-                        Icons.Filled.CloudDone, contentDescription = "Pushed to Nibras",
+                        Icons.Filled.CloudDone, contentDescription = stringResource(R.string.notes_card_pushed_to_nibras),
                         tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp),
                     )
                     null -> {}
@@ -200,7 +206,7 @@ internal fun NoteCard(
                         ) {
                             Icon(
                                 Icons.Filled.FolderOpen,
-                                contentDescription = "Open the files folder",
+                                contentDescription = stringResource(R.string.notes_card_open_files_folder),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp),
                             )
@@ -217,14 +223,14 @@ internal fun NoteCard(
                 ) {
                     Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Edit", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.notes_edit), style = MaterialTheme.typography.labelMedium)
                 }
                 // Delete sits on the card rather than only in the ⋮ menu, but never deletes on the
                 // tap: it opens a dialog that either confirms or explains why it can't.
                 IconButton(onClick = { confirmDelete = true }, modifier = Modifier.size(28.dp)) {
                     Icon(
                         Icons.Filled.DeleteOutline,
-                        contentDescription = "Delete",
+                        contentDescription = stringResource(R.string.notes_delete),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp),
                     )
@@ -232,17 +238,19 @@ internal fun NoteCard(
                 Spacer(Modifier.width(2.dp))
                 Box {
                     IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "More", modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.notes_card_more), modifier = Modifier.size(18.dp))
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
                             text = {
                                 Text(
-                                    when (pushState) {
-                                        PushState.QUEUED -> "Queued — will sync"
-                                        PushState.PUSHED -> "Push again to Nibras"
-                                        null -> "Push to Nibras"
-                                    },
+                                    stringResource(
+                                        when (pushState) {
+                                            PushState.QUEUED -> R.string.notes_card_queued_will_sync
+                                            PushState.PUSHED -> R.string.notes_card_push_again
+                                            null -> R.string.notes_card_push_to_nibras
+                                        },
+                                    ),
                                 )
                             },
                             enabled = pushState != PushState.QUEUED,
@@ -254,7 +262,7 @@ internal fun NoteCard(
                         if (note.fileNames.isNotEmpty()) {
                             val context = LocalContext.current
                             DropdownMenuItem(
-                                text = { Text("Open files folder (${note.fileNames.size})") },
+                                text = { Text(stringResource(R.string.notes_card_open_files_folder_count, note.fileNames.size)) },
                                 onClick = {
                                     menuOpen = false
                                     openFolder(context, note.companionDir())
@@ -264,14 +272,14 @@ internal fun NoteCard(
                         DropdownMenuItem(
                             // Still offered: the composer edits text and tags together in the
                             // list, without leaving it. The reader/editor is the other way in.
-                            text = { Text("Edit in the composer below") },
+                            text = { Text(stringResource(R.string.notes_card_edit_in_composer)) },
                             onClick = {
                                 menuOpen = false
                                 onEditTags()
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text("Delete") },
+                            text = { Text(stringResource(R.string.notes_delete)) },
                             onClick = {
                                 menuOpen = false
                                 confirmDelete = true
@@ -302,15 +310,13 @@ private fun DeleteNoteDialog(note: Note, onDismiss: () -> Unit, onConfirm: () ->
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (blocked) "Can't delete this note" else "Delete this note?") },
+        title = { Text(stringResource(if (blocked) R.string.notes_delete_blocked_title else R.string.notes_delete_confirm_title)) },
         text = {
             Column {
                 if (blocked) {
                     Text(
-                        "Its files folder still holds " +
-                            (if (attached.isEmpty()) "files" else "${attached.size} file(s)") +
-                            ". Deleting the note would leave them with nothing naming them — " +
-                            "empty the folder first, then delete.",
+                        if (attached.isEmpty()) stringResource(R.string.notes_delete_blocked_body)
+                        else pluralStringResource(R.plurals.notes_delete_blocked_body_count, attached.size, attached.size),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Spacer(Modifier.size(8.dp))
@@ -339,13 +345,13 @@ private fun DeleteNoteDialog(note: Note, onDismiss: () -> Unit, onConfirm: () ->
         },
         confirmButton = {
             if (blocked) {
-                TextButton(onClick = onDismiss) { Text("OK") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.notes_ok)) }
             } else {
-                TextButton(onClick = onConfirm) { Text("Delete") }
+                TextButton(onClick = onConfirm) { Text(stringResource(R.string.notes_delete)) }
             }
         },
         dismissButton = if (blocked) null else {
-            { TextButton(onClick = onDismiss) { Text("Cancel") } }
+            { TextButton(onClick = onDismiss) { Text(stringResource(R.string.notes_cancel)) } }
         },
     )
 }

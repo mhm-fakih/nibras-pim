@@ -16,8 +16,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.knotes.AppSettings
+import com.knotes.R
 
 /**
  * The type / priority / category chips for one note.
@@ -52,20 +54,20 @@ fun NoteTagBar(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 if (settings.types.isNotEmpty()) {
-                    TagRow("Type") {
+                    TagRow(stringResource(R.string.notes_tag_type)) {
                         // Type is always set: tapping selects, but never toggles back to "none".
                         settings.types.forEach { tag ->
                             CompactChip(tag.code, tag.code == type) { onType(tag.code) }
                         }
                     }
                 }
-                TagRow("Prio") {
+                TagRow(stringResource(R.string.notes_tag_prio)) {
                     settings.priorities.forEach { p ->
                         CompactChip("P$p", p == priority) { onPriority(p) }
                     }
                 }
                 if (settings.categories.isNotEmpty()) {
-                    TagRow("Cat") {
+                    TagRow(stringResource(R.string.notes_tag_cat)) {
                         settings.categories.forEach { tag ->
                             CompactChip(tag.code, tag.code == category) { onCategory(tag.code) }
                         }

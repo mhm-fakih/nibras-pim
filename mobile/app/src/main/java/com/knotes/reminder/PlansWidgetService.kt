@@ -5,6 +5,7 @@ import android.content.Intent
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.style.StrikethroughSpan
+import android.util.TypedValue
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 import com.knotes.NoteRepository
@@ -44,6 +45,8 @@ private class PlansFactory(
 
     private val recentMs = 2 * 60 * 60 * 1000L
     private var rows: List<ItemRow> = emptyList()
+    /** Read with the rows, so a size change lands on the same refresh as the content. */
+    private var feedTextSp = 15
 
     override fun onCreate() {}
 
@@ -63,7 +66,7 @@ private class PlansFactory(
         val topNotes = runCatching {
             NoteRepository(SettingsStore(context)).listNotes().filter { it.priority == priority }
         }.getOrDefault(emptyList())
-        return if (topNotes.isEmpty()) listOf(ItemRow("", "No priority-$priority notes"))
+        return if (topNotes.isEmpty()) listOf(ItemRow("", context.getString(R.string.widgets_no_priority_notes, priority)))
         else topNotes.map { n -> ItemRow(n.type ?: "·", widgetRowText(n.content)) }
     }
 
@@ -120,6 +123,7 @@ private class PlansFactory(
         val settings = SettingsStore(context)
         val days = settings.value.feedDays.coerceIn(1, 60)
         val cap = settings.value.feedWords.coerceIn(10, 400)
+        feedTextSp = settings.value.feedTextSp.coerceIn(10, 28)
         val since = RecentNotesWidget.sinceMillis(days)
 
         val notes = runCatching {
@@ -146,7 +150,7 @@ private class PlansFactory(
         if (expanded) return text
         val words = text.split(Regex("\\s+"))
         if (words.size <= cap) return text
-        return words.take(cap).joinToString(" ") + "…  Read more"
+        return words.take(cap).joinToString(" ") + "…  " + context.getString(R.string.widgets_read_more)
     }
 
     private fun planRows(): List<ItemRow> {
@@ -154,12 +158,12 @@ private class PlansFactory(
         val plans = PlansStore.read(context)
             .filter { it.endMillis > now - recentMs }
             .sortedBy { it.startMillis }
-        return if (plans.isEmpty()) listOf(ItemRow("", "Nothing upcoming"))
+        return if (plans.isEmpty()) listOf(ItemRow("", context.getString(R.string.widgets_nothing_upcoming)))
         else plans.map { p ->
             val expired = p.endMillis < now
             ItemRow(
                 maybeStrike(lead(p.startMillis), expired),
-                maybeStrike(p.summary.ifBlank { "(no summary)" }, expired),
+                maybeStrike(p.summary.ifBlank { context.getString(R.string.widgets_no_summary) }, expired),
             )
         }
     }
@@ -174,6 +178,8 @@ private class PlansFactory(
             return RemoteViews(context.packageName, R.layout.widget_feed_row).apply {
                 setTextViewText(R.id.feed_meta, row.lead)
                 setTextViewText(R.id.feed_body, row.text)
+                setTextViewTextSize(R.id.feed_body, TypedValue.COMPLEX_UNIT_SP, feedTextSp.toFloat())
+                setTextViewTextSize(R.id.feed_meta, TypedValue.COMPLEX_UNIT_SP, (feedTextSp - 2).toFloat())
                 // Names the note, so the tap can unfold THIS one. Without the extra, every row
                 // would toggle whatever the template happened to carry.
                 setOnClickFillInIntent(
@@ -208,7 +214,7 @@ private class PlansFactory(
         val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(startMillis))
         return when (day - today) {
             0 -> time
-            1 -> "Tom $time"
+            1 -> context.getString(R.string.widgets_tomorrow_time, time)
             else -> SimpleDateFormat("EEE", Locale.getDefault()).format(Date(startMillis)) + " " + time
         }
     }

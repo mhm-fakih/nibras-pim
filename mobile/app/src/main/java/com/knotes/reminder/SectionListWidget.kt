@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import androidx.annotation.StringRes
 import android.widget.RemoteViews
 import com.knotes.MainActivity
 import com.knotes.R
@@ -31,18 +32,20 @@ abstract class SectionListWidget : AppWidgetProvider() {
     protected abstract val section: String
 
     /** The title above the list. */
-    protected abstract val title: String
+    @get:StringRes
+    protected abstract val titleRes: Int
 
     /**
      * The title as drawn, recomputed on every redraw. Override to put a live number in it; the
-     * default is the plain [title]. Runs during `build`, i.e. on whatever thread called the
+     * default is the plain [titleRes]. Runs during `build`, i.e. on whatever thread called the
      * refresh — see [WidgetTapReceiver], which does its redraws off the main thread for this
      * reason.
      */
-    protected open fun titleFor(context: Context): String = title
+    protected open fun titleFor(context: Context): String = context.getString(titleRes)
 
     /** Shown in place of the list when the section has no rows. */
-    protected abstract val emptyText: String
+    @get:StringRes
+    protected abstract val emptyTextRes: Int
 
     /**
      * The count drawn as a badge at the right of the title row, or null for no badge.
@@ -74,7 +77,7 @@ abstract class SectionListWidget : AppWidgetProvider() {
         val views = RemoteViews(context.packageName, R.layout.widget_single_list)
         views.setTextViewText(R.id.widget_title, titleFor(context))
         WidgetCounts.apply(views, badgeFor(context))
-        views.setTextViewText(R.id.widget_empty, emptyText)
+        views.setTextViewText(R.id.widget_empty, context.getString(emptyTextRes))
         views.setRemoteAdapter(R.id.widget_list_view, sectionIntent(context, widgetId))
         views.setEmptyView(R.id.widget_list_view, R.id.widget_empty)
 

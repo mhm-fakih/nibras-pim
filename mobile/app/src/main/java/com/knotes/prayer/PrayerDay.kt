@@ -106,6 +106,26 @@ object PrayerCalendar {
     }
 
     /**
+     * The visible time that arrived within the last [PrayerSettings.elapsedForMin] minutes, or null —
+     * what the elapsed timer counts up from. The latest one wins when two fall in the window.
+     *
+     * Yesterday is searched too: an Isha at 23:50 is still "منذ 15 دقيقة" at five past midnight.
+     */
+    fun recentPrayer(settings: PrayerSettings, zone: ZoneId, nowMillis: Long): UpcomingPrayer? {
+        val windowMs = settings.elapsedForMin
+            .coerceIn(PrayerSettings.MIN_ELAPSED, PrayerSettings.MAX_ELAPSED) * 60_000L
+        if (windowMs == 0L) return null
+        val today = LocalDate.ofInstant(java.time.Instant.ofEpochMilli(nowMillis), zone)
+        return listOf(today.minusDays(1), today)
+            .flatMap { dayOf(settings, it, zone).slots }
+            .filter { it.prayer in settings.visible }
+            .mapNotNull { s -> s.atMillis?.let { s.prayer to it } }
+            .filter { nowMillis >= it.second && nowMillis - it.second < windowMs }
+            .maxByOrNull { it.second }
+            ?.let { UpcomingPrayer(it.first, it.second, isTomorrow = false) }
+    }
+
+    /**
      * The Islamic date to show right now.
      *
      * The Islamic day turns over at sunset, not at midnight — so on a Tuesday evening after Maghrib

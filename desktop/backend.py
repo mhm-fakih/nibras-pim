@@ -9,11 +9,17 @@ Endpoints (see the backend):
   POST /api/auth/login                        -> { token, user }         (JWT bearer)
   GET  /api/modules                           -> [ { code, label, moduleKey, enabled, sortOrder } ]
   GET  /api/departments?bookmarked=true&size= -> { content: [ { code, name, summary, bookmarked } ] }
+  POST /api/import/notes { filename, dir }    -> { module, id, displayTitle }
+
+The one exception to "codes only" is import_note(): an explicit, user-triggered push of a single
+note. The backend reads the file straight from disk (so it must see the same folder — i.e. run on
+this machine) and moves it into that folder's imported/ archive.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 
@@ -65,6 +71,39 @@ class BackendClient:
             name = d.get("name") or d.get("summary") or d.get("displayTitle") or code
             out.append((code, name))
         return out
+
+    def import_note(self, path: str) -> dict:
+        """Create the backend record for the note file at ``path``; returns { module, id, displayTitle }."""
+        return self._request("POST", "/api/import/notes",
+                             {"filename": os.path.basename(path), "dir": os.path.dirname(path)}) or {}
+
+
+def _error_message(err: Exception) -> str:
+    """A readable reason for a failed call: the server's own message when it sent one."""
+    if isinstance(err, urllib.error.HTTPError):
+        try:
+            body = json.loads(err.read().decode("utf-8"))
+            msg = body.get("message") or body.get("detail") or body.get("error")
+        except (ValueError, OSError, AttributeError):
+            msg = None
+        return f"HTTP {err.code}: {msg or err.reason}"
+    if isinstance(err, urllib.error.URLError):
+        return f"Cannot reach the backend: {err.reason}"
+    return str(err) or type(err).__name__
+
+
+def import_note(base_url: str, user: str, password: str, path: str) -> tuple[dict | None, str]:
+    """Import one note into the backend. Returns (record, "") on success or (None, reason) on any
+    failure. Never raises — it runs on a worker thread."""
+    if not base_url:
+        return None, "No backend URL configured (Settings → Nibras backend)."
+    try:
+        client = BackendClient(base_url, user, password)
+        if not client.login():
+            return None, "Backend login failed — check the username and password in Settings."
+        return client.import_note(path), ""
+    except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as err:
+        return None, _error_message(err)
 
 
 def fetch_taxonomy(base_url: str, user: str, password: str):

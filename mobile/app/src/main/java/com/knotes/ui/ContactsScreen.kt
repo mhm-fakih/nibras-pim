@@ -31,10 +31,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.knotes.R
 import com.knotes.nibras.ContactTask
 import com.knotes.nibras.ContactWithTasks
 import com.knotes.flash.FlashCache
@@ -96,7 +98,7 @@ fun ContactsScreen(baseUrl: String) {
                             // Nothing saved and nothing reachable — the one case with nothing to show.
                             people = emptyList()
                             error = e.message?.takeIf { m -> m.isNotBlank() }
-                                ?: "Could not reach the server, and nothing is saved on this phone yet."
+                                ?: context.getString(R.string.server_unreachable_nothing_saved)
                         } else {
                             offlineSince = savedAt
                         }
@@ -121,13 +123,15 @@ fun ContactsScreen(baseUrl: String) {
         ) {
             Text(
                 when {
-                    list.isEmpty() -> "Contacts"
+                    list.isEmpty() -> stringResource(R.string.server_contacts_title)
                     // Named, not hidden: a list that is hours old should say so rather than
                     // quietly presenting itself as current.
                     offlineSince != null ->
-                        "${grouped(list.size)} bookmarked · ${grouped(open)} open · saved copy, " +
-                            FriendlyTime.ago(offlineSince!!)
-                    else -> "${grouped(list.size)} bookmarked · ${grouped(open)} open"
+                        stringResource(
+                            R.string.server_contacts_header_saved_copy,
+                            grouped(list.size), grouped(open), FriendlyTime.ago(LocalContext.current, offlineSince!!),
+                        )
+                    else -> stringResource(R.string.server_contacts_header, grouped(list.size), grouped(open))
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -139,7 +143,7 @@ fun ContactsScreen(baseUrl: String) {
         if (list.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
                 Text(
-                    error ?: "No contact is bookmarked. Bookmark the people you are working with.",
+                    error ?: stringResource(R.string.server_contacts_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -165,7 +169,7 @@ private fun ContactCard(person: ContactWithTasks) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                person.name,
+                person.name.ifBlank { stringResource(R.string.server_contacts_unnamed) },
                 style = MaterialTheme.typography.titleSmall.autoDirection(),
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -201,7 +205,7 @@ private fun ContactCard(person: ContactWithTasks) {
         if (person.tasks.isEmpty()) {
             Spacer(Modifier.height(4.dp))
             Text(
-                "Nothing open.",
+                stringResource(R.string.server_contacts_nothing_open),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -215,6 +219,7 @@ private fun ContactCard(person: ContactWithTasks) {
 
 @Composable
 private fun TaskRow(task: ContactTask) {
+    val dueFormat = stringResource(R.string.server_contacts_task_due)
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.Top,
@@ -241,7 +246,7 @@ private fun TaskRow(task: ContactTask) {
             listOfNotNull(
                 task.priority?.let { "p$it" },
                 task.status.takeIf { it.isNotBlank() },
-                task.due.takeIf { it.isNotBlank() }?.let { "due $it" },
+                task.due.takeIf { it.isNotBlank() }?.let { dueFormat.format(it) },
             ).takeIf { it.isNotEmpty() }?.let {
                 Text(
                     it.joinToString(" · "),

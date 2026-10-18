@@ -39,11 +39,11 @@ class ChimeReceiver : BroadcastReceiver() {
     // Play through a Ringtone (not MediaPlayer): as a NOTIFICATION-usage ringtone it follows the
     // device's notification-volume slider, so the chime is as loud as the user's other notifications
     // (MediaPlayer played at full volume regardless — that was the "too loud"). The sound is the
-    // user's configured one, else the system default notification sound.
+    // user's configured one, else the chime shipped in the app.
     private fun play(context: Context, soundUri: String) {
         stop()
         val uri: Uri = soundUri.takeIf { it.isNotBlank() }?.let(Uri::parse)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            ?: com.knotes.util.DefaultSounds.chime(context)
         runCatching {
             ringtone = RingtoneManager.getRingtone(context, uri)?.apply {
                 audioAttributes = AudioAttributes.Builder()

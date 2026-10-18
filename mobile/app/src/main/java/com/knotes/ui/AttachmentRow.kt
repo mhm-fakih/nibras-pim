@@ -16,7 +16,7 @@ import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Slideshow
 import androidx.compose.material.icons.filled.TableChart
@@ -94,7 +94,7 @@ fun fileKindIcon(kind: FileKind): ImageVector = when (kind) {
     FileKind.DOC -> Icons.Filled.Description
     FileKind.SHEET -> Icons.Filled.TableChart
     FileKind.SLIDES -> Icons.Filled.Slideshow
-    FileKind.TEXT -> Icons.Filled.Notes
+    FileKind.TEXT -> Icons.AutoMirrored.Filled.Notes
     FileKind.ARCHIVE -> Icons.Filled.Archive
     FileKind.CODE -> Icons.Filled.Code
     FileKind.OTHER -> Icons.AutoMirrored.Filled.InsertDriveFile

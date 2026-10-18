@@ -1,6 +1,8 @@
 package com.knotes.player
 
+import androidx.annotation.StringRes
 import com.knotes.COMPANION_SUFFIX
+import com.knotes.R
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -208,4 +210,17 @@ internal fun noPickMessage(mode: PlayNextMode, scopeConfigured: Boolean): String
         "Nothing left here — every file in this folder is bookmarked or already played."
     else ->
         "Nothing left in your library — every file is bookmarked or already played."
+}
+
+/**
+ * The same choice as [noPickMessage], as a string resource for the UI (localized). [noPickMessage]
+ * stays as the English reference the unit tests read; keep the two in step.
+ */
+@StringRes
+internal fun noPickMessageRes(mode: PlayNextMode, scopeConfigured: Boolean): Int = when {
+    !scopeConfigured && mode.isParentScoped -> R.string.player_next_nothing_playing_no_folder
+    !scopeConfigured -> R.string.player_next_no_media_folders
+    mode == PlayNextMode.RANDOM_NEW_PARENT -> R.string.player_next_nothing_new_here
+    mode.isParentScoped -> R.string.player_next_nothing_left_here
+    else -> R.string.player_next_nothing_left_library
 }

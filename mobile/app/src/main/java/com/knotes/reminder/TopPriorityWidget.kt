@@ -3,6 +3,7 @@ package com.knotes.reminder
 import android.app.PendingIntent
 import android.content.Context
 import com.knotes.NoteRepository
+import com.knotes.R
 import com.knotes.SettingsStore
 
 /**
@@ -15,8 +16,8 @@ import com.knotes.SettingsStore
 class TopPriorityWidget : SectionListWidget() {
 
     override val section = "priority"
-    override val title = "Top priority"
-    override val emptyText = "Nothing to show"
+    override val titleRes = R.string.widgets_top_priority_title
+    override val emptyTextRes = R.string.widgets_nothing_to_show
 
     /**
      * The TRUE number of top-priority notes, so a widget too short to show them all still says how

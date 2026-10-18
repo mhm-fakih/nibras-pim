@@ -149,19 +149,19 @@ class StatusService : Service() {
             val lines = mutableListOf<String>()
             if (settings.statusNotificationEnabled) {
                 val counts = NoteCount.read(SettingsStore(context))
-                title = "${counts.total} " + if (counts.total == 1) "note" else "notes"
-                lines += "Today: ${counts.today}  ·  Total: ${counts.total}"
+                title = context.resources.getQuantityString(R.plurals.widgets_status_notes, counts.total, counts.total)
+                lines += context.getString(R.string.widgets_status_today_total, counts.today, counts.total)
             } else {
                 title = settings.appName
             }
             if (settings.syncEnabled) {
                 val online = SyncStatusStore.online.value
                 val status = when (online) {
-                    true -> "Online"
-                    false -> "Offline"
+                    true -> context.getString(R.string.widgets_status_online)
+                    false -> context.getString(R.string.widgets_status_offline)
                     null -> "—"
                 }
-                lines += "$status · Synced ${FriendlyTime.ago(SyncStatusStore.lastSyncMillis.value)}"
+                lines += context.getString(R.string.widgets_status_synced, status, FriendlyTime.ago(context, SyncStatusStore.lastSyncMillis.value))
             }
             return NotificationCompat.Builder(context, CHANNEL)
                 // A plain static glyph in the status bar (no number). The counts/sync status live
@@ -183,7 +183,7 @@ class StatusService : Service() {
             val mgr = context.getSystemService(NotificationManager::class.java) ?: return
             if (mgr.getNotificationChannel(CHANNEL) == null) {
                 mgr.createNotificationChannel(
-                    NotificationChannel(CHANNEL, "Status", NotificationManager.IMPORTANCE_MIN)
+                    NotificationChannel(CHANNEL, context.getString(R.string.widgets_status_channel), NotificationManager.IMPORTANCE_MIN)
                         .apply {
                             setShowBadge(false)
                             setSound(null, null)

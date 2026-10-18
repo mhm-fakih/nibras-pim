@@ -15,15 +15,15 @@ import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.knotes.MainActivity
+import com.knotes.R
 import com.knotes.reminder.PrayerWidget
-import com.knotes.ui.PRAYER_DEST
 import java.text.SimpleDateFormat
+import java.time.ZoneId
 import java.util.Date
 import java.util.Locale
 
 /**
- * Acts on one prayer event and arms the next.
+ * Acts on the prayer events due at one instant and arms the next.
  *
  * Manifest-registered, so everything here works with the app closed. Whatever happens, the chain is
  * re-armed in a `finally` — a thrown exception must cost one athan, not every one after it.
@@ -49,26 +49,36 @@ class PrayerReceiver : BroadcastReceiver() {
 
         try {
             if (kind == null || prayer == null || !settings.enabled) return
-            when (kind) {
-                PrayerEventKind.REMINDER -> reminder(context, settings, prayer, at)
-                PrayerEventKind.ATHAN -> athan(context, settings, prayer, at)
-                PrayerEventKind.SILENCE_START -> {
-                    val until = at + settings.silenceMinutes
-                        .coerceIn(PrayerSettings.MIN_SILENCE, PrayerSettings.MAX_SILENCE) * 60_000L
-                    SilenceState.begin(context, until)
-                }
-                PrayerEventKind.SILENCE_END -> SilenceState.end(context)
-                PrayerEventKind.BEEPS -> beeps(context, settings)
-                // Deliberately nothing: the widget redraw in `finally` IS the whole point of it.
-                PrayerEventKind.COUNTDOWN -> Unit
-            }
+            // Deliberately nothing: the widget redraw in `finally` IS the whole point of it.
+            if (kind == PrayerEventKind.COUNTDOWN) return
+            // Everything due at this instant, not just the event the alarm carried: an athan and its
+            // prayer's silence share one, and acting on the first alone left the ringer on.
+            val due = PrayerEvents.at(settings, ZoneId.systemDefault(), at)
+                .ifEmpty { listOf(PrayerEvent(kind, prayer, at)) }
+            // One failing must not cost the others — least of all the silence after an athan.
+            due.forEach { event -> runCatching { act(context, settings, event) } }
         } finally {
-            // Look forward from just past the event we handled, not from "now": an alarm delivered
-            // a shade early is still in the future and would be armed — and fired — a second time.
-            PrayerScheduler.sync(context, maxOf(System.currentTimeMillis(), at) + 1_000L)
+            if (kind != PrayerEventKind.COUNTDOWN) PrayerScheduler.markHandled(context, at)
+            PrayerScheduler.sync(context)
             // The home-screen widget's highlighted row changes exactly when an event fires, so
             // this is the moment — and the only moment — it needs redrawing.
             runCatching { PrayerWidget.refresh(context) }
+        }
+    }
+
+    private fun act(context: Context, settings: PrayerSettings, event: PrayerEvent) {
+        val at = event.atMillis
+        when (event.kind) {
+            PrayerEventKind.REMINDER -> reminder(context, settings, event.prayer, at)
+            PrayerEventKind.ATHAN -> athan(context, settings, event.prayer, at)
+            PrayerEventKind.SILENCE_START -> {
+                val until = at + settings.silenceMinutes
+                    .coerceIn(PrayerSettings.MIN_SILENCE, PrayerSettings.MAX_SILENCE) * 60_000L
+                SilenceState.begin(context, until)
+            }
+            PrayerEventKind.SILENCE_END -> SilenceState.end(context)
+            PrayerEventKind.BEEPS -> beeps(context, settings)
+            PrayerEventKind.COUNTDOWN -> Unit
         }
     }
 
@@ -80,8 +90,10 @@ class PrayerReceiver : BroadcastReceiver() {
         ensureChannels(context)
         val builder = NotificationCompat.Builder(context, CHANNEL_REMINDER)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle("${prayer.label} in $lead min")
-            .setContentText("${clock(due)} · ${prayer.arabic}")
+            .setContentTitle(
+                context.getString(R.string.prayer_notif_reminder_title, context.getString(prayer.labelRes), lead),
+            )
+            .setContentText(withArabic(context, prayer, clock(due)))
             .setContentIntent(openPrayerPage(context))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
@@ -100,16 +112,16 @@ class PrayerReceiver : BroadcastReceiver() {
         )
         val builder = NotificationCompat.Builder(context, CHANNEL_ATHAN)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("${prayer.label} · ${prayer.arabic}")
+            .setContentTitle(withArabic(context, prayer, context.getString(prayer.labelRes)))
             .setContentText(clock(at))
             .setContentIntent(openPrayerPage(context))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setOngoing(true)
             .setAutoCancel(false)
-            .addAction(0, "Stop", stop)
+            .addAction(0, context.getString(R.string.prayer_stop), stop)
         runCatching { NotificationManagerCompat.from(context).notify(NOTIF_ATHAN, builder.build()) }
-        soundAthan(context, settings, prayer)
+        soundAthan(context, settings, prayer, startNow = true)
     }
 
     /**
@@ -132,30 +144,33 @@ class PrayerReceiver : BroadcastReceiver() {
 
     // ---- plumbing ---------------------------------------------------------------------------
 
+    /**
+     * "[text] · الفجر" — the Arabic name rides along as before, except when the UI is Arabic and
+     * the name is already on screen in that form.
+     */
+    private fun withArabic(context: Context, prayer: Prayer, text: String): String =
+        if (context.getString(prayer.labelRes) == prayer.arabic) text else "$text · ${prayer.arabic}"
+
     private fun clock(millis: Long): String =
         SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(millis))
 
-    private fun openPrayerPage(context: Context): PendingIntent =
-        PendingIntent.getActivity(
-            context, 3,
-            Intent(context, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                .putExtra(MainActivity.EXTRA_DEST, PRAYER_DEST),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
+    private fun openPrayerPage(context: Context): PendingIntent = PrayerScheduler.openPrayerPage(context)
 
     private fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val mgr = context.getSystemService(NotificationManager::class.java) ?: return
         // Silent channels: the sound is played here, so letting the channel add its own would
         // double it up (the same arrangement the plan reminders use).
-        listOf(CHANNEL_REMINDER to "Prayer reminders", CHANNEL_ATHAN to "Athan").forEach { (id, name) ->
-            if (mgr.getNotificationChannel(id) == null) {
-                mgr.createNotificationChannel(
-                    NotificationChannel(id, name, NotificationManager.IMPORTANCE_HIGH)
-                        .apply { setSound(null, null) },
-                )
-            }
+        // Re-created every time, not only when missing: creating an existing channel only updates
+        // its name, which is how the name follows a change of app language.
+        listOf(
+            CHANNEL_REMINDER to context.getString(R.string.prayer_channel_reminders),
+            CHANNEL_ATHAN to context.getString(R.string.prayer_channel_athan),
+        ).forEach { (id, name) ->
+            mgr.createNotificationChannel(
+                NotificationChannel(id, name, NotificationManager.IMPORTANCE_HIGH)
+                    .apply { setSound(null, null) },
+            )
         }
     }
 
@@ -179,14 +194,25 @@ class PrayerReceiver : BroadcastReceiver() {
          * prayer may have just imposed: RINGER_MODE_SILENT mutes ring and notification, never the
          * alarm stream. The two features are meant to run together.
          */
-        fun soundAthan(context: Context, settings: PrayerSettings, prayer: Prayer) =
-            soundAthanAt(context, settings, settings.athanVolumeOf(prayer))
+        fun soundAthan(context: Context, settings: PrayerSettings, prayer: Prayer, startNow: Boolean = false) =
+            soundAthanAt(context, settings, settings.athanVolumeOf(prayer), startNow)
 
-        /** The athan at an arbitrary volume — for hearing the chosen file itself, at full. */
-        fun soundAthanAt(context: Context, settings: PrayerSettings, volumePercent: Int) {
+        /**
+         * The athan at an arbitrary volume — for hearing the chosen file itself, at full.
+         *
+         * [startNow] is for the alarm: see [playOnce] for why it must not start asynchronously.
+         */
+        fun soundAthanAt(
+            context: Context,
+            settings: PrayerSettings,
+            volumePercent: Int,
+            startNow: Boolean = false,
+        ) {
             playOnce(
                 context, settings.athanSoundUri, AudioAttributes.USAGE_ALARM,
                 RingtoneManager.TYPE_ALARM, volumePercent = volumePercent,
+                fallback = com.knotes.util.DefaultSounds.athan(context),
+                startNow = startNow,
             )
         }
 
@@ -319,10 +345,20 @@ class PrayerReceiver : BroadcastReceiver() {
         private var beepsRemaining = 0
 
         /**
-         * Play [soundUri] once, falling back to the system default of [defaultType] when blank.
+         * Play [soundUri] once, falling back to [fallback] (a sound shipped in the app) when blank,
+         * and to the system default of [defaultType] when there is none.
          *
          * Not looping: an athan is a call, not an alarm to be beaten into submission, and it ends
          * on its own. The Stop action exists for the case where it is simply the wrong moment.
+         *
+         * [startNow] prepares and starts on the calling thread, before returning. The alarm path
+         * needs it: with `prepareAsync` the receiver returned at once and `start()` waited for the
+         * prepared callback — in this app's process, which Android (14+, and Samsung's app
+         * sleeping before that) freezes as soon as a background broadcast is done. The athan then
+         * began whenever something next thawed the process: the screen coming on, the next alarm —
+         * sometimes five minutes late. Inside `onReceive` the process is guaranteed to be running,
+         * and once started the playback lives in the media server, where freezing us cannot stop it.
+         * Preparing a local file takes milliseconds, well inside a receiver's budget.
          */
         private fun playOnce(
             context: Context,
@@ -330,11 +366,14 @@ class PrayerReceiver : BroadcastReceiver() {
             usage: Int,
             defaultType: Int,
             volumePercent: Int = PrayerSettings.MAX_VOLUME,
+            fallback: Uri? = null,
+            startNow: Boolean = false,
         ) {
             stopAthan()
             // A muted athan is a decision, not a reason to fall back to the default sound.
             if (volumePercent <= PrayerSettings.MIN_VOLUME) return
             val uri: Uri = soundUri.takeIf { it.isNotBlank() }?.let(Uri::parse)
+                ?: fallback
                 ?: RingtoneManager.getDefaultUri(defaultType)
                 ?: return
             val scalar = PrayerSettings.volumeScalar(volumePercent)
@@ -351,9 +390,14 @@ class PrayerReceiver : BroadcastReceiver() {
                     // Scales within the alarm stream: this can quieten the athan, never make it
                     // louder than the device's own alarm volume.
                     setVolume(scalar, scalar)
-                    setOnPreparedListener { start() }
                     setOnCompletionListener { stopAthan() }
-                    prepareAsync()
+                    if (startNow) {
+                        prepare()
+                        start()
+                    } else {
+                        setOnPreparedListener { start() }
+                        prepareAsync()
+                    }
                 }
             }
         }

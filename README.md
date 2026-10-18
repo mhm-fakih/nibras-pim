@@ -412,6 +412,7 @@ desktop/        GTK3 / Python                          (note editor + tag bank)
 terminal/       Python TUI                             (knotes_tui.py)
 audio-player/   Python                                 (desktop player; writes the .ai.txt transcripts)
 tools/          gather/load/canonical flashcards, API docs dump
+capture/        Python + bash                          (Telegram, Firefox bookmarks, yt-dlp → knotes for Import)
 db/             clone-dev-db.sh                        (working-copy setup)
 dist/           built artefacts, in a subfolder per type: war/ apk/ zip/ sql/ appimage/
                 newest TWO of each kept; the only directory that leaves this machine

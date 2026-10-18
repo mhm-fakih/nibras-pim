@@ -1,0 +1,14 @@
+[Unit]
+Description=Capture Firefox bookmarks into knotes, hourly while Firefox is closed
+Documentation=file://%h/dev/spring-boot-react-v1/capture/README.md
+
+[Timer]
+# Hourly, not nightly: with --if-closed a run while Firefox is open does
+# nothing, so the timer needs many chances to catch it closed.
+OnBootSec=5min
+OnUnitActiveSec=1h
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target

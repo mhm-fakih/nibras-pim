@@ -41,12 +41,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.annotation.StringRes
 import com.knotes.AppSettings
 import com.knotes.FolderState
 import com.knotes.Onboarding
+import com.knotes.R
 import com.knotes.SettingsStore
 import com.knotes.createFolder
 import com.knotes.folderState
@@ -82,7 +86,8 @@ fun WelcomeWizard(store: SettingsStore, onDone: () -> Unit) {
     // often so that quitting halfway keeps what was answered — a wizard that loses six screens of
     // answers because it was interrupted by a phone call is one nobody finishes twice.
     var draft by remember { mutableStateOf(store.value) }
-    var step by remember { mutableIntStateOf(0) }
+    // Saveable: choosing a language on the first page recreates the activity.
+    var step by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
 
     var pendingFolderPick by remember { mutableStateOf<((String) -> Unit)?>(null) }
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -109,7 +114,7 @@ fun WelcomeWizard(store: SettingsStore, onDone: () -> Unit) {
         // Position first: "step 3 of 8" is the difference between answering questions and being
         // trapped in an unbounded form.
         Text(
-            "Step ${step + 1} of ${steps.size}",
+            stringResource(R.string.settings_wizard_step_of, step + 1, steps.size),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -119,9 +124,10 @@ fun WelcomeWizard(store: SettingsStore, onDone: () -> Unit) {
         )
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            Text(steps[step].title, style = MaterialTheme.typography.headlineSmall)
+            Text(steps[step].fixedTitle ?: stringResource(steps[step].titleRes), style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(10.dp))
             when (steps[step].key) {
+                StepKey.LANGUAGE -> LanguagePicker(showTitle = false)
                 StepKey.WELCOME -> WelcomeIntro(draft)
                 StepKey.NOTES -> NotesStep(draft, { draft = it }, pickFolder)
                 StepKey.COLLECT -> CollectStep(draft, { draft = it }, pickFolder)
@@ -142,69 +148,56 @@ fun WelcomeWizard(store: SettingsStore, onDone: () -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         ) {
             if (step > 0) {
-                OutlinedButton(onClick = { persist(); step-- }) { Text("Back") }
+                OutlinedButton(onClick = { persist(); step-- }) { Text(stringResource(R.string.settings_back)) }
             }
             Spacer(Modifier.weight(1f))
             // Skip stays available on every step, not just the first. Someone who knows this app
             // and is reinstalling it should not have to page through eight screens to reach it —
             // and everything here is editable in Settings afterwards anyway.
             if (step < steps.size - 1) {
-                TextButton(onClick = { finish() }) { Text("Skip setup") }
+                TextButton(onClick = { finish() }) { Text(stringResource(R.string.settings_wizard_skip)) }
                 Spacer(Modifier.width(8.dp))
-                Button(onClick = { persist(); step++ }) { Text("Next") }
+                Button(onClick = { persist(); step++ }) { Text(stringResource(R.string.settings_wizard_next)) }
             } else {
-                Button(onClick = { finish() }) { Text("Start using knotes") }
+                Button(onClick = { finish() }) { Text(stringResource(R.string.settings_wizard_start)) }
             }
         }
     }
 }
 
-private enum class StepKey { WELCOME, NOTES, COLLECT, MEDIA, GALLERY, NIBRAS, ALERTS, DONE }
+private enum class StepKey { LANGUAGE, WELCOME, NOTES, COLLECT, MEDIA, GALLERY, NIBRAS, ALERTS, DONE }
 
-private data class WelcomeStep(val key: StepKey, val title: String)
+/** [fixedTitle], when set, is shown as-is instead of [titleRes] — only the language page has one. */
+private data class WelcomeStep(val key: StepKey, @StringRes val titleRes: Int, val fixedTitle: String? = null)
 
 private fun welcomeSteps(): List<WelcomeStep> = listOf(
-    WelcomeStep(StepKey.WELCOME, "Welcome to knotes"),
-    WelcomeStep(StepKey.NOTES, "Where your notes live"),
-    WelcomeStep(StepKey.COLLECT, "Collecting files into notes"),
-    WelcomeStep(StepKey.MEDIA, "Your media library"),
-    WelcomeStep(StepKey.GALLERY, "Pictures"),
-    WelcomeStep(StepKey.NIBRAS, "Connect to Nibras"),
-    WelcomeStep(StepKey.ALERTS, "Reminders and the chime"),
-    WelcomeStep(StepKey.DONE, "You're set up"),
+    // In all three languages at once: nothing is chosen yet, so no single one can be assumed.
+    WelcomeStep(StepKey.LANGUAGE, 0, fixedTitle = "Language · اللغة · Langue"),
+    WelcomeStep(StepKey.WELCOME, R.string.settings_wizard_title_welcome),
+    WelcomeStep(StepKey.NOTES, R.string.settings_wizard_title_notes),
+    WelcomeStep(StepKey.COLLECT, R.string.settings_wizard_title_collect),
+    WelcomeStep(StepKey.MEDIA, R.string.settings_wizard_title_media),
+    WelcomeStep(StepKey.GALLERY, R.string.settings_wizard_title_gallery),
+    WelcomeStep(StepKey.NIBRAS, R.string.settings_wizard_title_nibras),
+    WelcomeStep(StepKey.ALERTS, R.string.settings_wizard_title_alerts),
+    WelcomeStep(StepKey.DONE, R.string.settings_wizard_title_done),
 )
 
 // ---------------------------------------------------------------- steps
 
 @Composable
 private fun WelcomeIntro(settings: AppSettings) {
-    Body(
-        "knotes keeps your notes as ordinary text files on this device — one file per note, named " +
-            "by the moment you wrote it. Nothing is locked in an app database: the same files open " +
-            "on your computer, and a note you delete here is a file that is gone.",
-    )
-    Body(
-        "The next few screens point the app at the folders it should read. Each one turns on a " +
-            "part of the app, and each says which.",
-    )
-    Note(
-        "Nothing here is permanent — every answer is in Settings afterwards, and you can reopen " +
-            "this tour from there. Skip setup at any point if you would rather explore first.",
-    )
+    Body(stringResource(R.string.settings_wizard_intro_1))
+    Body(stringResource(R.string.settings_wizard_intro_2))
+    Note(stringResource(R.string.settings_wizard_intro_3))
 }
 
 @Composable
 private fun NotesStep(settings: AppSettings, onChange: (AppSettings) -> Unit, pick: ((String) -> Unit) -> Unit) {
-    Body(
-        "The home screen writes and lists notes here. Each note is one Markdown file; when you " +
-            "attach files to a note they go in a companion folder beside it, named after the note.",
-    )
-    Body(
-        "If you already keep notes in a folder — synced from a computer, say — point this at that " +
-            "folder and they appear immediately. Otherwise the default below is a good place to start.",
-    )
+    Body(stringResource(R.string.settings_wizard_notes_1))
+    Body(stringResource(R.string.settings_wizard_notes_2))
     FolderField(
-        label = "Notes folder",
+        label = stringResource(R.string.settings_wizard_notes_folder),
         value = settings.notesDir,
         // The two default to the same folder, and the wizard keeps them together while they match:
         // a collection writes a note AND its companion folder, and the desktop only reads that as a
@@ -225,44 +218,31 @@ private fun NotesStep(settings: AppSettings, onChange: (AppSettings) -> Unit, pi
 
 @Composable
 private fun CollectStep(settings: AppSettings, onChange: (AppSettings) -> Unit, pick: ((String) -> Unit) -> Unit) {
-    Body(
-        "The Collect page gathers recent screenshots, photos and voice recordings from the folders " +
-            "your other apps write to, and turns the ones you choose into a note with the files " +
-            "attached — so a screenshot becomes something you can title, tag and find again.",
-    )
+    Body(stringResource(R.string.settings_wizard_collect_1))
     Note(
-        "It scans ${settings.collectSourceDirs.size} folder(s) by default (Screenshots, Camera, " +
-            "Download, Recordings and the like). Add or remove them in Settings once you see what " +
-            "your phone actually uses.",
+        pluralStringResource(
+            R.plurals.settings_wizard_collect_sources,
+            settings.collectSourceDirs.size,
+            settings.collectSourceDirs.size,
+        ),
     )
     FolderField(
-        label = "Collected notes go to",
+        label = stringResource(R.string.settings_wizard_collect_dest),
         value = settings.collectNewDir,
         onValue = { onChange(settings.copy(collectNewDir = it)) },
         pick = pick,
     )
     if (settings.collectNewDir.trim().trimEnd('/') != settings.notesDir.trim().trimEnd('/')) {
-        Warn(
-            "This is not your notes folder. Collected notes will not appear on the home screen, " +
-                "and the desktop app won't read them as notes.",
-        )
+        Warn(stringResource(R.string.settings_wizard_collect_not_notes))
     }
 }
 
 @Composable
 private fun MediaStep(settings: AppSettings, onChange: (AppSettings) -> Unit, pick: ((String) -> Unit) -> Unit) {
-    Body(
-        "Point this at your audio and video and the app becomes a player built for working " +
-            "through them: it remembers where you stopped in every file, and lets you drop " +
-            "timestamped bookmarks with a note attached to each.",
-    )
-    Body(
-        "It can also choose what plays next for you — the next file in the folder, a forgotten " +
-            "unbookmarked file from anywhere in the library, or a random one from the folder " +
-            "you're in. Files attached to your notes are playable the same way.",
-    )
+    Body(stringResource(R.string.settings_wizard_media_1))
+    Body(stringResource(R.string.settings_wizard_media_2))
     FolderField(
-        label = "Media folder",
+        label = stringResource(R.string.settings_wizard_media_folder),
         value = settings.audioLibraryRoots.firstOrNull().orEmpty(),
         onValue = { path ->
             // The rest of the configured roots are preserved: this step edits the first one, and a
@@ -273,18 +253,16 @@ private fun MediaStep(settings: AppSettings, onChange: (AppSettings) -> Unit, pi
         pick = pick,
     )
     if (settings.audioLibraryRoots.size > 1) {
-        Note("${settings.audioLibraryRoots.size - 1} more media folder(s) are configured. Add more in Settings.")
+        val more = settings.audioLibraryRoots.size - 1
+        Note(pluralStringResource(R.plurals.settings_wizard_media_more, more, more))
     }
 }
 
 @Composable
 private fun GalleryStep(settings: AppSettings, onChange: (AppSettings) -> Unit, pick: ((String) -> Unit) -> Unit) {
-    Body(
-        "The Gallery page browses a folder of images and lets you draw on them — arrows, boxes and " +
-            "text burnt into a copy, so a marked-up screenshot can be attached to a note or sent on.",
-    )
+    Body(stringResource(R.string.settings_wizard_gallery_1))
     FolderField(
-        label = "Pictures folder",
+        label = stringResource(R.string.settings_wizard_pictures_folder),
         value = settings.galleryDir,
         onValue = { onChange(settings.copy(galleryDir = it)) },
         pick = pick,
@@ -293,22 +271,14 @@ private fun GalleryStep(settings: AppSettings, onChange: (AppSettings) -> Unit, 
 
 @Composable
 private fun NibrasStep(settings: AppSettings, onChange: (AppSettings) -> Unit) {
-    Body(
-        "knotes works entirely on its own. If you also run Nibras, connecting it adds your tasks, " +
-            "journal, planner and resources to this app: the records you have bookmarked sync down " +
-            "to the phone, you can read and edit them offline, and anything you change is sent back " +
-            "when the connection returns.",
-    )
-    Body("Leave this blank to skip — you can connect later in Settings.")
-    WizardField("Server address", settings.nibrasBaseUrl) { onChange(settings.copy(nibrasBaseUrl = it)) }
-    WizardField("Username", settings.nibrasUsername) { onChange(settings.copy(nibrasUsername = it)) }
-    WizardField("Password", settings.nibrasPassword, password = true) {
+    Body(stringResource(R.string.settings_wizard_nibras_1))
+    Body(stringResource(R.string.settings_wizard_nibras_2))
+    WizardField(stringResource(R.string.settings_wizard_server_address), settings.nibrasBaseUrl) { onChange(settings.copy(nibrasBaseUrl = it)) }
+    WizardField(stringResource(R.string.settings_username_label), settings.nibrasUsername) { onChange(settings.copy(nibrasUsername = it)) }
+    WizardField(stringResource(R.string.settings_password_label), settings.nibrasPassword, password = true) {
         onChange(settings.copy(nibrasPassword = it))
     }
-    Note(
-        "Notes on this phone are never sent to Nibras by this connection — they stay files in your " +
-            "notes folder. This is for the records that already live on the server.",
-    )
+    Note(stringResource(R.string.settings_wizard_nibras_note))
 }
 
 @Composable
@@ -317,39 +287,33 @@ private fun AlertsStep(
     onChange: (AppSettings) -> Unit,
     requestNotifications: () -> Unit,
 ) {
-    Body(
-        "Plans with a time can alert you before they start, and the app can sound a quiet chime on " +
-            "the quarter hour so time passing is noticeable without looking at anything.",
-    )
-    Toggle("Quarter-hour chime", settings.chimeEnabled) { onChange(settings.copy(chimeEnabled = it)) }
+    Body(stringResource(R.string.settings_wizard_alerts_1))
+    Toggle(stringResource(R.string.settings_wizard_chime_toggle), settings.chimeEnabled) { onChange(settings.copy(chimeEnabled = it)) }
     Toggle(
-        "Keep a status notification",
+        stringResource(R.string.settings_wizard_status_toggle),
         settings.statusNotificationEnabled,
-        "Shows today's note count, and keeps the app running so reminders and the chime actually fire.",
+        stringResource(R.string.settings_wizard_status_help),
     ) { onChange(settings.copy(statusNotificationEnabled = it)) }
     Toggle(
-        "Sync with Nibras in the background",
+        stringResource(R.string.settings_wizard_sync_toggle),
         settings.syncEnabled,
-        "Checks for changes periodically while the app is running.",
+        stringResource(R.string.settings_wizard_sync_help),
     ) { onChange(settings.copy(syncEnabled = it)) }
     Spacer(Modifier.height(8.dp))
-    OutlinedButton(onClick = requestNotifications) { Text("Allow notifications") }
-    Note("Android will not show reminders, the chime or the player controls without this.")
+    OutlinedButton(onClick = requestNotifications) { Text(stringResource(R.string.settings_wizard_allow_notifications)) }
+    Note(stringResource(R.string.settings_wizard_notifications_note))
 }
 
 @Composable
 private fun DoneStep(settings: AppSettings) {
-    Body("Here is what the app will read. Anything wrong is one tap away in Settings.")
-    Summary("Notes", settings.notesDir)
-    Summary("Collected notes", settings.collectNewDir)
-    Summary("Media", settings.audioLibraryRoots.firstOrNull().orEmpty())
-    Summary("Pictures", settings.galleryDir)
-    Summary("Nibras", settings.nibrasBaseUrl.ifBlank { "not connected" }, checkFolder = false)
+    Body(stringResource(R.string.settings_wizard_done_1))
+    Summary(stringResource(R.string.settings_wizard_summary_notes), settings.notesDir)
+    Summary(stringResource(R.string.settings_wizard_summary_collected), settings.collectNewDir)
+    Summary(stringResource(R.string.settings_wizard_summary_media), settings.audioLibraryRoots.firstOrNull().orEmpty())
+    Summary(stringResource(R.string.settings_wizard_summary_pictures), settings.galleryDir)
+    Summary("Nibras", settings.nibrasBaseUrl.ifBlank { stringResource(R.string.settings_wizard_not_connected) }, checkFolder = false)
     Spacer(Modifier.height(12.dp))
-    Note(
-        "Swipe or use the rail on the left to move between the home screen, Collect, Media, " +
-            "Gallery and Settings. This tour can be reopened from the bottom of Settings.",
-    )
+    Note(stringResource(R.string.settings_wizard_done_note))
 }
 
 // ---------------------------------------------------------------- pieces
@@ -382,7 +346,7 @@ private fun FolderField(
         OutlinedButton(onClick = { pick { onValue(it); failedToCreate = false } }) {
             Icon(Icons.Filled.FolderOpen, null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Choose")
+            Text(stringResource(R.string.settings_wizard_choose))
         }
         if (state == FolderState.MISSING) {
             Spacer(Modifier.width(8.dp))
@@ -392,17 +356,17 @@ private fun FolderField(
             }) {
                 Icon(Icons.Filled.CreateNewFolder, null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Create")
+                Text(stringResource(R.string.settings_wizard_create))
             }
         }
     }
     when {
-        failedToCreate -> Warn("Could not create that folder. Check the path, or choose one instead.")
-        state == FolderState.BLANK -> Note("No folder set — this part of the app stays empty.")
-        state == FolderState.MISSING -> Warn("This folder doesn't exist yet.")
-        state == FolderState.NOT_A_FOLDER -> Warn("That path is a file, not a folder.")
-        state == FolderState.EMPTY -> Note("Folder found — it's empty for now.")
-        state == FolderState.HAS_FILES -> Ok("Folder found, with files in it.")
+        failedToCreate -> Warn(stringResource(R.string.settings_wizard_folder_create_failed))
+        state == FolderState.BLANK -> Note(stringResource(R.string.settings_wizard_folder_blank))
+        state == FolderState.MISSING -> Warn(stringResource(R.string.settings_wizard_folder_missing))
+        state == FolderState.NOT_A_FOLDER -> Warn(stringResource(R.string.settings_wizard_folder_not_a_folder))
+        state == FolderState.EMPTY -> Note(stringResource(R.string.settings_wizard_folder_empty))
+        state == FolderState.HAS_FILES -> Ok(stringResource(R.string.settings_wizard_folder_has_files))
     }
 }
 
@@ -411,15 +375,15 @@ private fun Summary(label: String, value: String, checkFolder: Boolean = true) {
     val state = remember(value, checkFolder) { if (checkFolder) folderState(value) else null }
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.Top) {
         Text(
-            "$label:",
+            stringResource(R.string.settings_wizard_summary_label, label),
             style = MaterialTheme.typography.labelLarge,
             modifier = Modifier.width(120.dp),
         )
         Column(modifier = Modifier.weight(1f)) {
-            Text(value.ifBlank { "not set" }, style = MaterialTheme.typography.bodyMedium)
+            Text(value.ifBlank { stringResource(R.string.settings_wizard_not_set) }, style = MaterialTheme.typography.bodyMedium)
             if (state == FolderState.MISSING || state == FolderState.NOT_A_FOLDER) {
                 Text(
-                    "not there — this part of the app will be empty",
+                    stringResource(R.string.settings_wizard_not_there),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error,
                 )

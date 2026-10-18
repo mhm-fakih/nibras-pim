@@ -54,10 +54,13 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.knotes.AppSettings
+import com.knotes.R
 import com.knotes.Onboarding
 import com.knotes.SettingsStore
 import com.knotes.StarAction
@@ -95,6 +98,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
     var fulltextScale by remember { mutableStateOf(current.fulltextScale) }
     val audioLibraryRoots = remember { mutableStateListOf<String>().apply { addAll(current.audioLibraryRoots) } }
     var galleryDir by remember { mutableStateOf(current.galleryDir) }
+    var videosDir by remember { mutableStateOf(current.videosDir) }
     var calStart by remember { mutableStateOf(current.calendarStartHour.toString()) }
     var calEnd by remember { mutableStateOf(current.calendarEndHour.toString()) }
     var calendarEnabled by remember { mutableStateOf(current.calendarEnabled) }
@@ -102,6 +106,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
     var collectEnabled by remember { mutableStateOf(current.collectEnabled) }
     var feedDays by remember { mutableStateOf(current.feedDays) }
     var feedWords by remember { mutableStateOf(current.feedWords) }
+    var feedTextSp by remember { mutableStateOf(current.feedTextSp) }
     var reminderOffsets by remember { mutableStateOf(current.reminderOffsetsMin.joinToString(", ")) }
     var reminderSound by remember { mutableStateOf(current.reminderSoundUri) }
     var reminderDismiss by remember { mutableStateOf(current.reminderRequireDismiss) }
@@ -162,17 +167,17 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
     }
 
     fun soundLabel(uri: String): String =
-        if (uri.isBlank()) "Default"
+        if (uri.isBlank()) context.getString(R.string.settings_sound_default)
         else runCatching { RingtoneManager.getRingtone(context, Uri.parse(uri))?.getTitle(context) }
-            .getOrNull() ?: "Custom"
+            .getOrNull() ?: context.getString(R.string.settings_sound_custom)
     fun fileLabel(uri: String): String {
-        if (uri.isBlank()) return "Default chime"
-        val parsed = runCatching { Uri.parse(uri) }.getOrNull() ?: return "Custom"
+        if (uri.isBlank()) return context.getString(R.string.settings_chime_default)
+        val parsed = runCatching { Uri.parse(uri) }.getOrNull() ?: return context.getString(R.string.settings_sound_custom)
         val name = runCatching {
             context.contentResolver.query(parsed, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
                 ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
         }.getOrNull()
-        return name ?: parsed.lastPathSegment ?: "Custom"
+        return name ?: parsed.lastPathSegment ?: context.getString(R.string.settings_sound_custom)
     }
 
     fun save() {
@@ -198,6 +203,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 fulltextScale = fulltextScale,
                 audioLibraryRoots = audioLibraryRoots.toList(),
                 galleryDir = galleryDir,
+                videosDir = videosDir,
                 calendarStartHour = calStart.toIntOrNull() ?: 5,
                 calendarEndHour = calEnd.toIntOrNull() ?: 22,
                 calendarEnabled = calendarEnabled,
@@ -205,6 +211,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 collectEnabled = collectEnabled,
                 feedDays = feedDays,
                 feedWords = feedWords,
+                feedTextSp = feedTextSp,
                 reminderOffsetsMin = SettingsStore.decodeInts(reminderOffsets),
                 reminderSoundUri = reminderSound,
                 reminderRequireDismiss = reminderDismiss,
@@ -225,20 +232,23 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 starAction = starAction,
             ),
         )
+        // The widget only redraws when told to; without this a new size or day range waits for
+        // the next note or sync to show up.
+        runCatching { com.knotes.reminder.RecentNotesWidget.refresh(context) }
         onBack()
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.settings_back))
                     }
                 },
                 actions = {
-                    TextButton(onClick = { save() }) { Text("Save") }
+                    TextButton(onClick = { save() }) { Text(stringResource(R.string.settings_save)) }
                 },
             )
         },
@@ -251,10 +261,12 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            // First, so it can be found whatever language the screen is currently in.
+            LanguagePicker()
             OutlinedTextField(
                 value = appName,
                 onValueChange = { appName = it },
-                label = { Text("App name") },
+                label = { Text(stringResource(R.string.settings_app_name_label)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -262,8 +274,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             OutlinedTextField(
                 value = defType,
                 onValueChange = { defType = it.trim() },
-                label = { Text("Default type code (new notes)") },
-                supportingText = { Text("Pre-selected & sticky across saves; blank = first type") },
+                label = { Text(stringResource(R.string.settings_default_type_label)) },
+                supportingText = { Text(stringResource(R.string.settings_default_type_hint)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -271,8 +283,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             OutlinedTextField(
                 value = defCategory,
                 onValueChange = { defCategory = it.trim() },
-                label = { Text("Default category / dept code (new notes)") },
-                supportingText = { Text("Always set; blank = first category") },
+                label = { Text(stringResource(R.string.settings_default_category_label)) },
+                supportingText = { Text(stringResource(R.string.settings_default_category_hint)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -280,7 +292,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             OutlinedTextField(
                 value = defPriority,
                 onValueChange = { defPriority = it.filter { c -> c.isDigit() } },
-                label = { Text("Default priority (new notes)") },
+                label = { Text(stringResource(R.string.settings_default_priority_label)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -289,8 +301,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             OutlinedTextField(
                 value = topPriority,
                 onValueChange = { topPriority = it.filter { c -> c.isDigit() } },
-                label = { Text("Top priority (widgets)") },
-                supportingText = { Text("Which priority the Top priority widget lists and the KPI widget counts.") },
+                label = { Text(stringResource(R.string.settings_top_priority_label)) },
+                supportingText = { Text(stringResource(R.string.settings_top_priority_hint)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -299,27 +311,29 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             FolderField(
                 value = dir,
                 onValueChange = { dir = it },
-                label = "Notes directory",
-                supportingText = "Absolute path, e.g. /storage/emulated/0/Notes",
+                label = stringResource(R.string.settings_notes_dir_label),
+                supportingText = stringResource(R.string.settings_notes_dir_hint),
                 onPick = { pickFolder { path -> dir = path } },
             )
 
             FolderField(
                 value = aiDir,
                 onValueChange = { aiDir = it },
-                label = "AI answers directory",
+                label = stringResource(R.string.settings_ai_dir_label),
                 // Blank is the normal state: the folder is a sibling of the notes folder, and
                 // saying where it would be is more use than an empty box.
-                supportingText = "Read-only, synced from the desktop. " +
-                    "Blank = ${SettingsStore.aiDirFor(dir.ifBlank { current.notesDir })}",
+                supportingText = stringResource(
+                    R.string.settings_ai_dir_hint,
+                    SettingsStore.aiDirFor(dir.ifBlank { current.notesDir }),
+                ),
                 onPick = { pickFolder { path -> aiDir = path } },
             )
 
             OutlinedTextField(
                 value = format,
                 onValueChange = { format = it },
-                label = { Text("Timestamp format") },
-                supportingText = { Text("Now: " + previewTimestamp(format)) },
+                label = { Text(stringResource(R.string.settings_timestamp_format_label)) },
+                supportingText = { Text(stringResource(R.string.settings_timestamp_now, previewTimestamp(format) ?: stringResource(R.string.settings_timestamp_invalid))) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -327,7 +341,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             OutlinedTextField(
                 value = previewLines,
                 onValueChange = { previewLines = it.filter { c -> c.isDigit() } },
-                label = { Text("Preview lines") },
+                label = { Text(stringResource(R.string.settings_preview_lines_label)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -337,7 +351,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 OutlinedTextField(
                     value = priorityMin,
                     onValueChange = { priorityMin = it.filter { c -> c.isDigit() } },
-                    label = { Text("Priority min") },
+                    label = { Text(stringResource(R.string.settings_priority_min_label)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.weight(1f),
@@ -345,7 +359,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 OutlinedTextField(
                     value = priorityMax,
                     onValueChange = { priorityMax = it.filter { c -> c.isDigit() } },
-                    label = { Text("Priority max") },
+                    label = { Text(stringResource(R.string.settings_priority_max_label)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.weight(1f),
@@ -353,9 +367,9 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             }
 
             HorizontalDivider()
-            Text("Nibras server", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_nibras_header), style = MaterialTheme.typography.titleMedium)
             Text(
-                "Read-only browser for your Nibras desktop database.",
+                stringResource(R.string.settings_nibras_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -368,7 +382,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 OutlinedTextField(
                     value = nibrasHost,
                     onValueChange = { nibrasHost = it.trim() },
-                    label = { Text("IP / host") },
+                    label = { Text(stringResource(R.string.settings_host_label)) },
                     placeholder = { Text("192.168.0.47") },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
@@ -378,7 +392,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 OutlinedTextField(
                     value = nibrasPort,
                     onValueChange = { nibrasPort = it.filter { c -> c.isDigit() } },
-                    label = { Text("Port") },
+                    label = { Text(stringResource(R.string.settings_port_label)) },
                     placeholder = { Text("8081") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
@@ -387,30 +401,30 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 OutlinedTextField(
                     value = nibrasContext,
                     onValueChange = { nibrasContext = it },
-                    label = { Text("Context") },
-                    placeholder = { Text("(none)") },
+                    label = { Text(stringResource(R.string.settings_context_label)) },
+                    placeholder = { Text(stringResource(R.string.settings_context_placeholder)) },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
             }
             Text(
-                "Full URL: " + buildNibrasUrl(nibrasScheme, nibrasHost, nibrasPort, nibrasContext),
+                stringResource(R.string.settings_full_url, buildNibrasUrl(nibrasScheme, nibrasHost, nibrasPort, nibrasContext)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             OutlinedTextField(
                 value = nibrasUser,
                 onValueChange = { nibrasUser = it },
-                label = { Text("Username") },
-                supportingText = { Text("Nibras account username") },
+                label = { Text(stringResource(R.string.settings_username_label)) },
+                supportingText = { Text(stringResource(R.string.settings_username_hint)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedTextField(
                 value = nibrasPassword,
                 onValueChange = { nibrasPassword = it },
-                label = { Text("Password") },
-                supportingText = { Text("Nibras account password (used to sign in for sync)") },
+                label = { Text(stringResource(R.string.settings_password_label)) },
+                supportingText = { Text(stringResource(R.string.settings_password_hint)) },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -419,22 +433,22 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             FolderField(
                 value = nibrasFiles,
                 onValueChange = { nibrasFiles = it },
-                label = "Files folder",
-                supportingText = "Where record files live (Syncthing), e.g. /storage/emulated/0/Nibras",
+                label = stringResource(R.string.settings_files_folder_label),
+                supportingText = stringResource(R.string.settings_files_folder_hint),
                 onPick = { pickFolder { path -> nibrasFiles = path } },
             )
 
             // What the star on a record row means. Two genuinely different readings — see StarAction.
-            Text("Star button", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.settings_star_header), style = MaterialTheme.typography.bodyLarge)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(
                     selected = starAction == StarAction.LOCAL_BOOKMARK,
                     onClick = { starAction = StarAction.LOCAL_BOOKMARK },
                 )
                 Column(modifier = Modifier.clickable { starAction = StarAction.LOCAL_BOOKMARK }) {
-                    Text("Bookmark on this device", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.settings_star_local_title), style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "A private shortlist. Nothing is sent to the server.",
+                        stringResource(R.string.settings_star_local_desc),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -446,11 +460,9 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                     onClick = { starAction = StarAction.BACKEND_UNBOOKMARK },
                 )
                 Column(modifier = Modifier.clickable { starAction = StarAction.BACKEND_UNBOOKMARK }) {
-                    Text("Un-bookmark in Nibras", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.settings_star_backend_title), style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "Every record here is already bookmarked on the server, so the star is "
-                            + "filled and tapping it takes the record off the list — right away when "
-                            + "online, on the next sync when not. The row stays until then so you can undo.",
+                        stringResource(R.string.settings_star_backend_desc),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -458,7 +470,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             }
 
             StepSlider(
-                label = "Font size ${"%.1f".format(fulltextScale)}×",
+                label = stringResource(R.string.settings_font_size, "%.1f".format(fulltextScale)),
                 value = fulltextScale,
                 min = 0.8f,
                 max = 3f,
@@ -468,25 +480,32 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             )
 
             HorizontalDivider()
-            Text("Media", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_media_header), style = MaterialTheme.typography.titleMedium)
             FolderListEditor(
-                label = "Audio library folders",
-                supportingText = "Scanned by the Audiobooks page's Library and Folders tabs.",
+                label = stringResource(R.string.settings_audio_folders_label),
+                supportingText = stringResource(R.string.settings_audio_folders_hint),
                 paths = audioLibraryRoots,
                 onPick = ::pickFolder,
             )
             FolderField(
                 value = galleryDir,
                 onValueChange = { galleryDir = it },
-                label = "Gallery folder",
-                supportingText = "Shown by the Gallery page, e.g. /storage/emulated/0/Pictures",
+                label = stringResource(R.string.settings_gallery_folder_label),
+                supportingText = stringResource(R.string.settings_gallery_folder_hint),
                 onPick = { pickFolder { path -> galleryDir = path } },
+            )
+            FolderField(
+                value = videosDir,
+                onValueChange = { videosDir = it },
+                label = stringResource(R.string.settings_videos_folder_label),
+                supportingText = stringResource(R.string.settings_videos_folder_hint),
+                onPick = { pickFolder { path -> videosDir = path } },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedTextField(
                     value = calStart,
                     onValueChange = { calStart = it.filter { c -> c.isDigit() } },
-                    label = { Text("Calendar start hour") },
+                    label = { Text(stringResource(R.string.settings_calendar_start_hour)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.weight(1f),
@@ -494,7 +513,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 OutlinedTextField(
                     value = calEnd,
                     onValueChange = { calEnd = it.filter { c -> c.isDigit() } },
-                    label = { Text("Calendar end hour") },
+                    label = { Text(stringResource(R.string.settings_calendar_end_hour)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.weight(1f),
@@ -502,18 +521,17 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             }
 
             HorizontalDivider()
-            Text("Plan reminders", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_reminders_header), style = MaterialTheme.typography.titleMedium)
             Text(
-                "Remind ahead of upcoming Plans/Journal events. Lead times are minutes before the " +
-                    "start — multiple are allowed (each fires its own alert).",
+                stringResource(R.string.settings_reminders_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             OutlinedTextField(
                 value = reminderOffsets,
                 onValueChange = { reminderOffsets = it },
-                label = { Text("Lead times (minutes)") },
-                supportingText = { Text("e.g. 60, 5  →  one hour before and five minutes before") },
+                label = { Text(stringResource(R.string.settings_lead_times_label)) },
+                supportingText = { Text(stringResource(R.string.settings_lead_times_hint)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -521,7 +539,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 OutlinedButton(onClick = {
                     val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
                         putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALL)
-                        putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Reminder sound")
+                        putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, context.getString(R.string.settings_reminder_sound_title))
                         putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
                         putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
                         if (reminderSound.isNotBlank()) {
@@ -529,16 +547,15 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                         }
                     }
                     ringtonePicker.launch(intent)
-                }) { Text("Choose sound") }
+                }) { Text(stringResource(R.string.settings_choose_sound)) }
                 Spacer(Modifier.width(12.dp))
                 Text(soundLabel(reminderSound), style = MaterialTheme.typography.bodyMedium)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Require dismissal", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.settings_require_dismissal_title), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "Full-screen alarm; the sound loops until you tap Dismiss. Off = play the " +
-                            "repeat count below, then auto-clear.",
+                        stringResource(R.string.settings_require_dismissal_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -548,8 +565,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             OutlinedTextField(
                 value = reminderRepeat,
                 onValueChange = { reminderRepeat = it.filter { c -> c.isDigit() } },
-                label = { Text("Repeat sound (times)") },
-                supportingText = { Text("e.g. 4 — plays that many times instead of just once. Ignored when \"Require dismissal\" is on.") },
+                label = { Text(stringResource(R.string.settings_repeat_sound_label)) },
+                supportingText = { Text(stringResource(R.string.settings_repeat_sound_hint)) },
                 singleLine = true,
                 enabled = !reminderDismiss,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -557,13 +574,12 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             )
 
             HorizontalDivider()
-            Text("Background sync", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_sync_header), style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Sync with Nibras", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.settings_sync_title), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "Periodically checks the backend and pulls fresh records while online. " +
-                            "Shown in the status notification below.",
+                        stringResource(R.string.settings_sync_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -574,7 +590,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 OutlinedTextField(
                     value = syncCheckSec,
                     onValueChange = { syncCheckSec = it.filter { c -> c.isDigit() } },
-                    label = { Text("Check every (sec)") },
+                    label = { Text(stringResource(R.string.settings_check_every_label)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.weight(1f),
@@ -582,27 +598,25 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 OutlinedTextField(
                     value = syncSec,
                     onValueChange = { syncSec = it.filter { c -> c.isDigit() } },
-                    label = { Text("Sync every (sec)") },
+                    label = { Text(stringResource(R.string.settings_sync_every_label)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
             }
             Text(
-                "\"Check\" is a lightweight online/offline ping; a full sync (pulling records, " +
-                    "pushing queued notes) only runs on the longer interval, and only while online.",
+                stringResource(R.string.settings_sync_intervals_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             HorizontalDivider()
-            Text("Status & chime", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_status_header), style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Persistent notification", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.settings_persistent_notif_title), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "Ongoing notification with today's note count; also keeps the app alive so " +
-                            "alarms ring on time.",
+                        stringResource(R.string.settings_persistent_notif_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -611,9 +625,9 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Mini calendar")
+                    Text(stringResource(R.string.settings_mini_calendar_title))
                     Text(
-                        "Show the week-strip quick-jump at the top of the Calendar page.",
+                        stringResource(R.string.settings_mini_calendar_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -625,15 +639,20 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             // CollectScheduler.sync, which each check this before arming anything.
             // The recent-notes feed widget. Two numbers, and they are the whole of it — the widget
             // has no controls of its own by design.
-            Text("Recent notes widget", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.settings_feed_header), style = MaterialTheme.typography.titleSmall)
             StepSlider(
-                if (feedDays == 1) "today only" else "$feedDays days back",
+                if (feedDays == 1) stringResource(R.string.settings_feed_today_only)
+                else pluralStringResource(R.plurals.settings_feed_days_back, feedDays, feedDays),
                 feedDays.toFloat(), 1f, 30f, 1f, labelWidth = 130.dp,
             ) { v -> feedDays = v.toInt() }
             StepSlider(
-                "$feedWords words, then Read more",
+                pluralStringResource(R.plurals.settings_feed_words, feedWords, feedWords),
                 feedWords.toFloat(), 10f, 200f, 10f, labelWidth = 190.dp,
             ) { v -> feedWords = v.toInt() }
+            StepSlider(
+                stringResource(R.string.settings_feed_text_size, feedTextSp),
+                feedTextSp.toFloat(), 10f, 28f, 1f, labelWidth = 130.dp,
+            ) { v -> feedTextSp = v.toInt() }
 
             // Prayer times are configured on the prayer page, not here — including this switch.
             // What is left is the way BACK: turning it off there takes that page out of the rail,
@@ -641,10 +660,9 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             if (!prayerEnabled) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Prayer times are hidden", style = MaterialTheme.typography.bodyLarge)
+                        Text(stringResource(R.string.settings_prayer_hidden_title), style = MaterialTheme.typography.bodyLarge)
                         Text(
-                            "Switched off on the prayer page, which also took it out of the left " +
-                                "rail. Turn it back on here.",
+                            stringResource(R.string.settings_prayer_hidden_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -654,10 +672,9 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("File collection", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.settings_file_collection_title), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "The collector page and its daily run. Off removes both, whatever the " +
-                            "automatic-collection setting below says.",
+                        stringResource(R.string.settings_file_collection_toggle_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -666,9 +683,9 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("15-minute chime", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.settings_chime_title), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "Plays a sound at :00, :15, :30 and :45 within the window below.",
+                        stringResource(R.string.settings_chime_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -678,13 +695,12 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = {
                     chimePicker.launch(arrayOf("audio/*"))
-                }) { Text("Choose chime file") }
+                }) { Text(stringResource(R.string.settings_choose_chime_file)) }
                 Spacer(Modifier.width(12.dp))
                 Text(fileLabel(chimeSound), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
             }
             Text(
-                "Pick any audio file from your phone (e.g. an mp3). Blank uses the default " +
-                    "notification sound.",
+                stringResource(R.string.settings_chime_file_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -692,7 +708,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 OutlinedTextField(
                     value = chimeStart,
                     onValueChange = { chimeStart = it.filter { c -> c.isDigit() } },
-                    label = { Text("Chime start hour") },
+                    label = { Text(stringResource(R.string.settings_chime_start_hour)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.weight(1f),
@@ -700,7 +716,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 OutlinedTextField(
                     value = chimeEnd,
                     onValueChange = { chimeEnd = it.filter { c -> c.isDigit() } },
-                    label = { Text("Chime end hour") },
+                    label = { Text(stringResource(R.string.settings_chime_end_hour)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.weight(1f),
@@ -708,16 +724,15 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             }
 
             HorizontalDivider()
-            Text("File collection", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_file_collection_title), style = MaterialTheme.typography.titleMedium)
             Text(
-                "Gather files from these folders into a timestamped subfolder, renaming them " +
-                    "with the standard timestamp so they sort chronologically.",
+                stringResource(R.string.settings_collect_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             FolderListEditor(
-                label = "Source folders",
-                supportingText = "Uncheck a folder to skip it (kept in the list, not scanned).",
+                label = stringResource(R.string.settings_source_folders_label),
+                supportingText = stringResource(R.string.settings_source_folders_hint),
                 paths = collectSources,
                 allowDisable = true,
                 onPick = ::pickFolder,
@@ -725,8 +740,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             FolderField(
                 value = collectNew,
                 onValueChange = { collectNew = it },
-                label = "Destination (New) folder",
-                supportingText = "e.g. /storage/emulated/0/New",
+                label = stringResource(R.string.settings_destination_label),
+                supportingText = stringResource(R.string.settings_destination_hint),
                 onPick = { pickFolder { path -> collectNew = path } },
             )
 
@@ -734,11 +749,9 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             // of Camera and Downloads — that is not something to discover by accident.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Collect automatically every day", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.settings_collect_auto_title), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "Runs the same collection as the Collect page, on its own, at the time below. " +
-                            "Files are MOVED out of the source folders. Nothing is reported unless " +
-                            "something was actually collected.",
+                        stringResource(R.string.settings_collect_auto_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -747,7 +760,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             }
             if (collectAuto) {
                 StepSlider(
-                    "At %02d:%02d".format(collectAutoHour, collectAutoMinute),
+                    stringResource(R.string.settings_collect_at, "%02d:%02d".format(collectAutoHour, collectAutoMinute)),
                     (collectAutoHour * 60 + collectAutoMinute).toFloat(),
                     0f,
                     (23 * 60 + 55).toFloat(),
@@ -762,26 +775,26 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
 
             HorizontalDivider()
             TagListEditor(
-                title = "Types",
-                subtitle = "One type per note. Codes go first in the file name.",
-                addLabel = "Add type",
+                title = stringResource(R.string.settings_types_title),
+                subtitle = stringResource(R.string.settings_types_subtitle),
+                addLabel = stringResource(R.string.settings_add_type),
                 tags = types,
             )
 
             HorizontalDivider()
             TagListEditor(
-                title = "Categories",
-                subtitle = "One category per note. Codes go last in the file name.",
-                addLabel = "Add category",
+                title = stringResource(R.string.settings_categories_title),
+                subtitle = stringResource(R.string.settings_categories_subtitle),
+                addLabel = stringResource(R.string.settings_add_category),
                 tags = categories,
             )
 
             HorizontalDivider()
             // The tour is also the only place that says what each folder above actually turns on,
             // so it is worth being able to reach again — not a one-shot that vanishes after install.
-            Text("Setup tour", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.settings_tour_header), style = MaterialTheme.typography.titleSmall)
             Text(
-                "Walk through the folders again, with what each one is for.",
+                stringResource(R.string.settings_tour_desc),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -797,7 +810,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 },
                 modifier = Modifier.padding(top = 6.dp),
             ) {
-                Text("Show the setup tour")
+                Text(stringResource(R.string.settings_tour_button))
             }
         }
     }
@@ -817,7 +830,7 @@ private fun TagListEditor(title: String, subtitle: String, addLabel: String, tag
             OutlinedTextField(
                 value = tag.code,
                 onValueChange = { tags[index] = tags[index].copy(code = it.trim()) },
-                label = { Text("Code") },
+                label = { Text(stringResource(R.string.settings_tag_code)) },
                 singleLine = true,
                 modifier = Modifier.width(96.dp),
             )
@@ -825,12 +838,12 @@ private fun TagListEditor(title: String, subtitle: String, addLabel: String, tag
             OutlinedTextField(
                 value = tag.name,
                 onValueChange = { tags[index] = tags[index].copy(name = it) },
-                label = { Text("Name") },
+                label = { Text(stringResource(R.string.settings_tag_name)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = { tags.removeAt(index) }) {
-                Icon(Icons.Filled.Delete, contentDescription = "Remove")
+                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.settings_remove))
             }
         }
     }
@@ -859,7 +872,7 @@ private fun FolderField(
         singleLine = true,
         trailingIcon = {
             IconButton(onClick = onPick) {
-                Icon(Icons.Filled.FolderOpen, contentDescription = "Choose folder")
+                Icon(Icons.Filled.FolderOpen, contentDescription = stringResource(R.string.settings_choose_folder))
             }
         },
         modifier = Modifier.fillMaxWidth(),
@@ -895,13 +908,13 @@ private fun FolderListEditor(
                 )
             }
             Text(
-                shown.ifBlank { "(blank)" },
+                shown.ifBlank { stringResource(R.string.settings_blank_path) },
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (disabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = { paths.removeAt(index) }) {
-                Icon(Icons.Filled.Delete, contentDescription = "Remove")
+                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.settings_remove))
             }
         }
     }
@@ -909,7 +922,7 @@ private fun FolderListEditor(
     OutlinedButton(onClick = { onPick { path -> if (path !in paths) paths.add(path) } }) {
         Icon(Icons.Filled.FolderOpen, contentDescription = null)
         Spacer(Modifier.width(6.dp))
-        Text("Add folder")
+        Text(stringResource(R.string.settings_add_folder))
     }
 }
 
@@ -930,9 +943,10 @@ internal fun treeUriToPath(uri: Uri): String? = runCatching {
     if (relative.isBlank()) root else "$root/$relative"
 }.getOrNull()
 
-private fun previewTimestamp(format: String): String =
+/** The current time in [format], or null when the pattern is invalid (the caller says so). */
+private fun previewTimestamp(format: String): String? =
     runCatching { SimpleDateFormat(format, Locale.US).format(Date()) }
-        .getOrElse { "invalid format" }
+        .getOrNull()
 
 /** The Nibras base URL split into editable parts. */
 private data class NibrasUrlParts(
@@ -980,7 +994,7 @@ private fun SchemeDropdown(value: String, onChange: (String) -> Unit, modifier: 
             value = value,
             onValueChange = {},
             readOnly = true,
-            label = { Text("Scheme") },
+            label = { Text(stringResource(R.string.settings_scheme_label)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             singleLine = true,
             modifier = Modifier

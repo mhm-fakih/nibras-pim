@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Prayer names -->
+    <string name="prayer_name_fajr">الفجر</string>
+    <string name="prayer_name_sunrise">الشروق</string>
+    <string name="prayer_name_dhuhr">الظهر</string>
+    <string name="prayer_name_asr">العصر</string>
+    <string name="prayer_name_maghrib">المغرب</string>
+    <string name="prayer_name_isha">العشاء</string>
+
+    <!-- Asr schools -->
+    <string name="prayer_asr_standard">الجمهور (الشافعي / الجعفري)</string>
+    <string name="prayer_asr_hanafi">الحنفي</string>
+
+    <!-- Calculation methods -->
+    <string name="prayer_method_mwl">رابطة العالم الإسلامي</string>
+    <string name="prayer_method_isna">الجمعية الإسلامية لأمريكا الشمالية</string>
+    <string name="prayer_method_egypt">الهيئة المصرية العامة للمساحة</string>
+    <string name="prayer_method_makkah">أم القرى، مكة المكرمة</string>
+    <string name="prayer_method_karachi">جامعة العلوم الإسلامية، كراتشي</string>
+    <string name="prayer_method_tehran">معهد الجيوفيزياء، طهران</string>
+    <string name="prayer_method_jafari">الشيعة الاثنا عشرية (مؤسسة ليفا، قم)</string>
+
+    <!-- High-latitude rules -->
+    <string name="prayer_highlat_none">بلا (يبقى غير محدد)</string>
+    <string name="prayer_highlat_middle_of_night">منتصف الليل</string>
+    <string name="prayer_highlat_one_seventh">سُبع الليل</string>
+    <string name="prayer_highlat_angle_based">حسب الزاوية</string>
+
+    <!-- Hijri calendar -->
+    <string-array name="prayer_hijri_months">
+        <item>محرم</item>
+        <item>صفر</item>
+        <item>ربيع الأول</item>
+        <item>ربيع الآخر</item>
+        <item>جمادى الأولى</item>
+        <item>جمادى الآخرة</item>
+        <item>رجب</item>
+        <item>شعبان</item>
+        <item>رمضان</item>
+        <item>شوال</item>
+        <item>ذو القعدة</item>
+        <item>ذو الحجة</item>
+    </string-array>
+    <string name="prayer_hijri_date">%1$d %2$s %3$d هـ</string>
+
+    <!-- Durations -->
+    <string name="prayer_dur_minutes">%1$d د</string>
+    <string name="prayer_dur_hours">%1$d س</string>
+    <string name="prayer_dur_hours_minutes">%1$d س %2$d د</string>
+    <string name="prayer_dur_minutes_seconds">%1$d د %2$02d ث</string>
+    <string name="prayer_dur_seconds">%1$d ث</string>
+    <string name="prayer_in_duration">بعد %1$s</string>
+    <string name="prayer_now">الآن</string>
+    <string name="prayer_today">اليوم</string>
+    <string name="prayer_tomorrow">غدًا</string>
+    <string name="prayer_tomorrow_paren">(غدًا)</string>
+
+    <!-- Offsets from a prayer -->
+    <string name="prayer_offset_at">عند %1$s</string>
+    <string name="prayer_offset_before">قبل %2$s بـ%1$s</string>
+    <string name="prayer_offset_after">بعد %2$s بـ%1$s</string>
+
+    <!-- Common actions -->
+    <string name="prayer_stop">إيقاف</string>
+    <string name="prayer_clear">مسح</string>
+    <string name="prayer_save">حفظ</string>
+    <string name="prayer_cancel">إلغاء</string>
+    <string name="prayer_delete">حذف</string>
+    <string name="prayer_start">بدء</string>
+    <string name="prayer_edit">تعديل</string>
+
+    <!-- Notifications -->
+    <string name="prayer_channel_reminders">تذكيرات الصلاة</string>
+    <string name="prayer_channel_athan">الأذان</string>
+    <string name="prayer_notif_reminder_title">%1$s بعد %2$d د</string>
+
+    <!-- Prayer page -->
+    <string name="prayer_none_shown">لا أوقات معروضة. اخترها من «الأوقات» أدناه.</string>
+    <string name="prayer_panel_times">الأوقات</string>
+    <string name="prayer_panel_method">الطريقة</string>
+    <string name="prayer_panel_athan">الأذان</string>
+    <string name="prayer_panel_silence">الصامت</string>
+    <string name="prayer_panel_hijri">الهجري</string>
+    <string name="prayer_no_upcoming">لا وقت قادم — كل الصفوف مخفية، أو لا تبلغ الشمس هذه الزوايا هنا.</string>
+    <string name="prayer_alarms_off_warning">التنبيهات متوقفة — تظهر الأوقات، لكن لن يصدر أي صوت.</string>
+    <string name="prayer_athan_on_cd">الأذان مفعّل</string>
+    <string name="prayer_which_times">الأوقات المعروضة</string>
+    <string name="prayer_adjust_title">تعديل كل وقت</string>
+    <string name="prayer_adjust_note">دقائق تُضاف إلى الوقت المحسوب أو تُطرح منه. هكذا تطابق المسجد الذي تصلي فيه فعلًا — فلا طريقة حساب تتفق مع كل المساجد.</string>
+    <string name="prayer_earlier_cd">تقديم %1$s</string>
+    <string name="prayer_later_cd">تأخير %1$s</string>
+    <string name="prayer_reset">إعادة</string>
+    <string name="prayer_school_title">المذهب — متى يبدأ العصر</string>
+    <string name="prayer_school_note">يختلف القولان بنحو ساعة في الصيف، وهذا الإعداد هو الأرجح أن يجعل التطبيق يخالف المسجد القريب منك.</string>
+    <string name="prayer_method_title">طريقة الحساب</string>
+    <string name="prayer_method_note">مدى انخفاض الشمس تحت الأفق لوقتَي الفجر والعشاء. وتؤخّر طريقتا الشيعة الاثني عشرية وطهران المغرب أيضًا حتى تنخفض الشمس 4° بدل الغروب.</string>
+    <string name="prayer_method_fajr_angle">الفجر %1$s°</string>
+    <string name="prayer_method_isha_angle">العشاء %1$s°</string>
+    <string name="prayer_method_isha_minutes">العشاء بعد المغرب بـ%1$d د</string>
+    <string name="prayer_method_maghrib_angle">المغرب %1$s°</string>
+    <string name="prayer_location_title">موقعك</string>
+    <string name="prayer_highlat_title">ليالي خطوط العرض العليا</string>
+    <string name="prayer_highlat_note">فوق خط العرض 48° تقريبًا توجد ليالٍ صيفية لا تنخفض فيها الشمس بما يكفي ليكون للفجر أو العشاء وقت أصلًا. اتركه على «بلا» ما لم ترَ صفًا فارغًا.</string>
+    <string name="prayer_latitude">خط العرض</string>
+    <string name="prayer_longitude">خط الطول</string>
+    <string name="prayer_place_name">اسم المكان (يظهر في الأعلى)</string>
+    <string name="prayer_use_location">استخدام موقعي</string>
+    <string name="prayer_location_note">الإحداثيات فقط، وعند الضغط على الزر فقط — لا بحث عبر الإنترنت ولا شيء يغادر الهاتف.</string>
+    <string name="prayer_alarms_on">تفعيل التنبيهات</string>
+    <string name="prayer_alarms_on_note">المفتاح الرئيسي. عند إيقافه تبقى الأوقات ظاهرة، لكن لا يصدر أي صوت ولا يُضبط أي منبّه.</string>
+    <string name="prayer_in_app">مواقيت الصلاة في التطبيق</string>
+    <string name="prayer_in_app_note">عند إيقافه تختفي الصفحة من الشريط الجانبي ولا يُجدوَل شيء. تعرض الإعدادات حينها صفًا لإعادتها — فهذا المفتاح يختفي مع الصفحة.</string>
+    <string name="prayer_call_athan_at">رفع الأذان عند</string>
+    <string name="prayer_shurooq_note">الشروق ليس صلاة، لذا لا يظهر في هذه القائمة.</string>
+    <string name="prayer_choose_athan_file">اختيار ملف الأذان</string>
+    <string name="prayer_hear_it">استماع</string>
+    <string name="prayer_builtin_athan">الأذان المدمج (محمد كاظم زاده)</string>
+    <string name="prayer_athan_file_note">أي ملف صوتي على الهاتف. يُشغَّل عبر صوت المنبّه، فيُسمَع حتى أثناء إسكات الهاتف للصلاة أدناه.</string>
+    <string name="prayer_volume_each">مستوى الصوت لكل صلاة</string>
+    <string name="prayer_volume_note">نسبةٌ من صوت المنبّه — يمكنه خفض الأذان لكن لا يجعله أعلى من صوت منبّه الهاتف. القيمة 0 تكتمه.</string>
+    <string name="prayer_volume_muted">%1$s  مكتوم</string>
+    <string name="prayer_volume_percent">%1$s  %2$d%%</string>
+    <string name="prayer_hear_colon">استماع:</string>
+    <string name="prayer_widget_countdown">العدّ التنازلي في الأداة</string>
+    <string name="prayer_widget_countdown_note">لا يظهر العدّ التنازلي في شريط الشاشة الرئيسية إلا حين يقترب الوقت التالي إلى هذا الحد. لو ظهر طوال اليوم لقرأتَ «5:31:23» — رقمًا لا يفيد أحدًا، في السطر الوحيد المتاح في الشريط.</string>
+    <string name="prayer_remind_before">ذكّرني قبل كل وقت</string>
+    <string name="prayer_remind_before_note">إشعار هادئ قبل كل وقت اخترت عرضه.</string>
+    <string name="prayer_min_before">قبل %1$d د</string>
+    <string name="prayer_hours_before">قبل %1$d س</string>
+    <string name="prayer_hours_minutes_before">قبل %1$d س %2$d د</string>
+    <string name="prayer_countdown_always">ظاهر دائمًا</string>
+    <string name="prayer_beeps_before">تنبيهات صوتية قبل الشروق</string>
+    <string name="prayer_beeps_note">الشروق ينهي وقت صلاة الفجر، لذا له عدّ تنازلي خاص به. تُشغَّل التنبيهات عبر صوت المنبّه لتُسمَع حتى للنائم.</string>
+    <plurals name="prayer_beeps_count">
+        <item quantity="zero">%1$d تنبيه</item>
+        <item quantity="one">تنبيه واحد</item>
+        <item quantity="two">تنبيهان</item>
+        <item quantity="few">%1$d تنبيهات</item>
+        <item quantity="many">%1$d تنبيهًا</item>
+        <item quantity="other">%1$d تنبيه</item>
+    </plurals>
+    <string name="prayer_beep_sound">صوت التنبيه</string>
+    <string name="prayer_ringtones">النغمات</string>
+    <string name="prayer_a_file">ملف</string>
+    <string name="prayer_builtin_tone">النغمة المدمجة</string>
+    <string name="prayer_builtin_tone_no_file">النغمة المدمجة — لا حاجة إلى ملف</string>
+    <string name="prayer_hear_count">استماع %1$d</string>
+    <string name="prayer_beep_tone_note">النغمة المدمجة من الجهاز نفسه، ولا يعطّلها حذف أي ملف. الصوت المختار يُشغَّل مرة لكل تنبيه، فالصوت الطويل يُطيل العدّ.</string>
+    <string name="prayer_silence_title">إسكات الهاتف</string>
+    <string name="prayer_silence_toggle">الوضع الصامت في هذه الأوقات</string>
+    <string name="prayer_silence_toggle_note">يتحوّل الرنين إلى صامت عند حلول الوقت، ثم يعود كما كان تمامًا.</string>
+    <string name="prayer_dnd_needed">لا يسمح أندرويد لأي تطبيق بتغيير الرنين دون إذن «عدم الإزعاج».</string>
+    <string name="prayer_grant_access">منح الإذن</string>
+    <string name="prayer_silence_for">لمدة %1$d د</string>
+    <string name="prayer_at_these_times">في هذه الأوقات</string>
+    <string name="prayer_silence_note">يُختار بمعزل عن الأذان: أن تريد هاتفًا صامتًا وأنت تصلي شيء، وأن تريد سماع النداء شيء آخر.</string>
+    <string name="prayer_islamic_date">التاريخ الهجري</string>
+    <string name="prayer_hijri_note">يُحسب حسابيًا وفق التقويم الجدولي — لا يحتاج إلى شبكة وله جواب دائمًا، لكن الشهر الفعلي يبدأ برؤية الهلال، وقد يقع قبله أو بعده بيوم. عدّله ليطابق ما أُعلن في بلدك.</string>
+    <string name="prayer_shift_by">إزاحة</string>
+    <string name="prayer_day_earlier_cd">تقديم يوم</string>
+    <string name="prayer_day_later_cd">تأخير يوم</string>
+    <plurals name="prayer_shift_days">
+        <item quantity="zero">%1$+d يوم</item>
+        <item quantity="one">%1$+d يوم</item>
+        <item quantity="two">%1$+d يوم</item>
+        <item quantity="few">%1$+d أيام</item>
+        <item quantity="many">%1$+d يومًا</item>
+        <item quantity="other">%1$+d يوم</item>
+    </plurals>
+    <string name="prayer_day_starts_maghrib">يبدأ اليوم عند المغرب</string>
+    <string name="prayer_day_starts_maghrib_note">يبدأ اليوم الهجري عند الغروب لا عند منتصف الليل — فبعد المغرب يكون التاريخ أعلاه تاريخَ الغد.</string>
+    <string name="prayer_no_file_default">لم يُختر ملف — سيُشغَّل صوت المنبّه الافتراضي</string>
+    <string name="prayer_chosen_file">الملف المختار</string>
+
+    <!-- Alarms -->
+    <string name="prayer_alarms_title">المنبّهات</string>
+    <string name="prayer_alarms_title_today">المنبّهات · %1$d اليوم</string>
+    <string name="prayer_alarms_nothing_left">لا شيء متبقٍّ اليوم</string>
+    <string name="prayer_alarm_default_title">منبّه</string>
+    <string name="prayer_alarm_new">منبّه جديد</string>
+    <string name="prayer_alarm_label">التسمية</string>
+    <string name="prayer_alarm_kind">النوع</string>
+    <string name="prayer_alarm_kind_time">وقت</string>
+    <string name="prayer_alarm_kind_countdown">عدّ تنازلي</string>
+    <string name="prayer_alarm_kind_prayer">صلاة</string>
+    <string name="prayer_alarm_hour">الساعة</string>
+    <string name="prayer_alarm_minute">الدقيقة</string>
+    <string name="prayer_alarm_duration">المدة</string>
+    <string name="prayer_alarm_or_minutes">أو بالدقائق</string>
+    <string name="prayer_alarm_offset">الفارق — السالب يعني «قبل»</string>
+    <string name="prayer_alarm_offset_at">عند</string>
+    <string name="prayer_alarm_sound">الصوت</string>
+    <string name="prayer_alarm_choose">اختيار…</string>
+    <string name="prayer_alarm_default">الافتراضي</string>
+    <string name="prayer_alarm_default_sound">صوت المنبّه الافتراضي</string>
+    <string name="prayer_alarm_repeat">التكرار: %1$d×</string>
+    <string name="prayer_alarm_volume">مستوى الصوت: %1$d%%</string>
+    <string name="prayer_alarm_days_once">الأيام — دون اختيار يعني مرة واحدة</string>
+    <string name="prayer_alarm_days">الأيام</string>
+    <string name="prayer_alarm_add_cd">إضافة منبّه</string>
+    <string name="prayer_alarms_count_on">%1$d مفعّل</string>
+    <string name="prayer_alarm_exact_warning">المنبّهات الدقيقة غير مسموحة لهذا التطبيق، لذا قد ترنّ متأخرة. امنح إذن «المنبّهات والتذكيرات» من إعدادات أندرويد.</string>
+    <string name="prayer_alarm_empty">لا منبّهات بعد. يضيف الزر + منبّهًا: وقتًا، أو عدًّا تنازليًا، أو فارقًا عن وقت صلاة.</string>
+    <string name="prayer_alarm_delete_q">حذف هذا المنبّه؟</string>
+    <string name="prayer_alarm_untitled">منبّه بلا عنوان</string>
+    <string name="prayer_alarm_once">مرة واحدة</string>
+    <string name="prayer_alarm_not_started">لم يبدأ</string>
+    <string name="prayer_alarm_running">يعمل</string>
+    <string name="prayer_alarm_off">متوقف</string>
+    <string name="prayer_alarm_not_scheduled">غير مجدول</string>
+    <string name="prayer_alarm_weekday_date">%1$s %2$d</string>
+    <string name="prayer_alarm_rings">يرنّ %1$s %2$s</string>
+    <string name="prayer_since_duration">منذ %1$s</string>
+    <string name="prayer_elapsed_for">مؤقّت «منذ»: %1$d دقيقة</string>
+    <string name="prayer_elapsed_off">مؤقّت «منذ»: متوقف</string>
+    <string name="prayer_elapsed_note">حين يحين الوقت، تعدّ الصفحة والشريط تصاعديًا منه — «منذ 4:12» — طوال هذه المدة، بدل القفز إلى الوقت التالي البعيد بساعات.</string>
+</resources>

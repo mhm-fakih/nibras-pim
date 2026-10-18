@@ -55,6 +55,16 @@ data class PrayerSettings(
      */
     val countdownWithinMin: Int = 60,
 
+    /**
+     * For how long after a time arrives the countdown turns into an elapsed timer — "ظهر منذ 12:34"
+     * — in minutes; 0 turns it off.
+     *
+     * At the moment a prayer is due the countdown used to jump straight to the NEXT time, which is
+     * hours away and so outside the countdown window: the line went blank exactly when the question
+     * became "how long ago was the athan?" — how late you are for it, or how long the jama'a has been.
+     */
+    val elapsedForMin: Int = 30,
+
     // ---- athan ----
     /** Which times call the athan. Shurooq is never among them — nothing is prayed at sunrise. */
     val athanPrayers: Set<Prayer> = setOf(Prayer.DHUHR, Prayer.MAGHRIB),
@@ -125,6 +135,9 @@ data class PrayerSettings(
          *  means "always showing" without needing a separate switch for it. */
         const val MIN_COUNTDOWN = 15
         const val MAX_COUNTDOWN = 720
+        /** 0 = no elapsed timer; two hours is past any jama'a anyone is still timing. */
+        const val MIN_ELAPSED = 0
+        const val MAX_ELAPSED = 120
         const val MIN_SILENCE = 5
         const val MAX_SILENCE = 60
         const val MIN_BEEPS = 1
@@ -178,6 +191,7 @@ class PrayerSettingsStore(context: Context) {
             reminderEnabled = prefs.getBoolean(K_REM_ON, d.reminderEnabled),
             reminderLeadMin = prefs.getInt(K_REM_LEAD, d.reminderLeadMin),
             countdownWithinMin = prefs.getInt(K_COUNTDOWN_WITHIN, d.countdownWithinMin),
+            elapsedForMin = prefs.getInt(K_ELAPSED_FOR, d.elapsedForMin),
             athanPrayers = decodePrayers(prefs.getString(K_ATHAN, null)) ?: d.athanPrayers,
             athanSoundUri = prefs.getString(K_ATHAN_SOUND, "") ?: "",
             athanVolumes = decodeVolumes(prefs.getString(K_ATHAN_VOLUMES, null)),
@@ -222,6 +236,7 @@ class PrayerSettingsStore(context: Context) {
                 K_COUNTDOWN_WITHIN,
                 s.countdownWithinMin.coerceIn(PrayerSettings.MIN_COUNTDOWN, PrayerSettings.MAX_COUNTDOWN),
             )
+            .putInt(K_ELAPSED_FOR, s.elapsedForMin.coerceIn(PrayerSettings.MIN_ELAPSED, PrayerSettings.MAX_ELAPSED))
             .putString(K_ATHAN, encodePrayers(s.effectiveAthan))
             .putString(K_ATHAN_SOUND, s.athanSoundUri.trim())
             .putString(K_ATHAN_VOLUMES, encodeVolumes(s.athanVolumes))
@@ -253,6 +268,7 @@ class PrayerSettingsStore(context: Context) {
         private const val K_REM_ON = "reminder_enabled"
         private const val K_REM_LEAD = "reminder_lead_min"
         private const val K_COUNTDOWN_WITHIN = "countdown_within_min"
+        private const val K_ELAPSED_FOR = "elapsed_for_min"
         private const val K_ATHAN = "athan_prayers"
         private const val K_ATHAN_SOUND = "athan_sound_uri"
         private const val K_ATHAN_VOLUMES = "athan_volumes"

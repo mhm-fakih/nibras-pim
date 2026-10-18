@@ -40,6 +40,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
@@ -47,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
 import com.knotes.Note
+import com.knotes.R
 import com.knotes.util.Bidi
 import com.knotes.util.Clauses
 import com.knotes.util.Highlights
@@ -139,12 +142,12 @@ fun NoteReadScreen(
             TopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.notes_back))
                     }
                 },
                 title = {
                     Text(
-                        if (readOnly) "AI answer" else if (editing) "Edit" else "Read",
+                        stringResource(if (readOnly) R.string.notes_read_ai_answer else if (editing) R.string.notes_edit else R.string.notes_read),
                         style = MaterialTheme.typography.titleMedium,
                     )
                 },
@@ -153,14 +156,14 @@ fun NoteReadScreen(
                         FilterChip(
                             selected = !editing,
                             onClick = { editing = false; onModeChange(false) },
-                            label = { Text("Read") },
+                            label = { Text(stringResource(R.string.notes_read)) },
                             leadingIcon = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp)) },
                         )
                         Spacer(Modifier.width(6.dp))
                         FilterChip(
                             selected = editing,
                             onClick = { editing = true; onModeChange(true) },
-                            label = { Text("Edit") },
+                            label = { Text(stringResource(R.string.notes_edit)) },
                             leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) },
                         )
                         Spacer(Modifier.width(6.dp))
@@ -206,13 +209,13 @@ fun NoteReadScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Tap a clause to highlight it",
+                    stringResource(R.string.notes_read_tap_clause_hint),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "· Edit above · tags below",
+                    stringResource(R.string.notes_read_edit_tags_hint),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -220,7 +223,7 @@ fun NoteReadScreen(
                 val n = marked.size
                 if (n > 0) {
                     Text(
-                        "$n highlighted",
+                        pluralStringResource(R.plurals.notes_read_highlighted_count, n, n),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -265,7 +268,7 @@ fun NoteReadScreen(
                         .padding(16.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("This note is empty.", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.notes_read_empty), style = MaterialTheme.typography.bodyMedium)
                 }
             }
             Spacer(Modifier.size(32.dp))
@@ -322,6 +325,6 @@ private fun NoteEditor(
             textDirection = if (com.knotes.NoteFiles.isRtl(source)) androidx.compose.ui.text.style.TextDirection.Rtl
             else androidx.compose.ui.text.style.TextDirection.Ltr,
         ),
-        placeholder = { Text("This note is empty — start typing.") },
+        placeholder = { Text(stringResource(R.string.notes_read_empty_start_typing)) },
     )
 }

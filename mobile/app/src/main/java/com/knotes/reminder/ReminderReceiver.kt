@@ -14,6 +14,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.knotes.MainActivity
+import com.knotes.R
 import com.knotes.SettingsStore
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -67,7 +68,7 @@ class ReminderReceiver : BroadcastReceiver() {
 
     private fun fire(context: Context, intent: Intent) {
         val summary = intent.getStringExtra(ReminderScheduler.EXTRA_SUMMARY)?.takeIf { it.isNotBlank() }
-            ?: "Upcoming plan"
+            ?: context.getString(R.string.widgets_reminder_default_title)
         val startMillis = intent.getLongExtra(ReminderScheduler.EXTRA_START, 0L)
         val key = intent.getStringExtra(ReminderScheduler.EXTRA_KEY).orEmpty()
         val offset = intent.getIntExtra(ReminderScheduler.EXTRA_OFFSET, 0)
@@ -78,7 +79,8 @@ class ReminderReceiver : BroadcastReceiver() {
         ensureChannels(context)
 
         val clock = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(startMillis))
-        val when_ = if (offset > 0) "in $offset min · $clock" else "now · $clock"
+        val when_ = if (offset > 0) context.getString(R.string.widgets_reminder_in_minutes, offset, clock)
+            else context.getString(R.string.widgets_reminder_now, clock)
 
         val openApp = PendingIntent.getActivity(
             context, 0, Intent(context, MainActivity::class.java)
@@ -113,11 +115,11 @@ class ReminderReceiver : BroadcastReceiver() {
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setOngoing(true)
             .setAutoCancel(false)
-            .addAction(0, "Dismiss", dismiss)
+            .addAction(0, context.getString(R.string.widgets_reminder_dismiss), dismiss)
         // Only offered when the event is identifiable — with no key there is nothing to silence,
         // and a button that quietly does nothing is worse than no button.
         if (key.isNotBlank()) {
-            builder.addAction(0, "Stop reminders", silence)
+            builder.addAction(0, context.getString(R.string.widgets_reminder_stop), silence)
         }
         if (requireDismiss) {
             builder.setFullScreenIntent(openApp, true)
@@ -133,13 +135,13 @@ class ReminderReceiver : BroadcastReceiver() {
         // We play the sound ourselves, so the channels are silent to avoid doubling it up.
         if (mgr.getNotificationChannel(CHANNEL_DEFAULT) == null) {
             mgr.createNotificationChannel(
-                NotificationChannel(CHANNEL_DEFAULT, "Plan reminders", NotificationManager.IMPORTANCE_HIGH)
+                NotificationChannel(CHANNEL_DEFAULT, context.getString(R.string.widgets_reminder_channel), NotificationManager.IMPORTANCE_HIGH)
                     .apply { setSound(null, null) },
             )
         }
         if (mgr.getNotificationChannel(CHANNEL_ALARM) == null) {
             mgr.createNotificationChannel(
-                NotificationChannel(CHANNEL_ALARM, "Plan alarms", NotificationManager.IMPORTANCE_HIGH)
+                NotificationChannel(CHANNEL_ALARM, context.getString(R.string.widgets_reminder_alarm_channel), NotificationManager.IMPORTANCE_HIGH)
                     .apply { setSound(null, null) },
             )
         }

@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=knotes
+Name=Nibras Notes
 GenericName=Note Taker
 Comment=Quick plain-text notes
 Exec=@HERE@/run.sh

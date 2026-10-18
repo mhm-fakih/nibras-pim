@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="language_title">Langue</string>
+    <string name="language_hint">L’application change immédiatement. Vos notes et vos fichiers ne sont jamais traduits.</string>
+</resources>

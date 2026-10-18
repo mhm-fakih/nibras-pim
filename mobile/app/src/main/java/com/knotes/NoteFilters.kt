@@ -1,5 +1,7 @@
 package com.knotes
 
+import androidx.annotation.StringRes
+
 /**
  * The note filter model — the Kotlin half of the desktop sidebar's `filters.py`.
  *
@@ -53,10 +55,10 @@ enum class FilterDim { TYPE, PRIORITY, CATEGORY, TAG, TAXONOMY, NONSTANDARD, DAY
  * this is about the file name's SHAPE, that one about its VALUES. The fixes differ — rename vs.
  * retag — so a file is never counted in both.
  */
-enum class NonStandardFilter(val label: String) {
-    INCLUDE("All"),
-    HIDE("Notes only"),
-    ONLY("Unnamed only"),
+enum class NonStandardFilter(val label: String, @StringRes val labelRes: Int) {
+    INCLUDE("All", R.string.notes_filter_all),
+    HIDE("Notes only", R.string.notes_filter_notes_only),
+    ONLY("Unnamed only", R.string.notes_filter_unnamed_only),
     ;
 
     fun accepts(note: Note): Boolean = when (this) {
@@ -70,7 +72,10 @@ enum class NonStandardFilter(val label: String) {
 fun isStandard(note: Note): Boolean = isFormattedNote(note.file.name)
 
 /** Which of a note's two dates the calendar shades and a tapped day filters on. */
-enum class DateField(val label: String) { CREATED("Created"), UPDATED("Updated") }
+enum class DateField(val label: String, @StringRes val labelRes: Int) {
+    CREATED("Created", R.string.notes_filter_date_created),
+    UPDATED("Updated", R.string.notes_filter_date_updated),
+}
 
 /**
  * The day a note falls on for [field], as epoch days in the device's zone.

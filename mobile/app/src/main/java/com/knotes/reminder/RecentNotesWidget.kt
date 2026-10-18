@@ -60,9 +60,13 @@ class RecentNotesWidget : AppWidgetProvider() {
                 NoteRepository(settings).listNotes().count { it.createdMillis >= sinceMillis(days) }
             }.getOrDefault(0)
 
-            views.setTextViewText(R.id.feed_title, if (days == 1) "Today's notes" else "Last $days days")
+            views.setTextViewText(
+                R.id.feed_title,
+                if (days == 1) context.getString(R.string.widgets_feed_title_today)
+                else context.resources.getQuantityString(R.plurals.widgets_feed_title_days, days, days),
+            )
             WidgetCounts.apply(views, WidgetCounts.plain(count), R.id.feed_badge)
-            views.setTextViewText(R.id.feed_empty, "Nothing written in the last $days days.")
+            views.setTextViewText(R.id.feed_empty, context.resources.getQuantityString(R.plurals.widgets_feed_empty, days, days))
             views.setRemoteAdapter(R.id.feed_list, sectionIntent(context, widgetId))
             views.setEmptyView(R.id.feed_list, R.id.feed_empty)
 

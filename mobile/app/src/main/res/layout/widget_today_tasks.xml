@@ -62,7 +62,7 @@
         android:paddingTop="7dp"
         android:paddingEnd="10dp"
         android:paddingBottom="7dp"
-        android:text="+  Add a task…"
+        android:text="@string/widgets_today_tasks_add"
         android:textColor="#9AA0A6"
         android:textSize="13sp" />
 

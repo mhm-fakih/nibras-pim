@@ -16,7 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -44,11 +44,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import com.knotes.R
 import com.knotes.player.LibraryTrack
 import com.knotes.player.MediaLibrary
 import com.knotes.player.UNKNOWN_ALBUM
@@ -103,7 +106,7 @@ fun AudiobookScreen(roots: List<String>, lastPlayedPath: String?, onPlayMedia: (
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Media") },
+                title = { Text(stringResource(R.string.player_media_title)) },
                 actions = {
                     // The library no longer rebuilds itself on every visit, so picking up a file
                     // Syncthing dropped in needs an explicit ask. It is cheap: the walk skips the
@@ -115,7 +118,7 @@ fun AudiobookScreen(roots: List<String>, lastPlayedPath: String?, onPlayMedia: (
                         if (scanning) {
                             CircularProgressIndicator(modifier = Modifier.width(18.dp), strokeWidth = 2.dp)
                         } else {
-                            Icon(Icons.Filled.Refresh, contentDescription = "Rescan the library")
+                            Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.player_media_rescan))
                         }
                     }
                 },
@@ -126,13 +129,13 @@ fun AudiobookScreen(roots: List<String>, lastPlayedPath: String?, onPlayMedia: (
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("Filter by name…") },
+                placeholder = { Text(stringResource(R.string.player_media_filter_hint)) },
                 singleLine = true,
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
                     if (query.isNotEmpty()) {
                         IconButton(onClick = { query = "" }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Clear the filter")
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.player_media_clear_filter))
                         }
                     }
                 },
@@ -145,19 +148,19 @@ fun AudiobookScreen(roots: List<String>, lastPlayedPath: String?, onPlayMedia: (
                 FilterChip(
                     selected = mode == LibraryMode.LIBRARY,
                     onClick = { mode = LibraryMode.LIBRARY },
-                    label = { Text("Library") },
+                    label = { Text(stringResource(R.string.player_media_tab_library)) },
                     leadingIcon = { Icon(Icons.Filled.LibraryMusic, null, modifier = Modifier.width(18.dp)) },
                 )
                 FilterChip(
                     selected = mode == LibraryMode.FOLDERS,
                     onClick = { mode = LibraryMode.FOLDERS },
-                    label = { Text("Folders") },
+                    label = { Text(stringResource(R.string.player_media_tab_folders)) },
                     leadingIcon = { Icon(Icons.Filled.Folder, null, modifier = Modifier.width(18.dp)) },
                 )
                 FilterChip(
                     selected = mode == LibraryMode.BOOKMARKED,
                     onClick = { mode = LibraryMode.BOOKMARKED },
-                    label = { Text("Bookmarked") },
+                    label = { Text(stringResource(R.string.player_media_tab_bookmarked)) },
                     leadingIcon = { Icon(Icons.Filled.Bookmark, null, modifier = Modifier.width(18.dp)) },
                 )
             }
@@ -186,8 +189,8 @@ fun AudiobookScreen(roots: List<String>, lastPlayedPath: String?, onPlayMedia: (
 private fun EmptyState(roots: List<String>) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
-            if (roots.isEmpty()) "No library folders configured — add some in Settings"
-            else "No audio or video files found under:\n${roots.joinToString("\n")}",
+            if (roots.isEmpty()) stringResource(R.string.player_media_no_roots)
+            else stringResource(R.string.player_media_no_files_under, roots.joinToString("\n")),
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(24.dp),
@@ -204,7 +207,7 @@ private fun Breadcrumb(segments: List<Pair<String, () -> Unit>>) {
         segments.forEachIndexed { i, (label, onClick) ->
             if (i > 0) {
                 Icon(
-                    Icons.Filled.ChevronRight, null,
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight, null,
                     modifier = Modifier.width(16.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -239,10 +242,10 @@ private fun LibraryTab(tracks: List<LibraryTrack>, lastPlayedPath: String?, onPl
 
     Breadcrumb(
         listOfNotNull(
-            "Genres" to { genreSel = null; artistSel = null; albumSel = null },
-            g?.let { it to { artistSel = null; albumSel = null } },
-            a?.let { it to { albumSel = null } },
-            al?.let { it to {} },
+            stringResource(R.string.player_media_genres) to { genreSel = null; artistSel = null; albumSel = null },
+            g?.let { tagLabel(it) to { artistSel = null; albumSel = null } },
+            a?.let { tagLabel(it) to { albumSel = null } },
+            al?.let { tagLabel(it) to {} },
         ),
     )
 
@@ -256,6 +259,18 @@ private fun LibraryTab(tracks: List<LibraryTrack>, lastPlayedPath: String?, onPl
             lastPlayedPath, onPlayMedia,
         )
     }
+}
+
+/**
+ * The on-screen name of a genre/artist/album value. The `UNKNOWN_*` constants stay English as
+ * grouping keys (and the sort below pins them last by that prefix); only the display is localized.
+ */
+@Composable
+private fun tagLabel(value: String): String = when (value) {
+    UNKNOWN_GENRE -> stringResource(R.string.player_media_unknown_genre)
+    UNKNOWN_ARTIST -> stringResource(R.string.player_media_unknown_artist)
+    UNKNOWN_ALBUM -> stringResource(R.string.player_media_unknown_album)
+    else -> value
 }
 
 /** Distinct values with track counts, alphabetical but any "Unknown …" bucket pinned last. */
@@ -275,12 +290,12 @@ private fun GroupList(groups: List<Pair<String, Int>>, onSelect: (String) -> Uni
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    name, style = MaterialTheme.typography.bodyLarge.autoDirection(), modifier = Modifier.weight(1f),
+                    tagLabel(name), style = MaterialTheme.typography.bodyLarge.autoDirection(), modifier = Modifier.weight(1f),
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text("$count", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(6.dp))
-                Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             HorizontalDivider()
         }
@@ -320,7 +335,7 @@ private fun BookmarkedTab(roots: List<File>, lastPlayedPath: String?, onPlayMedi
         }
         list.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                "No bookmarks yet — drop one while playing to see the file here",
+                stringResource(R.string.player_media_no_bookmarks),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(24.dp),
             )
@@ -364,11 +379,12 @@ private fun BookmarkedRow(entry: BookmarkedFile, isLast: Boolean, onPlayMedia: (
             )
             val mark = entry.last
             if (mark != null) {
+                val marks = pluralStringResource(R.plurals.player_media_marks, entry.count, entry.count)
                 Text(
                     buildString {
                         append(formatTime(mark.positionMs))
                         if (mark.text.isNotBlank()) append(" · ").append(mark.text)
-                        if (entry.count > 1) append("  (${entry.count} marks)")
+                        if (entry.count > 1) append("  ").append(marks)
                     },
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -386,9 +402,10 @@ private fun BookmarkedRow(entry: BookmarkedFile, isLast: Boolean, onPlayMedia: (
 private fun FoldersTab(roots: List<File>, lastPlayedPath: String?, onPlayMedia: (File) -> Unit) {
     var currentDir by remember { mutableStateOf<File?>(null) }
 
-    val crumbs = remember(currentDir) {
+    val foldersLabel = stringResource(R.string.player_media_tab_folders)
+    val crumbs = remember(currentDir, foldersLabel) {
         buildList {
-            add("Folders" to { currentDir = null })
+            add(foldersLabel to { currentDir = null })
             val dir = currentDir
             if (dir != null) {
                 val owningRoot = roots.firstOrNull {
@@ -436,7 +453,7 @@ private fun FoldersTab(roots: List<File>, lastPlayedPath: String?, onPlayMedia: 
 
     if (subfolders.isEmpty() && files.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Empty folder", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.player_media_empty_folder), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -444,7 +461,7 @@ private fun FoldersTab(roots: List<File>, lastPlayedPath: String?, onPlayMedia: 
         if (recent.isNotEmpty()) {
             item(key = "recent-header") {
                 Text(
-                    "Recently bookmarked here",
+                    stringResource(R.string.player_media_recent_here),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 4.dp),
@@ -518,7 +535,11 @@ private fun FolderPeek(
         }
         if (peek.size > FOLDER_PEEK_LIMIT) {
             Text(
-                "…and ${peek.size - FOLDER_PEEK_LIMIT} more",
+                pluralStringResource(
+                    R.plurals.player_media_and_more,
+                    peek.size - FOLDER_PEEK_LIMIT,
+                    peek.size - FOLDER_PEEK_LIMIT,
+                ),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
@@ -557,13 +578,13 @@ private fun FilteredTab(
     }
     if (matches.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Nothing matches that", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.player_media_no_match), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
-            "${matches.size} of ${tracks.size}",
+            stringResource(R.string.player_media_match_count, matches.size, tracks.size),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
@@ -590,9 +611,9 @@ private fun FolderEntryRow(name: String, exists: Boolean, onClick: () -> Unit) {
             color = if (exists) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (exists) {
-            Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
-            Text("not found", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+            Text(stringResource(R.string.player_media_not_found), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
         }
     }
 }

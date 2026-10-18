@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-10-14 — capture/: Telegram, Firefox bookmarks and yt-dlp write knotes for Import
+
+### Added — three capture tools in one folder
+
+`capture/` brings in the three scripts that pulled material from outside, until now loose in
+`~/prj` (and an older Telegram copy in the untracked-by-intent `telegram-downloader/`). Each now
+writes a **knotes note** — `<yyyy_mm_dd-hhmmss>~<type>~p<priority>~<category>.md` plus a `.d/`
+companion for files — which is exactly what the Import page already reads from
+`NIBRAS_KNOTES_DIR`. No backend change: capture writes the folder, Import reads it, and the `.d`
+files arrive as the record's attachments.
+
+- `run.sh telegram` → an `N` note per run, `Telegram <chat> export`, media in `.d/`.
+- `run.sh firefox` → an `R` note per run, `Firefox bookmarks export`, grouped by date added.
+- `run.sh media URL` → an `R` note per video (title, duration/site/resolution, URL) with the mp4,
+  a 128k mp3 and the `.srt` in `.d/` — the player's subtitle-labelled bookmarks work on it as is.
+
+Naming lives once, in `knotes_out.py` (also a CLI for the bash tool). Priority and category default
+to the folder's `.knotes.json`; a taken second moves the name on rather than overwriting. One venv
+(`setup.sh`), one `config.env`, and systemd timers that only install when their arguments are set.
+
+### Fixed — Firefox deletions no longer come back through Sync
+
+`--delete` removed rows with a bare `DELETE`, and Firefox Sync, finding the bookmarks still on the
+server with no local tombstone, restored them as new on the next sync. Deletion now does what
+Firefox's own remove does: a `moz_bookmarks_deleted` tombstone per synced bookmark, the parents'
+`syncChangeCounter` bumped, siblings renumbered, `foreign_count` decremented. Verified on a real
+profile: 19 bookmarks deleted, still gone after Firefox started and synced.
+
+### Security — Telegram credentials out of the source
+
+The Telegram API id/hash and phone number were literals in the script. They are read from the
+gitignored `capture/config.env` now, the session file is ignored, and `sync-to-github.sh` — which
+publishes `capture/` from now on — refuses to push if either turns up in the export.
+
 ## 2026-10-12a — One note card, on both notes pages (mobile)
 
 ### Changed — the AI answers page uses the local notes card

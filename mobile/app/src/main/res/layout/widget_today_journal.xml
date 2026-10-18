@@ -64,7 +64,7 @@
         android:paddingTop="7dp"
         android:paddingEnd="10dp"
         android:paddingBottom="7dp"
-        android:text="+  Write today's journal…"
+        android:text="@string/widgets_today_journal_add"
         android:textColor="#9AA0A6"
         android:textSize="13sp" />
 

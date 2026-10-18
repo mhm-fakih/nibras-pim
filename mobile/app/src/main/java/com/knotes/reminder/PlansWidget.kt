@@ -2,6 +2,7 @@ package com.knotes.reminder
 
 import android.app.PendingIntent
 import android.content.Context
+import com.knotes.R
 
 /**
  * Home-screen widget listing upcoming plans, served by [PlansWidgetService]. Tapping the title pulls from
@@ -13,8 +14,8 @@ import android.content.Context
 class PlansWidget : SectionListWidget() {
 
     override val section = "list"
-    override val title = "Upcoming plans"
-    override val emptyText = "Nothing to show"
+    override val titleRes = R.string.widgets_plans_title
+    override val emptyTextRes = R.string.widgets_nothing_to_show
 
     /**
      * How many plans are genuinely still ahead.

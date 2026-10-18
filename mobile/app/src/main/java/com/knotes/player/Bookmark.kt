@@ -13,7 +13,13 @@ data class Bookmark(val positionMs: Long, val text: String)
  */
 object Bookmarks {
 
-    private val LINE = Regex("^\\[(?:(\\d+):)?(\\d{1,2}):(\\d{2})(?:\\.(\\d{1,3}))?]\\s*(.*)$")
+    // Minutes take any number of digits: a Sony ICD recorder writes `[00004:58.00]`, and with the
+    // old 1–2 digit limit such a file parsed as empty — after which the next bookmark's save wrote
+    // over every mark in it.
+    private val LINE = Regex("^\\[(?:(\\d+):)?(\\d+):(\\d{2})(?:\\.(\\d{1,3}))?]\\s*(.*)$")
+
+    /** Byte-order mark some writers put first; Kotlin's trim() doesn't count it as whitespace. */
+    private const val BOM = '﻿'
 
     fun sidecar(media: File): File = File(media.parentFile, media.nameWithoutExtension + ".tmk")
 
@@ -40,18 +46,44 @@ object Bookmarks {
         }.getOrDefault(emptyList())
     }
 
+    /**
+     * Write [list] as the media's `.tmk`.
+     *
+     * Lines already in the `.tmk` that aren't bookmarks this parser understands are carried over
+     * below the marks rather than dropped: a file this app can't fully read must never be
+     * overwritten into something smaller than it was. (Only from the `.tmk` itself — a legacy
+     * `.txt` beside the media may be an unrelated transcript, not bookmarks.)
+     */
     fun save(media: File, list: List<Bookmark>) {
         runCatching {
-            val text = list.sortedBy { it.positionMs }.joinToString("\n") { line(it) }
-            sidecar(media).writeText(if (text.isEmpty()) "" else text + "\n")
+            val target = sidecar(media)
+            val kept = if (target.exists()) {
+                target.readLines().map { it.trim().trimStart(BOM) }
+                    .filter { it.isNotEmpty() && parse(it) == null }
+            } else emptyList()
+            val lines = list.sortedBy { it.positionMs }.map { line(it) } + kept
+            target.writeText(if (lines.isEmpty()) "" else lines.joinToString("\n") + "\n")
         }
+    }
+
+    /**
+     * Apply [change] to the bookmarks as they are on disk NOW, save, and return the result.
+     *
+     * The player screen used to save a list it loaded when the track opened. Anything written in
+     * the meantime — the service's notification/auto-pause bookmark, the desktop player via sync —
+     * was silently erased by the next tap, and a list that had loaded empty overwrote the whole file.
+     */
+    fun update(media: File, change: (List<Bookmark>) -> List<Bookmark>): List<Bookmark> {
+        val updated = change(load(media)).sortedBy { it.positionMs }
+        save(media, updated)
+        return updated
     }
 
     private fun line(b: Bookmark): String =
         "[" + formatTime(b.positionMs) + "]" + if (b.text.isBlank()) "" else " " + b.text.trim()
 
     fun parse(raw: String): Bookmark? {
-        val m = LINE.matchEntire(raw.trim()) ?: return null
+        val m = LINE.matchEntire(raw.trim().trimStart(BOM)) ?: return null
         val h = m.groupValues[1].toLongOrNull() ?: 0L
         val min = m.groupValues[2].toLong()
         val sec = m.groupValues[3].toLong()

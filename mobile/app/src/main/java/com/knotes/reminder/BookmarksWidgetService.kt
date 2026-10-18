@@ -31,7 +31,7 @@ private class BookmarksFactory(private val context: Context) : RemoteViewsServic
             val cache = NibrasCache(context)
             typeOrder.flatMap { code ->
                 cache.load(code).filter { it.key in keys }.sortedBy { it.line().lowercase() }
-            }.map { it.type to it.line().ifBlank { "(no title)" } }
+            }.map { it.type to it.line().ifBlank { context.getString(R.string.widgets_no_title) } }
         }
     }
 

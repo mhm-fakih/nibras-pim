@@ -61,10 +61,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import com.knotes.NoteFiles
+import com.knotes.R
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -77,8 +79,10 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.IsoFields
 import java.util.Locale
 
-private val DOW = DateTimeFormatter.ofPattern("EEE", Locale.getDefault())
-private val DAY = DateTimeFormatter.ofPattern("MMM d", Locale.getDefault())
+// Display-only, so they follow the app language. Getters (not cached vals) so a language switch
+// at runtime is picked up on the next composition.
+private val DOW: DateTimeFormatter get() = DateTimeFormatter.ofPattern("EEE", Locale.getDefault())
+private val DAY: DateTimeFormatter get() = DateTimeFormatter.ofPattern("MMM d", Locale.getDefault())
 private val HHMM = DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())
 
 private fun LocalTime.minutesOfDay() = hour * 60 + minute
@@ -123,13 +127,13 @@ fun CalendarScreen(startHour: Int, endHour: Int, baseUrl: String, username: Stri
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (dayCount == 1) anchor.format(DAY) else "${anchor.format(DAY)} – ${days.last().format(DAY)}") },
+                title = { Text(if (dayCount == 1) anchor.format(DAY) else stringResource(R.string.server_calendar_date_range, anchor.format(DAY), days.last().format(DAY))) },
                 actions = {
                     IconButton(onClick = {
                         val s = LocalTime.of(startHour, 0)
                         addFor = Triple(anchor, s, endTimeFor(s, slotMin))
                     }) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add entry")
+                        Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.server_calendar_add_entry))
                     }
                 },
             )
@@ -147,16 +151,16 @@ fun CalendarScreen(startHour: Int, endHour: Int, baseUrl: String, username: Stri
             // Date navigation + view / slot toggles.
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp)) {
                 IconButton(onClick = { anchorEpochDay = anchor.minusDays(dayCount.toLong()).toEpochDay() }) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous")
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.server_calendar_previous))
                 }
-                TextButton(onClick = { anchorEpochDay = LocalDate.now().toEpochDay() }) { Text("Today") }
+                TextButton(onClick = { anchorEpochDay = LocalDate.now().toEpochDay() }) { Text(stringResource(R.string.server_calendar_today)) }
                 IconButton(onClick = { anchorEpochDay = anchor.plusDays(dayCount.toLong()).toEpochDay() }) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next")
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.server_calendar_next))
                 }
                 Spacer(Modifier.weight(1f))
-                FilterChip(selected = dayCount == 1, onClick = { dayCount = 1 }, label = { Text("1d") })
+                FilterChip(selected = dayCount == 1, onClick = { dayCount = 1 }, label = { Text(stringResource(R.string.server_calendar_days_short, 1)) })
                 Spacer(Modifier.width(4.dp))
-                FilterChip(selected = dayCount == 3, onClick = { dayCount = 3 }, label = { Text("3d") })
+                FilterChip(selected = dayCount == 3, onClick = { dayCount = 3 }, label = { Text(stringResource(R.string.server_calendar_days_short, 3)) })
             }
             // Day-of-week / date header, aligned with the grid columns.
             Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
@@ -189,15 +193,15 @@ fun CalendarScreen(startHour: Int, endHour: Int, baseUrl: String, username: Stri
             // Slot size selector, under the calendar.
             HorizontalDivider()
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp)) {
-                Text("Slot", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.server_calendar_slot), style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.width(8.dp))
                 listOf(15, 30, 60).forEach { m ->
-                    FilterChip(selected = slotMin == m, onClick = { slotMin = m }, label = { Text("${m}m") })
+                    FilterChip(selected = slotMin == m, onClick = { slotMin = m }, label = { Text(stringResource(R.string.server_calendar_minutes_short, m)) })
                     Spacer(Modifier.width(4.dp))
                 }
                 if (loading) {
                     Spacer(Modifier.weight(1f))
-                    Text("Loading…", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(R.string.server_loading), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -252,7 +256,7 @@ private fun MiniCalendar(anchor: LocalDate, events: List<CalendarEvent>, onPick:
         weekStarts.forEach { ws ->
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "W${ws.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)}",
+                    stringResource(R.string.server_calendar_week_short, ws.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -473,7 +477,8 @@ private fun CalendarGrid(
                         ) {
                             Text(
                                 "${timeOfMin(top).format(HHMM)}–${timeOfMin(bot).format(HHMM)}",
-                                style = MaterialTheme.typography.labelSmall,
+                                // A time range reads left-to-right in every language.
+                                style = MaterialTheme.typography.labelSmall.copy(textDirection = TextDirection.Ltr),
                                 color = primary,
                             )
                         }
@@ -665,36 +670,36 @@ private fun AddEntryDialog(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(if (isEditing) "Edit entry" else "New entry", style = MaterialTheme.typography.titleLarge)
+            Text(if (isEditing) stringResource(R.string.server_calendar_edit_entry) else stringResource(R.string.server_calendar_new_entry), style = MaterialTheme.typography.titleLarge)
 
             // The type is locked once created — its id lives in a different server table per type
             // (Journal vs. Planner), so switching type mid-edit would push this id to the wrong one.
             if (isEditing) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Type", style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(64.dp))
-                    Text(if (type == "P") "Plan" else "Journal", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.server_calendar_type), style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(64.dp))
+                    Text(if (type == "P") stringResource(R.string.server_calendar_type_plan) else stringResource(R.string.server_calendar_type_journal), style = MaterialTheme.typography.bodyLarge)
                 }
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Type", style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(64.dp))
-                    FilterChip(selected = type == "J", onClick = { type = "J" }, label = { Text("Journal") })
+                    Text(stringResource(R.string.server_calendar_type), style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(64.dp))
+                    FilterChip(selected = type == "J", onClick = { type = "J" }, label = { Text(stringResource(R.string.server_calendar_type_journal)) })
                     Spacer(Modifier.width(8.dp))
-                    FilterChip(selected = type == "P", onClick = { type = "P" }, label = { Text("Plan") })
+                    FilterChip(selected = type == "P", onClick = { type = "P" }, label = { Text(stringResource(R.string.server_calendar_type_plan)) })
                 }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Date", style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(64.dp))
-                IconButton(onClick = { date = date.minusDays(1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous day") }
+                Text(stringResource(R.string.server_calendar_date), style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(64.dp))
+                IconButton(onClick = { date = date.minusDays(1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.server_calendar_previous_day)) }
                 Text(date.format(DAY), style = MaterialTheme.typography.bodyLarge)
-                IconButton(onClick = { date = date.plusDays(1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next day") }
+                IconButton(onClick = { date = date.plusDays(1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.server_calendar_next_day)) }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Start", style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(64.dp))
+                Text(stringResource(R.string.server_calendar_start), style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(64.dp))
                 TextButton(onClick = { pickTime(start) { start = it; if (!end.isAfter(it)) end = it.plusHours(1) } }) { Text(start.format(HHMM)) }
                 Spacer(Modifier.width(16.dp))
-                Text("End", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.server_calendar_end), style = MaterialTheme.typography.labelLarge)
                 TextButton(onClick = { pickTime(end) { end = it } }) { Text(end.format(HHMM)) }
             }
 
@@ -703,7 +708,7 @@ private fun AddEntryDialog(
             OutlinedTextField(
                 value = summary,
                 onValueChange = { summary = it },
-                label = { Text("Summary") },
+                label = { Text(stringResource(R.string.server_calendar_summary)) },
                 keyboardOptions = KeyboardOptions(),
                 textStyle = MaterialTheme.typography.bodyLarge.copy(
                     textAlign = if (rtl) TextAlign.Right else TextAlign.Start,
@@ -717,7 +722,7 @@ private fun AddEntryDialog(
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
-                label = { Text("Description") },
+                label = { Text(stringResource(R.string.server_calendar_description)) },
                 textStyle = MaterialTheme.typography.bodyLarge.copy(
                     textAlign = if (descRtl) TextAlign.Right else TextAlign.Start,
                     textDirection = if (descRtl) TextDirection.Rtl else TextDirection.Ltr,
@@ -727,12 +732,12 @@ private fun AddEntryDialog(
             )
 
             Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.server_cancel)) }
                 Spacer(Modifier.width(8.dp))
                 TextButton(
                     onClick = { onSave(type, date, start, end, summary, description) },
                     enabled = summary.isNotBlank() && end.isAfter(start),
-                ) { Text("Save") }
+                ) { Text(stringResource(R.string.server_save)) }
             }
         }
     }

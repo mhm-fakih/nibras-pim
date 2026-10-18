@@ -1,0 +1,15 @@
+[Unit]
+Description=Capture: Firefox → knotes note (one pass)
+Documentation=file://%h/dev/spring-boot-react-v1/capture/README.md
+After=network-online.target
+
+[Service]
+Type=oneshot
+# The arguments come from CAPTURE_FIREFOX_ARGS in config.env; run.sh loads it,
+# so the unit itself carries no paths to profiles and no credentials. eval:
+# the value may quote paths with spaces and use ~. $$ is systemd for a literal $.
+ExecStart=/bin/bash -c 'source %h/dev/spring-boot-react-v1/capture/config.env && eval exec %h/dev/spring-boot-react-v1/capture/run.sh firefox "$${CAPTURE_FIREFOX_ARGS}"'
+Nice=10
+IOSchedulingClass=idle
+StandardOutput=journal
+StandardError=journal

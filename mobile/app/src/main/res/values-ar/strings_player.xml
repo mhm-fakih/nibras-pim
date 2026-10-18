@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Player screen -->
+    <string name="player_delete_title">حذف هذا الملف؟</string>
+    <string name="player_delete_body">سيُحذف من الجهاز — لا توجد سلة مهملات لاستعادته منها.</string>
+    <plurals name="player_delete_transcripts_too">
+        <item quantity="zero">وتُحذف معه ملفات النص %1$s.</item>
+        <item quantity="one">ويُحذف معه ملف النص %1$s.</item>
+        <item quantity="two">ويُحذف معه ملفا النص %1$s.</item>
+        <item quantity="few">وتُحذف معه ملفات النص %1$s.</item>
+        <item quantity="many">وتُحذف معه ملفات النص %1$s.</item>
+        <item quantity="other">وتُحذف معه ملفات النص %1$s.</item>
+    </plurals>
+    <plurals name="player_delete_bookmarks_too">
+        <item quantity="zero">ولا علامات له.</item>
+        <item quantity="one">وتُحذف معه علامته الوحيدة.</item>
+        <item quantity="two">وتُحذف معه علامتاه.</item>
+        <item quantity="few">وتُحذف معه علاماته الـ%1$d.</item>
+        <item quantity="many">وتُحذف معه علاماته الـ%1$d.</item>
+        <item quantity="other">وتُحذف معه علاماته الـ%1$d.</item>
+    </plurals>
+    <string name="player_delete">حذف</string>
+    <string name="player_cancel">إلغاء</string>
+    <string name="player_ok">حسنًا</string>
+    <string name="player_delete_failed_title">تعذّر الحذف</string>
+    <string name="player_delete_failed_body">الملف ما زال موجودًا ولم يتغيّر شيء آخر — علاماته وموضع التشغيل كما هي.</string>
+    <string name="player_flash_priority_added">✓ أُضيفت الأولوية p%1$s</string>
+    <string name="player_flash_bookmarked">✓ أُضيفت علامة −%1$d ث</string>
+    <string name="player_flash_bookmarked_line">✓ أُضيفت علامة −%1$d ث · مع نص الجملة</string>
+    <string name="player_back">رجوع</string>
+    <string name="player_delete_this_file">حذف هذا الملف</string>
+    <string name="player_bookmark_note_hint">ملاحظة العلامة (اختياري)</string>
+    <string name="player_add_bookmark">إضافة علامة</string>
+    <string name="player_audio_only">صوت</string>
+    <string name="player_subtitles">الترجمة</string>
+    <string name="player_off">إيقاف</string>
+    <string name="player_panel_bookmarks">العلامات</string>
+    <string name="player_panel_bookmarks_count">العلامات (%1$d)</string>
+    <string name="player_panel_in_folder">في هذا المجلد</string>
+    <string name="player_panel_in_folder_count">في هذا المجلد (%1$d)</string>
+    <string name="player_panel_recent_folders">المجلدات الأخيرة</string>
+    <string name="player_panel_recently_played">شُغّل مؤخرًا</string>
+    <string name="player_panel_settings">إعدادات المشغّل</string>
+    <string name="player_skip_secs">القفز %1$d ث</string>
+    <string name="player_speed">السرعة %1$.2fx</string>
+    <string name="player_bookmark_rewind">العلامة −%1$d ث</string>
+    <string name="player_double_tap_prio">أولوية النقرتين %1$d ث</string>
+    <string name="player_volume_db">الصوت %1$+.0f dB</string>
+    <string name="player_bookmark_on_pause">علامة عند الإيقاف المؤقت</string>
+    <string name="player_bookmark_on_pause_hint">أي إيقاف مؤقت — من الشاشة أو السلك أو البلوتوث — يضع علامة. مفيد أثناء القيلولة.</string>
+    <string name="player_transcript">النص</string>
+    <string name="player_transcript_delete">حذف النص %1$s</string>
+    <string name="player_transcript_hide">إخفاء النص</string>
+    <string name="player_transcript_show">عرض النص</string>
+    <string name="player_transcript_empty">هذا النص فارغ.</string>
+    <string name="player_pause">إيقاف مؤقت</string>
+    <string name="player_play">تشغيل</string>
+    <string name="player_open_player">فتح المشغّل</string>
+    <string name="player_play_next">التشغيل التالي</string>
+    <string name="player_finding_one">جارٍ البحث…</string>
+    <string name="player_next_same_folder">نفس المجلد</string>
+    <string name="player_next_random_old">قديم عشوائي</string>
+    <string name="player_next_random_here">عشوائي هنا</string>
+    <string name="player_next_newest_here">الأحدث هنا</string>
+    <string name="player_next_caption_none">يُجهَّز الملف التالي في المجلد متوقفًا — لا يبدأ شيء من تلقاء نفسه.</string>
+    <string name="player_next_caption_same_folder">يُشغَّل الملف التالي في هذا المجلد تلقائيًا.</string>
+    <string name="player_next_caption_random_old">ملف من أي مكان في مجلدات مكتبتك لم تضع عليه علامة قط ولم يُلمَس منذ %1$d يومًا. إن لم يكن هناك ملف بهذا القِدم بعد، تُستخدم الملفات الأقدم.</string>
+    <string name="player_next_caption_random_here">الاختيار نفسه، لكن من المجلد المحيط بما يُشغَّل فقط — مع البحث في المجلدات الفرعية. من داخل مجلد ملفات ملاحظة يبحث في المجلد الذي يحتويها، فيمرّ على مرفقات كل الملاحظات بدل إعادة مرفقات هذه الملاحظة.</string>
+    <string name="player_next_caption_newest_here">المجلد نفسه كما في «عشوائي هنا»، لكن أحدث الملفات بلا علامات بدل أقدمها — لسماع ما وصل للتو بدل التنقيب في المتراكم.</string>
+    <string name="player_sleep_timer">مؤقّت النوم</string>
+    <string name="player_sleep_pauses_in">يتوقف بعد %1$s</string>
+    <string name="player_sleep_minutes">%1$d د</string>
+
+    <!-- Player notices ("next" finding nothing) -->
+    <string name="player_notice_nothing_playing">لا شيء قيد التشغيل.</string>
+    <string name="player_notice_last_in_folder">هذا آخر ملف في المجلد.</string>
+    <string name="player_next_nothing_playing_no_folder">لا شيء قيد التشغيل، فلا يوجد مجلد للاختيار منه.</string>
+    <string name="player_next_no_media_folders">لم تُحدَّد مجلدات وسائط — أضف واحدًا من الإعدادات.</string>
+    <string name="player_next_nothing_new_here">لا جديد هنا — كل ملفات هذا المجلد عليها علامات أو شُغّلت من قبل.</string>
+    <string name="player_next_nothing_left_here">لم يبقَ شيء هنا — كل ملفات هذا المجلد عليها علامات أو شُغّلت من قبل.</string>
+    <string name="player_next_nothing_left_library">لم يبقَ شيء في مكتبتك — كل الملفات عليها علامات أو شُغّلت من قبل.</string>
+
+    <!-- Media library (AudiobookScreen) -->
+    <string name="player_media_title">الوسائط</string>
+    <string name="player_media_rescan">إعادة فحص المكتبة</string>
+    <string name="player_media_filter_hint">تصفية بالاسم…</string>
+    <string name="player_media_clear_filter">مسح التصفية</string>
+    <string name="player_media_tab_library">المكتبة</string>
+    <string name="player_media_tab_folders">المجلدات</string>
+    <string name="player_media_tab_bookmarked">ذات العلامات</string>
+    <string name="player_media_no_roots">لم تُضبط مجلدات للمكتبة — أضف بعضها من الإعدادات</string>
+    <string name="player_media_no_files_under">لم يُعثر على ملفات صوت أو فيديو في:\n%1$s</string>
+    <string name="player_media_genres">الأنواع</string>
+    <string name="player_media_unknown_genre">نوع غير معروف</string>
+    <string name="player_media_unknown_artist">فنان غير معروف</string>
+    <string name="player_media_unknown_album">ألبوم غير معروف</string>
+    <string name="player_media_no_bookmarks">لا علامات بعد — ضع واحدة أثناء التشغيل ليظهر الملف هنا</string>
+    <plurals name="player_media_marks">
+        <item quantity="zero">(%1$d علامة)</item>
+        <item quantity="one">(علامة واحدة)</item>
+        <item quantity="two">(علامتان)</item>
+        <item quantity="few">(%1$d علامات)</item>
+        <item quantity="many">(%1$d علامة)</item>
+        <item quantity="other">(%1$d علامة)</item>
+    </plurals>
+    <string name="player_media_empty_folder">مجلد فارغ</string>
+    <string name="player_media_recent_here">عليها علامات مؤخرًا هنا</string>
+    <plurals name="player_media_and_more">
+        <item quantity="zero">…و%1$d غيرها</item>
+        <item quantity="one">…وملف آخر</item>
+        <item quantity="two">…وملفان آخران</item>
+        <item quantity="few">…و%1$d ملفات أخرى</item>
+        <item quantity="many">…و%1$d ملفًا آخر</item>
+        <item quantity="other">…و%1$d ملف آخر</item>
+    </plurals>
+    <string name="player_media_no_match">لا شيء يطابق ذلك</string>
+    <string name="player_media_match_count">%1$d من %2$d</string>
+    <string name="player_media_not_found">غير موجود</string>
+
+    <!-- AI answers -->
+    <string name="player_ai_title">إجابات الذكاء الاصطناعي</string>
+    <string name="player_ai_not_synced">لم تتم المزامنة بعد · %1$s</string>
+    <string name="player_ai_search">البحث في هذه الإجابات</string>
+    <string name="player_ai_clear_search">مسح البحث</string>
+    <string name="player_ai_no_folder_title">لا يوجد مجلد لإجابات الذكاء الاصطناعي على هذا الهاتف بعد.</string>
+    <string name="player_ai_no_folder_detail">المتوقَّع في %1$s. يصل عبر Syncthing من مجلد knotes-ai على الحاسوب؛ حدّد مسارًا آخر في الإعدادات إن كان في مكان آخر.</string>
+    <string name="player_ai_empty_title">المجلد موجود لكنه فارغ.</string>
+    <string name="player_ai_empty_detail">لم تُزامَن أي ملفات إلى %1$s بعد.</string>
+    <string name="player_ai_no_match_title">لا توجد إجابة مطابقة.</string>
+    <string name="player_ai_no_match_detail">%1$d في المجلد؛ البحث أو المرشحات تستبعدها كلها.</string>
+    <string name="player_tab_player">المشغّل</string>
+    <string name="player_recents_max">عدد الملفات الأخيرة: %1$d</string>
+    <string name="videos_title">الفيديو</string>
+    <string name="videos_all">الكل</string>
+    <string name="videos_refresh">إعادة فحص المجلد</string>
+    <string name="videos_none">لا توجد مقاطع فيديو في\n%1$s</string>
+    <plurals name="videos_count">
+        <item quantity="zero">لا مقاطع</item>
+        <item quantity="one">مقطع واحد</item>
+        <item quantity="two">مقطعان</item>
+        <item quantity="few">%1$d مقاطع</item>
+        <item quantity="many">%1$d مقطعًا</item>
+        <item quantity="other">%1$d مقطع</item>
+    </plurals>
+    <string name="player_video_enlarge">تكبير الفيديو</string>
+    <string name="player_video_shrink">تصغير الفيديو</string>
+    <string name="player_video_auto_next">تشغيل التالي بعد انتهاء الفيديو</string>
+    <string name="player_video_auto_next_hint">عند الإيقاف: يبقى الفيديو المنتهي متوقفًا عند بدايته أيًّا كان إعداد «التشغيل التالي». يبقى ⏭ يشغّل التالي.</string>
+    <string name="player_open_folder">المجلد</string>
+    <string name="player_share">مشاركة</string>
+</resources>

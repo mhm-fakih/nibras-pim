@@ -75,6 +75,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
@@ -85,6 +87,7 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.knotes.NoteFiles
+import com.knotes.R
 import com.knotes.StarAction
 import com.knotes.nibras.BookmarkSync
 import com.knotes.nibras.ConnState
@@ -151,7 +154,8 @@ fun NibrasContent(
         }
     }
 
-    val label = NIBRAS_TYPES.firstOrNull { it.code == code }?.label ?: code
+    val label = NIBRAS_TYPES.firstOrNull { it.code == code }?.labelRes?.takeIf { it != 0 }
+        ?.let { stringResource(it) } ?: code
 
     val filtered = records.filter { r ->
         query.isBlank() ||
@@ -235,7 +239,7 @@ fun NibrasContent(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("$label (${records.size} cards)") },
+                title = { Text(pluralStringResource(R.plurals.server_browser_title_cards, records.size, label, records.size)) },
                 actions = {
                     if (groupLabels.isNotEmpty()) {
                         val allCollapsed = groupLabels.all { it in collapsedGroups }
@@ -245,13 +249,13 @@ fun NibrasContent(
                         }) {
                             Icon(
                                 if (allCollapsed) Icons.Filled.UnfoldMore else Icons.Filled.UnfoldLess,
-                                contentDescription = if (allCollapsed) "Expand all" else "Collapse all",
+                                contentDescription = if (allCollapsed) stringResource(R.string.server_browser_expand_all) else stringResource(R.string.server_browser_collapse_all),
                             )
                         }
                     }
                     StatusDot(conn)
                     IconButton(onClick = { vm.connect(baseUrl, username) }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.server_refresh))
                     }
                 },
             )
@@ -262,7 +266,7 @@ fun NibrasContent(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("Search…") },
+                placeholder = { Text(stringResource(R.string.server_browser_search_hint)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             )
@@ -271,7 +275,7 @@ fun NibrasContent(
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                     if (bookmarked.isNotEmpty()) {
-                        item { SectionHeader("★ Bookmarked", bookmarked.size) }
+                        item { SectionHeader(stringResource(R.string.server_browser_section_bookmarked), bookmarked.size) }
                         items(bookmarked, key = { it.key }) { rowContent(it) }
                     }
                     if (others.isNotEmpty()) {
@@ -292,7 +296,7 @@ fun NibrasContent(
                         } else {
                             item {
                                 SectionHeader(
-                                    if (backendMode) "Bookmarked in Nibras" else "Unbookmarked",
+                                    if (backendMode) stringResource(R.string.server_browser_section_bookmarked_in_nibras) else stringResource(R.string.server_browser_section_unbookmarked),
                                     others.size,
                                 )
                             }
@@ -338,7 +342,7 @@ private fun ScrollJumpButtons(listState: LazyListState, expandedKey: String?, mo
             },
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
         ) {
-            Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move to top")
+            Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.server_browser_move_to_top))
         }
         SmallFloatingActionButton(
             onClick = {
@@ -358,7 +362,7 @@ private fun ScrollJumpButtons(listState: LazyListState, expandedKey: String?, mo
             },
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
         ) {
-            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Move to bottom")
+            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.server_browser_move_to_bottom))
         }
     }
 }
@@ -373,9 +377,9 @@ private fun NibrasStatusBar(conn: ConnState, syncing: Boolean, queuedNotes: Int,
             StatusDot(conn)
             Text(
                 when (conn) {
-                    ConnState.Online -> "Online"
-                    ConnState.Offline -> "Offline"
-                    ConnState.Connecting -> "Connecting"
+                    ConnState.Online -> stringResource(R.string.server_conn_online)
+                    ConnState.Offline -> stringResource(R.string.server_conn_offline)
+                    ConnState.Connecting -> stringResource(R.string.server_conn_connecting)
                     ConnState.Unknown -> "—"
                 },
                 style = MaterialTheme.typography.labelMedium,
@@ -384,7 +388,7 @@ private fun NibrasStatusBar(conn: ConnState, syncing: Boolean, queuedNotes: Int,
                 Spacer(Modifier.width(10.dp))
                 CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(4.dp))
-                Text("Syncing…", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.server_syncing), style = MaterialTheme.typography.labelMedium)
             }
             Spacer(Modifier.weight(1f))
             Text(
@@ -425,7 +429,7 @@ private fun CollapsibleSectionHeader(label: String, count: Int, collapsed: Boole
         ) {
             Icon(
                 if (collapsed) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
-                contentDescription = if (collapsed) "Expand" else "Collapse",
+                contentDescription = if (collapsed) stringResource(R.string.server_browser_expand) else stringResource(R.string.server_browser_collapse),
                 modifier = Modifier.size(22.dp),
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
             )
@@ -541,7 +545,7 @@ private fun NibrasRow(
     ) {
         if (isPendingUnbookmark) {
             Text(
-                text = "Un-bookmarked — leaves this list on the next sync. Tap the star to undo.",
+                text = stringResource(R.string.server_browser_unbookmarked_banner),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.error,
             )
@@ -559,9 +563,9 @@ private fun NibrasRow(
                 Icon(
                     if (filled) Icons.Filled.Star else Icons.Filled.StarBorder,
                     contentDescription = when {
-                        !backendStar -> "Bookmark"
-                        isPendingUnbookmark -> "Un-bookmarked — tap to undo"
-                        else -> "Un-bookmark in Nibras"
+                        !backendStar -> stringResource(R.string.server_browser_bookmark)
+                        isPendingUnbookmark -> stringResource(R.string.server_browser_unbookmarked_tap_undo)
+                        else -> stringResource(R.string.server_browser_unbookmark_in_nibras)
                     },
                     tint = when {
                         isPendingUnbookmark -> MaterialTheme.colorScheme.error
@@ -590,7 +594,7 @@ private fun NibrasRow(
                 Spacer(Modifier.width(4.dp))
                 Icon(
                     Icons.AutoMirrored.Filled.Comment,
-                    contentDescription = "Has note",
+                    contentDescription = stringResource(R.string.server_browser_has_note),
                     modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.primary,
                 )
@@ -600,7 +604,7 @@ private fun NibrasRow(
                 Spacer(Modifier.width(4.dp))
                 Icon(
                     Icons.Filled.AttachFile,
-                    contentDescription = "Has files",
+                    contentDescription = stringResource(R.string.server_browser_has_files),
                     modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.primary,
                 )
@@ -609,7 +613,7 @@ private fun NibrasRow(
             // Title takes the full remaining width; its metadata sits underneath it.
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = record.line().ifBlank { "(no summary)" },
+                    text = record.line().ifBlank { stringResource(R.string.server_browser_no_summary) },
                     style = bodyScaled,
                     fontWeight = if (isRead) FontWeight.Normal else FontWeight.Bold,
                     textDecoration = if (isCompleted) TextDecoration.LineThrough else null,
@@ -684,7 +688,7 @@ private fun NibrasRow(
 
             if (record.files.isNotEmpty()) {
                 Spacer(Modifier.size(6.dp))
-                Text("Files (${record.files.size})", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.server_browser_files_count, record.files.size), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                 record.files.sortedBy { it.lowercase() }.forEach { fname ->
                     Spacer(Modifier.height(4.dp))
                     // Each file in its own light, rounded box (icon + name) so multi-line filenames
@@ -718,7 +722,7 @@ private fun NibrasRow(
             // Notes the user has added to this record, shown directly under the add-note field.
             if (queuedNotes.isNotEmpty()) {
                 Spacer(Modifier.size(4.dp))
-                Text("Notes (${queuedNotes.size})", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.server_browser_notes_count, queuedNotes.size), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                 queuedNotes.forEach { note ->
                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                         Icon(
@@ -741,12 +745,12 @@ private fun NibrasRow(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onMarkUnread) { Text("Mark unread") }
+                TextButton(onClick = onMarkUnread) { Text(stringResource(R.string.server_browser_mark_unread)) }
                 Spacer(Modifier.weight(1f))
                 Box {
-                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
+                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.server_more)) }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(text = { Text("Mark unread") }, onClick = { menuOpen = false; onMarkUnread() })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.server_browser_mark_unread)) }, onClick = { menuOpen = false; onMarkUnread() })
                     }
                 }
             }
@@ -779,7 +783,7 @@ private fun NoteAdder(onAddNote: (String) -> Unit) {
                 decorationBox = { inner ->
                     if (note.isEmpty()) {
                         Text(
-                            "Add a note to this record…",
+                            stringResource(R.string.server_browser_add_note_hint),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -793,7 +797,7 @@ private fun NoteAdder(onAddNote: (String) -> Unit) {
             onClick = { if (note.isNotBlank()) { onAddNote(note.trim()); note = "" } },
             enabled = note.isNotBlank(),
         ) {
-            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send note")
+            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.server_browser_send_note))
         }
     }
 }
@@ -849,7 +853,7 @@ private fun ResourcesHighlighter(vm: NibrasViewModel, record: NibrasRecord, base
     Spacer(Modifier.size(8.dp))
     HorizontalDivider()
     Spacer(Modifier.size(6.dp))
-    Text("Full text — tap a clause to highlight", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+    Text(stringResource(R.string.server_browser_fulltext_hint), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
     Spacer(Modifier.size(4.dp))
     Text(
         text = annotated,

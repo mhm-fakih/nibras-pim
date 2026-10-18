@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Prayer names -->
+    <string name="prayer_name_fajr">Fajr</string>
+    <string name="prayer_name_sunrise">Chourouq</string>
+    <string name="prayer_name_dhuhr">Dhohr</string>
+    <string name="prayer_name_asr">Asr</string>
+    <string name="prayer_name_maghrib">Maghrib</string>
+    <string name="prayer_name_isha">Icha</string>
+
+    <!-- Asr schools -->
+    <string name="prayer_asr_standard">Standard (chaféite / jaʿfarite)</string>
+    <string name="prayer_asr_hanafi">Hanafite</string>
+
+    <!-- Calculation methods -->
+    <string name="prayer_method_mwl">Ligue islamique mondiale</string>
+    <string name="prayer_method_isna">Société islamique d’Amérique du Nord</string>
+    <string name="prayer_method_egypt">Autorité générale égyptienne d’arpentage</string>
+    <string name="prayer_method_makkah">Umm al-Qura, La Mecque</string>
+    <string name="prayer_method_karachi">Université des sciences islamiques, Karachi</string>
+    <string name="prayer_method_tehran">Institut de géophysique, Téhéran</string>
+    <string name="prayer_method_jafari">Chiite duodécimain (Institut Leva, Qom)</string>
+
+    <!-- High-latitude rules -->
+    <string name="prayer_highlat_none">Aucune (laisser indéfini)</string>
+    <string name="prayer_highlat_middle_of_night">Milieu de la nuit</string>
+    <string name="prayer_highlat_one_seventh">Un septième de la nuit</string>
+    <string name="prayer_highlat_angle_based">Selon l’angle</string>
+
+    <!-- Hijri calendar -->
+    <string-array name="prayer_hijri_months">
+        <item>Mouharram</item>
+        <item>Safar</item>
+        <item>Rabiʿ al-Awwal</item>
+        <item>Rabiʿ ath-Thani</item>
+        <item>Joumada al-Oula</item>
+        <item>Joumada al-Akhira</item>
+        <item>Rajab</item>
+        <item>Chaʿbane</item>
+        <item>Ramadan</item>
+        <item>Chawwal</item>
+        <item>Dhou al-Qiʿda</item>
+        <item>Dhou al-Hijja</item>
+    </string-array>
+    <string name="prayer_hijri_date">%1$d %2$s %3$d</string>
+
+    <!-- Durations -->
+    <string name="prayer_dur_minutes">%1$d min</string>
+    <string name="prayer_dur_hours">%1$d h</string>
+    <string name="prayer_dur_hours_minutes">%1$d h %2$d min</string>
+    <string name="prayer_dur_minutes_seconds">%1$d min %2$02d s</string>
+    <string name="prayer_dur_seconds">%1$d s</string>
+    <string name="prayer_in_duration">dans %1$s</string>
+    <string name="prayer_now">maintenant</string>
+    <string name="prayer_today">aujourd’hui</string>
+    <string name="prayer_tomorrow">demain</string>
+    <string name="prayer_tomorrow_paren">(demain)</string>
+
+    <!-- Offsets from a prayer -->
+    <string name="prayer_offset_at">à %1$s</string>
+    <string name="prayer_offset_before">%1$s avant %2$s</string>
+    <string name="prayer_offset_after">%1$s après %2$s</string>
+
+    <!-- Common actions -->
+    <string name="prayer_stop">Arrêter</string>
+    <string name="prayer_clear">Effacer</string>
+    <string name="prayer_save">Enregistrer</string>
+    <string name="prayer_cancel">Annuler</string>
+    <string name="prayer_delete">Supprimer</string>
+    <string name="prayer_start">Démarrer</string>
+    <string name="prayer_edit">Modifier</string>
+
+    <!-- Notifications -->
+    <string name="prayer_channel_reminders">Rappels de prière</string>
+    <string name="prayer_channel_athan">Adhan</string>
+    <string name="prayer_notif_reminder_title">%1$s dans %2$d min</string>
+
+    <!-- Prayer page -->
+    <string name="prayer_none_shown">Aucun horaire affiché. Choisissez-en sous « Horaires » ci-dessous.</string>
+    <string name="prayer_panel_times">Horaires</string>
+    <string name="prayer_panel_method">Méthode</string>
+    <string name="prayer_panel_athan">Adhan</string>
+    <string name="prayer_panel_silence">Silence</string>
+    <string name="prayer_panel_hijri">Hégire</string>
+    <string name="prayer_no_upcoming">Aucun horaire à venir — toutes les lignes sont masquées, ou le soleil n’atteint jamais ces angles ici.</string>
+    <string name="prayer_alarms_off_warning">Les alertes sont désactivées — les horaires restent affichés, mais rien ne sonnera.</string>
+    <string name="prayer_athan_on_cd">Adhan activé</string>
+    <string name="prayer_which_times">Horaires à afficher</string>
+    <string name="prayer_adjust_title">Ajuster chaque horaire</string>
+    <string name="prayer_adjust_note">Minutes ajoutées à l’horaire calculé, ou retirées. C’est ainsi que vous vous alignez sur la mosquée où vous priez réellement — aucune méthode de calcul ne s’accordera avec toutes.</string>
+    <string name="prayer_earlier_cd">%1$s plus tôt</string>
+    <string name="prayer_later_cd">%1$s plus tard</string>
+    <string name="prayer_reset">réinitialiser</string>
+    <string name="prayer_school_title">École — début de l’Asr</string>
+    <string name="prayer_school_note">Les deux lectures diffèrent d’environ une heure en été. C’est le réglage le plus susceptible de mettre l’appli en désaccord avec la mosquée du quartier.</string>
+    <string name="prayer_method_title">Méthode de calcul</string>
+    <string name="prayer_method_note">La profondeur sous l’horizon que le soleil doit atteindre pour le Fajr et l’Icha. Les méthodes chiite duodécimaine et de Téhéran retardent aussi le Maghrib jusqu’à ce que le soleil soit 4° sous l’horizon, plutôt qu’au coucher.</string>
+    <string name="prayer_method_fajr_angle">Fajr %1$s°</string>
+    <string name="prayer_method_isha_angle">Icha %1$s°</string>
+    <string name="prayer_method_isha_minutes">Icha %1$d min après le Maghrib</string>
+    <string name="prayer_method_maghrib_angle">Maghrib %1$s°</string>
+    <string name="prayer_location_title">Votre position</string>
+    <string name="prayer_highlat_title">Nuits du Grand Nord</string>
+    <string name="prayer_highlat_note">Au-delà d’environ 48°, certaines nuits d’été le soleil ne descend jamais assez bas pour que le Fajr ou l’Icha existent. Laissez « Aucune » sauf si une ligne reste vide.</string>
+    <string name="prayer_latitude">Latitude</string>
+    <string name="prayer_longitude">Longitude</string>
+    <string name="prayer_place_name">Nom du lieu (affiché en haut)</string>
+    <string name="prayer_use_location">Utiliser ma position</string>
+    <string name="prayer_location_note">Uniquement des coordonnées, et seulement quand vous appuyez sur le bouton — rien n’est recherché en ligne et rien ne quitte le téléphone.</string>
+    <string name="prayer_alarms_on">Alertes activées</string>
+    <string name="prayer_alarms_on_note">L’interrupteur principal. Désactivé, la page affiche toujours les horaires, mais rien ne sonne et aucune alarme n’est programmée.</string>
+    <string name="prayer_in_app">Horaires de prière dans l’appli</string>
+    <string name="prayer_in_app_note">Désactivé, la page quitte la barre latérale et rien n’est programmé. Les paramètres affichent alors une ligne pour la rétablir — cet interrupteur disparaît avec la page.</string>
+    <string name="prayer_call_athan_at">Appeler l’adhan à</string>
+    <string name="prayer_shurooq_note">Le Chourouq est le lever du soleil, pas une prière : il ne figure donc jamais dans cette liste.</string>
+    <string name="prayer_choose_athan_file">Choisir un fichier d’adhan</string>
+    <string name="prayer_hear_it">Écouter</string>
+    <string name="prayer_builtin_athan">Adhan intégré (Mohammad Kazem-Zadeh)</string>
+    <string name="prayer_athan_file_note">N’importe quel fichier audio du téléphone. Joué sur le flux d’alarme, il reste audible même quand le téléphone est en silence pour la prière ci-dessous.</string>
+    <string name="prayer_volume_each">Volume pour chacune</string>
+    <string name="prayer_volume_note">Proportionnel au volume d’alarme — il peut adoucir un adhan, jamais le rendre plus fort que le volume d’alarme du téléphone. 0 le coupe.</string>
+    <string name="prayer_volume_muted">%1$s  muet</string>
+    <string name="prayer_volume_percent">%1$s  %2$d %%</string>
+    <string name="prayer_hear_colon">Écouter :</string>
+    <string name="prayer_widget_countdown">Compte à rebours du widget</string>
+    <string name="prayer_widget_countdown_note">La barre de l’écran d’accueil n’affiche son compte à rebours que lorsque le prochain horaire est aussi proche. Affiché toute la journée, il indiquait « 5:31:23 » — un nombre dont personne ne fait rien, dans la seule ligne libre de la barre.</string>
+    <string name="prayer_remind_before">Me rappeler avant chaque horaire</string>
+    <string name="prayer_remind_before_note">Une notification discrète avant chaque horaire que vous avez choisi d’afficher.</string>
+    <string name="prayer_min_before">%1$d min avant</string>
+    <string name="prayer_hours_before">%1$d h avant</string>
+    <string name="prayer_hours_minutes_before">%1$d h %2$d min avant</string>
+    <string name="prayer_countdown_always">toujours affiché</string>
+    <string name="prayer_beeps_before">Bips avant le Chourouq</string>
+    <string name="prayer_beeps_note">Le lever du soleil clôt le temps du Fajr, il a donc son propre compte à rebours. Les bips sonnent sur le flux d’alarme, pour être entendus par une personne endormie.</string>
+    <plurals name="prayer_beeps_count">
+        <item quantity="one">%1$d bip</item>
+        <item quantity="many">%1$d bips</item>
+        <item quantity="other">%1$d bips</item>
+    </plurals>
+    <string name="prayer_beep_sound">Son du bip</string>
+    <string name="prayer_ringtones">Sonneries</string>
+    <string name="prayer_a_file">Un fichier</string>
+    <string name="prayer_builtin_tone">Tonalité intégrée</string>
+    <string name="prayer_builtin_tone_no_file">Tonalité intégrée — aucun fichier requis</string>
+    <string name="prayer_hear_count">Écouter %1$d</string>
+    <string name="prayer_beep_tone_note">La tonalité intégrée est celle de l’appareil : supprimer un fichier ne peut pas la casser. Un son choisi est joué une fois par bip, donc un son long allonge le compte à rebours.</string>
+    <string name="prayer_silence_title">Mettre le téléphone en silence</string>
+    <string name="prayer_silence_toggle">Passer en silence à ces horaires</string>
+    <string name="prayer_silence_toggle_note">La sonnerie passe en silence dès l’horaire, puis est rétablie exactement comme avant.</string>
+    <string name="prayer_dnd_needed">Android ne permet pas à une appli de modifier la sonnerie sans l’accès « Ne pas déranger ».</string>
+    <string name="prayer_grant_access">Autoriser l’accès</string>
+    <string name="prayer_silence_for">Pendant %1$d min</string>
+    <string name="prayer_at_these_times">À ces horaires</string>
+    <string name="prayer_silence_note">Choisi indépendamment de l’adhan : vouloir un téléphone silencieux pendant la prière et vouloir entendre l’appel sont deux décisions distinctes.</string>
+    <string name="prayer_islamic_date">Date hégirienne</string>
+    <string name="prayer_hijri_note">Calculée arithmétiquement, selon le calendrier tabulaire — sans réseau et toujours disponible, mais le vrai mois commence à l’observation du croissant, qui peut tomber un jour avant ou après. Ajustez-la selon ce qui a été annoncé chez vous.</string>
+    <string name="prayer_shift_by">Décaler de</string>
+    <string name="prayer_day_earlier_cd">Un jour plus tôt</string>
+    <string name="prayer_day_later_cd">Un jour plus tard</string>
+    <plurals name="prayer_shift_days">
+        <item quantity="one">%1$+d jour</item>
+        <item quantity="many">%1$+d jours</item>
+        <item quantity="other">%1$+d jours</item>
+    </plurals>
+    <string name="prayer_day_starts_maghrib">Le jour commence au Maghrib</string>
+    <string name="prayer_day_starts_maghrib_note">Le jour islamique change au coucher du soleil, pas à minuit — après le Maghrib, la date ci-dessus est donc déjà celle du lendemain.</string>
+    <string name="prayer_no_file_default">Aucun fichier choisi — le son d’alarme par défaut sera joué</string>
+    <string name="prayer_chosen_file">Fichier choisi</string>
+
+    <!-- Alarms -->
+    <string name="prayer_alarms_title">Alarmes</string>
+    <string name="prayer_alarms_title_today">Alarmes · %1$d aujourd’hui</string>
+    <string name="prayer_alarms_nothing_left">Plus rien aujourd’hui</string>
+    <string name="prayer_alarm_default_title">Alarme</string>
+    <string name="prayer_alarm_new">Nouvelle alarme</string>
+    <string name="prayer_alarm_label">Libellé</string>
+    <string name="prayer_alarm_kind">Type</string>
+    <string name="prayer_alarm_kind_time">Heure</string>
+    <string name="prayer_alarm_kind_countdown">Minuteur</string>
+    <string name="prayer_alarm_kind_prayer">Prière</string>
+    <string name="prayer_alarm_hour">Heure</string>
+    <string name="prayer_alarm_minute">Minute</string>
+    <string name="prayer_alarm_duration">Durée</string>
+    <string name="prayer_alarm_or_minutes">Ou en minutes</string>
+    <string name="prayer_alarm_offset">Décalage — négatif signifie avant</string>
+    <string name="prayer_alarm_offset_at">à l’heure</string>
+    <string name="prayer_alarm_sound">Son</string>
+    <string name="prayer_alarm_choose">Choisir…</string>
+    <string name="prayer_alarm_default">Par défaut</string>
+    <string name="prayer_alarm_default_sound">Son d’alarme par défaut</string>
+    <string name="prayer_alarm_repeat">Répétitions : %1$d×</string>
+    <string name="prayer_alarm_volume">Volume : %1$d %%</string>
+    <string name="prayer_alarm_days_once">Jours — aucun signifie une seule fois</string>
+    <string name="prayer_alarm_days">Jours</string>
+    <string name="prayer_alarm_add_cd">Ajouter une alarme</string>
+    <string name="prayer_alarms_count_on">%1$d actives</string>
+    <string name="prayer_alarm_exact_warning">Les alarmes exactes ne sont pas autorisées pour cette appli : elles peuvent sonner en retard. Accordez « Alarmes et rappels » dans les paramètres Android.</string>
+    <string name="prayer_alarm_empty">Aucune alarme pour l’instant. Le bouton + en ajoute une : une heure, un minuteur ou un décalage par rapport à une prière.</string>
+    <string name="prayer_alarm_delete_q">Supprimer cette alarme ?</string>
+    <string name="prayer_alarm_untitled">Alarme sans titre</string>
+    <string name="prayer_alarm_once">une fois</string>
+    <string name="prayer_alarm_not_started">non démarré</string>
+    <string name="prayer_alarm_running">en cours</string>
+    <string name="prayer_alarm_off">désactivée</string>
+    <string name="prayer_alarm_not_scheduled">non programmée</string>
+    <string name="prayer_alarm_weekday_date">%1$s %2$d</string>
+    <string name="prayer_alarm_rings">sonne %1$s à %2$s</string>
+    <string name="prayer_since_duration">منذ %1$s</string>
+    <string name="prayer_elapsed_for">Minuteur « منذ » : %1$d min</string>
+    <string name="prayer_elapsed_off">Minuteur « منذ » : désactivé</string>
+    <string name="prayer_elapsed_note">Une fois l’heure arrivée, la page et la barre comptent à partir d’elle — « منذ 4:12 » — pendant cette durée, au lieu de sauter à l’horaire suivant, des heures plus loin.</string>
+</resources>

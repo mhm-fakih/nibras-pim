@@ -5,7 +5,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.border
@@ -13,7 +12,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -30,11 +28,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.unit.Dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
@@ -91,15 +84,35 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import android.os.SystemClock
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material.icons.filled.OpenInFull
+import androidx.compose.material.icons.filled.CloseFullscreen
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import com.knotes.R
 import com.knotes.UiStateStore
 import com.knotes.ui.StepSlider
 import java.io.File
@@ -111,8 +124,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-/** The togglable panels under the main controls — one (or none) shown at a time. */
-private enum class PlayerPanel { FOLDER, BOOKMARKS, RECENT_FOLDERS, RECENTS, SETTINGS }
+/**
+ * The player's full-page tabs. [PLAYER] holds the picture and the transport; every other tab gets
+ * the whole page to itself instead of a short box squeezed in under the controls.
+ */
+private enum class PlayerTab { PLAYER, BOOKMARKS, FOLDER, RECENT_FOLDERS, RECENTS, SETTINGS }
 
 /** Dark theme shared by the player, whether shown full-screen or as part of the app shell. */
 @Composable
@@ -176,7 +192,7 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
         val bookmarkCount = bookmarks.size
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete this file?") },
+            title = { Text(stringResource(R.string.player_delete_title)) },
             text = {
                 Column {
                     Text(currentFile.name, style = MaterialTheme.typography.bodyMedium)
@@ -185,17 +201,20 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                     // They are separate files with their own names, so someone who has corrected
                     // one by hand would not otherwise expect it to be caught by "delete this file"
                     // — and there is no trash to retrieve it from.
+                    val noTrash = stringResource(R.string.player_delete_body)
+                    val transcriptsGo = pluralStringResource(
+                        R.plurals.player_delete_transcripts_too,
+                        transcripts.size,
+                        transcripts.joinToString(", ") { it.file.name },
+                    )
+                    val bookmarksGo = pluralStringResource(
+                        R.plurals.player_delete_bookmarks_too, bookmarkCount, bookmarkCount,
+                    )
                     Text(
                         buildString {
-                            append("It is deleted from the device — there is no trash to fetch it ")
-                            append("back from.")
-                            if (transcripts.isNotEmpty()) {
-                                append(" Its transcript ")
-                                append(if (transcripts.size == 1) "file " else "files ")
-                                append(transcripts.joinToString(", ") { it.file.name })
-                                append(if (transcripts.size == 1) " goes too." else " go too.")
-                            }
-                            if (bookmarkCount > 0) append(" Its $bookmarkCount bookmark(s) go with it.")
+                            append(noTrash)
+                            if (transcripts.isNotEmpty()) append(" ").append(transcriptsGo)
+                            if (bookmarkCount > 0) append(" ").append(bookmarksGo)
                         },
                         style = MaterialTheme.typography.labelSmall,
                     )
@@ -207,36 +226,30 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                     // Nothing else to do on success: the controller moves to the next file, or
                     // clears itself and this screen's own `?: return` above sends us back.
                     if (!controller.deleteCurrent()) deleteFailed = true
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.player_delete)) }
             },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.player_cancel)) } },
         )
     }
 
     if (deleteFailed) {
         AlertDialog(
             onDismissRequest = { deleteFailed = false },
-            title = { Text("Could not delete it") },
+            title = { Text(stringResource(R.string.player_delete_failed_title)) },
             text = {
                 Text(
-                    "The file is still there and nothing else was changed — its bookmarks and "
-                        + "position are untouched.",
+                    stringResource(R.string.player_delete_failed_body),
                     style = MaterialTheme.typography.bodyMedium,
                 )
             },
-            confirmButton = { TextButton(onClick = { deleteFailed = false }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { deleteFailed = false }) { Text(stringResource(R.string.player_ok)) } },
         )
     }
-    // Which panel (bookmarks / folder / recents / settings) is open under the controls. Persisted,
-    // like the home screen's composer and filter panels: whether the options or the bookmarks sit
-    // under the transport is a standing choice about how this screen is used, and re-opening it on
-    // every launch is the same small tax as re-setting a slider. Bookmarks remain the default.
-    var activePanel by remember {
-        mutableStateOf<PlayerPanel?>(UiStateStore.playerPanel(panelContext).let(::panelFromName))
-    }
-    // One effect rather than a write at each of the six toggle sites — the state IS the setting,
-    // so persisting where it changes cannot drift from where it is read.
-    LaunchedEffect(activePanel) { UiStateStore.setPlayerPanel(panelContext, activePanel?.name) }
+    // Which tab is showing. Persisted (under the old panel key) so the player reopens where it was
+    // left — someone working through bookmarks comes back to the bookmarks. Player is the default.
+    var tab by remember { mutableStateOf(tabFromName(UiStateStore.playerPanel(panelContext))) }
+    // One effect rather than a write at each switch — the state IS the setting.
+    LaunchedEffect(tab) { UiStateStore.setPlayerPanel(panelContext, tab.name) }
     // Other media in the same folder ("what's next") and the recent-files list, plus any sidecar
     // subtitle tracks for the current file.
     val siblings = remember(currentFile) { controller.siblings() }
@@ -313,14 +326,12 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
             kotlin.math.abs(pos - prev.positionMs) <= (windowMs * controller.speed).toLong() + 1_000L
         if (prev != null && now - lastTapMs <= windowMs && nearPrev && bookmarks.contains(prev)) {
             val bumped = prev.copy(text = bumpPriority(prev.text))
-            val updated = (bookmarks - prev + bumped).sortedBy { it.positionMs }
-            bookmarks = updated
-            Bookmarks.save(currentFile, updated)
+            bookmarks = Bookmarks.update(currentFile) { it - prev + bumped }
             lastBm = bumped
             lastTapMs = now
             // Priority bump only — do NOT move the playhead; just show the new priority.
             val newP = PRIORITY_RE.find(bumped.text)?.groupValues?.get(1) ?: "2"
-            flashText = "✓ priority added p$newP"
+            flashText = panelContext.getString(R.string.player_flash_priority_added, newP)
             flashTick++
             return
         }
@@ -343,28 +354,48 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
         val typed = label.trim()
         val spoken = if (typed.isEmpty()) Subtitles.labelAt(cues, pos) else ""
         val bm = Bookmark(pos, typed.ifEmpty { spoken })
-        val updated = (bookmarks + bm).sortedBy { it.positionMs }
-        bookmarks = updated
-        Bookmarks.save(currentFile, updated)
+        bookmarks = Bookmarks.update(currentFile) { it + bm }
         label = ""
         lastBm = bm
         lastTapMs = now
-        flashText = if (spoken.isNotEmpty()) "✓ Bookmarked −${controller.bookmarkRewind}s · line captured"
-        else "✓ Bookmarked −${controller.bookmarkRewind}s"
+        flashText = panelContext.getString(
+            if (spoken.isNotEmpty()) R.string.player_flash_bookmarked_line else R.string.player_flash_bookmarked,
+            controller.bookmarkRewind,
+        )
         flashTick++
         // Rewind to the bookmarked spot so the start of that moment plays again.
         seekTo(pos)
     }
     fun deleteBookmark(b: Bookmark) {
-        val updated = bookmarks - b
-        bookmarks = updated
-        Bookmarks.save(currentFile, updated)
+        bookmarks = Bookmarks.update(currentFile) { it - b }
     }
 
     val shownPosition = dragFraction?.let { (it * duration).toLong() } ?: position
     val percent = if (duration > 0) (shownPosition * 100 / duration).toInt() else 0
     val skipPrimary = controller.skipPrimary
-    val skipSecondary = 5
+
+    // Enlarged video: the picture takes the screen, with only the seek bar and the play/skip row
+    // kept under it. Only meaningful while a video is actually showing on the Player tab.
+    var bigVideoChosen by rememberSaveable { mutableStateOf(false) }
+    val showsVideo = isVideoFile(currentFile.name) && !controller.videoDisabled
+    val bigVideo = bigVideoChosen && showsVideo && tab == PlayerTab.PLAYER
+    // Registered after the screen's own BackHandler, so back first leaves the enlarged view.
+    BackHandler(enabled = bigVideo) { bigVideoChosen = false }
+
+    if (bigVideo) {
+        BigVideoLayout(
+            controller = controller,
+            isPlaying = isPlaying,
+            shownPosition = shownPosition,
+            duration = duration,
+            bookmarks = bookmarks,
+            onScrub = { dragFraction = it },
+            onScrubFinished = { f -> seekTo((f * duration).toLong()); dragFraction = null },
+            onSeekBy = { seekBy(it) },
+            onShrink = { bigVideoChosen = false },
+        )
+        return
+    }
 
     Scaffold(
         containerColor = Color.Black,
@@ -394,7 +425,7 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.player_back)) }
                 },
                 // No delete here any more: it sits under the file's name, beside the thing it
                 // deletes. One delete control, not two.
@@ -403,333 +434,231 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
         },
     ) { padding ->
       Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-        Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
-        ) {
-            if (isVideoFile(currentFile.name)) {
-                AndroidView(
-                    factory = { ctx -> PlayerView(ctx).apply { useController = false } },
-                    update = { it.player = player },
-                    modifier = Modifier.fillMaxWidth().height(200.dp),
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-
-            // Transcription panel, in the same place a video would be: above the transport, where
-            // it can be read while the audio plays. Only present when a sidecar exists, so it costs
-            // nothing on files that have none.
-            if (transcripts.isNotEmpty()) {
-                TranscriptPanel(
-                    transcripts = transcripts,
-                    selectedLang = transcriptLang,
-                    text = transcriptText,
-                    expanded = transcriptOpen,
-                    onSelect = { transcriptLang = it },
-                    onDelete = { t ->
-                        if (Transcripts.delete(t.file)) transcriptsVersion++
-                    },
-                    onToggle = { transcriptOpen = !transcriptOpen },
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-
-            // Now-playing card: play bar, filename + note + bookmark button, and transport controls.
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 6.dp)
-                    .border(1.dp, Color(0xFF666666), RoundedCornerShape(12.dp))
-                    .padding(10.dp),
+        val recents = controller.recents
+        val recentFolders = controller.recentFolders
+        Column(modifier = Modifier.fillMaxSize()) {
+            // The tabs. Icons with their count, each with its name as the description so a screen
+            // reader announces "Bookmarks, 4" rather than "4".
+            TabRow(
+                selectedTabIndex = tab.ordinal,
+                containerColor = Color.Black,
             ) {
-            SeekBar(shownPosition, duration, bookmarks,
-                onScrub = { dragFraction = it },
-                onScrubFinished = { f -> seekTo((f * duration).toLong()); dragFraction = null })
-
-            // Live subtitle line for the selected sidecar track (works for audio and video alike).
-            if (selectedSub != null) {
-                val cue = Subtitles.cueAt(cues, position)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp)
-                        .background(Color(0xAA000000), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        cue ?: "♪",
-                        color = Color.White,
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+                PlayerTabButton(tab == PlayerTab.PLAYER, Icons.Filled.PlayCircle,
+                    stringResource(R.string.player_tab_player), null) { tab = PlayerTab.PLAYER }
+                PlayerTabButton(tab == PlayerTab.BOOKMARKS, Icons.Filled.Bookmark,
+                    stringResource(R.string.player_panel_bookmarks), "${bookmarks.size}") { tab = PlayerTab.BOOKMARKS }
+                PlayerTabButton(tab == PlayerTab.FOLDER, Icons.Filled.Folder,
+                    stringResource(R.string.player_panel_in_folder), "${siblings.size}") { tab = PlayerTab.FOLDER }
+                PlayerTabButton(tab == PlayerTab.RECENT_FOLDERS, Icons.Filled.FolderOpen,
+                    stringResource(R.string.player_panel_recent_folders), "${recentFolders.size}") { tab = PlayerTab.RECENT_FOLDERS }
+                PlayerTabButton(tab == PlayerTab.RECENTS, Icons.Filled.History,
+                    stringResource(R.string.player_panel_recently_played), "${recents.size}") { tab = PlayerTab.RECENTS }
+                PlayerTabButton(tab == PlayerTab.SETTINGS, Icons.Filled.Settings,
+                    stringResource(R.string.player_panel_settings), null) { tab = PlayerTab.SETTINGS }
             }
 
-            // Title + note field on the left; a high-contrast bookmark button spanning both rows on
-            // the right so it's hard to miss. Kept compact (30% shorter than the original 156dp,
-            // filename capped at 3 lines) so the controls and panels fit without scrolling.
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth().height(110.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    // Filename region: up to 3 lines, with the delete control directly under it so
-                    // the button and the name it acts on are read together.
-                    Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopStart) {
-                        Text(
-                            currentFile.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    // Under the name, deliberately small and red: it deletes the recording, its
-                    // transcripts and its bookmarks, and it is the one control on this screen that
-                    // cannot be undone.
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = { confirmDelete = true },
-                            modifier = Modifier.size(30.dp),
-                        ) {
-                            Icon(
-                                Icons.Filled.Delete,
-                                contentDescription = "Delete this file",
-                                tint = Color(0xFFE57373),
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                        Text(
-                            "Delete",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFFE57373),
-                        )
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    // Slim single-line note field with little padding.
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, Color(0xFF555555), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
-                        contentAlignment = Alignment.CenterStart,
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                when (tab) {
+                    PlayerTab.PLAYER -> Column(
+                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
                     ) {
-                        BasicTextField(
-                            value = label,
-                            onValueChange = { label = it },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
-                            cursorBrush = SolidColor(Color.White),
-                            modifier = Modifier.fillMaxWidth(),
-                            decorationBox = { inner ->
-                                if (label.isEmpty()) {
-                                    Text(
-                                        "Bookmark note (optional)",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = Color(0xFF888888),
+                        Spacer(Modifier.height(8.dp))
+                        if (showsVideo) {
+                            // Full width at the picture's usual shape; PlayerView letterboxes
+                            // anything taller or wider inside it.
+                            VideoSurface(
+                                player = player,
+                                big = false,
+                                onToggleSize = { bigVideoChosen = true },
+                                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+
+                        // Transcription panel, in the same place a video would be: above the
+                        // transport, where it can be read while the audio plays. Only present when
+                        // a sidecar exists, so it costs nothing on files that have none.
+                        if (transcripts.isNotEmpty()) {
+                            TranscriptPanel(
+                                transcripts = transcripts,
+                                selectedLang = transcriptLang,
+                                text = transcriptText,
+                                expanded = transcriptOpen,
+                                onSelect = { transcriptLang = it },
+                                onDelete = { t ->
+                                    if (Transcripts.delete(t.file)) transcriptsVersion++
+                                },
+                                onToggle = { transcriptOpen = !transcriptOpen },
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+
+                        NowPlayingCard(
+                            controller = controller,
+                            currentFile = currentFile,
+                            isPlaying = isPlaying,
+                            shownPosition = shownPosition,
+                            position = position,
+                            duration = duration,
+                            bookmarks = bookmarks,
+                            cue = selectedSub?.let { Subtitles.cueAt(cues, position) ?: "♪" },
+                            label = label,
+                            onLabel = { label = it },
+                            onScrub = { dragFraction = it },
+                            onScrubFinished = { f -> seekTo((f * duration).toLong()); dragFraction = null },
+                            onBookmark = { addBookmark() },
+                            onDelete = { confirmDelete = true },
+                            onSeekBy = { seekBy(it) },
+                            onShowFolder = { tab = PlayerTab.FOLDER },
+                        )
+
+                        // Subtitle picker: one chip per sidecar `.lang.srt` found beside the file, plus Off.
+                        if (subtitleTracks.isNotEmpty()) {
+                            Spacer(Modifier.height(12.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(stringResource(R.string.player_subtitles), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                                Spacer(Modifier.width(10.dp))
+                                FilterChip(selected = selectedSub == null, onClick = { selectedSub = null }, label = { Text(stringResource(R.string.player_off)) })
+                                subtitleTracks.forEach { t ->
+                                    Spacer(Modifier.width(6.dp))
+                                    FilterChip(
+                                        selected = selectedSub == t.file,
+                                        onClick = { selectedSub = if (selectedSub == t.file) null else t.file },
+                                        label = { Text(t.lang) },
                                     )
                                 }
-                                inner()
-                            },
-                        )
+                            }
+                        }
+                        Spacer(Modifier.height(24.dp))
                     }
-                }
-                Spacer(Modifier.width(10.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(96.dp)
-                        .background(Color.Black, RoundedCornerShape(8.dp))
-                        .border(2.dp, Color.White, RoundedCornerShape(8.dp))
-                        .clickable { addBookmark() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Filled.Bookmark, "Add bookmark", tint = Color.White, modifier = Modifier.size(44.dp))
-                }
-            }
 
-            // Transport grid 2 x 3
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SquareButton(Modifier.weight(1f), "+$skipPrimary", Icons.Filled.Forward10) { seekBy(skipPrimary * 1000L) }
-                SquareButton(
-                    Modifier.weight(1f),
-                    null,
-                    if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    emphasized = true,
-                    // When "bookmark on pause" is on, mark the pause button so it's clear a pause also bookmarks.
-                    badge = if (controller.autoBookmarkOnPause) Icons.Filled.Bookmark else null,
-                ) {
-                    controller.togglePlay()
-                }
-                SquareButton(Modifier.weight(1f), "-$skipPrimary", Icons.Filled.Replay10, emphasized = true) { seekBy(-skipPrimary * 1000L) }
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                // The mode's own icon rides on the ⏭ button, the same way the bookmark rides on
-                // pause: what "next" will do is a setting two panels away, and this is where you
-                // find out before pressing it.
-                SquareButton(
-                    Modifier.weight(1f),
-                    null,
-                    Icons.Filled.SkipNext,
-                    badge = playNextIcon(controller.playNextMode),
-                ) { controller.playNext() }
-                SquareButton(Modifier.weight(1f), null, Icons.AutoMirrored.Filled.List) {
-                    activePanel = if (activePanel == PlayerPanel.FOLDER) null else PlayerPanel.FOLDER
-                }
-                // Audio-only toggle: disable the video track (e.g. while driving). Highlighted when on.
-                SquareButton(
-                    Modifier.weight(1f),
-                    if (controller.videoDisabled) "audio" else null,
-                    if (controller.videoDisabled) Icons.Filled.VideocamOff else Icons.Filled.Videocam,
-                    emphasized = controller.videoDisabled,
-                ) { controller.changeVideoDisabled(!controller.videoDisabled) }
-                SquareButton(Modifier.weight(1f), "-$skipSecondary", Icons.Filled.Replay10) { seekBy(-skipSecondary * 1000L) }
-            }
-            } // end now-playing card
-
-            // Subtitle picker: one chip per sidecar `.lang.srt` found beside the file, plus Off.
-            if (subtitleTracks.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Subtitles", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(10.dp))
-                    FilterChip(selected = selectedSub == null, onClick = { selectedSub = null }, label = { Text("Off") })
-                    subtitleTracks.forEach { t ->
-                        Spacer(Modifier.width(6.dp))
-                        FilterChip(
-                            selected = selectedSub == t.file,
-                            onClick = { selectedSub = if (selectedSub == t.file) null else t.file },
-                            label = { Text(t.lang) },
-                        )
+                    // Bookmarks, newest first.
+                    PlayerTab.BOOKMARKS -> TabList(
+                        stringResource(R.string.player_panel_bookmarks_count, bookmarks.size),
+                        empty = bookmarks.isEmpty(),
+                    ) {
+                        items(bookmarks.sortedByDescending { it.positionMs }) { b ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable { seekTo(b.positionMs) }.padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(formatTime(b.positionMs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.width(64.dp))
+                                Text(b.text.ifBlank { "—" }, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                                IconButton(onClick = { deleteBookmark(b) }) { Icon(Icons.Filled.Delete, stringResource(R.string.player_delete), modifier = Modifier.size(20.dp)) }
+                            }
+                        }
                     }
-                }
-            }
 
-            // Panel selector: one row of small toggle chips instead of a long page of stacked
-            // sections. Tapping a chip shows its panel below; tapping again hides it. The chips
-            // share the full screen width, bookmarks first (it's also the panel open by default).
-            val recents = controller.recents
-            val recentFolders = controller.recentFolders
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                PanelChip(Icons.Filled.Bookmark, "Bookmarks", "${bookmarks.size}",
-                    selected = activePanel == PlayerPanel.BOOKMARKS, modifier = Modifier.weight(1f)) {
-                    activePanel = if (activePanel == PlayerPanel.BOOKMARKS) null else PlayerPanel.BOOKMARKS
-                }
-                PanelChip(Icons.Filled.Folder, "In this folder", "${siblings.size}",
-                    selected = activePanel == PlayerPanel.FOLDER, enabled = siblings.isNotEmpty(),
-                    modifier = Modifier.weight(1f)) {
-                    activePanel = if (activePanel == PlayerPanel.FOLDER) null else PlayerPanel.FOLDER
-                }
-                PanelChip(Icons.Filled.FolderOpen, "Recent folders", "${recentFolders.size}",
-                    selected = activePanel == PlayerPanel.RECENT_FOLDERS, enabled = recentFolders.isNotEmpty(),
-                    modifier = Modifier.weight(1f)) {
-                    activePanel = if (activePanel == PlayerPanel.RECENT_FOLDERS) null else PlayerPanel.RECENT_FOLDERS
-                }
-                PanelChip(Icons.Filled.History, "Recently played", null,
-                    selected = activePanel == PlayerPanel.RECENTS, enabled = recents.isNotEmpty(),
-                    modifier = Modifier.weight(1f)) {
-                    activePanel = if (activePanel == PlayerPanel.RECENTS) null else PlayerPanel.RECENTS
-                }
-                PanelChip(Icons.Filled.Settings, "Player settings", null,
-                    selected = activePanel == PlayerPanel.SETTINGS, modifier = Modifier.weight(1f)) {
-                    activePanel = if (activePanel == PlayerPanel.SETTINGS) null else PlayerPanel.SETTINGS
-                }
-            }
-
-            when (activePanel) {
-                // What's next: other media sitting in the same folder, current one highlighted.
-                PlayerPanel.FOLDER -> ListSection("In this folder (${siblings.size})", maxHeight = 280.dp) {
-                    siblings.forEach { f ->
-                        MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = true) { controller.open(f) }
+                    // What's next: other media sitting in the same folder, current one highlighted.
+                    PlayerTab.FOLDER -> TabList(
+                        stringResource(R.string.player_panel_in_folder_count, siblings.size),
+                        empty = siblings.isEmpty(),
+                    ) {
+                        items(siblings) { f ->
+                            MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = false) { controller.open(f) }
+                        }
                     }
-                }
 
-                // Bookmarks, newest first.
-                PlayerPanel.BOOKMARKS -> ListSection("Bookmarks (${bookmarks.size})", maxHeight = 280.dp) {
-                    bookmarks.sortedByDescending { it.positionMs }.forEach { b ->
+                    // Folders recently played from — tapping one resumes the most-recently-played
+                    // file in it (recents is already newest-first, so the first match is exact).
+                    PlayerTab.RECENT_FOLDERS -> TabList(
+                        stringResource(R.string.player_panel_recent_folders),
+                        empty = recentFolders.isEmpty(),
+                    ) {
+                        items(recentFolders) { folder ->
+                            FolderRow(folder, current = folder.absolutePath == currentFile.parentFile?.absolutePath) {
+                                recents.firstOrNull { it.parentFile?.absolutePath == folder.absolutePath }
+                                    ?.let { controller.open(it) }
+                            }
+                        }
+                    }
+
+                    // Jump back to anything played recently.
+                    PlayerTab.RECENTS -> TabList(
+                        stringResource(R.string.player_panel_recently_played),
+                        empty = recents.isEmpty(),
+                    ) {
+                        items(recents) { f ->
+                            MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = true) { controller.open(f) }
+                        }
+                    }
+
+                    // Player settings: skip/speed/bookmark sliders, sleep timer, bookmark-on-pause.
+                    PlayerTab.SETTINGS -> Column(
+                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+                    ) {
+                        Spacer(Modifier.height(14.dp))
+                        StepSlider(
+                            stringResource(R.string.player_skip_secs, skipPrimary),
+                            skipPrimary.toFloat(),
+                            PlayerController.MIN_SKIP_SECS.toFloat(),
+                            PlayerController.MAX_SKIP_SECS.toFloat(),
+                            1f,
+                        ) { controller.changeSkip(it.toInt()) }
+                        StepSlider(stringResource(R.string.player_speed, controller.speed), controller.speed, 0.75f, 1.25f, 0.05f) { controller.changeSpeed(it) }
+                        StepSlider(stringResource(R.string.player_bookmark_rewind, controller.bookmarkRewind), controller.bookmarkRewind.toFloat(), 0f, 20f, 1f) { controller.changeBookmarkRewind(it.toInt()) }
+                        StepSlider(stringResource(R.string.player_double_tap_prio, controller.bookmarkDoubleSecs), controller.bookmarkDoubleSecs.toFloat(), 1f, 10f, 1f) { controller.changeBookmarkDouble(it.toInt()) }
+                        StepSlider(stringResource(R.string.player_volume_db, controller.gainDb), controller.gainDb, -20f, 50f, 1f) { controller.setGain(it) }
+                        StepSlider(
+                            stringResource(R.string.player_recents_max, controller.recentsMax),
+                            controller.recentsMax.toFloat(),
+                            PlayerController.MIN_RECENTS_MAX.toFloat(),
+                            PlayerController.MAX_RECENTS_MAX.toFloat(),
+                            10f,
+                        ) { controller.changeRecentsMax(it.toInt()) }
+
+                        Spacer(Modifier.height(16.dp))
+                        PlayNextRow(controller)
+
+                        // Right under the mode it overrides, so the exception is read with the rule.
                         Row(
-                            modifier = Modifier.fillMaxWidth().clickable { seekTo(b.positionMs) }.padding(vertical = 6.dp),
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clickable {
+                                controller.changeVideoAutoNext(!controller.videoAutoNext)
+                            },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(formatTime(b.positionMs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.width(64.dp))
-                            Text(b.text.ifBlank { "—" }, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            IconButton(onClick = { deleteBookmark(b) }) { Icon(Icons.Filled.Delete, "Delete", modifier = Modifier.size(20.dp)) }
-                        }
-                    }
-                }
-
-                // Folders recently played from — tapping one resumes the most-recently-played file
-                // in it (recents is already newest-first, so the first match is exact).
-                PlayerPanel.RECENT_FOLDERS -> ListSection("Recent folders", maxHeight = 280.dp) {
-                    recentFolders.forEach { folder ->
-                        FolderRow(folder, current = folder.absolutePath == currentFile.parentFile?.absolutePath) {
-                            recents.firstOrNull { it.parentFile?.absolutePath == folder.absolutePath }
-                                ?.let { controller.open(it) }
-                        }
-                    }
-                }
-
-                // Jump back to anything played recently.
-                PlayerPanel.RECENTS -> ListSection("Recently played", maxHeight = 280.dp) {
-                    recents.forEach { f ->
-                        MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = true) { controller.open(f) }
-                    }
-                }
-
-                // Player settings: skip/speed/bookmark sliders, sleep timer, bookmark-on-pause.
-                PlayerPanel.SETTINGS -> Column {
-                    Spacer(Modifier.height(14.dp))
-                    StepSlider(
-                        "Skip ${skipPrimary}s",
-                        skipPrimary.toFloat(),
-                        PlayerController.MIN_SKIP_SECS.toFloat(),
-                        PlayerController.MAX_SKIP_SECS.toFloat(),
-                        1f,
-                    ) { controller.changeSkip(it.toInt()) }
-                    StepSlider("Speed ${"%.2f".format(controller.speed)}x", controller.speed, 0.75f, 1.25f, 0.05f) { controller.changeSpeed(it) }
-                    StepSlider("Bookmark −${controller.bookmarkRewind}s", controller.bookmarkRewind.toFloat(), 0f, 20f, 1f) { controller.changeBookmarkRewind(it.toInt()) }
-                    StepSlider("2-tap prio ${controller.bookmarkDoubleSecs}s", controller.bookmarkDoubleSecs.toFloat(), 1f, 10f, 1f) { controller.changeBookmarkDouble(it.toInt()) }
-                    StepSlider("Volume ${"%+.0f".format(controller.gainDb)} dB", controller.gainDb, -20f, 50f, 1f) { controller.setGain(it) }
-
-                    Spacer(Modifier.height(16.dp))
-                    PlayNextRow(controller)
-
-                    Spacer(Modifier.height(16.dp))
-                    SleepTimerRow(controller)
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clickable {
-                            controller.changeAutoBookmark(!controller.autoBookmarkOnPause)
-                        },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(
-                            checked = controller.autoBookmarkOnPause,
-                            onCheckedChange = { controller.changeAutoBookmark(it) },
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Column {
-                            Text("Bookmark on pause", style = MaterialTheme.typography.bodyMedium)
-                            Text(
-                                "Any pause — on-screen, cable, or Bluetooth — drops a bookmark. Handy during a nap.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFFAAAAAA),
+                            Checkbox(
+                                checked = controller.videoAutoNext,
+                                onCheckedChange = { controller.changeVideoAutoNext(it) },
                             )
+                            Spacer(Modifier.width(4.dp))
+                            Column {
+                                Text(stringResource(R.string.player_video_auto_next), style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    stringResource(R.string.player_video_auto_next_hint),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFFAAAAAA),
+                                )
+                            }
                         }
+
+                        Spacer(Modifier.height(16.dp))
+                        SleepTimerRow(controller)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clickable {
+                                controller.changeAutoBookmark(!controller.autoBookmarkOnPause)
+                            },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = controller.autoBookmarkOnPause,
+                                onCheckedChange = { controller.changeAutoBookmark(it) },
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Column {
+                                Text(stringResource(R.string.player_bookmark_on_pause), style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    stringResource(R.string.player_bookmark_on_pause_hint),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFFAAAAAA),
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(24.dp))
                     }
                 }
-
-                null -> {}
             }
-            Spacer(Modifier.height(24.dp))
         }
 
         // Brief center flash confirming a bookmark was added.
@@ -749,6 +678,350 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
             }
         }
       }
+    }
+}
+
+/**
+ * The video, with a corner button that enlarges it (or, when [big], shrinks it back).
+ *
+ * The button sits on the picture rather than in the transport grid: it is about the picture, and
+ * that is where the eye already is when the picture is too small.
+ */
+@androidx.annotation.OptIn(UnstableApi::class)
+@Composable
+private fun VideoSurface(
+    player: androidx.media3.common.Player?,
+    big: Boolean,
+    onToggleSize: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.background(Color.Black)) {
+        AndroidView(
+            factory = { ctx -> PlayerView(ctx).apply { useController = false } },
+            update = { it.player = player },
+            modifier = Modifier.fillMaxSize(),
+        )
+        IconButton(
+            onClick = onToggleSize,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(6.dp)
+                .size(40.dp)
+                .background(Color(0x99000000), RoundedCornerShape(8.dp)),
+        ) {
+            Icon(
+                if (big) Icons.Filled.CloseFullscreen else Icons.Filled.OpenInFull,
+                contentDescription = stringResource(
+                    if (big) R.string.player_video_shrink else R.string.player_video_enlarge,
+                ),
+                tint = Color.White,
+            )
+        }
+    }
+}
+
+/**
+ * The enlarged-video view: the picture gets everything except a strip at the bottom with the seek
+ * bar and the play / forward / back row, so the video can be watched large and still be driven
+ * without leaving it. The top bar and tabs go — they are what was taking the room.
+ */
+@Composable
+private fun BigVideoLayout(
+    controller: PlayerController,
+    isPlaying: Boolean,
+    shownPosition: Long,
+    duration: Long,
+    bookmarks: List<Bookmark>,
+    onScrub: (Float) -> Unit,
+    onScrubFinished: (Float) -> Unit,
+    onSeekBy: (Long) -> Unit,
+    onShrink: () -> Unit,
+) {
+    val skipPrimary = controller.skipPrimary
+    // No Scaffold here to keep clear of the system bars, so this does it: without it the play row
+    // was drawn under the navigation bar's Back/Home buttons.
+    Column(modifier = Modifier.fillMaxSize().background(Color.Black).systemBarsPadding()) {
+        VideoSurface(
+            player = controller.player,
+            big = true,
+            onToggleSize = onShrink,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        )
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+            // Same left-to-right rule as the normal view: time and skips do not mirror in RTL.
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                SeekBar(shownPosition, duration, bookmarks, onScrub = onScrub, onScrubFinished = onScrubFinished)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SquareButton(Modifier.weight(1f), "+$skipPrimary", Icons.Filled.Forward10, compact = true) { onSeekBy(skipPrimary * 1000L) }
+                    SquareButton(
+                        Modifier.weight(1f),
+                        null,
+                        if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        emphasized = true,
+                        compact = true,
+                        badge = if (controller.autoBookmarkOnPause) Icons.Filled.Bookmark else null,
+                    ) { controller.togglePlay() }
+                    SquareButton(Modifier.weight(1f), "-$skipPrimary", Icons.Filled.Replay10, emphasized = true, compact = true) { onSeekBy(-skipPrimary * 1000L) }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The Player tab's card: seek bar, live subtitle line, the file's name with delete and the
+ * bookmark-note field beside the big bookmark button, then the transport grid.
+ *
+ * The name WRAPS, however long it is. It used to sit in a fixed-height box capped at three lines,
+ * and the long lecture titles this player mostly sees lost their ending — usually the part that
+ * says which session it is. The row grows with the name instead, and the bookmark button grows
+ * with the row.
+ */
+@Composable
+private fun NowPlayingCard(
+    controller: PlayerController,
+    currentFile: File,
+    isPlaying: Boolean,
+    shownPosition: Long,
+    position: Long,
+    duration: Long,
+    bookmarks: List<Bookmark>,
+    cue: String?,
+    label: String,
+    onLabel: (String) -> Unit,
+    onScrub: (Float) -> Unit,
+    onScrubFinished: (Float) -> Unit,
+    onBookmark: () -> Unit,
+    onDelete: () -> Unit,
+    onSeekBy: (Long) -> Unit,
+    onShowFolder: () -> Unit,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val skipPrimary = controller.skipPrimary
+    val skipSecondary = 5
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp)
+            .border(1.dp, Color(0xFF666666), RoundedCornerShape(12.dp))
+            .padding(10.dp),
+    ) {
+        // Time runs left to right on a media player in every language, RTL included.
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            SeekBar(shownPosition, duration, bookmarks, onScrub = onScrub, onScrubFinished = onScrubFinished)
+        }
+
+        // Live subtitle line for the selected sidecar track (works for audio and video alike).
+        if (cue != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp)
+                    .background(Color(0xAA000000), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    cue,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        // Title + note field on the left; a high-contrast bookmark button spanning the whole
+        // block on the right so it's hard to miss. At least 110dp tall, taller with a long name.
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).heightIn(min = 110.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    currentFile.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.weight(1f))
+                // Under the name, deliberately small and red: it deletes the recording, its
+                // transcripts and its bookmarks, and it is the one control on this screen that
+                // cannot be undone.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(30.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = stringResource(R.string.player_delete_this_file),
+                            tint = Color(0xFFE57373),
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    Text(
+                        stringResource(R.string.player_delete),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFFE57373),
+                    )
+                    // The folder in the phone's file manager, and the file itself to the share
+                    // sheet — the two ways of passing a recording on to someone else.
+                    Spacer(Modifier.width(14.dp))
+                    SmallAction(Icons.Filled.FolderOpen, stringResource(R.string.player_open_folder)) {
+                        currentFile.parentFile?.let { com.knotes.ui.openFolder(context, it) }
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    SmallAction(Icons.Filled.Share, stringResource(R.string.player_share)) {
+                        com.knotes.ui.shareLocalFile(context, currentFile)
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                // Slim single-line note field with little padding.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, Color(0xFF555555), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    BasicTextField(
+                        value = label,
+                        onValueChange = onLabel,
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
+                        cursorBrush = SolidColor(Color.White),
+                        modifier = Modifier.fillMaxWidth(),
+                        decorationBox = { inner ->
+                            if (label.isEmpty()) {
+                                Text(
+                                    stringResource(R.string.player_bookmark_note_hint),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color(0xFF888888),
+                                )
+                            }
+                            inner()
+                        },
+                    )
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(96.dp)
+                    .background(Color.Black, RoundedCornerShape(8.dp))
+                    .border(2.dp, Color.White, RoundedCornerShape(8.dp))
+                    .clickable(onClick = onBookmark),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Bookmark, stringResource(R.string.player_add_bookmark), tint = Color.White, modifier = Modifier.size(44.dp))
+            }
+        }
+
+        // Transport grid 2 x 3
+        Spacer(Modifier.height(12.dp))
+        // Kept left-to-right in RTL too: forward/back skips map to the direction time runs on
+        // the seek bar above, which does not mirror.
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SquareButton(Modifier.weight(1f), "+$skipPrimary", Icons.Filled.Forward10) { onSeekBy(skipPrimary * 1000L) }
+                SquareButton(
+                    Modifier.weight(1f),
+                    null,
+                    if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    emphasized = true,
+                    // When "bookmark on pause" is on, mark the pause button so it's clear a pause also bookmarks.
+                    badge = if (controller.autoBookmarkOnPause) Icons.Filled.Bookmark else null,
+                ) {
+                    controller.togglePlay()
+                }
+                SquareButton(Modifier.weight(1f), "-$skipPrimary", Icons.Filled.Replay10, emphasized = true) { onSeekBy(-skipPrimary * 1000L) }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                // The mode's own icon rides on the ⏭ button, the same way the bookmark rides on
+                // pause: what "next" will do is a setting on another tab, and this is where you
+                // find out before pressing it.
+                SquareButton(
+                    Modifier.weight(1f),
+                    null,
+                    Icons.Filled.SkipNext,
+                    badge = playNextIcon(controller.playNextMode),
+                ) { controller.playNext() }
+                SquareButton(Modifier.weight(1f), null, Icons.AutoMirrored.Filled.List, onClick = onShowFolder)
+                // Audio-only toggle: disable the video track (e.g. while driving). Highlighted when on.
+                SquareButton(
+                    Modifier.weight(1f),
+                    if (controller.videoDisabled) stringResource(R.string.player_audio_only) else null,
+                    if (controller.videoDisabled) Icons.Filled.VideocamOff else Icons.Filled.Videocam,
+                    emphasized = controller.videoDisabled,
+                ) { controller.changeVideoDisabled(!controller.videoDisabled) }
+                SquareButton(Modifier.weight(1f), "-$skipSecondary", Icons.Filled.Replay10) { onSeekBy(-skipSecondary * 1000L) }
+            }
+        }
+    }
+}
+
+/** A small labelled icon action, the size of the Delete control beside it. */
+@Composable
+private fun SmallAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onClick).padding(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = Color(0xFF8AB4F8), modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Color(0xFF8AB4F8))
+    }
+}
+
+/** One tab in the player's tab row: an icon, its count underneath when it has one. */
+@Composable
+private fun PlayerTabButton(
+    selected: Boolean,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    count: String?,
+    onClick: () -> Unit,
+) {
+    Tab(
+        selected = selected,
+        onClick = onClick,
+        modifier = Modifier.semantics(mergeDescendants = true) {
+            contentDescription = if (count != null) "$label, $count" else label
+        },
+        icon = { Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp)) },
+        text = count?.let { { Text(it, style = MaterialTheme.typography.labelSmall, maxLines = 1) } },
+    )
+}
+
+/** A full-page tab body: its title, then a lazily drawn list that has the rest of the page. */
+@Composable
+private fun TabList(
+    title: String,
+    empty: Boolean,
+    content: LazyListScope.() -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 24.dp),
+    ) {
+        item {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(6.dp))
+        }
+        if (empty) {
+            item {
+                Text("—", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF888888))
+            }
+        }
+        content()
     }
 }
 
@@ -791,7 +1064,7 @@ private fun TranscriptPanel(
             )
             Spacer(Modifier.width(6.dp))
             Text(
-                "Transcript",
+                stringResource(R.string.player_transcript),
                 style = MaterialTheme.typography.labelLarge,
                 color = Color(0xFF8AB4F8),
             )
@@ -825,7 +1098,7 @@ private fun TranscriptPanel(
                         ) {
                             Icon(
                                 Icons.Filled.Close,
-                                contentDescription = "Delete the ${t.lang} transcript",
+                                contentDescription = stringResource(R.string.player_transcript_delete, t.lang),
                                 modifier = Modifier.size(15.dp),
                             )
                         }
@@ -835,7 +1108,9 @@ private fun TranscriptPanel(
             IconButton(onClick = onToggle, modifier = Modifier.size(32.dp)) {
                 Icon(
                     if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = if (expanded) "Hide transcript" else "Show transcript",
+                    contentDescription = stringResource(
+                        if (expanded) R.string.player_transcript_hide else R.string.player_transcript_show,
+                    ),
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -851,7 +1126,7 @@ private fun TranscriptPanel(
             ) {
                 SelectionContainer {
                     Text(
-                        text = text.ifBlank { "This transcript is empty." },
+                        text = text.ifBlank { stringResource(R.string.player_transcript_empty) },
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (text.isBlank()) Color(0xFF888888) else Color(0xFFDDDDDD),
                         textAlign = if (rtl) TextAlign.Right else TextAlign.Left,
@@ -883,7 +1158,9 @@ fun MiniPlayerBar(controller: PlayerController, onExpand: () -> Unit) {
         ) {
             Icon(
                 if (controller.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                contentDescription = if (controller.isPlaying) "Pause" else "Play",
+                contentDescription = stringResource(
+                    if (controller.isPlaying) R.string.player_pause else R.string.player_play,
+                ),
                 tint = Color(0xFF8AB4F8),
                 modifier = Modifier.size(28.dp).clickable { controller.togglePlay() },
             )
@@ -897,7 +1174,7 @@ fun MiniPlayerBar(controller: PlayerController, onExpand: () -> Unit) {
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(10.dp))
-            Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Open player", tint = Color(0xFF8AB4F8), modifier = Modifier.size(24.dp))
+            Icon(Icons.AutoMirrored.Filled.List, contentDescription = stringResource(R.string.player_open_player), tint = Color(0xFF8AB4F8), modifier = Modifier.size(24.dp))
         }
     }
 }
@@ -970,90 +1247,6 @@ fun MediaMetaBadge(file: File, modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * A small icon toggle chip for the panel-selector row (icon + optional count). The four chips
- * share the row's full width (each stretched via weight), their content centered; [label] is the
- * accessibility description.
- */
-@Composable
-private fun PanelChip(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    count: String?,
-    selected: Boolean,
-    enabled: Boolean = true,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    FilterChip(
-        selected = selected,
-        enabled = enabled,
-        onClick = onClick,
-        modifier = modifier,
-        label = {
-            // Icon (+ count) centered inside the stretched chip — the leadingIcon slot would pin
-            // the icon to the start edge and leave the rest of a wide chip empty.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(icon, contentDescription = label, modifier = Modifier.size(16.dp))
-                if (count != null) {
-                    Spacer(Modifier.width(4.dp))
-                    Text(count, style = MaterialTheme.typography.labelMedium)
-                }
-            }
-        },
-    )
-}
-
-/**
- * A titled list block whose body is capped at [maxHeight] and scrolls on its own (with a thin
- * scrollbar) when it has more rows than fit. Short lists shrink to their content, so there's no
- * dead space. Bounded height is what makes this safe to nest inside the page's outer scroll.
- */
-@Composable
-private fun ListSection(
-    title: String,
-    maxHeight: Dp = 200.dp,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    Spacer(Modifier.height(12.dp))
-    Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-    val scroll = rememberScrollState()
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = maxHeight)
-            .verticalScrollbar(scroll)
-            .verticalScroll(scroll)
-            .padding(end = 6.dp),
-        content = content,
-    )
-}
-
-/** Draws a thin scrollbar on the right edge for a [verticalScroll]ed container, when it overflows. */
-private fun Modifier.verticalScrollbar(
-    state: ScrollState,
-    barWidth: Dp = 3.dp,
-    color: Color = Color(0x55FFFFFF),
-): Modifier = drawWithContent {
-    drawContent()
-    if (state.maxValue <= 0) return@drawWithContent
-    val viewport = size.height
-    val content = viewport + state.maxValue
-    val barH = (viewport / content) * viewport
-    val offsetY = (state.value.toFloat() / state.maxValue) * (viewport - barH)
-    val w = barWidth.toPx()
-    drawRoundRect(
-        color = color,
-        topLeft = Offset(size.width - w, offsetY),
-        size = Size(w, barH),
-        cornerRadius = CornerRadius(w / 2, w / 2),
-    )
-}
-
 /** A tappable media file row used by the "in this folder" and "recently played" lists. */
 @Composable
 private fun MediaRow(file: File, current: Boolean, showPath: Boolean = false, onClick: () -> Unit) {
@@ -1106,7 +1299,7 @@ private fun MediaRow(file: File, current: Boolean, showPath: Boolean = false, on
 }
 
 /** A tappable folder row for "recently played from" — mirrors [MediaRow]'s look. Tapping resumes
- *  the most-recently-played file in that folder (see PlayerPanel.RECENT_FOLDERS above). */
+ *  the most-recently-played file in that folder (see PlayerTab.RECENT_FOLDERS above). */
 @Composable
 private fun FolderRow(folder: File, current: Boolean, onClick: () -> Unit) {
     Row(
@@ -1157,11 +1350,13 @@ private fun SquareButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     emphasized: Boolean = false,
     badge: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    /** A short fixed-height button instead of the near-square one — for the enlarged-video strip. */
+    compact: Boolean = false,
     onClick: () -> Unit,
 ) {
     Box(
         modifier = modifier
-            .aspectRatio(1.2f)
+            .then(if (compact) Modifier.height(64.dp) else Modifier.aspectRatio(1.2f))
             // Emphasized buttons (play/pause, −skip) get the bold white border like the bookmark button.
             .border(
                 if (emphasized) 2.dp else 1.dp,
@@ -1200,26 +1395,19 @@ private fun SquareButton(
 @Composable
 private fun PlayNextRow(controller: PlayerController) {
     val caption = when (controller.playNextMode) {
-        PlayNextMode.NONE -> "The next file in the folder is cued, paused — nothing starts on its own."
-        PlayNextMode.SAME_FOLDER -> "The next file in this folder plays automatically."
-        PlayNextMode.RANDOM_OLD ->
-            "A file from anywhere in your library folders that you've never bookmarked and haven't " +
-                "touched in ${NextTrack.OLD_DAYS} days. If nothing is that old yet, the oldest ones are used."
-        PlayNextMode.RANDOM_OLD_PARENT ->
-            "The same pick, but only from the folder around what's playing — searched recursively. " +
-                "From inside a note's files folder it searches the folder that HOLDS them, so it " +
-                "works through every note's attachments rather than replaying this one's."
-        PlayNextMode.RANDOM_NEW_PARENT ->
-            "The same folder as \"Random here\", but the newest unbookmarked files rather than the " +
-                "oldest — for hearing what has just arrived instead of digging through the backlog."
+        PlayNextMode.NONE -> stringResource(R.string.player_next_caption_none)
+        PlayNextMode.SAME_FOLDER -> stringResource(R.string.player_next_caption_same_folder)
+        PlayNextMode.RANDOM_OLD -> stringResource(R.string.player_next_caption_random_old, NextTrack.OLD_DAYS)
+        PlayNextMode.RANDOM_OLD_PARENT -> stringResource(R.string.player_next_caption_random_here)
+        PlayNextMode.RANDOM_NEW_PARENT -> stringResource(R.string.player_next_caption_newest_here)
     }
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Play next", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(120.dp))
+            Text(stringResource(R.string.player_play_next), style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(120.dp))
             if (controller.pickingNext) {
                 Text(
-                    "finding one…",
+                    stringResource(R.string.player_finding_one),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -1237,7 +1425,7 @@ private fun PlayNextRow(controller: PlayerController) {
                 FilterChip(
                     selected = mode == controller.playNextMode,
                     onClick = { controller.changePlayNextMode(mode) },
-                    label = { Text(playNextLabel(mode), maxLines = 1) },
+                    label = { Text(stringResource(playNextLabel(mode)), maxLines = 1) },
                     leadingIcon = {
                         Icon(playNextIcon(mode), null, modifier = Modifier.size(16.dp))
                     },
@@ -1253,13 +1441,13 @@ private fun PlayNextRow(controller: PlayerController) {
     }
 }
 
-/** Short name for a play-next mode — the chip label and the settings row. */
-private fun playNextLabel(mode: PlayNextMode): String = when (mode) {
-    PlayNextMode.NONE -> "Off"
-    PlayNextMode.SAME_FOLDER -> "Same folder"
-    PlayNextMode.RANDOM_OLD -> "Random old"
-    PlayNextMode.RANDOM_OLD_PARENT -> "Random here"
-    PlayNextMode.RANDOM_NEW_PARENT -> "Newest here"
+/** Short name for a play-next mode — the chip label and the settings row (a string resource). */
+private fun playNextLabel(mode: PlayNextMode): Int = when (mode) {
+    PlayNextMode.NONE -> R.string.player_off
+    PlayNextMode.SAME_FOLDER -> R.string.player_next_same_folder
+    PlayNextMode.RANDOM_OLD -> R.string.player_next_random_old
+    PlayNextMode.RANDOM_OLD_PARENT -> R.string.player_next_random_here
+    PlayNextMode.RANDOM_NEW_PARENT -> R.string.player_next_newest_here
 }
 
 /**
@@ -1298,10 +1486,10 @@ private fun SleepTimerRow(controller: PlayerController) {
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Sleep timer", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(120.dp))
+            Text(stringResource(R.string.player_sleep_timer), style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(120.dp))
             if (active) {
                 Text(
-                    "pauses in ${formatTime(remaining)}",
+                    stringResource(R.string.player_sleep_pauses_in, formatTime(remaining)),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -1312,7 +1500,7 @@ private fun SleepTimerRow(controller: PlayerController) {
                 FilterChip(
                     selected = m == selectedMinutes,
                     onClick = { chosen = m; controller.setSleepTimer(m) },
-                    label = { Text(if (m == 0) "Off" else "${m}m") },
+                    label = { Text(if (m == 0) stringResource(R.string.player_off) else stringResource(R.string.player_sleep_minutes, m)) },
                 )
             }
         }
@@ -1331,14 +1519,9 @@ private fun bumpPriority(text: String): String {
 }
 
 /**
- * Reads back a stored [PlayerPanel] name.
- *
- * Three cases, and they are genuinely three: never chosen opens Bookmarks (the default), a stored
- * null means the panels were deliberately closed and must stay closed, and a name that no longer
- * matches any panel falls back to the default rather than to a blank screen.
+ * Reads back a stored [PlayerTab] name. Also reads the names the old under-the-controls panels were
+ * stored as (they match the tabs), and anything else — never chosen, the old "all panels closed" —
+ * opens the Player tab.
  */
-private fun panelFromName(name: String?): PlayerPanel? = when (name) {
-    UiStateStore.ABSENT -> PlayerPanel.BOOKMARKS
-    null -> null
-    else -> PlayerPanel.entries.firstOrNull { it.name == name } ?: PlayerPanel.BOOKMARKS
-}
+private fun tabFromName(name: String?): PlayerTab =
+    PlayerTab.entries.firstOrNull { it.name == name } ?: PlayerTab.PLAYER

@@ -34,6 +34,9 @@ class KnotesApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Below Android 13 the chosen UI language has to be put on the shared resources by hand,
+        // or receivers and widgets would keep drawing in the phone's language.
+        com.knotes.util.AppLanguage.applyToProcess(this)
         runCatching {
             val request = NetworkRequest.Builder()
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)

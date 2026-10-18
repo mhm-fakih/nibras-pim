@@ -1,5 +1,7 @@
 package com.knotes.prayer
 
+import androidx.annotation.StringRes
+import com.knotes.R
 import kotlin.math.abs
 import kotlin.math.acos
 import kotlin.math.asin
@@ -30,6 +32,17 @@ enum class Prayer(val label: String, val arabic: String) {
      */
     val arabicShort: String get() = arabic.removePrefix("ال")
 
+    /** The name in the UI language. [label] stays as the English name for code that compares it. */
+    @get:StringRes
+    val labelRes: Int get() = when (this) {
+        FAJR -> R.string.prayer_name_fajr
+        SUNRISE -> R.string.prayer_name_sunrise
+        DHUHR -> R.string.prayer_name_dhuhr
+        ASR -> R.string.prayer_name_asr
+        MAGHRIB -> R.string.prayer_name_maghrib
+        ISHA -> R.string.prayer_name_isha
+    }
+
     /** Shurooq is sunrise, not a prayer — nothing is prayed at it and no athan is called for it. */
     val isPrayer: Boolean get() = this != SUNRISE
 
@@ -51,6 +64,12 @@ enum class AsrSchool(val label: String, val shadowFactor: Int) {
     /** Shadow = twice the object's length; Asr falls appreciably later. */
     HANAFI("Hanafi", 2),
     ;
+
+    @get:StringRes
+    val labelRes: Int get() = when (this) {
+        STANDARD -> R.string.prayer_asr_standard
+        HANAFI -> R.string.prayer_asr_hanafi
+    }
 
     companion object {
         fun of(name: String?): AsrSchool = entries.firstOrNull { it.name == name } ?: STANDARD
@@ -84,6 +103,17 @@ enum class CalcMethod(
     JAFARI("Shia Ithna-ʿAshari (Leva Institute, Qum)", 16.0, 14.0, maghribAngle = 4.0),
     ;
 
+    @get:StringRes
+    val labelRes: Int get() = when (this) {
+        MWL -> R.string.prayer_method_mwl
+        ISNA -> R.string.prayer_method_isna
+        EGYPT -> R.string.prayer_method_egypt
+        MAKKAH -> R.string.prayer_method_makkah
+        KARACHI -> R.string.prayer_method_karachi
+        TEHRAN -> R.string.prayer_method_tehran
+        JAFARI -> R.string.prayer_method_jafari
+    }
+
     companion object {
         fun of(name: String?): CalcMethod = entries.firstOrNull { it.name == name } ?: MWL
     }
@@ -110,6 +140,14 @@ enum class HighLatRule(val label: String) {
     /** The portion is the method's own angle over 60 — closest to the geometry it replaces. */
     ANGLE_BASED("Angle-based"),
     ;
+
+    @get:StringRes
+    val labelRes: Int get() = when (this) {
+        NONE -> R.string.prayer_highlat_none
+        MIDDLE_OF_NIGHT -> R.string.prayer_highlat_middle_of_night
+        ONE_SEVENTH -> R.string.prayer_highlat_one_seventh
+        ANGLE_BASED -> R.string.prayer_highlat_angle_based
+    }
 
     companion object {
         fun of(name: String?): HighLatRule = entries.firstOrNull { it.name == name } ?: NONE

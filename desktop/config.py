@@ -139,6 +139,12 @@ class Settings:
     # because re-reading a capture is the commoner act, and because a mode that can only ever change
     # a highlight is the safer one to land in.
     editor_pane_mode: str = "read"
+    # The two quick-capture lists under the editor pane (a note list and a task list, written to
+    # quick-notes.md / quick-tasks.md at the root of the folder). Shown by default: their whole
+    # point is being there already when a thought arrives, and one that has to be summoned first
+    # is one more decision than "type it".
+    quick_panels_visible: bool = True
+    quick_panels_height: int = 210
     # The hashtag vocabulary offered after a "#" while writing a note. Blank means ``tag-bank.md``
     # next to the program; set a path to keep the bank in a synced folder instead, so the same
     # vocabulary reaches every machine. Missing file → the completer simply never appears.
@@ -170,6 +176,10 @@ class Settings:
     repositories: list[tuple[str, str]] = field(default_factory=list)
     # Code of the folder new notes are currently written to / displayed (blank → the first one).
     active_repo: str = ""
+    # Chrome background per folder code, as #rrggbb, so switching folders (Ctrl+1…9) is visible.
+    # "" = the theme's own chrome; a code missing here gets a light default by position (see
+    # REPO_CHROME_DEFAULTS in knotes.py).
+    repo_colors: dict[str, str] = field(default_factory=dict)
     # Each tag is a (code, name) pair, e.g. ("W", "Work").
     types: list[tuple[str, str]] = field(
         default_factory=lambda: [("N", "Note"), ("W", "Work"), ("H", "Home"), ("I", "Ideas"), ("T", "Todo")])
@@ -246,6 +256,8 @@ class Settings:
         s.editor_autosave_ms = int(raw.get("editor_autosave_ms", s.editor_autosave_ms))
         mode = str(raw.get("editor_pane_mode", s.editor_pane_mode))
         s.editor_pane_mode = mode if mode in ("read", "edit") else "read"
+        s.quick_panels_visible = bool(raw.get("quick_panels_visible", s.quick_panels_visible))
+        s.quick_panels_height = int(raw.get("quick_panels_height", s.quick_panels_height))
         s.highlight_color = str(raw.get("highlight_color", s.highlight_color))
         s.tag_bank_path = str(raw.get("tag_bank_path", s.tag_bank_path))
         s.append_template = raw.get("append_template", s.append_template)
@@ -255,6 +267,9 @@ class Settings:
         s.backend_password = raw.get("backend_password", s.backend_password)
         s.repositories = [tuple(r) for r in raw.get("repositories", s.repositories)]
         s.active_repo = raw.get("active_repo", s.active_repo)
+        colors = raw.get("repo_colors", {})
+        s.repo_colors = ({str(k): str(v) for k, v in colors.items()}
+                         if isinstance(colors, dict) else {})
         s.types = _clean_tags(raw.get("types", s.types))
         s.categories = _clean_tags(raw.get("categories", s.categories))
         return s

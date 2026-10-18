@@ -29,11 +29,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.knotes.AppSettings
 import com.knotes.Note
 import com.knotes.NoteFilterState
+import com.knotes.R
 import com.knotes.computeFacets
 import java.io.File
 
@@ -97,9 +99,9 @@ fun AiNotesScreen(
             Icon(Icons.Filled.SmartToy, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("AI answers", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.player_ai_title), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    if (dirExists) "$dirPath · ${notes.size}" else "Not synced yet · $dirPath",
+                    if (dirExists) "$dirPath · ${notes.size}" else stringResource(R.string.player_ai_not_synced, dirPath),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
@@ -112,12 +114,12 @@ fun AiNotesScreen(
             value = query,
             onValueChange = { query = it },
             singleLine = true,
-            label = { Text("Search these answers") },
+            label = { Text(stringResource(R.string.player_ai_search)) },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             trailingIcon = {
                 if (query.isNotEmpty()) {
                     IconButton(onClick = { query = "" }) {
-                        Icon(Icons.Filled.Clear, contentDescription = "Clear the search")
+                        Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.player_ai_clear_search))
                     }
                 }
             },
@@ -135,14 +137,19 @@ fun AiNotesScreen(
 
         if (!dirExists) {
             Empty(
-                "No AI answers folder on this phone yet.",
-                "Expected at $dirPath. It arrives over Syncthing from the desktop's knotes-ai " +
-                    "folder; set a different path in Settings if it lives elsewhere.",
+                stringResource(R.string.player_ai_no_folder_title),
+                stringResource(R.string.player_ai_no_folder_detail, dirPath),
             )
         } else if (notes.isEmpty()) {
-            Empty("The folder is there but empty.", "Nothing has synced into $dirPath yet.")
+            Empty(
+                stringResource(R.string.player_ai_empty_title),
+                stringResource(R.string.player_ai_empty_detail, dirPath),
+            )
         } else if (shown.isEmpty()) {
-            Empty("No answer matches.", "${notes.size} in the folder; the search or filters exclude them all.")
+            Empty(
+                stringResource(R.string.player_ai_no_match_title),
+                stringResource(R.string.player_ai_no_match_detail, notes.size),
+            )
         } else {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),

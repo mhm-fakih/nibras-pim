@@ -19,6 +19,12 @@ val keystoreProperties = Properties().apply {
 }
 val hasReleaseSigning = keystorePropertiesFile.exists()
 
+// Shared debug key (kept out of VCS by *.keystore). Every machine signs debug builds with this one
+// file so an APK built anywhere updates the phones in place — a per-machine ~/.android key makes
+// `adb install -r` fail with INSTALL_FAILED_UPDATE_INCOMPATIBLE, and the only way past that is an
+// uninstall that wipes the app's data. Absent (e.g. a fresh clone): the default debug key is used.
+val sharedDebugKeystore = rootProject.file("debug.keystore")
+
 // Auto-incrementing build number, persisted in app/version.properties (gitignored). It bumps on
 // every Gradle configuration (i.e. every build) and is surfaced as BuildConfig.BUILD_NUMBER.
 val buildNumberFile = file("version.properties")
@@ -69,6 +75,14 @@ android {
     }
 
     signingConfigs {
+        if (sharedDebugKeystore.exists()) {
+            getByName("debug") {
+                storeFile = sharedDebugKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
         if (hasReleaseSigning) {
             create("release") {
                 storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
@@ -149,8 +163,9 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.4.1")
     implementation("androidx.media3:media3-session:1.4.1")
 
-    // Async image loading for the Gallery page.
+    // Async image loading for the Gallery page, and video-frame thumbnails for the Videos page.
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("io.coil-kt:coil-video:2.7.0")
 
     // EXIF orientation, for the gallery's annotation editor. Coil rotates images for display, so
     // marks are drawn against the upright picture — burning them onto a bitmap decoded without the

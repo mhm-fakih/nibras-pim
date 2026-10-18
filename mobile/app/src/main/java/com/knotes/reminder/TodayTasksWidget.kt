@@ -70,10 +70,10 @@ class TodayTasksWidget : AppWidgetProvider() {
                 NoteRepository(settings).countTasksSince(TASK_TYPE, priority, startOfToday())
             }.getOrDefault(0)
 
-            views.setTextViewText(R.id.tt_title, "Today's p$priority tasks")
+            views.setTextViewText(R.id.tt_title, context.getString(R.string.widgets_today_tasks_title, priority))
             // Stated, not assessed: a day with few tasks written down is not a worse day.
             WidgetCounts.apply(views, WidgetCounts.plain(count), R.id.tt_badge)
-            views.setTextViewText(R.id.tt_empty, "Nothing yet today — add one above.")
+            views.setTextViewText(R.id.tt_empty, context.getString(R.string.widgets_today_tasks_empty))
             views.setRemoteAdapter(R.id.tt_list, sectionIntent(context, widgetId))
             views.setEmptyView(R.id.tt_list, R.id.tt_empty)
 

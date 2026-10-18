@@ -62,10 +62,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.knotes.R
 import com.knotes.UiStateStore
 import com.knotes.ui.StepSlider
 import kotlinx.coroutines.delay
@@ -116,6 +119,8 @@ fun PrayerScreen(store: PrayerSettingsStore) {
     // Recomputed each minute — and since every prayer time is rounded to a whole minute, the tick
     // that retires one is exactly the tick that recomputes this. The countdown never goes negative.
     val upcoming = remember(settings, minute) { PrayerCalendar.nextPrayer(settings, zone, now) }
+    // The time that has just arrived, if any — the header counts up from it for a while.
+    val recent = remember(settings, minute) { PrayerCalendar.recentPrayer(settings, zone, now) }
     val hijri = remember(settings, minute) { PrayerCalendar.hijriNow(settings, zone, now) }
 
     var panel by remember {
@@ -131,19 +136,20 @@ fun PrayerScreen(store: PrayerSettingsStore) {
             .padding(horizontal = 14.dp),
     ) {
         Spacer(Modifier.height(8.dp))
-        Header(settings, hijri, date, upcoming, now)
+        Header(settings, hijri, date, upcoming, recent, now)
 
         Spacer(Modifier.height(12.dp))
         day.visibleSlots(settings).forEach { slot ->
             PrayerRow(
                 slot = slot,
-                isNext = upcoming?.prayer == slot.prayer && upcoming.isTomorrow.not(),
+                isNext = if (recent != null) recent.prayer == slot.prayer
+                else upcoming?.prayer == slot.prayer && upcoming.isTomorrow.not(),
                 hasAthan = slot.prayer in settings.effectiveAthan,
             )
         }
         if (settings.visible.isEmpty()) {
             Text(
-                "No times are shown. Pick some under Times below.",
+                stringResource(R.string.prayer_none_shown),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 20.dp),
@@ -155,19 +161,19 @@ fun PrayerScreen(store: PrayerSettingsStore) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            PanelChip(Icons.Filled.VisibilityOff, "Times", panel == PrayerPanel.TIMES) {
+            PanelChip(Icons.Filled.VisibilityOff, stringResource(R.string.prayer_panel_times), panel == PrayerPanel.TIMES) {
                 panel = if (panel == PrayerPanel.TIMES) null else PrayerPanel.TIMES
             }
-            PanelChip(Icons.Filled.Tune, "Method", panel == PrayerPanel.METHOD) {
+            PanelChip(Icons.Filled.Tune, stringResource(R.string.prayer_panel_method), panel == PrayerPanel.METHOD) {
                 panel = if (panel == PrayerPanel.METHOD) null else PrayerPanel.METHOD
             }
-            PanelChip(Icons.AutoMirrored.Filled.VolumeUp, "Athan", panel == PrayerPanel.SOUND) {
+            PanelChip(Icons.AutoMirrored.Filled.VolumeUp, stringResource(R.string.prayer_panel_athan), panel == PrayerPanel.SOUND) {
                 panel = if (panel == PrayerPanel.SOUND) null else PrayerPanel.SOUND
             }
-            PanelChip(Icons.Filled.NotificationsOff, "Silence", panel == PrayerPanel.SILENCE) {
+            PanelChip(Icons.Filled.NotificationsOff, stringResource(R.string.prayer_panel_silence), panel == PrayerPanel.SILENCE) {
                 panel = if (panel == PrayerPanel.SILENCE) null else PrayerPanel.SILENCE
             }
-            PanelChip(Icons.Filled.CalendarMonth, "Hijri", panel == PrayerPanel.HIJRI) {
+            PanelChip(Icons.Filled.CalendarMonth, stringResource(R.string.prayer_panel_hijri), panel == PrayerPanel.HIJRI) {
                 panel = if (panel == PrayerPanel.HIJRI) null else PrayerPanel.HIJRI
             }
         }
@@ -194,11 +200,13 @@ private fun Header(
     hijri: HijriDate,
     date: LocalDate,
     upcoming: UpcomingPrayer?,
+    recent: UpcomingPrayer?,
     now: Long,
 ) {
+    val context = LocalContext.current
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            "$hijri",
+            hijri.label(context),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
@@ -217,9 +225,41 @@ private fun Header(
                 .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp))
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
-            if (upcoming == null) {
+            if (recent != null) {
+                // Just after a time: how long ago it was, ticking up, with the next one beneath.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            withArabic(recent.prayer),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        Text(
+                            stringResource(R.string.prayer_since_duration, elapsedClock(now - recent.atMillis)),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        if (upcoming != null) {
+                            Text(
+                                withArabic(upcoming.prayer) + " " +
+                                    stringResource(R.string.prayer_in_duration, countdown(context, upcoming.atMillis - now)),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                        }
+                    }
+                    Text(
+                        clock(recent.atMillis),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+            } else if (upcoming == null) {
                 Text(
-                    "No upcoming time — every row is hidden, or the sun never reaches these angles here.",
+                    stringResource(R.string.prayer_no_upcoming),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
@@ -227,14 +267,14 @@ private fun Header(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "${upcoming.prayer.label} · ${upcoming.prayer.arabic}" +
-                                if (upcoming.isTomorrow) "  (tomorrow)" else "",
+                            withArabic(upcoming.prayer) +
+                                if (upcoming.isTomorrow) "  " + stringResource(R.string.prayer_tomorrow_paren) else "",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
                         Text(
-                            "in ${countdown(upcoming.atMillis - now)}",
+                            stringResource(R.string.prayer_in_duration, countdown(context, upcoming.atMillis - now)),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
@@ -251,7 +291,7 @@ private fun Header(
         if (!settings.enabled) {
             Spacer(Modifier.height(6.dp))
             Text(
-                "Alarms are switched off — the times are still shown, but nothing will sound.",
+                stringResource(R.string.prayer_alarms_off_warning),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.error,
             )
@@ -274,14 +314,16 @@ private fun PrayerRow(slot: PrayerSlot, isNext: Boolean, hasAthan: Boolean) {
             .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val name = stringResource(slot.prayer.labelRes)
         Text(
-            slot.prayer.label,
+            name,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = if (isNext) FontWeight.Bold else FontWeight.Normal,
             modifier = Modifier.width(86.dp),
         )
+        // The Arabic name beside the translated one — blank when the UI is Arabic and it would repeat.
         Text(
-            slot.prayer.arabic,
+            if (name == slot.prayer.arabic) "" else slot.prayer.arabic,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
@@ -289,7 +331,7 @@ private fun PrayerRow(slot: PrayerSlot, isNext: Boolean, hasAthan: Boolean) {
         if (hasAthan) {
             Icon(
                 Icons.AutoMirrored.Filled.VolumeUp,
-                contentDescription = "Athan on",
+                contentDescription = stringResource(R.string.prayer_athan_on_cd),
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(15.dp),
             )
@@ -322,7 +364,7 @@ private fun TimesPanel(
     day: PrayerDay,
     update: ((PrayerSettings) -> PrayerSettings) -> Unit,
 ) {
-    PanelBody("Which times to show") {
+    PanelBody(stringResource(R.string.prayer_which_times)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Prayer.entries.forEach { p ->
                 FilterChip(
@@ -334,31 +376,28 @@ private fun TimesPanel(
                             )
                         }
                     },
-                    label = { Text(p.label) },
+                    label = { Text(stringResource(p.labelRes)) },
                 )
             }
         }
 
         Spacer(Modifier.height(14.dp))
         Text(
-            "Adjust each time",
+            stringResource(R.string.prayer_adjust_title),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
         )
-        Note(
-            "Minutes added to, or taken off, the calculated time. This is how you match the mosque " +
-                "you actually pray at — no calculation method will agree with every one of them.",
-        )
+        Note(stringResource(R.string.prayer_adjust_note))
         Spacer(Modifier.height(4.dp))
         Prayer.entries.forEach { p ->
             val slot = day.slot(p)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text(p.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(84.dp))
+                Text(stringResource(p.labelRes), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(84.dp))
                 IconButton(
                     onClick = { update { s -> s.withAdjustment(p, s.adjustmentOf(p) - 1) } },
                     enabled = settings.adjustmentOf(p) > PrayerSettings.MIN_ADJUST,
                     modifier = Modifier.size(34.dp),
-                ) { Icon(Icons.Filled.Remove, "Earlier ${p.label}", modifier = Modifier.size(18.dp)) }
+                ) { Icon(Icons.Filled.Remove, stringResource(R.string.prayer_earlier_cd, stringResource(p.labelRes)), modifier = Modifier.size(18.dp)) }
                 Text(
                     "%+d".format(settings.adjustmentOf(p)),
                     style = MaterialTheme.typography.labelLarge,
@@ -369,7 +408,7 @@ private fun TimesPanel(
                     onClick = { update { s -> s.withAdjustment(p, s.adjustmentOf(p) + 1) } },
                     enabled = settings.adjustmentOf(p) < PrayerSettings.MAX_ADJUST,
                     modifier = Modifier.size(34.dp),
-                ) { Icon(Icons.Filled.Add, "Later ${p.label}", modifier = Modifier.size(18.dp)) }
+                ) { Icon(Icons.Filled.Add, stringResource(R.string.prayer_later_cd, stringResource(p.labelRes)), modifier = Modifier.size(18.dp)) }
                 Spacer(Modifier.width(8.dp))
                 Text(
                     slot?.atMillis?.let(::clock) ?: "—",
@@ -379,7 +418,7 @@ private fun TimesPanel(
                 )
                 if (settings.adjustmentOf(p) != 0) {
                     Text(
-                        "reset",
+                        stringResource(R.string.prayer_reset),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.clickable { update { s -> s.withAdjustment(p, 0) } },
@@ -393,31 +432,25 @@ private fun TimesPanel(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MethodPanel(settings: PrayerSettings, update: ((PrayerSettings) -> PrayerSettings) -> Unit) {
-    PanelBody("School — when Asr begins") {
-        Note(
-            "The two readings differ by about an hour in summer. This is the setting most likely to " +
-                "make the app disagree with the mosque down the road.",
-        )
+    PanelBody(stringResource(R.string.prayer_school_title)) {
+        Note(stringResource(R.string.prayer_school_note))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             AsrSchool.entries.forEach { school ->
                 FilterChip(
                     selected = settings.asr == school,
                     onClick = { update { it.copy(asr = school) } },
-                    label = { Text(school.label) },
+                    label = { Text(stringResource(school.labelRes)) },
                 )
             }
         }
 
         Spacer(Modifier.height(14.dp))
         Text(
-            "Calculation method",
+            stringResource(R.string.prayer_method_title),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
         )
-        Note(
-            "How far below the horizon the sun must be for Fajr and Isha. Shia Ithna-ʿAshari and " +
-                "Tehran also hold Maghrib back until the sun is 4° down, rather than at sunset.",
-        )
+        Note(stringResource(R.string.prayer_method_note))
         CalcMethod.entries.forEach { method ->
             Row(
                 modifier = Modifier
@@ -431,14 +464,16 @@ private fun MethodPanel(settings: PrayerSettings, update: ((PrayerSettings) -> P
                     onCheckedChange = { update { s -> s.copy(method = method) } },
                 )
                 Column {
-                    Text(method.label, style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(method.labelRes), style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        buildString {
-                            append("Fajr ${trimAngle(method.fajrAngle)}°")
-                            append(" · Isha ")
-                            append(method.ishaAngle?.let { "${trimAngle(it)}°" } ?: "${method.ishaMinutes} min after Maghrib")
-                            method.maghribAngle?.let { append(" · Maghrib ${trimAngle(it)}°") }
-                        },
+                        listOfNotNull(
+                            stringResource(R.string.prayer_method_fajr_angle, trimAngle(method.fajrAngle)),
+                            method.ishaAngle?.let { stringResource(R.string.prayer_method_isha_angle, trimAngle(it)) }
+                                ?: stringResource(R.string.prayer_method_isha_minutes, method.ishaMinutes),
+                            method.maghribAngle?.let {
+                                stringResource(R.string.prayer_method_maghrib_angle, trimAngle(it))
+                            },
+                        ).joinToString(" · "),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -448,7 +483,7 @@ private fun MethodPanel(settings: PrayerSettings, update: ((PrayerSettings) -> P
 
         Spacer(Modifier.height(14.dp))
         Text(
-            "Where you are",
+            stringResource(R.string.prayer_location_title),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
         )
@@ -456,20 +491,17 @@ private fun MethodPanel(settings: PrayerSettings, update: ((PrayerSettings) -> P
 
         Spacer(Modifier.height(14.dp))
         Text(
-            "Far-north nights",
+            stringResource(R.string.prayer_highlat_title),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
         )
-        Note(
-            "Above about 48° there are summer nights when the sun never gets low enough for Fajr or " +
-                "Isha to exist at all. Leave this at None unless you see a blank row.",
-        )
+        Note(stringResource(R.string.prayer_highlat_note))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             HighLatRule.entries.forEach { rule ->
                 FilterChip(
                     selected = settings.highLat == rule,
                     onClick = { update { it.copy(highLat = rule) } },
-                    label = { Text(rule.label) },
+                    label = { Text(stringResource(rule.labelRes)) },
                 )
             }
         }
@@ -516,7 +548,7 @@ private fun LocationFields(
                 text.toDoubleOrNull()?.takeIf { it in -90.0..90.0 }
                     ?.let { v -> update { s -> s.copy(latitude = v) } }
             },
-            label = { Text("Latitude") },
+            label = { Text(stringResource(R.string.prayer_latitude)) },
             singleLine = true,
             modifier = Modifier.weight(1f),
         )
@@ -527,7 +559,7 @@ private fun LocationFields(
                 text.toDoubleOrNull()?.takeIf { it in -180.0..180.0 }
                     ?.let { v -> update { s -> s.copy(longitude = v) } }
             },
-            label = { Text("Longitude") },
+            label = { Text(stringResource(R.string.prayer_longitude)) },
             singleLine = true,
             modifier = Modifier.weight(1f),
         )
@@ -536,7 +568,7 @@ private fun LocationFields(
     OutlinedTextField(
         value = place,
         onValueChange = { place = it; update { s -> s.copy(placeName = it) } },
-        label = { Text("Place name (shown at the top)") },
+        label = { Text(stringResource(R.string.prayer_place_name)) },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
     )
@@ -552,12 +584,9 @@ private fun LocationFields(
     }) {
         Icon(Icons.Filled.Explore, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
-        Text("Use my location")
+        Text(stringResource(R.string.prayer_use_location))
     }
-    Note(
-        "Coordinates only, and only when you press the button — nothing is looked up online and " +
-            "nothing leaves the phone.",
-    )
+    Note(stringResource(R.string.prayer_location_note))
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -608,10 +637,12 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
         if (uri != null) update { it.copy(beepSoundUri = uri.toString()) }
     }
 
-    PanelBody("Athan") {
+    // Read here: the picker intent is built in a click handler, outside composition.
+    val beepSoundTitle = stringResource(R.string.prayer_beep_sound)
+    PanelBody(stringResource(R.string.prayer_panel_athan)) {
         ToggleRow(
-            "Alarms on",
-            "The master switch. Off, the page still shows the times but nothing sounds and no alarm is set.",
+            stringResource(R.string.prayer_alarms_on),
+            stringResource(R.string.prayer_alarms_on_note),
             settings.enabled,
         ) { on -> update { it.copy(enabled = on) } }
 
@@ -629,15 +660,14 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
         val appSettings = remember { com.knotes.SettingsStore(context) }
         val appState by appSettings.state.collectAsState()
         ToggleRow(
-            "Prayer times in the app",
-            "Off, the page leaves the left rail and nothing is scheduled. Settings then shows a " +
-                "row to bring it back — this switch goes with the page.",
+            stringResource(R.string.prayer_in_app),
+            stringResource(R.string.prayer_in_app_note),
             appState.prayerEnabled,
         ) { on -> appSettings.save(appState.copy(prayerEnabled = on)) }
 
         Spacer(Modifier.height(8.dp))
-        Text("Call the athan at", style = MaterialTheme.typography.bodyMedium)
-        Note("Shurooq is sunrise, not a prayer, so it is never on this list.")
+        Text(stringResource(R.string.prayer_call_athan_at), style = MaterialTheme.typography.bodyMedium)
+        Note(stringResource(R.string.prayer_shurooq_note))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Prayer.entries.filter { it.isPrayer }.forEach { p ->
                 FilterChip(
@@ -648,52 +678,47 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
                             s.copy(athanPrayers = if (p in set) set - p else set + p)
                         }
                     },
-                    label = { Text(p.label) },
+                    label = { Text(stringResource(p.labelRes)) },
                 )
             }
         }
 
         Spacer(Modifier.height(10.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Button(onClick = { soundPicker.launch(arrayOf("audio/*")) }) { Text("Choose athan file") }
+            Button(onClick = { soundPicker.launch(arrayOf("audio/*")) }) { Text(stringResource(R.string.prayer_choose_athan_file)) }
             // Plays the real thing through the real path: the chosen file, on the alarm stream, at
             // full — the two questions being "does this file play at all" and, below, "how loud".
             Button(onClick = {
                 PrayerReceiver.soundAthanAt(context, settings, PrayerSettings.MAX_VOLUME)
-            }) { Text("Hear it") }
-            TextButton(onClick = { PrayerReceiver.stopSound() }) { Text("Stop") }
+            }) { Text(stringResource(R.string.prayer_hear_it)) }
+            TextButton(onClick = { PrayerReceiver.stopSound() }) { Text(stringResource(R.string.prayer_stop)) }
             if (settings.athanSoundUri.isNotBlank()) {
-                TextButton(onClick = { update { it.copy(athanSoundUri = "") } }) { Text("Clear") }
+                TextButton(onClick = { update { it.copy(athanSoundUri = "") } }) { Text(stringResource(R.string.prayer_clear)) }
             }
         }
         Text(
-            soundLabel(context, settings.athanSoundUri),
+            soundLabel(context, settings.athanSoundUri, stringResource(R.string.prayer_builtin_athan)),
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        Note(
-            "Any audio file on the phone. Played on the alarm stream, so it is still heard while " +
-                "the phone is silenced for the prayer below.",
-        )
+        Note(stringResource(R.string.prayer_athan_file_note))
 
         // Per-prayer volume: the Fajr athan and the Dhuhr athan want different volumes from the
         // same phone, and one setting cannot serve both.
         if (settings.effectiveAthan.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             Text(
-                "Volume for each",
+                stringResource(R.string.prayer_volume_each),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
             )
-            Note(
-                "Scaled within the alarm stream — this can quieten an athan but never make it " +
-                    "louder than the phone's own alarm volume. 0 mutes that one.",
-            )
+            Note(stringResource(R.string.prayer_volume_note))
             Prayer.entries.filter { it in settings.effectiveAthan }.forEach { p ->
                 val v = settings.athanVolumeOf(p)
                 StepSlider(
-                    "${p.label}  ${if (v == 0) "muted" else "$v%"}",
+                    if (v == 0) stringResource(R.string.prayer_volume_muted, stringResource(p.labelRes))
+                    else stringResource(R.string.prayer_volume_percent, stringResource(p.labelRes), v),
                     v.toFloat(),
                     PrayerSettings.MIN_VOLUME.toFloat(),
                     PrayerSettings.MAX_VOLUME.toFloat(),
@@ -706,16 +731,16 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
             Spacer(Modifier.height(6.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    "Hear:",
+                    stringResource(R.string.prayer_hear_colon),
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.align(Alignment.CenterVertically),
                 )
                 Prayer.entries.filter { it in settings.effectiveAthan }.forEach { p ->
                     TextButton(onClick = { PrayerReceiver.soundAthan(context, settings, p) }) {
-                        Text(p.label)
+                        Text(stringResource(p.labelRes))
                     }
                 }
-                TextButton(onClick = { PrayerReceiver.stopSound() }) { Text("Stop") }
+                TextButton(onClick = { PrayerReceiver.stopSound() }) { Text(stringResource(R.string.prayer_stop)) }
             }
         }
 
@@ -727,35 +752,42 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
         HorizontalDivider()
         Spacer(Modifier.height(10.dp))
         Text(
-            "Widget countdown",
+            stringResource(R.string.prayer_widget_countdown),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
         )
-        Note(
-            "The home-screen strip shows its countdown only once the next time is this close. " +
-                "Drawn all day it read \"5:31:23\" — a number nobody acts on, in the one spare " +
-                "line the strip has.",
-        )
+        Note(stringResource(R.string.prayer_widget_countdown_note))
         StepSlider(
-            countdownLabel(settings.countdownWithinMin),
+            countdownLabel(context, settings.countdownWithinMin),
             settings.countdownWithinMin.toFloat(),
             PrayerSettings.MIN_COUNTDOWN.toFloat(),
             PrayerSettings.MAX_COUNTDOWN.toFloat(),
             15f,
             labelWidth = 138.dp,
         ) { v -> update { it.copy(countdownWithinMin = v.toInt()) } }
+        Spacer(Modifier.height(8.dp))
+        Note(stringResource(R.string.prayer_elapsed_note))
+        StepSlider(
+            if (settings.elapsedForMin <= 0) stringResource(R.string.prayer_elapsed_off)
+            else stringResource(R.string.prayer_elapsed_for, settings.elapsedForMin),
+            settings.elapsedForMin.toFloat(),
+            PrayerSettings.MIN_ELAPSED.toFloat(),
+            PrayerSettings.MAX_ELAPSED.toFloat(),
+            5f,
+            labelWidth = 138.dp,
+        ) { v -> update { it.copy(elapsedForMin = v.toInt()) } }
 
         Spacer(Modifier.height(16.dp))
         HorizontalDivider()
         Spacer(Modifier.height(10.dp))
         ToggleRow(
-            "Remind me before each time",
-            "A quiet notification ahead of every time you have chosen to show.",
+            stringResource(R.string.prayer_remind_before),
+            stringResource(R.string.prayer_remind_before_note),
             settings.reminderEnabled,
         ) { on -> update { it.copy(reminderEnabled = on) } }
         if (settings.reminderEnabled) {
             StepSlider(
-                "${settings.reminderLeadMin} min before",
+                stringResource(R.string.prayer_min_before, settings.reminderLeadMin),
                 settings.reminderLeadMin.toFloat(),
                 PrayerSettings.MIN_LEAD.toFloat(),
                 PrayerSettings.MAX_LEAD.toFloat(),
@@ -767,21 +799,20 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
         HorizontalDivider()
         Spacer(Modifier.height(10.dp))
         ToggleRow(
-            "Beeps before Shurooq",
-            "Sunrise closes the window in which Fajr can still be prayed, so it gets a countdown of " +
-                "its own. Beeps sound on the alarm stream, to be heard by someone asleep.",
+            stringResource(R.string.prayer_beeps_before),
+            stringResource(R.string.prayer_beeps_note),
             settings.beepsEnabled,
         ) { on -> update { it.copy(beepsEnabled = on) } }
         if (settings.beepsEnabled) {
             StepSlider(
-                "${settings.beepsLeadMin} min before",
+                stringResource(R.string.prayer_min_before, settings.beepsLeadMin),
                 settings.beepsLeadMin.toFloat(),
                 PrayerSettings.MIN_LEAD.toFloat(),
                 PrayerSettings.MAX_LEAD.toFloat(),
                 1f,
             ) { v -> update { it.copy(beepsLeadMin = v.toInt()) } }
             StepSlider(
-                "${settings.beepCount} beeps",
+                pluralStringResource(R.plurals.prayer_beeps_count, settings.beepCount, settings.beepCount),
                 settings.beepCount.toFloat(),
                 PrayerSettings.MIN_BEEPS.toFloat(),
                 PrayerSettings.MAX_BEEPS.toFloat(),
@@ -789,12 +820,12 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
             ) { v -> update { it.copy(beepCount = v.toInt()) } }
 
             Spacer(Modifier.height(8.dp))
-            Text("Beep sound", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.prayer_beep_sound), style = MaterialTheme.typography.bodyMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Button(onClick = {
                     val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
                         putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALL)
-                        putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Beep sound")
+                        putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, beepSoundTitle)
                         putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
                         putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
                         if (settings.beepSoundUri.isNotBlank()) {
@@ -805,16 +836,16 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
                         }
                     }
                     beepRingtonePicker.launch(intent)
-                }) { Text("Ringtones") }
-                Button(onClick = { beepFilePicker.launch(arrayOf("audio/*")) }) { Text("A file") }
+                }) { Text(stringResource(R.string.prayer_ringtones)) }
+                Button(onClick = { beepFilePicker.launch(arrayOf("audio/*")) }) { Text(stringResource(R.string.prayer_a_file)) }
                 if (settings.beepSoundUri.isNotBlank()) {
                     TextButton(onClick = { update { it.copy(beepSoundUri = "") } }) {
-                        Text("Built-in tone")
+                        Text(stringResource(R.string.prayer_builtin_tone))
                     }
                 }
             }
             Text(
-                if (settings.beepSoundUri.isBlank()) "Built-in tone — no file needed"
+                if (settings.beepSoundUri.isBlank()) stringResource(R.string.prayer_builtin_tone_no_file)
                 else soundLabel(context, settings.beepSoundUri),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 2,
@@ -825,14 +856,11 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
                 // once at media volume, where the alarm plays it beepCount times on the alarm
                 // stream. The count and the stream are exactly the parts that can surprise you.
                 Button(onClick = { PrayerReceiver.soundBeeps(context, settings) }) {
-                    Text("Hear ${settings.beepCount}")
+                    Text(stringResource(R.string.prayer_hear_count, settings.beepCount))
                 }
-                TextButton(onClick = { PrayerReceiver.stopSound() }) { Text("Stop") }
+                TextButton(onClick = { PrayerReceiver.stopSound() }) { Text(stringResource(R.string.prayer_stop)) }
             }
-            Note(
-                "The built-in tone is the device's own and cannot be broken by deleting a file. A " +
-                    "chosen sound plays once per beep, so a long one makes a long countdown.",
-            )
+            Note(stringResource(R.string.prayer_beep_tone_note))
         }
     }
 }
@@ -845,17 +873,17 @@ private fun SilencePanel(settings: PrayerSettings, update: ((PrayerSettings) -> 
     // and comes straight back, and a remembered "false" would still be claiming it is missing.
     val granted = SilenceState.canControlRinger(context)
 
-    PanelBody("Silence the phone") {
+    PanelBody(stringResource(R.string.prayer_silence_title)) {
         ToggleRow(
-            "Go silent at these times",
-            "The ringer drops to silent from the time itself, and is put back exactly as it was.",
+            stringResource(R.string.prayer_silence_toggle),
+            stringResource(R.string.prayer_silence_toggle_note),
             settings.silenceEnabled,
         ) { on -> update { it.copy(silenceEnabled = on) } }
 
         if (settings.silenceEnabled && !granted) {
             Spacer(Modifier.height(6.dp))
             Text(
-                "Android will not let an app change the ringer without Do Not Disturb access.",
+                stringResource(R.string.prayer_dnd_needed),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.error,
             )
@@ -867,13 +895,13 @@ private fun SilencePanel(settings: PrayerSettings, update: ((PrayerSettings) -> 
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                     )
                 }
-            }) { Text("Grant access") }
+            }) { Text(stringResource(R.string.prayer_grant_access)) }
         }
 
         if (settings.silenceEnabled) {
             Spacer(Modifier.height(10.dp))
             StepSlider(
-                "For ${settings.silenceMinutes} min",
+                stringResource(R.string.prayer_silence_for, settings.silenceMinutes),
                 settings.silenceMinutes.toFloat(),
                 PrayerSettings.MIN_SILENCE.toFloat(),
                 PrayerSettings.MAX_SILENCE.toFloat(),
@@ -881,7 +909,7 @@ private fun SilencePanel(settings: PrayerSettings, update: ((PrayerSettings) -> 
             ) { v -> update { it.copy(silenceMinutes = v.toInt()) } }
 
             Spacer(Modifier.height(8.dp))
-            Text("At these times", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.prayer_at_these_times), style = MaterialTheme.typography.bodyMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Prayer.entries.filter { it.isPrayer }.forEach { p ->
                     FilterChip(
@@ -892,14 +920,11 @@ private fun SilencePanel(settings: PrayerSettings, update: ((PrayerSettings) -> 
                                 s.copy(silencePrayers = if (p in set) set - p else set + p)
                             }
                         },
-                        label = { Text(p.label) },
+                        label = { Text(stringResource(p.labelRes)) },
                     )
                 }
             }
-            Note(
-                "Chosen separately from the athan: wanting the phone quiet while you pray and wanting " +
-                    "to hear the call are different decisions.",
-            )
+            Note(stringResource(R.string.prayer_silence_note))
         }
     }
 }
@@ -910,28 +935,31 @@ private fun HijriPanel(
     hijri: HijriDate,
     update: ((PrayerSettings) -> PrayerSettings) -> Unit,
 ) {
-    PanelBody("Islamic date") {
+    val context = LocalContext.current
+    PanelBody(stringResource(R.string.prayer_islamic_date)) {
+        val dateText = hijri.label(context)
         Text(
-            "$hijri  ·  ${hijri.monthArabic}",
+            // The Arabic month rides along, unless the date is already written in Arabic.
+            if (hijri.monthName(context) == hijri.monthArabic) dateText else "$dateText  ·  ${hijri.monthArabic}",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
         )
-        Note(
-            "Worked out arithmetically, from the tabular calendar — it needs no network and always " +
-                "has an answer, but the real month begins on a sighting of the crescent, which can " +
-                "fall a day either side. Nudge it to match what was announced where you are.",
-        )
+        Note(stringResource(R.string.prayer_hijri_note))
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Shift by", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(80.dp))
+            Text(stringResource(R.string.prayer_shift_by), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(80.dp))
             IconButton(
                 onClick = { update { it.copy(hijriOffsetDays = it.hijriOffsetDays - 1) } },
                 enabled = settings.hijriOffsetDays > Hijri.MIN_OFFSET,
                 modifier = Modifier.size(36.dp),
-            ) { Icon(Icons.Filled.Remove, "A day earlier", modifier = Modifier.size(18.dp)) }
+            ) { Icon(Icons.Filled.Remove, stringResource(R.string.prayer_day_earlier_cd), modifier = Modifier.size(18.dp)) }
             Text(
-                "%+d day".format(settings.hijriOffsetDays) + if (settings.hijriOffsetDays == 1 || settings.hijriOffsetDays == -1) "" else "s",
+                pluralStringResource(
+                    R.plurals.prayer_shift_days,
+                    kotlin.math.abs(settings.hijriOffsetDays),
+                    settings.hijriOffsetDays,
+                ),
                 style = MaterialTheme.typography.labelLarge,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.width(72.dp),
@@ -940,14 +968,13 @@ private fun HijriPanel(
                 onClick = { update { it.copy(hijriOffsetDays = it.hijriOffsetDays + 1) } },
                 enabled = settings.hijriOffsetDays < Hijri.MAX_OFFSET,
                 modifier = Modifier.size(36.dp),
-            ) { Icon(Icons.Filled.Add, "A day later", modifier = Modifier.size(18.dp)) }
+            ) { Icon(Icons.Filled.Add, stringResource(R.string.prayer_day_later_cd), modifier = Modifier.size(18.dp)) }
         }
 
         Spacer(Modifier.height(10.dp))
         ToggleRow(
-            "Day starts at Maghrib",
-            "The Islamic day turns over at sunset, not at midnight — so after Maghrib the date above " +
-                "is already tomorrow's.",
+            stringResource(R.string.prayer_day_starts_maghrib),
+            stringResource(R.string.prayer_day_starts_maghrib_note),
             settings.hijriDayStartsAtMaghrib,
         ) { on -> update { it.copy(hijriDayStartsAtMaghrib = on) } }
     }
@@ -1037,15 +1064,29 @@ private fun clock(millis: Long): String =
     java.text.SimpleDateFormat("HH:mm", Locale.getDefault()).format(java.util.Date(millis))
 
 /** "2h 14m" / "14m 03s" — seconds only once it is close enough for them to matter. */
-private fun countdown(deltaMillis: Long): String {
+/**
+ * "12:34" or "1:02:03" for the elapsed timer, fenced in left-to-right marks so bidi keeps it in
+ * clock order beside the Arabic "منذ" — the same treatment the widget gives its Chronometer.
+ */
+private fun elapsedClock(millis: Long): String {
+    val total = (millis / 1000).coerceAtLeast(0)
+    val h = total / 3600
+    val m = (total % 3600) / 60
+    val s = total % 60
+    val text = if (h > 0) String.format(Locale.US, "%d:%02d:%02d", h, m, s)
+    else String.format(Locale.US, "%d:%02d", m, s)
+    return "\u200E$text\u200E"
+}
+
+private fun countdown(context: Context, deltaMillis: Long): String {
     val total = (deltaMillis / 1000).coerceAtLeast(0)
     val h = total / 3600
     val m = (total % 3600) / 60
     val s = total % 60
     return when {
-        h > 0 -> "${h}h ${m}m"
-        m > 0 -> "%dm %02ds".format(m, s)
-        else -> "${s}s"
+        h > 0 -> context.getString(R.string.prayer_dur_hours_minutes, h, m)
+        m > 0 -> context.getString(R.string.prayer_dur_minutes_seconds, m, s)
+        else -> context.getString(R.string.prayer_dur_seconds, s)
     }
 }
 
@@ -1064,16 +1105,22 @@ private fun trimAngle(angle: Double): String =
     if (angle == angle.toInt().toDouble()) angle.toInt().toString() else angle.toString()
 
 /** The picked file's display name, so the row says which athan rather than a content URI. */
-private fun soundLabel(context: Context, uri: String): String {
-    if (uri.isBlank()) return "No file chosen — the default alarm sound will play"
-    val parsed = runCatching { Uri.parse(uri) }.getOrNull() ?: return "Chosen file"
+private fun soundLabel(
+    context: Context,
+    uri: String,
+    whenBlank: String = context.getString(R.string.prayer_no_file_default),
+): String {
+    if (uri.isBlank()) return whenBlank
+    val parsed = runCatching { Uri.parse(uri) }.getOrNull()
+        ?: return context.getString(R.string.prayer_chosen_file)
     val name = runCatching {
         context.contentResolver.query(parsed, null, null, null, null)?.use { c ->
             val i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
             if (c.moveToFirst() && i >= 0) c.getString(i) else null
         }
     }.getOrNull()
-    return name ?: parsed.lastPathSegment?.substringAfterLast('/') ?: "Chosen file"
+    return name ?: parsed.lastPathSegment?.substringAfterLast('/')
+        ?: context.getString(R.string.prayer_chosen_file)
 }
 
 /**
@@ -1105,9 +1152,16 @@ private fun panelFromName(name: String?): PrayerPanel? = when (name) {
  * The maximum is longer than the gap between any two prayers, so at that setting the countdown is
  * never hidden — saying so is clearer than making someone work out what 720 minutes buys them.
  */
-private fun countdownLabel(minutes: Int): String = when {
-    minutes >= PrayerSettings.MAX_COUNTDOWN -> "always showing"
-    minutes % 60 == 0 -> "${minutes / 60}h before"
-    minutes > 60 -> "${minutes / 60}h ${minutes % 60}m before"
-    else -> "$minutes min before"
+private fun countdownLabel(context: Context, minutes: Int): String = when {
+    minutes >= PrayerSettings.MAX_COUNTDOWN -> context.getString(R.string.prayer_countdown_always)
+    minutes % 60 == 0 -> context.getString(R.string.prayer_hours_before, minutes / 60)
+    minutes > 60 -> context.getString(R.string.prayer_hours_minutes_before, minutes / 60, minutes % 60)
+    else -> context.getString(R.string.prayer_min_before, minutes)
+}
+
+/** "Fajr · الفجر" — just "الفجر" when the UI is already Arabic. */
+@Composable
+private fun withArabic(prayer: Prayer): String {
+    val name = stringResource(prayer.labelRes)
+    return if (name == prayer.arabic) name else "$name · ${prayer.arabic}"
 }

@@ -11,6 +11,7 @@ import android.os.Environment
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.knotes.MainActivity
+import com.knotes.R
 import com.knotes.SettingsStore
 import com.knotes.reminder.Widgets
 
@@ -44,7 +45,11 @@ class CollectReceiver : BroadcastReceiver() {
         // Without file access there is nothing to scan and every move would fail; saying so beats
         // reporting "collected 0 files" as though the folders were empty.
         if (!hasStorageAccess()) {
-            notify(context, "Automatic collection needs file access", "Open knotes to grant it.")
+            notify(
+                context,
+                context.getString(R.string.widgets_collect_needs_access_title),
+                context.getString(R.string.widgets_collect_needs_access_text),
+            )
             return
         }
 
@@ -73,7 +78,11 @@ class CollectReceiver : BroadcastReceiver() {
         val failed = results.size - ok
         notify(
             context,
-            "Collected $ok ${if (ok == 1) "file" else "files"}" + if (failed > 0) " ($failed failed)" else "",
+            if (failed > 0) {
+                context.resources.getQuantityString(R.plurals.widgets_collect_notif_collected_failed, ok, ok, failed)
+            } else {
+                context.resources.getQuantityString(R.plurals.widgets_collect_notif_collected, ok, ok)
+            },
             folder.name,
         )
         runCatching { Widgets.refreshAll(context) }
@@ -108,7 +117,7 @@ class CollectReceiver : BroadcastReceiver() {
             mgr.createNotificationChannel(
                 // Low importance and silent: this is a receipt for work already done, not a thing
                 // that needs answering.
-                NotificationChannel(CHANNEL, "Automatic collection", NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(CHANNEL, context.getString(R.string.widgets_collect_channel), NotificationManager.IMPORTANCE_LOW)
                     .apply { setSound(null, null) },
             )
         }

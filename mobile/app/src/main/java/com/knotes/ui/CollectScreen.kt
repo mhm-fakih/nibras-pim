@@ -31,10 +31,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.knotes.R
 import com.knotes.collect.CollectStatus
 import com.knotes.collect.CollectViewModel
 
@@ -63,15 +66,15 @@ fun CollectScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Collect files") },
+                title = { Text(stringResource(R.string.widgets_collect_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.widgets_back))
                     }
                 },
                 actions = {
                     IconButton(onClick = { vm.scan(sourceDirs, newDir, timestampFormat) }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Rescan")
+                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.widgets_collect_rescan))
                     }
                 },
             )
@@ -81,20 +84,19 @@ fun CollectScreen(
             // Status banner
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 when (status) {
-                    CollectStatus.Scanning -> Text("Scanning source folders…", style = MaterialTheme.typography.titleMedium)
+                    CollectStatus.Scanning -> Text(stringResource(R.string.widgets_collect_scanning), style = MaterialTheme.typography.titleMedium)
                     CollectStatus.Ready -> {
-                        Text("Found ${found.size} files", style = MaterialTheme.typography.titleMedium)
+                        Text(pluralStringResource(R.plurals.widgets_collect_found, found.size, found.size), style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "They will be moved into a new timestamped subfolder of $newDir and " +
-                                "renamed with the standard timestamp.",
+                            stringResource(R.string.widgets_collect_will_move, newDir),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    CollectStatus.Collecting -> Text("Moving files…", style = MaterialTheme.typography.titleMedium)
+                    CollectStatus.Collecting -> Text(stringResource(R.string.widgets_collect_moving), style = MaterialTheme.typography.titleMedium)
                     CollectStatus.Done -> {
                         val ok = results.count { it.ok }
-                        Text("Moved $ok of ${results.size} files", style = MaterialTheme.typography.titleMedium)
+                        Text(pluralStringResource(R.plurals.widgets_collect_moved, results.size, ok, results.size), style = MaterialTheme.typography.titleMedium)
                         targetPath?.let {
                             Text("→ $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -122,7 +124,7 @@ fun CollectScreen(
                         FileRow(
                             top = f.source.name,
                             bottom = "→ ${f.newName}",
-                            label = f.sourceLabel + (if (f.timestampFrom == "modified") " · mtime" else ""),
+                            label = f.sourceLabel + (if (f.timestampFrom == "modified") " · " + stringResource(R.string.widgets_collect_mtime) else ""),
                         )
                         HorizontalDivider()
                     }
@@ -137,13 +139,13 @@ fun CollectScreen(
                             onClick = { vm.collect(newDir, timestampFormat, noteType, notePriority, noteCategory) },
                             enabled = found.isNotEmpty(),
                             modifier = Modifier.fillMaxWidth(),
-                        ) { Text(if (found.isEmpty()) "No files found" else "Collect ${found.size} files") }
+                        ) { Text(if (found.isEmpty()) stringResource(R.string.widgets_collect_none_found) else pluralStringResource(R.plurals.widgets_collect_button, found.size, found.size)) }
                         CollectStatus.Done -> OutlinedButton(
                             onClick = { vm.scan(sourceDirs, newDir, timestampFormat) },
                             modifier = Modifier.fillMaxWidth(),
-                        ) { Text("Scan again") }
+                        ) { Text(stringResource(R.string.widgets_collect_scan_again)) }
                         else -> Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
-                            Text("Working…")
+                            Text(stringResource(R.string.widgets_working))
                         }
                     }
                 }

@@ -98,6 +98,11 @@ object PrayerEvents {
             // this the strip sat reading "شروق بعد -0:12:34" until something else happened to be
             // scheduled — and Shurooq in particular has no athan to redraw it.
             events += PrayerEvent(PrayerEventKind.COUNTDOWN, slot.prayer, at)
+            // And once more when the elapsed timer's window closes, so "ظهر منذ 29:59" does not
+            // keep climbing past the point it was meant to disappear.
+            val elapsed = settings.elapsedForMin
+                .coerceIn(PrayerSettings.MIN_ELAPSED, PrayerSettings.MAX_ELAPSED)
+            if (elapsed > 0) events += PrayerEvent(PrayerEventKind.COUNTDOWN, slot.prayer, at + elapsed * 60_000L)
         }
 
         // Sunrise ends the time in which Fajr can still be prayed, which is why it gets a countdown
@@ -124,12 +129,33 @@ object PrayerEvents {
         zone: ZoneId,
         nowMillis: Long,
         countdownWakeups: Boolean = false,
-    ): PrayerEvent? {
-        if (!settings.enabled) return null
-        val today = LocalDate.ofInstant(Instant.ofEpochMilli(nowMillis), zone)
+        kinds: Set<PrayerEventKind>? = null,
+    ): PrayerEvent? =
+        around(settings, zone, nowMillis, countdownWakeups)
+            .filter { it.atMillis > nowMillis && (kinds == null || it.kind in kinds) }
+            .minByOrNull { it.atMillis }
+
+    /**
+     * Every event falling at exactly [atMillis], countdown wake-ups aside.
+     *
+     * Several things are due at the same instant as a matter of course — a prayer's athan and the
+     * start of its silence are both "at the time" — and only one alarm is armed for that instant,
+     * so whatever fires it has to act on all of them, or all but the first are silently skipped.
+     */
+    fun at(settings: PrayerSettings, zone: ZoneId, atMillis: Long): List<PrayerEvent> =
+        if (!settings.enabled) emptyList()
+        else around(settings, zone, atMillis, countdownWakeups = false).filter { it.atMillis == atMillis }
+
+    /** Yesterday, today and tomorrow — see [next] for why yesterday. */
+    private fun around(
+        settings: PrayerSettings,
+        zone: ZoneId,
+        millis: Long,
+        countdownWakeups: Boolean,
+    ): List<PrayerEvent> {
+        if (!settings.enabled) return emptyList()
+        val today = LocalDate.ofInstant(Instant.ofEpochMilli(millis), zone)
         return listOf(today.minusDays(1), today, today.plusDays(1))
             .flatMap { forDay(settings, PrayerCalendar.dayOf(settings, it, zone), countdownWakeups) }
-            .filter { it.atMillis > nowMillis }
-            .minByOrNull { it.atMillis }
     }
 }

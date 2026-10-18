@@ -69,10 +69,10 @@ class TodayJournalWidget : AppWidgetProvider() {
                 NoteRepository(settings).countTasksSince(JOURNAL_TYPE, null, startOfToday())
             }.getOrDefault(0)
 
-            views.setTextViewText(R.id.tj_title, "Today's journal")
+            views.setTextViewText(R.id.tj_title, context.getString(R.string.widgets_today_journal_title))
             // Stated, not assessed: a day with little written down is not a worse day.
             WidgetCounts.apply(views, WidgetCounts.plain(count), R.id.tj_badge)
-            views.setTextViewText(R.id.tj_empty, "Nothing yet today — write one above.")
+            views.setTextViewText(R.id.tj_empty, context.getString(R.string.widgets_today_journal_empty))
             views.setRemoteAdapter(R.id.tj_list, sectionIntent(context, widgetId))
             views.setEmptyView(R.id.tj_list, R.id.tj_empty)
 

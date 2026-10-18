@@ -28,7 +28,10 @@ fun formatTime(ms: Long): String {
     val h = total / 3600
     val m = (total % 3600) / 60
     val s = total % 60
-    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+    // Locale.ROOT: this is written into .tmk files, which other tools parse — a localised digit
+    // shape or separator would corrupt them.
+    return if (h > 0) String.format(java.util.Locale.ROOT, "%d:%02d:%02d", h, m, s)
+    else String.format(java.util.Locale.ROOT, "%d:%02d", m, s)
 }
 
 /** Zero-padded duration: `MM:SS`, or `HH:MM:SS` once it reaches an hour. */

@@ -20,6 +20,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
+import com.knotes.R
 import com.knotes.SettingsStore
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -89,6 +90,19 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
     var playNextMode by mutableStateOf(PlayNextMode.from(prefs.getString(K_PLAY_NEXT, null)))
         private set
 
+    /**
+     * Whether a VIDEO that plays to its end is followed by anything. Off by default, overriding
+     * [playNextMode]: the modes are tuned for working through audio, and a film or a lecture
+     * recording rolling straight into another one is rarely what was wanted.
+     */
+    var videoAutoNext by mutableStateOf(prefs.getBoolean(K_VIDEO_AUTO_NEXT, false))
+        private set
+
+    fun changeVideoAutoNext(enabled: Boolean) {
+        videoAutoNext = enabled
+        prefs.edit().putBoolean(K_VIDEO_AUTO_NEXT, enabled).apply()
+    }
+
     /** True while the library is being walked for a RANDOM_OLD pick, so the UI can say so. */
     var pickingNext by mutableStateOf(false)
         private set
@@ -115,7 +129,13 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
     var sleepDeadline by mutableStateOf<Long?>(null)
         private set
 
-    /** Most-recently-opened media files, newest first (capped), persisted across launches. */
+    /** How many files the "recently played" tab keeps — a setting on the player's settings tab. */
+    var recentsMax by mutableStateOf(
+        prefs.getInt(K_RECENTS_MAX, DEFAULT_RECENTS_MAX).coerceIn(MIN_RECENTS_MAX, MAX_RECENTS_MAX)
+    )
+        private set
+
+    /** Most-recently-opened media files, newest first (capped at [recentsMax]), persisted across launches. */
     var recents by mutableStateOf(loadRecents())
         private set
 
@@ -174,6 +194,16 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
                 openPaused(last, savedPosition(last))
             }
         }
+    }
+
+    /**
+     * Open a file from the Videos page: same as [open], but with the picture on. Audio-only mode is
+     * a standing choice for the audio pages (listening while driving); picking a video off a page of
+     * thumbnails is an explicit request to watch it.
+     */
+    fun openVideo(file: File) {
+        if (videoDisabled) changeVideoDisabled(false)
+        open(file)
     }
 
     /** Load [file] and start playback (resuming from its saved position, if any). */
@@ -236,6 +266,9 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
 
     private fun posKey(file: File) = "pos:" + file.absolutePath
     private fun savedPosition(file: File): Long = prefs.getLong(posKey(file), 0L)
+
+    /** Where [file] was left off, in ms (0 = never played, or finished) — the Videos page's progress bar. */
+    fun resumePositionOf(file: File): Long = savedPosition(file)
 
     private fun saveCurrentPosition() {
         val c = controller ?: return
@@ -303,6 +336,16 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         prefs.edit().putString(K_PLAY_NEXT, mode.name).apply()
     }
 
+    /** Resize the recents list; a smaller cap drops the oldest entries straight away. */
+    fun changeRecentsMax(count: Int) {
+        recentsMax = count.coerceIn(MIN_RECENTS_MAX, MAX_RECENTS_MAX)
+        recents = recents.take(recentsMax)
+        prefs.edit()
+            .putInt(K_RECENTS_MAX, recentsMax)
+            .putString(K_RECENTS, recents.joinToString("\n") { it.absolutePath })
+            .apply()
+    }
+
     fun changeAutoBookmark(enabled: Boolean) {
         autoBookmarkOnPause = enabled
         prefs.edit().putBoolean(K_AUTO_BOOKMARK, enabled).apply()
@@ -368,11 +411,10 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
             // random pick and needs saying just as much.
             else -> nextSibling()?.let { open(it) }
                 ?: run {
-                    notice = if (currentFile == null) {
-                        "Nothing is playing."
-                    } else {
-                        "This is the last file in the folder."
-                    }
+                    notice = getApplication<Application>().getString(
+                        if (currentFile == null) R.string.player_notice_nothing_playing
+                        else R.string.player_notice_last_in_folder
+                    )
                 }
         }
     }
@@ -389,7 +431,10 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         val finished = currentFile
         // The finished file should restart from the beginning next time, not resume at its end.
         if (finished != null) prefs.edit().remove(posKey(finished)).apply()
-        when (playNextMode) {
+        // A finished video stays put unless asked otherwise — see [videoAutoNext].
+        val mode = if (finished != null && isVideoFile(finished.name) && !videoAutoNext) PlayNextMode.NONE
+        else playNextMode
+        when (mode) {
             PlayNextMode.NONE -> finished?.let { openPaused(it, 0L) }
             PlayNextMode.SAME_FOLDER -> nextSibling()?.let { open(it) }
             PlayNextMode.RANDOM_OLD -> pickRandom(libraryRoots(), NextTrack.Pick.OLDEST) { open(it) }
@@ -415,7 +460,7 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         if (pickingNext) return
         if (roots.isEmpty()) {
             // No scope at all: no media folder configured, or nothing playing to be "here".
-            notice = noPickMessage(playNextMode, scopeConfigured = false)
+            notice = getApplication<Application>().getString(noPickMessageRes(playNextMode, scopeConfigured = false))
             return
         }
         pickingNext = true
@@ -428,7 +473,9 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
                 }
             }
             pickingNext = false
-            if (pick == null) notice = noPickMessage(playNextMode, scopeConfigured = true) else then(pick)
+            if (pick == null) {
+                notice = getApplication<Application>().getString(noPickMessageRes(playNextMode, scopeConfigured = true))
+            } else then(pick)
         }
     }
 
@@ -450,7 +497,7 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
             .split("\n").filter { it.isNotBlank() }.map(::File)
 
     private fun pushRecent(file: File) {
-        val updated = (listOf(file) + recents.filter { it.absolutePath != file.absolutePath }).take(20)
+        val updated = (listOf(file) + recents.filter { it.absolutePath != file.absolutePath }).take(recentsMax)
         recents = updated
         prefs.edit().putString(K_RECENTS, updated.joinToString("\n") { it.absolutePath }).apply()
         pushRecentFolder(file.parentFile)
@@ -500,10 +547,15 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         const val MAX_SKIP_SECS = 60
         const val K_PLAY_NEXT = "play_next_mode"
         const val K_VIDEO_DISABLED = "video_disabled"
+        const val K_VIDEO_AUTO_NEXT = "video_auto_next"
         // PlaybackService reads this one too (auto-bookmark on pause rewinds by it).
         const val K_BOOKMARK_REWIND = PlaybackService.PREF_BOOKMARK_REWIND
         const val K_BOOKMARK_DOUBLE = "bookmark_double_secs"
         const val K_RECENTS = "recent_media"
+        const val K_RECENTS_MAX = "recent_media_max"
+        const val DEFAULT_RECENTS_MAX = 50
+        const val MIN_RECENTS_MAX = 10
+        const val MAX_RECENTS_MAX = 200
         const val K_RECENT_FOLDERS = "recent_media_folders"
         const val K_LAST_FILE = "last_media"
     }

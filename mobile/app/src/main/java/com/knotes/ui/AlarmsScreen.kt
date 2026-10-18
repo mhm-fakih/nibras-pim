@@ -37,9 +37,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import android.content.Context
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.knotes.R
 import com.knotes.alarm.Alarm
 import com.knotes.alarm.AlarmKind
 import com.knotes.alarm.AlarmTimes
@@ -81,7 +85,7 @@ fun AlarmsScreen(
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(onClick = { editing = Alarm(id = com.knotes.alarm.AlarmStore.newId()) }) {
-                Icon(Icons.Filled.Add, contentDescription = "Add an alarm")
+                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.prayer_alarm_add_cd))
             }
         },
     ) { padding ->
@@ -90,9 +94,9 @@ fun AlarmsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
-                Text("Alarms", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.prayer_alarms_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 Text(
-                    "${alarms.count { it.enabled }} on",
+                    stringResource(R.string.prayer_alarms_count_on, alarms.count { it.enabled }),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -101,8 +105,7 @@ fun AlarmsScreen(
                 // Said once, plainly. Without the permission Android delivers these late, and an
                 // alarm quietly firing ten minutes after its time is worse than one that says why.
                 Text(
-                    "Exact alarms are not permitted for this app, so these may fire late. " +
-                        "Grant \"Alarms & reminders\" in Android settings.",
+                    stringResource(R.string.prayer_alarm_exact_warning),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
@@ -111,8 +114,7 @@ fun AlarmsScreen(
 
             if (alarms.isEmpty()) {
                 Text(
-                    "No alarms yet. The + button adds one: a time, a countdown, or an offset from " +
-                        "a prayer time.",
+                    stringResource(R.string.prayer_alarm_empty),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(24.dp),
@@ -162,12 +164,12 @@ fun AlarmsScreen(
     confirmDelete?.let { a ->
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
-            title = { Text("Delete this alarm?") },
-            text = { Text(a.label.ifBlank { "Untitled alarm" }) },
+            title = { Text(stringResource(R.string.prayer_alarm_delete_q)) },
+            text = { Text(a.label.ifBlank { stringResource(R.string.prayer_alarm_untitled) }) },
             confirmButton = {
-                TextButton(onClick = { onDelete(a.id); confirmDelete = null }) { Text("Delete") }
+                TextButton(onClick = { onDelete(a.id); confirmDelete = null }) { Text(stringResource(R.string.prayer_delete)) }
             },
-            dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text(stringResource(R.string.prayer_cancel)) } },
         )
     }
 }
@@ -182,6 +184,7 @@ private fun AlarmRow(
     onDelete: () -> Unit,
     onStartStop: () -> Unit,
 ) {
+    val context = LocalContext.current
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -189,13 +192,13 @@ private fun AlarmRow(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    alarm.label.ifBlank { defaultLabel(alarm) },
+                    alarm.label.ifBlank { defaultLabel(context, alarm) },
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    whenLine(alarm, nextAt, zone),
+                    whenLine(context, alarm, nextAt, zone),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -204,26 +207,28 @@ private fun AlarmRow(
                 IconButton(onClick = onStartStop) {
                     Icon(
                         if (alarm.dueAtMillis == null) Icons.Filled.PlayArrow else Icons.Filled.Stop,
-                        contentDescription = if (alarm.dueAtMillis == null) "Start" else "Stop",
+                        contentDescription = stringResource(
+                            if (alarm.dueAtMillis == null) R.string.prayer_start else R.string.prayer_stop,
+                        ),
                     )
                 }
             }
             Switch(checked = alarm.enabled, onCheckedChange = onToggle)
             IconButton(onClick = onDelete) {
-                Icon(Icons.Filled.DeleteOutline, contentDescription = "Delete")
+                Icon(Icons.Filled.DeleteOutline, contentDescription = stringResource(R.string.prayer_delete))
             }
         }
         Row(modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)) {
-            TextButton(onClick = onEdit) { Text("Edit") }
+            TextButton(onClick = onEdit) { Text(stringResource(R.string.prayer_edit)) }
         }
     }
 }
 
 /** What the alarm is, when it has no label of its own. */
-private fun defaultLabel(a: Alarm): String = when (a.kind) {
+private fun defaultLabel(context: Context, a: Alarm): String = when (a.kind) {
     AlarmKind.CLOCK -> "%02d:%02d".format(a.hour, a.minute)
-    AlarmKind.COUNTDOWN -> minutesLabel(a.durationMin)
-    AlarmKind.PRAYER -> offsetLabel(a.prayer, a.offsetMin)
+    AlarmKind.COUNTDOWN -> minutesLabel(context, a.durationMin)
+    AlarmKind.PRAYER -> offsetLabel(context, a.prayer, a.offsetMin)
 }
 
 /**
@@ -232,28 +237,31 @@ private fun defaultLabel(a: Alarm): String = when (a.kind) {
  * "Not scheduled" is said out loud. An alarm that is on but has no next time — a countdown waiting
  * to be started, a prayer with no time today — otherwise looks identical to one that is armed.
  */
-private fun whenLine(a: Alarm, nextAt: Long?, zone: ZoneId): String {
-    val setting = when (a.kind) {
-        AlarmKind.CLOCK -> "%02d:%02d".format(a.hour, a.minute) +
-            if (a.days.isEmpty()) " · once" else " · " + a.days.sorted().joinToString(" ") {
-                it.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())
-            }
-        AlarmKind.COUNTDOWN ->
-            minutesLabel(a.durationMin) + if (a.dueAtMillis == null) " · not started" else " · running"
-        AlarmKind.PRAYER -> offsetLabel(a.prayer, a.offsetMin) +
-            if (a.days.isEmpty()) "" else " · " + a.days.sorted().joinToString(" ") {
-                it.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())
-            }
+private fun whenLine(context: Context, a: Alarm, nextAt: Long?, zone: ZoneId): String {
+    fun days() = a.days.sorted().joinToString(" ") {
+        it.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())
     }
-    if (!a.enabled) return "$setting · off"
-    val at = nextAt ?: return "$setting · not scheduled"
+    val setting = when (a.kind) {
+        AlarmKind.CLOCK -> "%02d:%02d".format(a.hour, a.minute) + " · " +
+            if (a.days.isEmpty()) context.getString(R.string.prayer_alarm_once) else days()
+        AlarmKind.COUNTDOWN -> minutesLabel(context, a.durationMin) + " · " + context.getString(
+            if (a.dueAtMillis == null) R.string.prayer_alarm_not_started else R.string.prayer_alarm_running,
+        )
+        AlarmKind.PRAYER -> offsetLabel(context, a.prayer, a.offsetMin) +
+            if (a.days.isEmpty()) "" else " · " + days()
+    }
+    if (!a.enabled) return "$setting · " + context.getString(R.string.prayer_alarm_off)
+    val at = nextAt ?: return "$setting · " + context.getString(R.string.prayer_alarm_not_scheduled)
     val t = java.time.LocalDateTime.ofInstant(Instant.ofEpochMilli(at), zone)
     val today = LocalDate.now(zone)
     val day = when (t.toLocalDate()) {
-        today -> "today"
-        today.plusDays(1) -> "tomorrow"
-        else -> t.toLocalDate().getDayOfWeek().getDisplayName(JavaTextStyle.SHORT, Locale.getDefault()) +
-            " " + t.toLocalDate().dayOfMonth
+        today -> context.getString(R.string.prayer_today)
+        today.plusDays(1) -> context.getString(R.string.prayer_tomorrow)
+        else -> context.getString(
+            R.string.prayer_alarm_weekday_date,
+            t.toLocalDate().getDayOfWeek().getDisplayName(JavaTextStyle.SHORT, Locale.getDefault()),
+            t.toLocalDate().dayOfMonth,
+        )
     }
-    return "$setting · rings $day ${"%02d:%02d".format(t.hour, t.minute)}"
+    return "$setting · " + context.getString(R.string.prayer_alarm_rings, day, "%02d:%02d".format(t.hour, t.minute))
 }

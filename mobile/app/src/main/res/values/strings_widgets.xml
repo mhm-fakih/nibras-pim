@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widgets_collect_title">Collect files</string>
+    <string name="widgets_back">Back</string>
+    <string name="widgets_collect_rescan">Rescan</string>
+    <string name="widgets_collect_scanning">Scanning source folders…</string>
+    <plurals name="widgets_collect_found">
+        <item quantity="one">Found %1$d file</item>
+        <item quantity="other">Found %1$d files</item>
+    </plurals>
+    <string name="widgets_collect_will_move">They will be moved into a new timestamped subfolder of %1$s and renamed with the standard timestamp.</string>
+    <string name="widgets_collect_moving">Moving files…</string>
+    <plurals name="widgets_collect_moved">
+        <item quantity="one">Moved %1$d of %2$d file</item>
+        <item quantity="other">Moved %1$d of %2$d files</item>
+    </plurals>
+    <string name="widgets_collect_mtime">mtime</string>
+    <string name="widgets_collect_none_found">No files found</string>
+    <plurals name="widgets_collect_button">
+        <item quantity="one">Collect %1$d file</item>
+        <item quantity="other">Collect %1$d files</item>
+    </plurals>
+    <string name="widgets_collect_scan_again">Scan again</string>
+    <string name="widgets_working">Working…</string>
+    <string name="widgets_collect_needs_access_title">Automatic collection needs file access</string>
+    <string name="widgets_collect_needs_access_text">Open knotes to grant it.</string>
+    <plurals name="widgets_collect_notif_collected">
+        <item quantity="one">Collected %1$d file</item>
+        <item quantity="other">Collected %1$d files</item>
+    </plurals>
+    <plurals name="widgets_collect_notif_collected_failed">
+        <item quantity="one">Collected %1$d file (%2$d failed)</item>
+        <item quantity="other">Collected %1$d files (%2$d failed)</item>
+    </plurals>
+    <string name="widgets_collect_channel">Automatic collection</string>
+    <plurals name="widgets_status_notes">
+        <item quantity="one">%1$d note</item>
+        <item quantity="other">%1$d notes</item>
+    </plurals>
+    <string name="widgets_status_today_total">Today: %1$d  ·  Total: %2$d</string>
+    <string name="widgets_status_online">Online</string>
+    <string name="widgets_status_offline">Offline</string>
+    <string name="widgets_status_synced">%1$s · Synced %2$s</string>
+    <string name="widgets_status_channel">Status</string>
+    <string name="widgets_flash_no_server">Could not reach the server, and no cards are saved on this phone yet.</string>
+    <string name="widgets_flash_tab_review">Review</string>
+    <string name="widgets_flash_tab_repeat">Repeat</string>
+    <string name="widgets_flash_tab_kept">Kept</string>
+    <string name="widgets_flash_tab_count">%1$s %2$s</string>
+    <string name="widgets_flash_empty_server">No passages on the server yet.</string>
+    <string name="widgets_flash_empty_queue">Nothing left to review — every passage has been dealt with.</string>
+    <string name="widgets_flash_empty_repeat">Nothing set to repeat.</string>
+    <string name="widgets_flash_empty_kept">Nothing kept yet.</string>
+    <string name="widgets_flash_position">%1$s of %2$s</string>
+    <string name="widgets_flash_left_of">%1$s left of %2$s</string>
+    <string name="widgets_flash_smaller_text">Smaller text</string>
+    <string name="widgets_flash_larger_text">Larger text</string>
+    <string name="widgets_flash_copy_passage">Copy this passage</string>
+    <string name="widgets_flash_unset">Unset</string>
+    <string name="widgets_flash_keep">Keep</string>
+    <string name="widgets_flash_repeat">Repeat</string>
+    <string name="widgets_flash_reviewed">Reviewed</string>
+    <string name="widgets_flash_topic_religious">religious</string>
+    <string name="widgets_flash_topic_psychological">psychological</string>
+    <string name="widgets_flash_saved_copy">saved copy, %1$s</string>
+    <plurals name="widgets_flash_decisions_to_sync">
+        <item quantity="one">%1$d decision to sync</item>
+        <item quantity="other">%1$d decisions to sync</item>
+    </plurals>
+    <string name="widgets_gallery_tool_view">View</string>
+    <string name="widgets_gallery_tool_pen">Pen</string>
+    <string name="widgets_gallery_tool_highlight">Highlight</string>
+    <string name="widgets_gallery_tool_crop">Crop</string>
+    <string name="widgets_gallery_no_images">No images in\n%1$s</string>
+    <string name="widgets_gallery_save_failed_marks_kept">Couldn\'t save that image — its marks are still here.</string>
+    <string name="widgets_gallery_save_failed">Couldn\'t save that image.</string>
+    <string name="widgets_gallery_undo_mark">Undo last mark</string>
+    <string name="widgets_gallery_previous">Previous image</string>
+    <string name="widgets_gallery_next">Next image</string>
+    <string name="widgets_gallery_label_hint">Label (renames the file)</string>
+    <string name="widgets_gallery_delete_photo">Delete photo</string>
+    <string name="widgets_bookmarks_title">Bookmarked records</string>
+    <string name="widgets_bookmarks_empty">No bookmarks</string>
+    <string name="widgets_no_title">(no title)</string>
+    <string name="widgets_kpi_title">Nibras Mobile KPIs</string>
+    <string name="widgets_kpi_notes">%1$d nt. td. / %2$d</string>
+    <string name="widgets_kpi_free_gb">%1$.1f gb f.</string>
+    <string name="widgets_kpi_files">%1$d f.</string>
+    <string name="widgets_kpi_files_today">%1$d f. td.</string>
+    <string name="widgets_kpi_plans">%1$d pl.</string>
+    <string name="widgets_plans_title">Upcoming plans</string>
+    <string name="widgets_top_priority_title">Top priority</string>
+    <string name="widgets_nothing_to_show">Nothing to show</string>
+    <string name="widgets_no_priority_notes">No priority-%1$d notes</string>
+    <string name="widgets_read_more">Read more</string>
+    <string name="widgets_nothing_upcoming">Nothing upcoming</string>
+    <string name="widgets_no_summary">(no summary)</string>
+    <string name="widgets_tomorrow_time">Tom %1$s</string>
+    <string name="widgets_feed_title_today">Today\'s notes</string>
+    <plurals name="widgets_feed_title_days">
+        <item quantity="one">Last %1$d day</item>
+        <item quantity="other">Last %1$d days</item>
+    </plurals>
+    <plurals name="widgets_feed_empty">
+        <item quantity="one">Nothing written in the last %1$d day.</item>
+        <item quantity="other">Nothing written in the last %1$d days.</item>
+    </plurals>
+    <string name="widgets_reminder_default_title">Upcoming plan</string>
+    <string name="widgets_reminder_in_minutes">in %1$d min · %2$s</string>
+    <string name="widgets_reminder_now">now · %1$s</string>
+    <string name="widgets_reminder_dismiss">Dismiss</string>
+    <string name="widgets_reminder_stop">Stop reminders</string>
+    <string name="widgets_reminder_channel">Plan reminders</string>
+    <string name="widgets_reminder_alarm_channel">Plan alarms</string>
+    <plurals name="widgets_tasks_overdue">
+        <item quantity="one">%1$d task overdue</item>
+        <item quantity="other">%1$d tasks overdue</item>
+    </plurals>
+    <string name="widgets_untitled">(untitled)</string>
+    <string name="widgets_today_journal_title">Today\'s journal</string>
+    <string name="widgets_today_journal_empty">Nothing yet today — write one above.</string>
+    <string name="widgets_today_tasks_title">Today\'s p%1$d tasks</string>
+    <string name="widgets_today_tasks_empty">Nothing yet today — add one above.</string>
+    <string name="widgets_phone_volumes">Volumes</string>
+    <string name="widgets_phone_ring">Ring</string>
+    <string name="widgets_phone_notification">Notification</string>
+    <string name="widgets_phone_alarm">Alarm</string>
+    <string name="widgets_phone_music">Music</string>
+    <string name="widgets_phone_system">System</string>
+    <string name="widgets_prayer_adhan">Adhan</string>
+    <string name="widgets_prayer_mute_phone">Silence phone</string>
+    <string name="widgets_prayer_alerts_before">Alerts before</string>
+    <string name="widgets_alarms_title">Alarms</string>
+    <string name="widgets_today_tasks_add">+  Add a task…</string>
+    <string name="widgets_today_journal_add">+  Write today\'s journal…</string>
+    <string name="widgets_label_phone_status">Phone status</string>
+    <string name="widgets_label_today_tasks">Today\'s tasks</string>
+    <string name="widgets_label_recent_notes">Recent notes</string>
+    <string name="widgets_label_alarms_countdown">Alarms countdown</string>
+    <string name="widgets_label_prayer_times">Prayer times</string>
+</resources>

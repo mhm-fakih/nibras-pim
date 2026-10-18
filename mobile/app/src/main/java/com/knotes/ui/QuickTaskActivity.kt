@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.knotes.NoteRepository
+import com.knotes.R
 import com.knotes.SettingsStore
 import com.knotes.util.autoDirection
 import com.knotes.reminder.TodayJournalWidget
@@ -78,6 +80,11 @@ import com.knotes.reminder.TodayTasksWidget
  * the entry is on screen as the input disappears.
  */
 class QuickTaskActivity : ComponentActivity() {
+
+    // The app's own language below Android 13 — see AppLanguage.
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.knotes.util.AppLanguage.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -157,7 +164,7 @@ private fun QuickCaptureBar(type: String, onClose: () -> Unit) {
         }.onFailure {
             // Stay open and say so. The text is still in the field, which is the only copy of it.
             error = it.message?.takeIf { m -> m.isNotBlank() }
-                ?: "Could not write the note. Check that file access is still granted."
+                ?: context.getString(R.string.notes_quick_write_failed)
         }
     }
 
@@ -185,7 +192,7 @@ private fun QuickCaptureBar(type: String, onClose: () -> Unit) {
                 indication = null,
                 onClick = {
                     if (text.isBlank()) onClose()
-                    else hint = "Kept. Press Back to leave — what you typed is saved as a draft."
+                    else hint = context.getString(R.string.notes_quick_kept_hint)
                 },
             )
             .imePadding(),
@@ -208,7 +215,7 @@ private fun QuickCaptureBar(type: String, onClose: () -> Unit) {
         ) {
             Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                 Text(
-                    if (journal) "Journal · today" else "Task · p$priority",
+                    if (journal) stringResource(R.string.notes_quick_journal_today) else stringResource(R.string.notes_quick_task_priority, priority),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -225,7 +232,7 @@ private fun QuickCaptureBar(type: String, onClose: () -> Unit) {
                         if (!submitted) QuickDraft.put(context, type, it.text)
                     },
                     placeholder = {
-                        Text(if (journal) "What happened?" else "What needs doing?")
+                        Text(stringResource(if (journal) R.string.notes_quick_what_happened else R.string.notes_quick_what_needs_doing))
                     },
                     // Follows what is typed: an Arabic entry right-aligns as it is written, an
                     // English one stays left, and the caret sits at the end of the text either way.

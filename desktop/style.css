@@ -1,16 +1,23 @@
 /* knotes desktop — structural styling. The actual colours come from a theme block prepended at
- * runtime (see THEMES in knotes.py): @bg, @bg_alt, @card_bg, @fg, @fg_muted, @accent, @accent_fg,
- * @chip_bg, @chip_fg, @chip_hover, @violet, @cyan. Tweak the theme block to recolour everything. */
+ * runtime (see THEMES in knotes.py): @bg, @bg_alt, @card_bg, @fg, @fg_strong, @fg_muted, @accent,
+ * @accent_fg, @chip_bg, @chip_fg, @chip_hover, @violet, @cyan, and the chrome family
+ * @chrome_bg, @chrome_fg, @chrome_fg_strong, @chrome_fg_muted.
+ *
+ * WHICH FAMILY TO USE: the plain tokens dress the WORK AREA (board, cards, editor pane, add form);
+ * the @chrome_* ones dress the furniture around it (header bar, toolbar, status bar, sidebar). The
+ * light theme paints the furniture brand-navy and the work area near-white, so putting a rule in
+ * the wrong family gives dark-on-dark or light-on-light. If a rule paints something that sits on
+ * @chrome_bg, every colour in it — text, border, hover tint — must come from the chrome family. */
 
-/* Window / chrome tint so the Solarized slate (or light parchment) shows through the whole app. */
+/* Window tint: the work-area ground, behind the board. */
 window {
     background-color: @bg;
     color: @fg;
 }
 headerbar {
     background-image: none;
-    background-color: @bg_alt;
-    color: @fg;
+    background-color: @chrome_bg;
+    color: @chrome_fg;
     /* Compact toolbar. */
     min-height: 34px;
     padding: 2px 6px;
@@ -19,6 +26,15 @@ headerbar button {
     min-height: 26px;
     min-width: 26px;
     padding: 2px 6px;
+}
+/* The window title (app name · build · note counts). GTK dims a header bar's title label by
+   default, which on the navy reads as switched-off rather than quiet, so state it outright.
+   Scoped to `headerbar` because `.title` is also a card's own class out on the light board. */
+headerbar .title,
+headerbar .subtitle,
+headerbar > label {
+    color: @chrome_fg_strong;
+    text-shadow: none;
 }
 
 /* Kanban board */
@@ -174,6 +190,15 @@ headerbar button {
     color: @fg_muted;
     font-size: 0.80em;
 }
+/* Words · highlights · files: read at a glance, so the strong text colour, not the muted one. */
+.card-counts-strong {
+    color: @fg_strong;
+}
+/* Standing note beside the search box: the search covers file names too, which nothing else says. */
+.search-hint {
+    color: @fg_muted;
+    font-size: 0.85em;
+}
 .card-action:disabled {
     background: none;
     opacity: 0.45;
@@ -222,7 +247,7 @@ headerbar button {
 
 /* Tag badges on each card */
 .badge {
-    border-radius: 8px;
+    border-radius: 5px;
     padding: 1px 8px;
     font-size: 0.8em;
     font-weight: 600;
@@ -270,7 +295,7 @@ headerbar button {
     background: @chip_bg;
     color: @chip_fg;
     border: none;
-    border-radius: 14px;
+    border-radius: 5px;
     padding: 3px 10px;
     min-height: 0;
     font-size: 0.85em;
@@ -292,9 +317,10 @@ headerbar button {
 
 /* Toolbar row (view/action controls) — sits directly under the native title bar. */
 .toolbar {
-    background: @bg_alt;
-    border-bottom: 1px solid alpha(@fg_muted, 0.2);
-    padding: 2px 4px;
+    background: @chrome_bg;
+    border-bottom: 1px solid alpha(@chrome_fg, 0.20);
+    /* Was set_border_width(6) in code — moved here so the background covers it. See _build_ui. */
+    padding: 6px;
 }
 /* GTK's stock button face is a near-white gradient — right for Adwaita, wrong on the Solarized
  * parchment (and washed out on the dark slate), so a toolbar read as a row of white tiles. Our own
@@ -308,9 +334,9 @@ headerbar button {
 .toolbar button,
 .sidebar-clear {
     background-image: none;
-    background-color: alpha(@fg_muted, 0.13);
-    color: @fg;
-    border: 1px solid alpha(@fg_muted, 0.22);
+    background-color: alpha(@chrome_fg, 0.12);
+    color: @chrome_fg;
+    border: 1px solid alpha(@chrome_fg, 0.26);
     box-shadow: none;
     text-shadow: none;
 }
@@ -318,7 +344,7 @@ headerbar button {
 .sidebar-clear:hover {
     background-color: alpha(@accent, 0.18);
     border-color: alpha(@accent, 0.55);
-    color: @fg_strong;
+    color: @chrome_fg_strong;
 }
 .toolbar button:checked,
 .toolbar button:active {
@@ -328,18 +354,19 @@ headerbar button {
 }
 .toolbar button:disabled,
 .sidebar-clear:disabled {
-    background-color: alpha(@fg_muted, 0.07);
-    border-color: alpha(@fg_muted, 0.14);
-    color: alpha(@fg_muted, 0.8);
+    background-color: alpha(@chrome_fg, 0.06);
+    border-color: alpha(@chrome_fg, 0.14);
+    color: alpha(@chrome_fg_muted, 0.85);
 }
 /* Status bar — folder path (left) + save key (right). */
 .statusbar {
-    background: @bg_alt;
-    border-top: 1px solid alpha(@fg_muted, 0.35);
-    color: @fg_strong;
+    background: @chrome_bg;
+    border-top: 1px solid alpha(@chrome_fg, 0.25);
+    color: @chrome_fg_strong;
     font-size: 0.9em;
     font-weight: 600;
-    padding: 3px 8px;
+    /* Was set_border_width(4) in code — see the .toolbar note. */
+    padding: 4px 8px;
 }
 
 /* Help dialog */
@@ -354,19 +381,19 @@ headerbar button {
  * .group-header and .chip rules above, so only what's specific to it lives here. */
 .sidebar-panel,
 .sidebar-rail {
-    background: @bg_alt;
-    border-right: 1px solid alpha(@fg_muted, 0.25);
+    background: @chrome_bg;
+    border-right: 1px solid alpha(@chrome_fg, 0.22);
 }
 .sidebar-header {
-    border-bottom: 1px solid alpha(@fg_muted, 0.2);
+    border-bottom: 1px solid alpha(@chrome_fg, 0.20);
 }
 .sidebar-title {
-    color: @fg_strong;
+    color: @chrome_fg_strong;
     font-weight: 700;
 }
 /* "shown / total" in the header, and the same idea rotated down the collapsed rail. */
 .sidebar-shown {
-    color: @fg_muted;
+    color: @chrome_fg_muted;
     font-size: 0.82em;
 }
 .sidebar-rail-badge,
@@ -398,7 +425,7 @@ headerbar button {
     padding: 2px 8px;
     min-height: 0;
     font-size: 0.88em;
-    color: @fg;
+    color: @chrome_fg;
 }
 .filter-row:hover {
     background: alpha(@accent, 0.16);
@@ -408,7 +435,7 @@ headerbar button {
     color: @accent_fg;
 }
 .filter-count {
-    color: @fg_muted;
+    color: @chrome_fg_muted;
     font-size: 0.82em;
     font-weight: 600;
     padding-right: 6px;   /* clear of the body scrollbar — see .sidebar-section-badge */
@@ -452,7 +479,7 @@ headerbar button {
     background-color: transparent;
 }
 .tag-chip:disabled {
-    color: alpha(@fg_muted, 0.55);
+    color: alpha(@chrome_fg_muted, 0.6);
 }
 /* The FlowBoxChild GTK wraps each tag in carries its own padding and a selection background; the
    cloud's spacing is set in code, so zero it out here or every tag gets a second, invisible frame. */
@@ -473,16 +500,16 @@ headerbar button {
 
 /* Calendar heat map: one cell per day, shaded by that day's note count. */
 .cal-month {
-    color: @fg_strong;
+    color: @chrome_fg_strong;
     font-size: 0.9em;
 }
 .cal-weekday {
-    color: @fg_muted;
+    color: @chrome_fg_muted;
     font-size: 0.68em;
     font-weight: 700;
 }
 .cal-day {
-    background: alpha(@fg_muted, 0.09);
+    background: alpha(@chrome_fg, 0.10);
     background-image: none;
     border: 1px solid transparent;
     border-radius: 5px;
@@ -493,8 +520,8 @@ headerbar button {
 .cal-day:hover {
     border-color: @accent;
 }
-.cal-day-num  { font-size: 0.74em; color: @fg; }
-.cal-day-count { font-size: 0.58em; color: @fg_muted; }
+.cal-day-num  { font-size: 0.74em; color: @chrome_fg; }
+.cal-day-count { font-size: 0.58em; color: @chrome_fg_muted; }
 .cal-other-month { opacity: 0.35; }
 .cal-today { border-color: @violet; }
 .cal-selected {
@@ -525,4 +552,241 @@ headerbar button {
 .tag-complete-frame {
     background: @bg_alt;
     border: 1px solid alpha(@accent, 0.55);
+}
+
+/* ------------------------------------------------------------------ Shared-class overrides
+ * .group-header and .chip are used BOTH on the board (light work area) and inside the filter
+ * sidebar (navy chrome). The base rules above dress the board; these dress the sidebar's copies.
+ * A descendant selector out-specifies the plain class, so these win wherever they apply — the
+ * one place in this file where that is deliberate rather than a hazard. */
+.sidebar-panel .group-header {
+    background: alpha(@chrome_fg, 0.10);
+    color: @chrome_fg;
+}
+.sidebar-panel .group-header:hover {
+    background: alpha(@accent, 0.16);
+}
+.sidebar-panel .chip {
+    background: alpha(@chrome_fg, 0.13);
+    color: @chrome_fg;
+}
+.sidebar-panel .chip:hover {
+    background: alpha(@chrome_fg, 0.24);
+}
+
+/* ------------------------------------------------------------------ Quick capture
+ * Two lists under the editor pane — a note list and a task list — for entry with no decisions
+ * attached. Quieter than the note above them: they're a margin, not the page, so a top border and
+ * a slightly recessed ground rather than a frame of their own. Both sit in the WORK AREA, so the
+ * plain token family applies (see the note at the top of this file). */
+.quick-strip {
+    border-top: 1px solid alpha(@fg_muted, 0.35);
+}
+/* The selected note's companion-folder files, between the note and the quick lists. */
+.files-panel {
+    border-top: 1px solid alpha(@fg_muted, 0.25);
+    padding: 4px 8px 6px 8px;
+}
+.files-panel .quick-row {
+    font-size: 0.86em;
+}
+.files-panel .quick-row:hover {
+    background: alpha(@accent, 0.12);
+}
+.files-empty {
+    color: @fg_muted;
+    font-size: 0.78em;
+    font-style: italic;
+    padding: 2px 4px;
+}
+.quick-panel {
+    background: alpha(@fg_muted, 0.06);
+    padding: 6px 8px 8px 8px;
+}
+/* A hairline between the two columns, so they read as a pair rather than one wide list. */
+.quick-panel-right {
+    border-left: 1px solid alpha(@fg_muted, 0.25);
+}
+.quick-title {
+    color: @fg_muted;
+    font-size: 0.78em;
+    font-weight: 700;
+}
+.quick-count {
+    color: @fg_muted;
+    font-size: 0.76em;
+}
+.quick-list {
+    background: transparent;
+}
+.quick-list row {
+    padding: 0;
+    min-height: 0;
+    background: transparent;
+}
+.quick-row {
+    font-size: 1.0em;
+}
+.quick-check,
+.quick-text {
+    font-size: 1.0em;
+    min-height: 0;
+    padding: 1px 0;
+}
+/* A finished task stays legible — struck through would be unreadable in Arabic, where the line
+   cuts straight through the letterforms, so it fades instead. */
+.quick-done {
+    color: @fg_muted;
+}
+.quick-entry {
+    min-height: 0;
+    margin-top: 4px;
+    padding: 3px 8px;
+    font-size: 1.0em;
+}
+
+/* Scrollbars inside the chrome. GTK paints a scrollbar from the widget theme, not from ours, so a
+ * bar running down the sidebar arrives as a pale Adwaita strip regardless of what the sidebar is
+ * painted — which is exactly the seam that shows when the chrome stops matching the work area.
+ * Overlay scrolling is off here (see FilterSidebar._build), so the trough is always on screen and
+ * always has to belong. */
+.sidebar-panel scrollbar,
+.sidebar-panel scrollbar trough {
+    background-color: @chrome_bg;
+    border: none;
+}
+.sidebar-panel scrollbar slider {
+    background-color: alpha(@chrome_fg, 0.35);
+    border: none;
+    min-width: 7px;
+    border-radius: 7px;
+}
+.sidebar-panel scrollbar slider:hover {
+    background-color: alpha(@chrome_fg, 0.55);
+}
+
+/* Tag chips on a card (type · priority · category, and the #hashtags below the preview). The
+ * colours are set per chip from code — they vary by kind — so only the SHAPE lives here. Rounded
+ * rather than square: they read as tags, not as table cells. This is the whole reason they are
+ * widgets and no longer Pango background runs, which cannot have a corner radius. */
+.tag-pill {
+    border-radius: 5px;
+    padding: 1px 7px;
+    font-size: 0.8em;
+    font-weight: 700;
+}
+.tag-pill-row {
+    margin-top: 1px;
+}
+.tag-pill-row flowboxchild {
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: none;
+    min-height: 0;
+    min-width: 0;
+}
+
+/* The active-filter line above the board. A tinted strip rather than a card: it is a status, and
+ * it sits between the search bar and the cards without wanting to be read as one of them. Work-area
+ * colours (see the note at the top of this file) — it is inside the board's half of the window. */
+.filter-summary {
+    background: alpha(@accent, 0.10);
+    border-bottom: 1px solid alpha(@accent, 0.35);
+    padding: 3px 10px;
+    font-size: 0.86em;
+}
+/* Undoes Adwaita's ~24px button floor so the strip stays one compact line. */
+.filter-summary-clear {
+    min-height: 0;
+    min-width: 0;
+    padding: 1px 10px;
+    font-size: 0.92em;
+    background-image: none;
+    background-color: alpha(@accent, 0.18);
+    border: 1px solid alpha(@accent, 0.45);
+    box-shadow: none;
+    text-shadow: none;
+    color: @fg_strong;
+}
+.filter-summary-clear:hover {
+    background-color: @accent;
+    color: @accent_fg;
+}
+
+/* ---------------------------------------------------------------- week calendar
+ * The board's fifth view (see _render_week). Work-area colours throughout — it sits where the
+ * cards do. The grid lines are hairlines and the slots carry no fill of their own, so the entries
+ * are what the eye lands on; an hour gets a stronger line than its half-hour, as in Outlook. */
+.week-bar {
+    padding: 0 2px 6px 2px;
+}
+.week-nav {
+    min-height: 0;
+    min-width: 0;
+    padding: 2px 8px;
+}
+.week-title {
+    color: @fg_strong;
+    font-weight: bold;
+}
+.week-hint {
+    color: @fg_muted;
+    font-size: 0.9em;
+}
+.week-head {
+    border-bottom: 1px solid alpha(@fg_muted, 0.45);
+    padding-bottom: 3px;
+}
+.week-day-head {
+    color: @fg;
+    font-weight: 600;
+    font-size: 0.92em;
+}
+.week-day-head.today {
+    color: @accent;
+}
+.week-time {
+    color: @fg_muted;
+    font-size: 0.78em;
+    padding: 0 6px 0 0;
+}
+.week-slot {
+    min-height: 22px;
+    border-left: 1px solid alpha(@fg_muted, 0.22);
+    border-top: 1px dotted alpha(@fg_muted, 0.16);
+}
+.week-slot.hour {
+    border-top: 1px solid alpha(@fg_muted, 0.32);
+}
+.week-slot.today {
+    background: alpha(@accent, 0.05);
+}
+.week-slot:hover {
+    background: alpha(@accent, 0.12);
+}
+.week-entry {
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 0.86em;
+    color: @fg_strong;
+    background: alpha(@accent, 0.28);
+    border-left: 3px solid @accent;
+}
+.week-entry.type-J {
+    background: alpha(@violet, 0.30);
+    border-left-color: @violet;
+}
+.week-entry.type-P {
+    background: alpha(@cyan, 0.28);
+    border-left-color: @cyan;
+}
+.week-entry:hover {
+    box-shadow: inset 0 0 0 1px @accent;
+}
+.week-entry.selected {
+    box-shadow: inset 0 0 0 2px @accent;
+}
+.week-entry:focus {
+    outline: none;
 }

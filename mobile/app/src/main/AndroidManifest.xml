@@ -43,6 +43,7 @@
         android:requestLegacyExternalStorage="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:localeConfig="@xml/locales_config"
         android:theme="@style/Theme.Knotes"
         android:usesCleartextTraffic="true">
 
@@ -171,7 +172,7 @@
         <receiver
             android:name=".reminder.PlansWidget"
             android:exported="false"
-            android:label="Upcoming plans">
+            android:label="@string/widgets_plans_title">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -184,7 +185,7 @@
         <receiver
             android:name=".reminder.TopPriorityWidget"
             android:exported="false"
-            android:label="Top priority">
+            android:label="@string/widgets_top_priority_title">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -197,7 +198,7 @@
         <receiver
             android:name=".reminder.BookmarksWidget"
             android:exported="false"
-            android:label="Bookmarked records">
+            android:label="@string/widgets_bookmarks_title">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -210,7 +211,7 @@
         <receiver
             android:name=".reminder.KpiWidget"
             android:exported="false"
-            android:label="Nibras Mobile KPIs">
+            android:label="@string/widgets_kpi_title">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -223,7 +224,7 @@
         <receiver
             android:name=".reminder.PhoneStatusWidget"
             android:exported="false"
-            android:label="Phone status">
+            android:label="@string/widgets_label_phone_status">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="android.media.VOLUME_CHANGED_ACTION" />
@@ -238,7 +239,7 @@
         <receiver
             android:name=".reminder.TodayTasksWidget"
             android:exported="false"
-            android:label="Today's tasks">
+            android:label="@string/widgets_label_today_tasks">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -251,7 +252,7 @@
         <receiver
             android:name=".reminder.RecentNotesWidget"
             android:exported="false"
-            android:label="Recent notes">
+            android:label="@string/widgets_label_recent_notes">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -264,7 +265,7 @@
         <receiver
             android:name=".reminder.TodayJournalWidget"
             android:exported="false"
-            android:label="Today's journal">
+            android:label="@string/widgets_today_journal_title">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -278,7 +279,7 @@
         <receiver
             android:name=".reminder.AlarmsWidget"
             android:exported="false"
-            android:label="Alarms countdown">
+            android:label="@string/widgets_label_alarms_countdown">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -291,7 +292,7 @@
         <receiver
             android:name=".reminder.PrayerWidget"
             android:exported="false"
-            android:label="Prayer times">
+            android:label="@string/widgets_label_prayer_times">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

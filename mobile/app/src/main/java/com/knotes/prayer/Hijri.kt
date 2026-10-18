@@ -1,5 +1,8 @@
 package com.knotes.prayer
 
+import android.content.Context
+import com.knotes.R
+
 /** A day in the Islamic calendar. [month] is 1..12. */
 data class HijriDate(val year: Int, val month: Int, val day: Int) {
 
@@ -11,6 +14,14 @@ data class HijriDate(val year: Int, val month: Int, val day: Int) {
 
     /** Ramadan changes Umm al-Qura's Isha interval, so the calculation asks about it. */
     val isRamadan: Boolean get() = month == 9
+
+    /** Month name in the UI language (Arabic, French or the English transliteration). */
+    fun monthName(context: Context): String =
+        context.resources.getStringArray(R.array.prayer_hijri_months).getOrElse(month - 1) { "?" }
+
+    /** "12 Rabiʿ al-Awwal 1448" in the UI language. [toString] stays English. */
+    fun label(context: Context): String =
+        context.getString(R.string.prayer_hijri_date, day, monthName(context), year)
 
     /** e.g. "12 Rabiʿ al-Awwal 1448". */
     override fun toString(): String = "$day $monthName $year"

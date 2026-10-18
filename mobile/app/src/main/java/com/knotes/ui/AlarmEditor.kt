@@ -24,7 +24,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.knotes.R
 import com.knotes.alarm.Alarm
 import com.knotes.alarm.AlarmKind
 import com.knotes.alarm.minutesLabel
@@ -52,14 +55,22 @@ fun AlarmEditor(
     onDismiss: () -> Unit,
     onSave: (Alarm) -> Unit,
 ) {
+    val context = LocalContext.current
     var a by remember { mutableStateOf(initial) }
     var customMin by remember { mutableStateOf(initial.durationMin.toString()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial.label.isBlank() && initial.days.isEmpty()) "New alarm" else "Alarm") },
-        confirmButton = { TextButton(onClick = { onSave(a) }) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        title = {
+            Text(
+                stringResource(
+                    if (initial.label.isBlank() && initial.days.isEmpty()) R.string.prayer_alarm_new
+                    else R.string.prayer_alarm_default_title,
+                ),
+            )
+        },
+        confirmButton = { TextButton(onClick = { onSave(a) }) { Text(stringResource(R.string.prayer_save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.prayer_cancel)) } },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -68,42 +79,42 @@ fun AlarmEditor(
                 OutlinedTextField(
                     value = a.label,
                     onValueChange = { a = a.copy(label = it) },
-                    label = { Text("Label") },
+                    label = { Text(stringResource(R.string.prayer_alarm_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                Label("Kind")
+                Label(stringResource(R.string.prayer_alarm_kind))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     AlarmKind.entries.forEach { k ->
                         FilterChip(
                             selected = a.kind == k,
                             onClick = { a = a.copy(kind = k) },
-                            label = { Text(kindLabel(k)) },
+                            label = { Text(stringResource(kindLabel(k))) },
                         )
                     }
                 }
 
                 when (a.kind) {
                     AlarmKind.CLOCK -> {
-                        Label("Time")
+                        Label(stringResource(R.string.prayer_alarm_kind_time))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             // Equal weights. Without them the first field takes its preferred
                             // width and the second gets whatever is left — which was a sliver.
-                            NumberBox("Hour", a.hour, 0, 23, Modifier.weight(1f)) { a = a.copy(hour = it) }
-                            NumberBox("Minute", a.minute, 0, 59, Modifier.weight(1f)) { a = a.copy(minute = it) }
+                            NumberBox(stringResource(R.string.prayer_alarm_hour), a.hour, 0, 23, Modifier.weight(1f)) { a = a.copy(hour = it) }
+                            NumberBox(stringResource(R.string.prayer_alarm_minute), a.minute, 0, 59, Modifier.weight(1f)) { a = a.copy(minute = it) }
                         }
                         DayPicker(a.days) { a = a.copy(days = it) }
                     }
 
                     AlarmKind.COUNTDOWN -> {
-                        Label("Duration")
+                        Label(stringResource(R.string.prayer_alarm_duration))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Alarm.COUNTDOWN_PRESETS_MIN.forEach { m ->
                                 FilterChip(
                                     selected = a.durationMin == m,
                                     onClick = { a = a.copy(durationMin = m); customMin = m.toString() },
-                                    label = { Text(minutesLabel(m)) },
+                                    label = { Text(minutesLabel(context, m)) },
                                 )
                             }
                         }
@@ -115,35 +126,41 @@ fun AlarmEditor(
                                     if (n > 0) a = a.copy(durationMin = n)
                                 }
                             },
-                            label = { Text("Or minutes") },
+                            label = { Text(stringResource(R.string.prayer_alarm_or_minutes)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
 
                     AlarmKind.PRAYER -> {
-                        Label("Prayer")
+                        Label(stringResource(R.string.prayer_alarm_kind_prayer))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Prayer.entries.forEach { p ->
                                 FilterChip(
                                     selected = a.prayer == p,
                                     onClick = { a = a.copy(prayer = p) },
-                                    label = { Text(p.label) },
+                                    label = { Text(stringResource(p.labelRes)) },
                                 )
                             }
                         }
-                        Label("Offset — negative is before")
+                        Label(stringResource(R.string.prayer_alarm_offset))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Alarm.PRAYER_OFFSETS_MIN.forEach { o ->
                                 FilterChip(
                                     selected = a.offsetMin == o,
                                     onClick = { a = a.copy(offsetMin = o) },
-                                    label = { Text(if (o == 0) "at" else if (o < 0) "-${minutesLabel(-o)}" else "+${minutesLabel(o)}") },
+                                    label = {
+                                        Text(
+                                            if (o == 0) stringResource(R.string.prayer_alarm_offset_at)
+                                            else if (o < 0) "-${minutesLabel(context, -o)}"
+                                            else "+${minutesLabel(context, o)}",
+                                        )
+                                    },
                                 )
                             }
                         }
                         Text(
-                            offsetLabel(a.prayer, a.offsetMin),
+                            offsetLabel(context, a.prayer, a.offsetMin),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                         )
@@ -151,23 +168,23 @@ fun AlarmEditor(
                     }
                 }
 
-                Label("Sound")
+                Label(stringResource(R.string.prayer_alarm_sound))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { onPickSound { uri -> a = a.copy(soundUri = uri) } }) {
-                        Text("Choose…")
+                        Text(stringResource(R.string.prayer_alarm_choose))
                     }
                     if (a.soundUri.isNotBlank()) {
-                        TextButton(onClick = { a = a.copy(soundUri = "") }) { Text("Default") }
+                        TextButton(onClick = { a = a.copy(soundUri = "") }) { Text(stringResource(R.string.prayer_alarm_default)) }
                     }
                 }
                 Text(
-                    if (a.soundUri.isBlank()) "Default alarm sound" else a.soundUri,
+                    if (a.soundUri.isBlank()) stringResource(R.string.prayer_alarm_default_sound) else a.soundUri,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                 )
 
-                Label("Repeat: ${a.repeatCount}x")
+                Label(stringResource(R.string.prayer_alarm_repeat, a.repeatCount))
                 Slider(
                     value = a.repeatCount.toFloat(),
                     onValueChange = { a = a.copy(repeatCount = it.toInt().coerceIn(1, 20)) },
@@ -175,7 +192,7 @@ fun AlarmEditor(
                     steps = 18,
                 )
 
-                Label("Volume: ${a.volumePercent}%")
+                Label(stringResource(R.string.prayer_alarm_volume, a.volumePercent))
                 Slider(
                     value = a.volumePercent.toFloat(),
                     onValueChange = { a = a.copy(volumePercent = it.toInt().coerceIn(0, 100)) },
@@ -186,10 +203,10 @@ fun AlarmEditor(
     )
 }
 
-private fun kindLabel(k: AlarmKind) = when (k) {
-    AlarmKind.CLOCK -> "Time"
-    AlarmKind.COUNTDOWN -> "Countdown"
-    AlarmKind.PRAYER -> "Prayer"
+private fun kindLabel(k: AlarmKind): Int = when (k) {
+    AlarmKind.CLOCK -> R.string.prayer_alarm_kind_time
+    AlarmKind.COUNTDOWN -> R.string.prayer_alarm_kind_countdown
+    AlarmKind.PRAYER -> R.string.prayer_alarm_kind_prayer
 }
 
 @Composable
@@ -223,7 +240,7 @@ private fun NumberBox(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DayPicker(days: Set<DayOfWeek>, onChange: (Set<DayOfWeek>) -> Unit) {
-    Label(if (days.isEmpty()) "Days — none means once" else "Days")
+    Label(stringResource(if (days.isEmpty()) R.string.prayer_alarm_days_once else R.string.prayer_alarm_days))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         DayOfWeek.entries.forEach { d ->
             FilterChip(

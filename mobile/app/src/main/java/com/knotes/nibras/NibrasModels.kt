@@ -1,6 +1,9 @@
 package com.knotes.nibras
 
+import android.content.Context
+import androidx.annotation.StringRes
 import androidx.core.text.HtmlCompat
+import com.knotes.R
 import com.knotes.NoteFiles
 
 /**
@@ -19,8 +22,14 @@ fun htmlToPlain(raw: String): String {
 
 private val BR_LITERAL = Regex("<\\s*br\\s*/?\\s*>", RegexOption.IGNORE_CASE)
 
-/** A Nibras data type, e.g. code "T" -> label "Tasks". */
-data class NibrasType(val code: String, val label: String)
+/**
+ * A Nibras data type, e.g. code "T" -> label "Tasks". [label] is the English name (kept for any
+ * caller that compares or stores it); show [label] (context) / [labelRes] to the user instead.
+ */
+data class NibrasType(val code: String, val label: String, @StringRes val labelRes: Int = 0) {
+    /** The type name in the app's language. */
+    fun label(context: Context): String = if (labelRes != 0) context.getString(labelRes) else label
+}
 
 /** A note/highlight queued locally, to be appended to a record's field when online. */
 data class PendingPush(val ecode: String, val id: String, val text: String)
@@ -37,13 +46,13 @@ fun parseFilesList(raw: String): List<String> =
 
 /** The data types browsable in the app (from the Ionic app's appTypes list). */
 val NIBRAS_TYPES: List<NibrasType> = listOf(
-    NibrasType("T", "Tasks"),
-    NibrasType("P", "Plans"),
-    NibrasType("J", "Journal"),
-    NibrasType("G", "Goals"),
-    NibrasType("N", "Notes"),
-    NibrasType("W", "Writings"),
-    NibrasType("R", "Resources"),
+    NibrasType("T", "Tasks", R.string.server_type_tasks),
+    NibrasType("P", "Plans", R.string.server_type_plans),
+    NibrasType("J", "Journal", R.string.server_type_journal),
+    NibrasType("G", "Goals", R.string.server_type_goals),
+    NibrasType("N", "Notes", R.string.server_type_notes),
+    NibrasType("W", "Writings", R.string.server_type_writings),
+    NibrasType("R", "Resources", R.string.server_type_resources),
 )
 
 /** The one type that supports full-text sentence highlighting. */

@@ -41,12 +41,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.knotes.R
 import com.knotes.flash.FlashCache
 import com.knotes.flash.FlashcardStore
 import com.knotes.flash.Highlight
@@ -110,7 +112,7 @@ fun HighlightsScreen(store: FlashcardStore, baseUrl: String) {
                             // like an empty gallery.
                             items = emptyList()
                             error = e.message?.takeIf { m -> m.isNotBlank() }
-                                ?: "Could not reach the server, and nothing is saved on this phone yet."
+                                ?: context.getString(R.string.server_unreachable_nothing_saved)
                         } else {
                             offlineSince = savedAt
                         }
@@ -137,12 +139,15 @@ fun HighlightsScreen(store: FlashcardStore, baseUrl: String) {
         ) {
             Text(
                 when {
-                    list.isEmpty() -> "Highlights"
+                    list.isEmpty() -> stringResource(R.string.server_highlights_title)
                     // Named, not hidden: cards that are days old should say so, or the gallery
                     // quietly claims to be current when it is not.
                     offlineSince != null ->
-                        "${grouped(index + 1)} of ${grouped(list.size)} · saved copy, ${FriendlyTime.ago(offlineSince!!)}"
-                    else -> "${grouped(index + 1)} of ${grouped(list.size)} · records with highlights"
+                        stringResource(
+                            R.string.server_highlights_header_saved_copy,
+                            grouped(index + 1), grouped(list.size), FriendlyTime.ago(LocalContext.current, offlineSince!!),
+                        )
+                    else -> stringResource(R.string.server_highlights_header, grouped(index + 1), grouped(list.size))
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -152,20 +157,20 @@ fun HighlightsScreen(store: FlashcardStore, baseUrl: String) {
                 onClick = { fontScale = (fontScale - 0.1f).coerceAtLeast(FlashcardStore.MIN_FONT).also { store.highlightFontScale = it } },
                 enabled = fontScale > FlashcardStore.MIN_FONT,
                 modifier = Modifier.size(30.dp),
-            ) { Icon(Icons.Filled.Remove, "Smaller text", modifier = Modifier.size(17.dp)) }
+            ) { Icon(Icons.Filled.Remove, stringResource(R.string.server_text_smaller), modifier = Modifier.size(17.dp)) }
             Text("A", style = MaterialTheme.typography.labelMedium)
             IconButton(
                 onClick = { fontScale = (fontScale + 0.1f).coerceAtMost(FlashcardStore.MAX_FONT).also { store.highlightFontScale = it } },
                 enabled = fontScale < FlashcardStore.MAX_FONT,
                 modifier = Modifier.size(30.dp),
-            ) { Icon(Icons.Filled.Add, "Larger text", modifier = Modifier.size(17.dp)) }
+            ) { Icon(Icons.Filled.Add, stringResource(R.string.server_text_larger), modifier = Modifier.size(17.dp)) }
         }
         HorizontalDivider()
 
         if (list.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
                 Text(
-                    error ?: "No record has its highlights filled in yet.",
+                    error ?: stringResource(R.string.server_highlights_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -224,7 +229,7 @@ private fun HighlightFace(item: Highlight, fontScale: Float) {
             ) {
                 Icon(
                     Icons.Filled.ContentCopy,
-                    contentDescription = "Copy these highlights",
+                    contentDescription = stringResource(R.string.server_highlights_copy),
                     modifier = Modifier.size(17.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

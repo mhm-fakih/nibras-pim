@@ -102,7 +102,8 @@ class AlarmsWidget : AppWidgetProvider() {
 
             views.setTextViewText(
                 R.id.aw_title,
-                if (due.isEmpty()) "Alarms" else "Alarms · ${due.size} today",
+                if (due.isEmpty()) context.getString(R.string.prayer_alarms_title)
+                else context.getString(R.string.prayer_alarms_title_today, due.size),
             )
             val rows = listOf(R.id.aw_row1, R.id.aw_row2, R.id.aw_row3)
             rows.forEachIndexed { i, id ->
@@ -110,8 +111,8 @@ class AlarmsWidget : AppWidgetProvider() {
                 views.setTextViewText(
                     id,
                     when {
-                        entry != null -> row(entry.first.label, entry.first, entry.second, now, zone)
-                        i == 0 -> "Nothing left today"
+                        entry != null -> row(context, entry.first.label, entry.first, entry.second, now, zone)
+                        i == 0 -> context.getString(R.string.prayer_alarms_nothing_left)
                         else -> ""
                     },
                 )
@@ -133,6 +134,7 @@ class AlarmsWidget : AppWidgetProvider() {
 
         /** "07:00 · in 2h 15m — Wake up". The remaining time first, since that is what is read. */
         private fun row(
+            context: Context,
             label: String,
             alarm: com.knotes.alarm.Alarm,
             atMillis: Long,
@@ -141,12 +143,13 @@ class AlarmsWidget : AppWidgetProvider() {
         ): String {
             val t = LocalDateTime.ofInstant(Instant.ofEpochMilli(atMillis), zone)
             val mins = ((atMillis - now) / 60_000L).toInt().coerceAtLeast(0)
-            val left = if (mins < 1) "now" else "in ${minutesLabel(mins)}"
+            val left = if (mins < 1) context.getString(R.string.prayer_now)
+            else context.getString(R.string.prayer_in_duration, minutesLabel(context, mins))
             val name = label.ifBlank {
                 when (alarm.kind) {
-                    com.knotes.alarm.AlarmKind.COUNTDOWN -> minutesLabel(alarm.durationMin)
+                    com.knotes.alarm.AlarmKind.COUNTDOWN -> minutesLabel(context, alarm.durationMin)
                     com.knotes.alarm.AlarmKind.PRAYER ->
-                        com.knotes.alarm.offsetLabel(alarm.prayer, alarm.offsetMin)
+                        com.knotes.alarm.offsetLabel(context, alarm.prayer, alarm.offsetMin)
                     else -> ""
                 }
             }

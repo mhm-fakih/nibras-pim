@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Player screen -->
+    <string name="player_delete_title">Supprimer ce fichier ?</string>
+    <string name="player_delete_body">Il est supprimé de l’appareil — il n’y a pas de corbeille pour le récupérer.</string>
+    <plurals name="player_delete_transcripts_too">
+        <item quantity="one">Son fichier de transcription %1$s est aussi supprimé.</item>
+        <item quantity="many">Ses fichiers de transcription %1$s sont aussi supprimés.</item>
+        <item quantity="other">Ses fichiers de transcription %1$s sont aussi supprimés.</item>
+    </plurals>
+    <plurals name="player_delete_bookmarks_too">
+        <item quantity="one">Son signet part avec lui.</item>
+        <item quantity="many">Ses %1$d signets partent avec lui.</item>
+        <item quantity="other">Ses %1$d signets partent avec lui.</item>
+    </plurals>
+    <string name="player_delete">Supprimer</string>
+    <string name="player_cancel">Annuler</string>
+    <string name="player_ok">OK</string>
+    <string name="player_delete_failed_title">Suppression impossible</string>
+    <string name="player_delete_failed_body">Le fichier est toujours là et rien d’autre n’a changé — ses signets et sa position sont intacts.</string>
+    <string name="player_flash_priority_added">✓ priorité ajoutée p%1$s</string>
+    <string name="player_flash_bookmarked">✓ Signet −%1$d s</string>
+    <string name="player_flash_bookmarked_line">✓ Signet −%1$d s · réplique capturée</string>
+    <string name="player_back">Retour</string>
+    <string name="player_delete_this_file">Supprimer ce fichier</string>
+    <string name="player_bookmark_note_hint">Note du signet (facultatif)</string>
+    <string name="player_add_bookmark">Ajouter un signet</string>
+    <string name="player_audio_only">audio</string>
+    <string name="player_subtitles">Sous-titres</string>
+    <string name="player_off">Non</string>
+    <string name="player_panel_bookmarks">Signets</string>
+    <string name="player_panel_bookmarks_count">Signets (%1$d)</string>
+    <string name="player_panel_in_folder">Dans ce dossier</string>
+    <string name="player_panel_in_folder_count">Dans ce dossier (%1$d)</string>
+    <string name="player_panel_recent_folders">Dossiers récents</string>
+    <string name="player_panel_recently_played">Lus récemment</string>
+    <string name="player_panel_settings">Réglages du lecteur</string>
+    <string name="player_skip_secs">Saut %1$d s</string>
+    <string name="player_speed">Vitesse %1$.2fx</string>
+    <string name="player_bookmark_rewind">Signet −%1$d s</string>
+    <string name="player_double_tap_prio">Prio. 2 appuis %1$d s</string>
+    <string name="player_volume_db">Volume %1$+.0f dB</string>
+    <string name="player_bookmark_on_pause">Signet à la pause</string>
+    <string name="player_bookmark_on_pause_hint">Toute pause — à l’écran, par câble ou Bluetooth — pose un signet. Pratique pendant une sieste.</string>
+    <string name="player_transcript">Transcription</string>
+    <string name="player_transcript_delete">Supprimer la transcription %1$s</string>
+    <string name="player_transcript_hide">Masquer la transcription</string>
+    <string name="player_transcript_show">Afficher la transcription</string>
+    <string name="player_transcript_empty">Cette transcription est vide.</string>
+    <string name="player_pause">Pause</string>
+    <string name="player_play">Lecture</string>
+    <string name="player_open_player">Ouvrir le lecteur</string>
+    <string name="player_play_next">Lire ensuite</string>
+    <string name="player_finding_one">recherche…</string>
+    <string name="player_next_same_folder">Même dossier</string>
+    <string name="player_next_random_old">Ancien au hasard</string>
+    <string name="player_next_random_here">Au hasard ici</string>
+    <string name="player_next_newest_here">Plus récent ici</string>
+    <string name="player_next_caption_none">Le fichier suivant du dossier est préparé, en pause — rien ne démarre tout seul.</string>
+    <string name="player_next_caption_same_folder">Le fichier suivant de ce dossier est lu automatiquement.</string>
+    <string name="player_next_caption_random_old">Un fichier pris n’importe où dans vos dossiers de bibliothèque, jamais mis en signet et non modifié depuis %1$d jours. Si aucun n’est encore aussi ancien, les plus anciens sont utilisés.</string>
+    <string name="player_next_caption_random_here">Le même choix, mais uniquement dans le dossier autour de la lecture en cours — recherche récursive. Depuis le dossier de fichiers d’une note, il cherche dans le dossier qui les CONTIENT, pour parcourir les pièces jointes de toutes les notes plutôt que de rejouer celles-ci.</string>
+    <string name="player_next_caption_newest_here">Le même dossier que « Au hasard ici », mais les fichiers sans signet les plus récents plutôt que les plus anciens — pour écouter ce qui vient d’arriver au lieu de fouiller l’arriéré.</string>
+    <string name="player_sleep_timer">Minuterie de veille</string>
+    <string name="player_sleep_pauses_in">pause dans %1$s</string>
+    <string name="player_sleep_minutes">%1$d min</string>
+
+    <!-- Player notices ("next" finding nothing) -->
+    <string name="player_notice_nothing_playing">Aucune lecture en cours.</string>
+    <string name="player_notice_last_in_folder">C’est le dernier fichier du dossier.</string>
+    <string name="player_next_nothing_playing_no_folder">Aucune lecture en cours, donc aucun dossier où choisir.</string>
+    <string name="player_next_no_media_folders">Aucun dossier multimédia défini — ajoutez-en un dans les Réglages.</string>
+    <string name="player_next_nothing_new_here">Rien de nouveau ici — chaque fichier de ce dossier a un signet ou a déjà été lu.</string>
+    <string name="player_next_nothing_left_here">Plus rien ici — chaque fichier de ce dossier a un signet ou a déjà été lu.</string>
+    <string name="player_next_nothing_left_library">Plus rien dans votre bibliothèque — chaque fichier a un signet ou a déjà été lu.</string>
+
+    <!-- Media library (AudiobookScreen) -->
+    <string name="player_media_title">Médias</string>
+    <string name="player_media_rescan">Réanalyser la bibliothèque</string>
+    <string name="player_media_filter_hint">Filtrer par nom…</string>
+    <string name="player_media_clear_filter">Effacer le filtre</string>
+    <string name="player_media_tab_library">Bibliothèque</string>
+    <string name="player_media_tab_folders">Dossiers</string>
+    <string name="player_media_tab_bookmarked">Avec signets</string>
+    <string name="player_media_no_roots">Aucun dossier de bibliothèque configuré — ajoutez-en dans les Réglages</string>
+    <string name="player_media_no_files_under">Aucun fichier audio ou vidéo trouvé dans :\n%1$s</string>
+    <string name="player_media_genres">Genres</string>
+    <string name="player_media_unknown_genre">Genre inconnu</string>
+    <string name="player_media_unknown_artist">Artiste inconnu</string>
+    <string name="player_media_unknown_album">Album inconnu</string>
+    <string name="player_media_no_bookmarks">Aucun signet pour l’instant — posez-en un pendant la lecture pour voir le fichier ici</string>
+    <plurals name="player_media_marks">
+        <item quantity="one">(%1$d signet)</item>
+        <item quantity="many">(%1$d signets)</item>
+        <item quantity="other">(%1$d signets)</item>
+    </plurals>
+    <string name="player_media_empty_folder">Dossier vide</string>
+    <string name="player_media_recent_here">Signets récents ici</string>
+    <plurals name="player_media_and_more">
+        <item quantity="one">…et %1$d autre</item>
+        <item quantity="many">…et %1$d autres</item>
+        <item quantity="other">…et %1$d autres</item>
+    </plurals>
+    <string name="player_media_no_match">Aucun résultat</string>
+    <string name="player_media_match_count">%1$d sur %2$d</string>
+    <string name="player_media_not_found">introuvable</string>
+
+    <!-- AI answers -->
+    <string name="player_ai_title">Réponses IA</string>
+    <string name="player_ai_not_synced">Pas encore synchronisé · %1$s</string>
+    <string name="player_ai_search">Rechercher dans ces réponses</string>
+    <string name="player_ai_clear_search">Effacer la recherche</string>
+    <string name="player_ai_no_folder_title">Pas encore de dossier de réponses IA sur ce téléphone.</string>
+    <string name="player_ai_no_folder_detail">Attendu dans %1$s. Il arrive via Syncthing depuis le dossier knotes-ai de l’ordinateur ; indiquez un autre chemin dans les Réglages s’il se trouve ailleurs.</string>
+    <string name="player_ai_empty_title">Le dossier existe mais il est vide.</string>
+    <string name="player_ai_empty_detail">Rien n’a encore été synchronisé dans %1$s.</string>
+    <string name="player_ai_no_match_title">Aucune réponse ne correspond.</string>
+    <string name="player_ai_no_match_detail">%1$d dans le dossier ; la recherche ou les filtres les excluent toutes.</string>
+    <string name="player_tab_player">Lecteur</string>
+    <string name="player_recents_max">Fichiers récents conservés : %1$d</string>
+    <string name="videos_title">Vidéos</string>
+    <string name="videos_all">Toutes</string>
+    <string name="videos_refresh">Relire le dossier</string>
+    <string name="videos_none">Aucune vidéo dans\n%1$s</string>
+    <plurals name="videos_count">
+        <item quantity="one">%1$d vidéo</item>
+        <item quantity="many">%1$d vidéos</item>
+        <item quantity="other">%1$d vidéos</item>
+    </plurals>
+    <string name="player_video_enlarge">Agrandir la vidéo</string>
+    <string name="player_video_shrink">Réduire la vidéo</string>
+    <string name="player_video_auto_next">Lire la suite à la fin d’une vidéo</string>
+    <string name="player_video_auto_next_hint">Désactivé : une vidéo terminée reste en pause au début, quel que soit « Lecture suivante ». ⏭ lit toujours la suivante.</string>
+    <string name="player_open_folder">Dossier</string>
+    <string name="player_share">Partager</string>
+</resources>

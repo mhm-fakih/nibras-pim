@@ -14,7 +14,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.knotes.R
 import kotlin.math.round
 
 /**
@@ -50,7 +52,7 @@ fun StepSlider(
             enabled = current > min,
             modifier = Modifier.size(32.dp),
         ) {
-            Icon(Icons.Filled.Remove, contentDescription = "Decrease $label", modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.notes_slider_decrease, label), modifier = Modifier.size(18.dp))
         }
         Slider(
             value = current,
@@ -63,7 +65,7 @@ fun StepSlider(
             enabled = current < max,
             modifier = Modifier.size(32.dp),
         ) {
-            Icon(Icons.Filled.Add, contentDescription = "Increase $label", modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.notes_slider_increase, label), modifier = Modifier.size(18.dp))
         }
     }
 }

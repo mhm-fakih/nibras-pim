@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
@@ -43,6 +44,7 @@ import com.knotes.DateField
 import com.knotes.NoteFacetCounts
 import com.knotes.NoteFilterState
 import com.knotes.NonStandardFilter
+import com.knotes.R
 import com.knotes.TaxonomyFilter
 import org.json.JSONArray
 import org.json.JSONObject
@@ -134,7 +136,7 @@ fun NoteFilterPanel(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    if (active > 0) "Filters ($active)" else "Filters",
+                    if (active > 0) stringResource(R.string.notes_filters_active, active) else stringResource(R.string.notes_filters),
                     style = MaterialTheme.typography.titleSmall,
                     color = if (active > 0) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurface,
@@ -160,34 +162,34 @@ fun NoteFilterPanel(
                         FilterChip(
                             selected = state.dateField == field,
                             onClick = { onState(state.copy(dateField = field)) },
-                            label = { Text(field.label, style = MaterialTheme.typography.labelSmall) },
+                            label = { Text(stringResource(field.labelRes), style = MaterialTheme.typography.labelSmall) },
                             modifier = Modifier.padding(end = 6.dp),
                         )
                     }
                     Spacer(Modifier.weight(1f))
                     if (active > 0) {
-                        TextButton(onClick = { onState(state.cleared()) }) { Text("Clear all") }
+                        TextButton(onClick = { onState(state.cleared()) }) { Text(stringResource(R.string.notes_filters_clear_all)) }
                     }
                 }
 
                 FacetSection(
-                    "Priority",
+                    stringResource(R.string.notes_filters_priority),
                     counts.priorities.map { (k, v) -> k to v },
                     picked = state.priorities,
                 ) { key, on -> onState(state.copy(priorities = state.priorities.toggled(key, on))) }
                 FacetSection(
-                    "Type",
+                    stringResource(R.string.notes_filters_type),
                     counts.types.map { (k, v) -> k to v },
                     picked = state.types,
                 ) { key, on -> onState(state.copy(types = state.types.toggled(key, on))) }
                 FacetSection(
-                    "Category",
+                    stringResource(R.string.notes_filters_category),
                     counts.categories.map { (k, v) -> k to v },
                     picked = state.categories,
                 ) { key, on -> onState(state.copy(categories = state.categories.toggled(key, on))) }
 
                 if (counts.tags.isNotEmpty()) {
-                    SectionLabel("Tags")
+                    SectionLabel(stringResource(R.string.notes_filters_tags))
                     TagCloud(counts.tags, state.tags) { tag, on ->
                         // One tag at a time, matching the desktop cloud: picking a second replaces
                         // the first rather than intersecting. A cloud answers "show me this topic",
@@ -197,17 +199,17 @@ fun NoteFilterPanel(
                 }
 
                 TriStateSection(
-                    "Non-standard names",
+                    stringResource(R.string.notes_filters_non_standard_names),
                     NonStandardFilter.entries.map { it to (counts.nonStandard[it] ?: 0) },
                     state.nonStandard,
-                    labelOf = { it.label },
+                    labelOf = { stringResource(it.labelRes) },
                 ) { onState(state.copy(nonStandard = it)) }
 
                 TriStateSection(
-                    "Bad taxonomy",
+                    stringResource(R.string.notes_filters_bad_taxonomy),
                     TaxonomyFilter.entries.map { it to (counts.taxonomy[it] ?: 0) },
                     state.taxonomy,
-                    labelOf = { it.label },
+                    labelOf = { stringResource(it.labelRes) },
                 ) { onState(state.copy(taxonomy = it)) }
 
                 Spacer(Modifier.height(4.dp))
@@ -268,7 +270,7 @@ private fun MonthCalendar(
             modifier = Modifier.fillMaxWidth(),
         ) {
             IconButton(onClick = { shown = shown.minusMonths(1) }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous month")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.notes_calendar_previous_month))
             }
             Text(
                 "${shown.month.getDisplayName(JavaTextStyle.FULL, Locale.getDefault())} ${shown.year}",
@@ -277,13 +279,13 @@ private fun MonthCalendar(
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = { shown = shown.plusMonths(1) }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next month")
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = stringResource(R.string.notes_calendar_next_month))
             }
         }
         // Getting back is one tap, not a dozen. Hidden on the current month, where it would do
         // nothing and only take the eye.
         if (shown != YearMonth.from(today)) {
-            TextButton(onClick = { shown = YearMonth.from(today) }) { Text("Today") }
+            TextButton(onClick = { shown = YearMonth.from(today) }) { Text(stringResource(R.string.notes_calendar_today)) }
         }
 
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -406,7 +408,7 @@ private fun <T> TriStateSection(
     title: String,
     options: List<Pair<T, Int>>,
     selected: T,
-    labelOf: (T) -> String = { (it as? Enum<*>)?.name ?: it.toString() },
+    labelOf: @Composable (T) -> String = { (it as? Enum<*>)?.name ?: it.toString() },
     onPick: (T) -> Unit,
 ) {
     SectionLabel(title)

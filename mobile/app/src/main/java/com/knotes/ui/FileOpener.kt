@@ -7,6 +7,7 @@ import android.provider.DocumentsContract
 import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import com.knotes.R
 import com.knotes.player.isMediaFile
 import com.knotes.util.FileNames
 import java.io.File
@@ -36,8 +37,9 @@ fun openRecordFile(
         // Name the neighbours: "not found" on a folder that visibly contains the file is the most
         // confusing failure this screen can produce, and it only ever happens on non-ASCII names.
         val siblings = dir.listFiles()?.joinToString(", ") { it.name }.orEmpty()
-        val detail = if (siblings.isBlank()) "folder is empty or missing" else "folder has: $siblings"
-        Toast.makeText(context, "Not found: $filename in ${dir.path} ($detail)", Toast.LENGTH_LONG).show()
+        val detail = if (siblings.isBlank()) context.getString(R.string.notes_open_folder_empty_or_missing)
+        else context.getString(R.string.notes_open_folder_has, siblings)
+        Toast.makeText(context, context.getString(R.string.notes_open_not_found_in, filename, dir.path, detail), Toast.LENGTH_LONG).show()
         return
     }
     if (isMediaFile(file.name)) {
@@ -50,7 +52,7 @@ fun openRecordFile(
 /** Opens any on-disk file in another app via a FileProvider content URI (note attachments etc.). */
 fun openLocalFile(context: Context, file: File) {
     if (!file.isFile) {
-        Toast.makeText(context, "Not found: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, context.getString(R.string.notes_open_not_found, file.absolutePath), Toast.LENGTH_LONG).show()
         return
     }
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
@@ -73,7 +75,26 @@ fun openLocalFile(context: Context, file: File) {
     }
     runCatching { context.startActivity(Intent.createChooser(view, file.name)) }
         .onFailure { e ->
-            Toast.makeText(context, "Cannot open ${file.name}: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, context.getString(R.string.notes_open_cannot_open, file.name, e.message.orEmpty()), Toast.LENGTH_LONG).show()
+        }
+}
+
+/** Hands [file] to the share sheet (messaging apps, Bluetooth, Drive…) via a FileProvider URI. */
+fun shareLocalFile(context: Context, file: File) {
+    if (!file.isFile) {
+        Toast.makeText(context, context.getString(R.string.notes_open_not_found, file.absolutePath), Toast.LENGTH_LONG).show()
+        return
+    }
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(FileNames.ext(file.name)) ?: "*/*"
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = mime
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    runCatching { context.startActivity(Intent.createChooser(send, file.name)) }
+        .onFailure { e ->
+            Toast.makeText(context, context.getString(R.string.notes_open_cannot_open, file.name, e.message.orEmpty()), Toast.LENGTH_LONG).show()
         }
 }
 
@@ -84,7 +105,7 @@ fun openLocalFile(context: Context, file: File) {
  */
 fun openFolder(context: Context, dir: File) {
     if (!dir.isDirectory) {
-        Toast.makeText(context, "No folder: ${dir.absolutePath}", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, context.getString(R.string.notes_open_no_folder, dir.absolutePath), Toast.LENGTH_LONG).show()
         return
     }
     // Canonicalise BOTH sides so a /sdcard-configured notes dir still matches the storage root.
@@ -112,5 +133,5 @@ fun openFolder(context: Context, dir: File) {
     for (intent in intents) {
         if (runCatching { context.startActivity(intent) }.isSuccess) return
     }
-    Toast.makeText(context, "No file manager can open ${dir.name}", Toast.LENGTH_LONG).show()
+    Toast.makeText(context, context.getString(R.string.notes_open_no_file_manager, dir.name), Toast.LENGTH_LONG).show()
 }

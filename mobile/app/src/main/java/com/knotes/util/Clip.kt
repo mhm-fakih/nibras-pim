@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
 import android.widget.Toast
+import com.knotes.R
 
 /**
  * Put text on the clipboard, and say so only where the system does not.
@@ -23,7 +24,7 @@ object Clip {
         runCatching {
             manager.setPrimaryClip(ClipData.newPlainText(label, text))
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-                Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.notes_copied), Toast.LENGTH_SHORT).show()
             }
         }
     }

@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.knotes.R
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -55,6 +56,8 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
     val message: StateFlow<String?> = _message.asStateFlow()
     fun consumeMessage() { _message.value = null }
 
+    private fun str(id: Int): String = getApplication<Application>().getString(id)
+
     private var base = ""
     private var username = ""
 
@@ -86,10 +89,10 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
             val synced = runCatching { api.pushCalendar(base, username, listOf(entryOf(event))) }.getOrDefault(false)
             if (synced) {
                 store.remove(event)
-                _message.value = "Saved to calendar"
+                _message.value = str(R.string.server_calendar_saved)
                 if (base.isNotEmpty()) load(base, username)
             } else {
-                _message.value = "Saved — will sync when online"
+                _message.value = str(R.string.server_saved_sync_when_online)
             }
             // Reflect the new event in the "Upcoming plans" widget right away: this bridges the
             // knotes_calendar store into knotes_plans (which the widget reads) and refreshes it —
@@ -131,16 +134,16 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
             val resolved = resolveOccurrence(event) ?: run {
                 store.remove(event)
                 _fetched.value = _fetched.value.map { if (it.localKey == event.localKey) original else it }
-                _message.value = "Can't edit a repeat while offline — try again when connected"
+                _message.value = str(R.string.server_calendar_repeat_offline)
                 return@launch
             }
             val synced = runCatching { api.pushCalendar(base, username, listOf(entryOf(resolved))) }.getOrDefault(false)
             if (synced) {
                 store.remove(event)
-                _message.value = "Saved"
+                _message.value = str(R.string.server_saved)
                 if (base.isNotEmpty()) load(base, username)
             } else {
-                _message.value = "Saved — will sync when online"
+                _message.value = str(R.string.server_saved_sync_when_online)
             }
             runCatching {
                 com.knotes.reminder.PlansRepository.refresh(
