@@ -498,7 +498,9 @@ headerbar > label {
     font-style: italic;
 }
 
-/* Calendar heat map: one cell per day, shaded by that day's note count. */
+/* Calendar: one cell per day. A bold number = that day has notes (the count is under it); a
+   filled cell = that day is picked as a filter. Nothing else colours a cell, so the two can't
+   be mistaken for each other. */
 .cal-month {
     color: @chrome_fg_strong;
     font-size: 0.9em;
@@ -524,28 +526,21 @@ headerbar > label {
 .cal-day-count { font-size: 0.58em; color: @chrome_fg_muted; }
 .cal-other-month { opacity: 0.35; }
 .cal-today { border-color: @violet; }
-.cal-selected {
-    border-color: @accent;
-    box-shadow: inset 0 0 0 1px @accent;
+.cal-has-notes .cal-day-num {
+    font-weight: 800;
+    color: @chrome_fg_strong;
 }
-/* Two ramps, because the two metrics mean different things: notes WRITTEN that day take the
-   accent (same blue as a type badge), notes REVISITED that day take the cyan. Never mistake
-   a day of new capture for a day of review. */
-.heat-c1 { background: alpha(@accent, 0.20); }
-.heat-c2 { background: alpha(@accent, 0.40); }
-.heat-c3 { background: alpha(@accent, 0.62); }
-.heat-c4 { background: alpha(@accent, 0.85); }
-.heat-u1 { background: alpha(@cyan, 0.20); }
-.heat-u2 { background: alpha(@cyan, 0.40); }
-.heat-u3 { background: alpha(@cyan, 0.62); }
-.heat-u4 { background: alpha(@cyan, 0.85); }
-/* The two darkest steps swallow the normal label colour — flip it. */
-.heat-c3 .cal-day-num, .heat-c4 .cal-day-num,
-.heat-u3 .cal-day-num, .heat-u4 .cal-day-num,
-.heat-c3 .cal-day-count, .heat-c4 .cal-day-count,
-.heat-u3 .cal-day-count, .heat-u4 .cal-day-count {
+.cal-has-notes .cal-day-count { color: @chrome_fg; }
+.cal-selected {
+    background: @accent;
+    border-color: @accent;
+}
+.cal-selected .cal-day-num,
+.cal-selected .cal-day-count {
     color: @accent_fg;
 }
+/* Today keeps its violet ring even when picked, so it stays findable inside a filled range. */
+.cal-selected.cal-today { border-color: @violet; }
 
 /* The '#' completer's popup is its own window, so it has to paint its own surface — it inherits
    nothing from the note behind it. */

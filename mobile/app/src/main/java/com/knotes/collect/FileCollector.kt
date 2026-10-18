@@ -132,6 +132,8 @@ object FileCollector {
         type: String?,
         priority: Int,
         category: String?,
+        /** What the set is, typed when collecting by hand; heads the note (and so titles it). */
+        description: String = "",
     ): Pair<File, List<CollectedFile>> {
         val parent = File(newDir)
         parent.mkdirs()
@@ -165,6 +167,9 @@ object FileCollector {
         // that admits it.
         val ok = results.count { it.ok }
         val body = buildString {
+            // The description first: a note is titled by its first line, and "Collected 7 files"
+            // says nothing about which seven, or why they were worth keeping together.
+            description.trim().takeIf { it.isNotEmpty() }?.let { append(it).append("\n\n") }
             append("Collected ").append(ok).append(if (ok == 1) " file" else " files").append("\n\n")
             results.forEach { r ->
                 append("- ").append(r.newName)

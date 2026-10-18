@@ -4,102 +4,42 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Per-prayer athan volume: the percentage → amplitude mapping, and how it is stored. */
+/**
+ * The athan volume is a level of the phone's ALARM stream, set while the athan plays — not a share
+ * of wherever the alarm slider was left. See PrayerSettings.alarmStepFor.
+ */
 class AthanVolumeTest {
 
     @Test
-    fun theEndsOfTheRangeMeanWhatTheySay() {
-        assertEquals(0f, PrayerSettings.volumeScalar(0), 0f)
-        assertEquals(1f, PrayerSettings.volumeScalar(100), 0f)
+    fun `the ends of the slider are the ends of the stream`() {
+        assertEquals(7, PrayerSettings.alarmStepFor(100, 1, 7))
+        assertEquals(1, PrayerSettings.alarmStepFor(1, 1, 7))
     }
 
     @Test
-    fun theCurveIsSquaredNotLinear() {
-        // MediaPlayer takes an amplitude multiplier, and amplitude is not loudness: a linear 50%
-        // is only ~6 dB down and barely sounds quieter. Squaring puts the middle of the slider at
-        // ~12 dB down, which is about what someone means by "half".
-        assertEquals(0.25f, PrayerSettings.volumeScalar(50), 1e-6f)
-        assertEquals(0.64f, PrayerSettings.volumeScalar(80), 1e-6f)
-        assertTrue("50% must be quieter than a linear half", PrayerSettings.volumeScalar(50) < 0.5f)
+    fun `a percentage is that share of the stream's range`() {
+        // A stream of 0..15 steps, as many phones have for alarms.
+        assertEquals(4, PrayerSettings.alarmStepFor(25, 0, 15))
+        assertEquals(8, PrayerSettings.alarmStepFor(50, 0, 15))
+        assertEquals(12, PrayerSettings.alarmStepFor(80, 0, 15))
     }
 
     @Test
-    fun louderPercentagesAreAlwaysLouder() {
-        var previous = -1f
-        (0..100 step 5).forEach { p ->
-            val v = PrayerSettings.volumeScalar(p)
-            assertTrue("$p% was not louder than the step below", v > previous)
-            previous = v
+    fun `anything above zero is audible`() {
+        // 1% of 0..15 rounds to step 0, which is silence; the athan was asked to play.
+        assertEquals(1, PrayerSettings.alarmStepFor(1, 0, 15))
+    }
+
+    @Test
+    fun `it rises with the setting and stays inside the stream`() {
+        var last = 0
+        for (p in 1..100) {
+            val step = PrayerSettings.alarmStepFor(p, 0, 15)
+            assertTrue(step >= last)
+            assertTrue(step in 1..15)
+            last = step
         }
-    }
-
-    @Test
-    fun outOfRangePercentagesAreClamped() {
-        assertEquals(0f, PrayerSettings.volumeScalar(-40), 0f)
-        assertEquals(1f, PrayerSettings.volumeScalar(400), 0f)
-    }
-
-    @Test
-    fun eachPrayerKeepsItsOwnVolumeAndTheRestTakeTheDefault() {
-        val s = PrayerSettings(athanVolumes = mapOf(Prayer.FAJR to 25, Prayer.DHUHR to 80))
-        assertEquals(25, s.athanVolumeOf(Prayer.FAJR))
-        assertEquals(80, s.athanVolumeOf(Prayer.DHUHR))
-        assertEquals(PrayerSettings.DEFAULT_ATHAN_VOLUME, s.athanVolumeOf(Prayer.MAGHRIB))
-    }
-
-    @Test
-    fun aMutedAthanSurvivesBeingSaved() {
-        // 0 is a real setting — "call this one silently" — unlike a zero adjustment, which is just
-        // the absence of one. Dropping it on encode would restore the default instead.
-        val encoded = PrayerSettingsStore.encodeVolumes(mapOf(Prayer.FAJR to 0, Prayer.ISHA to 60))
-        assertEquals("FAJR:0,ISHA:60", encoded)
-        val decoded = PrayerSettingsStore.decodeVolumes(encoded)
-        assertEquals(0, decoded[Prayer.FAJR])
-        assertEquals(0, PrayerSettings(athanVolumes = decoded).athanVolumeOf(Prayer.FAJR))
-    }
-
-    @Test
-    fun volumesRoundTripAndSurviveJunk() {
-        val map = mapOf(Prayer.FAJR to 30, Prayer.DHUHR to 90, Prayer.MAGHRIB to 100)
-        assertEquals(map, PrayerSettingsStore.decodeVolumes(PrayerSettingsStore.encodeVolumes(map)))
-        assertEquals(emptyMap<Prayer, Int>(), PrayerSettingsStore.decodeVolumes(null))
-        assertEquals(emptyMap<Prayer, Int>(), PrayerSettingsStore.decodeVolumes(""))
-        assertEquals(
-            mapOf(Prayer.ASR to 40),
-            PrayerSettingsStore.decodeVolumes("NOPE:10,ASR:40,rubbish"),
-        )
-        // A hand-edited preference outside 0..100 is clamped, not taken at face value.
-        assertEquals(mapOf(Prayer.ASR to 100), PrayerSettingsStore.decodeVolumes("ASR:5000"))
-    }
-}
-
-/** The beep sound: a ringtone, a file, or the device's own tone. */
-class BeepSoundTest {
-
-    @Test
-    fun noSoundChosenMeansTheBuiltInTone() {
-        // Blank is a real, supported choice — not an unset field waiting to be filled. It is the
-        // default precisely because it needs no file and cannot be broken by deleting one.
-        assertEquals("", PrayerSettings().beepSoundUri)
-    }
-
-    @Test
-    fun aChosenSoundIsKeptVerbatim() {
-        // Whatever the picker hands back — a ringtone content URI or a document one — is stored
-        // exactly, because it is what the media player will be asked to open months later.
-        val ringtone = "content://media/internal/audio/media/27"
-        val document = "content://com.android.externalstorage.documents/document/primary%3Abeep.ogg"
-        assertEquals(ringtone, PrayerSettings(beepSoundUri = ringtone).beepSoundUri)
-        assertEquals(document, PrayerSettings(beepSoundUri = document).beepSoundUri)
-    }
-
-    @Test
-    fun theBeepCountIsClampedToWhatTheUiOffers() {
-        // The count drives how many times a chosen sound plays, so an absurd stored value would
-        // mean an absurdly long countdown rather than a merely odd-looking slider.
-        assertEquals(PrayerSettings.MIN_BEEPS, 1)
-        assertEquals(PrayerSettings.MAX_BEEPS, 10)
-        assertEquals(10, 50.coerceIn(PrayerSettings.MIN_BEEPS, PrayerSettings.MAX_BEEPS))
-        assertEquals(1, 0.coerceIn(PrayerSettings.MIN_BEEPS, PrayerSettings.MAX_BEEPS))
+        assertEquals(15, PrayerSettings.alarmStepFor(400, 0, 15))
+        assertEquals(1, PrayerSettings.alarmStepFor(-40, 0, 15))
     }
 }

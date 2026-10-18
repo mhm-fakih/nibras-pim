@@ -178,4 +178,7 @@
     <string name="widgets_label_recent_notes">أحدث الملاحظات</string>
     <string name="widgets_label_alarms_countdown">العد التنازلي للمنبّهات</string>
     <string name="widgets_label_prayer_times">مواقيت الصلاة</string>
+    <string name="widgets_collect_describe_label">ما هذه المجموعة؟</string>
+    <string name="widgets_collect_describe_hint">بضعة أسطر تصف هذه الملفات — تصبح عنوان الملاحظة ومطلعها. اختياري.</string>
+    <string name="widgets_collect_confirm">اجمع</string>
 </resources>

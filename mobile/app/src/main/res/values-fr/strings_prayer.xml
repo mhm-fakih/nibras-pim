@@ -118,7 +118,7 @@
     <string name="prayer_builtin_athan">Adhan intégré (Mohammad Kazem-Zadeh)</string>
     <string name="prayer_athan_file_note">N’importe quel fichier audio du téléphone. Joué sur le flux d’alarme, il reste audible même quand le téléphone est en silence pour la prière ci-dessous.</string>
     <string name="prayer_volume_each">Volume pour chacune</string>
-    <string name="prayer_volume_note">Proportionnel au volume d’alarme — il peut adoucir un adhan, jamais le rendre plus fort que le volume d’alarme du téléphone. 0 le coupe.</string>
+    <string name="prayer_volume_note">Règle le volume d\'alarme du téléphone à ce niveau pendant l\'athan, puis le remet — 25 % sonne donc pareil, quel que soit le volume d\'alarme laissé. 0 coupe celui-ci.</string>
     <string name="prayer_volume_muted">%1$s  muet</string>
     <string name="prayer_volume_percent">%1$s  %2$d %%</string>
     <string name="prayer_hear_colon">Écouter :</string>

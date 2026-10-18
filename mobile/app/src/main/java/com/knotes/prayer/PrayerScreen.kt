@@ -686,10 +686,11 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
         Spacer(Modifier.height(10.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Button(onClick = { soundPicker.launch(arrayOf("audio/*")) }) { Text(stringResource(R.string.prayer_choose_athan_file)) }
-            // Plays the real thing through the real path: the chosen file, on the alarm stream, at
-            // full — the two questions being "does this file play at all" and, below, "how loud".
+            // Plays the chosen file on the alarm stream at the phone's own alarm volume — "does
+            // this file play at all". The per-prayer buttons below answer "how loud": they set the
+            // alarm volume exactly as the athan will.
             Button(onClick = {
-                PrayerReceiver.soundAthanAt(context, settings, PrayerSettings.MAX_VOLUME)
+                PrayerReceiver.soundAthanAt(context, settings, PrayerSettings.MAX_VOLUME, setDeviceLevel = false)
             }) { Text(stringResource(R.string.prayer_hear_it)) }
             TextButton(onClick = { PrayerReceiver.stopSound() }) { Text(stringResource(R.string.prayer_stop)) }
             if (settings.athanSoundUri.isNotBlank()) {

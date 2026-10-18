@@ -188,7 +188,7 @@ settings to a Windows path (`C:\Users\you\knotes`); `~` still expands.
 | `notes.py`  | Pure-Python storage: the file-name tag scheme, parsing, list/save/update/delete. No GUI — easy to read and reuse. |
 | `config.py` | App-wide `Settings` (saved next to the program in `config.json`) **and** `RepoConfig` — the per-folder tag options saved inside each note folder as `.knotes.json`. |
 | `filters.py` | Pure-Python filter model: which notes match the sidebar's filters, and how many notes are behind every individual option. No GUI, like `notes.py`. |
-| `sidebar.py` | The GTK3 filter sidebar — calendar heat map, tag facets, hashtag cloud, counts. Draws what `filters.py` decides. |
+| `sidebar.py` | The GTK3 filter sidebar — calendar, tag facets, hashtag cloud, counts. Draws what `filters.py` decides. |
 | `tagbank.py` | Pure-Python tag bank: reads `tag-bank.md` and ranks matches for the `#` completer. No GUI, so the matching rules — the part most likely to need adjusting — can be exercised without a display. |
 | `backend.py` | Optional nibras sync: fetches the type/category vocabulary so captures map to real modules. Entirely skippable — a blank URL means fully offline. |
 | `knotes.py` | The GTK3 window: note list, tagging input bar, editing, search, settings, shortcuts, the side editor pane. |
@@ -222,7 +222,7 @@ Everything is reachable from the keyboard (press **F1** in the app for this list
 | `Ctrl+E` | Show / hide the **side editor pane** — reads the selected note, or edits it (autosaved) |
 | `Ctrl+J` / `Ctrl+K` | Jump into the **quick note** / **quick task** field (opens the pane and the strip if they're closed) |
 | `Ctrl+F` | Toggle search — note text, type/category codes, **and any part of the file name**; `Enter` runs it |
-| `Ctrl+B` | Show / hide the **filter sidebar** (calendar heat map, tag facets, hashtag cloud, counts) |
+| `Ctrl+B` | Show / hide the **filter sidebar** (calendar, tag facets, hashtag cloud, counts) |
 | `Ctrl+R` | Refresh from disk (pick up notes synced from another machine) |
 | `Ctrl+T` | Toggle light / dark theme |
 | `Ctrl+L` | Toggle **minimal side-note mode** (board hidden) |
@@ -290,14 +290,15 @@ There's no `Alt`-based or bare-`Delete` shortcut — every note-editing shortcut
     list already on screen. It is also the most compact of them. A folder whose notes carry no
     hashtags hides the section entirely, header and all, rather than spending that slot on an
     empty box.
-  - a **calendar heat map** — one cell per day, shaded by how many notes that day has, so a month
-    of note-taking is legible at a glance. A **Created / Updated** switch drives both the shading
-    and what a clicked day means: *Created* uses the note's **file-name timestamp** (never the
-    file's own dates — retagging rewrites the file and would otherwise drag every note to today),
-    *Updated* uses the file's mtime, i.e. the "revisited it" signal. The two use different colour
-    ramps (blue vs. teal) so a day of capture never looks like a day of review. Click a day to
-    filter to it, shift-click for a range; each cell also carries its own count, and its tooltip
-    always shows both numbers.
+  - a **calendar** — one cell per day carrying its note count. Two signals, never mixed: a day
+    that **has notes** shows its number in **bold**, and a day **picked as a filter** is
+    **filled** with the accent colour (today keeps its violet ring either way). The cells used to
+    be shaded by count in that same accent, which made a picked day — just an outline — vanish on
+    a busy one. A **Created / Updated** switch drives both the counts and what a clicked day
+    means: *Created* uses the note's **file-name timestamp** (never the file's own dates —
+    retagging rewrites the file and would otherwise drag every note to today), *Updated* uses the
+    file's mtime, i.e. the "revisited it" signal. Click a day to filter to it, shift-click for a
+    range; the tooltip always shows both numbers.
   - **Priority / Type / Category** facets — every option the folder defines (even at 0), plus any
     *foreign* code the notes actually use but the folder doesn't define (shown in italic amber,
     e.g. a `~Dev` category synced in from a folder with a different taxonomy).

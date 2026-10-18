@@ -17,7 +17,7 @@ Interactive flow (run it in a real terminal so the prompts work):
      (only works where you have permission); otherwise nothing is touched.
 
 Output (in the knotes folder: --knotes, else $NIBRAS_KNOTES_DIR, else
-~/new/h-knotes-new — see ../knotes_out.py):
+~/new/knotes — see ../knotes_out.py):
   <yyyy_mm_dd-hhmmss>~N~p<priority>~<category>.md     the transcript
   <yyyy_mm_dd-hhmmss>~N~p<priority>~<category>.d/     its media, as
       <id>_<timestamp>.<ext>

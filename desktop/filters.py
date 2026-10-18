@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass, field
-from datetime import date
+from dataclasses import dataclass, field, replace
+from datetime import date, timedelta
 
 from notes import Note, is_note_file, parse_created
 
@@ -250,6 +250,22 @@ class FilterState:
         self.priorities, self.days, self.tags = set(saved.priorities), set(saved.days), set(saved.tags)
         self.nonstandard, self.taxonomy = saved.nonstandard, saved.taxonomy
 
+    def is_like(self, other: "FilterState") -> bool:
+        """Same picks as [other], whatever the date field (that's the heat-map metric, not a pick)."""
+        return replace(other, date_field=self.date_field) == self
+
+    def reset_to_default(self, default: "FilterState") -> None:
+        """What every "clear" button does: back to the launch view ([default], see
+        default_filter) — or, when the state is ALREADY exactly that, to no filter at all.
+
+        Straight to "no filter" used to be the only answer, and on a big folder that is the slowest
+        thing the app does: it draws every card. The launch view is cheap and is nearly always what
+        "start over" means; the whole board is still there, one more click away."""
+        if self.is_like(default):
+            self.clear()
+        else:
+            self.restore(default)
+
     def set_option(self, dim: str, key, on: bool) -> None:
         sel = self.selection(dim)
         sel.add(key) if on else sel.discard(key)
@@ -376,6 +392,25 @@ def compute(notes: list[Note], state: FilterState, tax: Taxonomy) -> FacetCounts
         updated_days=updated_days,
         total=len(notes),
         shown=shown,
+    )
+
+
+def default_days(start_filter_today: bool, today: date | None = None) -> set[date]:
+    """The days the board opens on: today and yesterday, or none when that setting is off."""
+    if not start_filter_today:
+        return set()
+    today = today or date.today()
+    return {today - timedelta(days=1), today}
+
+
+def default_filter(settings, today: date | None = None) -> FilterState:
+    """The view the board opens on and every "clear" returns to: today and yesterday
+    (Settings.start_filter_today) with the non-standard items hidden
+    (Settings.hide_nonstandard_default). Either can be switched off; both off = no filter."""
+    return FilterState(
+        days=default_days(settings.start_filter_today, today),
+        nonstandard=NS_HIDE if settings.hide_nonstandard_default else NS_INCLUDE,
+        date_field=settings.heatmap_metric,
     )
 
 

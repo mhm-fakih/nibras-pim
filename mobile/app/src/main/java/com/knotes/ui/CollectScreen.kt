@@ -37,6 +37,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import com.knotes.R
 import com.knotes.collect.CollectStatus
 import com.knotes.collect.CollectViewModel
@@ -61,6 +68,39 @@ fun CollectScreen(
 
     LaunchedEffect(Unit) {
         if (status == CollectStatus.Idle) vm.scan(sourceDirs, newDir, timestampFormat)
+    }
+
+    // Asked between "Collect" and the move: a few lines on what this set is. It heads the note, so
+    // the collection is titled by what it is about rather than by "Collected 7 files". Optional —
+    // leaving it empty collects exactly as before.
+    var describing by remember { mutableStateOf(false) }
+    var description by rememberSaveable { mutableStateOf("") }
+    if (describing) {
+        AlertDialog(
+            onDismissRequest = { describing = false },
+            title = { Text(pluralStringResource(R.plurals.widgets_collect_button, found.size, found.size)) },
+            text = {
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text(stringResource(R.string.widgets_collect_describe_label)) },
+                    placeholder = { Text(stringResource(R.string.widgets_collect_describe_hint)) },
+                    minLines = 3,
+                    maxLines = 8,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    describing = false
+                    vm.collect(newDir, timestampFormat, noteType, notePriority, noteCategory, description)
+                    description = ""
+                }) { Text(stringResource(R.string.widgets_collect_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { describing = false }) { Text(stringResource(R.string.player_cancel)) }
+            },
+        )
     }
 
     Scaffold(
@@ -136,7 +176,8 @@ fun CollectScreen(
                 Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.Center) {
                     when (status) {
                         CollectStatus.Ready -> Button(
-                            onClick = { vm.collect(newDir, timestampFormat, noteType, notePriority, noteCategory) },
+                            // Not straight to collecting: first ask what the set is (see below).
+                            onClick = { describing = true },
                             enabled = found.isNotEmpty(),
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(if (found.isEmpty()) stringResource(R.string.widgets_collect_none_found) else pluralStringResource(R.plurals.widgets_collect_button, found.size, found.size)) }

@@ -36,13 +36,20 @@ class CollectViewModel : ViewModel() {
         }
     }
 
-    fun collect(newDir: String, format: String, type: String?, priority: Int, category: String?) {
+    fun collect(
+        newDir: String,
+        format: String,
+        type: String?,
+        priority: Int,
+        category: String?,
+        description: String = "",
+    ) {
         val toMove = _found.value
         if (toMove.isEmpty()) return
         viewModelScope.launch {
             _status.value = CollectStatus.Collecting
             val (target, results) = withContext(Dispatchers.IO) {
-                FileCollector.collect(toMove, newDir, format, type, priority, category)
+                FileCollector.collect(toMove, newDir, format, type, priority, category, description)
             }
             _results.value = results
             _targetPath.value = target.absolutePath

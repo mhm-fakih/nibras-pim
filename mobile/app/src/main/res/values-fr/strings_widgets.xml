@@ -148,4 +148,7 @@
     <string name="widgets_label_recent_notes">Notes récentes</string>
     <string name="widgets_label_alarms_countdown">Compte à rebours des alarmes</string>
     <string name="widgets_label_prayer_times">Heures de prière</string>
+    <string name="widgets_collect_describe_label">Qu\'est-ce que cet ensemble ?</string>
+    <string name="widgets_collect_describe_hint">Quelques lignes pour décrire ces fichiers — elles deviennent le titre et le début de la note. Facultatif.</string>
+    <string name="widgets_collect_confirm">Collecter</string>
 </resources>

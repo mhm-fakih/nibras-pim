@@ -63,6 +63,9 @@ object PrayerScheduler {
         val settings = PrayerSettingsStore(context).value
         val zone = ZoneId.systemDefault()
         val now = System.currentTimeMillis()
+        // An athan killed mid-call leaves the alarm volume where it set it; this is the next
+        // chance to put it back (app start, boot, any settings change).
+        runCatching { PrayerReceiver.restorePendingAlarmLevel(context) }
         val am = context.getSystemService(AlarmManager::class.java) ?: return
         val exact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()
 

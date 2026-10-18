@@ -14,7 +14,7 @@
 #
 # Usage:  ./media-dl.sh [options] URL [URL...]
 #
-#   -o DIR    knotes folder          (default: $NIBRAS_KNOTES_DIR, else ~/new/h-knotes-new)
+#   -o DIR    knotes folder          (default: $NIBRAS_KNOTES_DIR, else ~/new/knotes)
 #   -P N      note priority          (default: the folder's .knotes.json, else 2)
 #   -k X      note category letter   (default: the folder's .knotes.json, else D)
 #   -f FMT    audio format           (default: mp3;  also: m4a, opus, flac...)
@@ -35,7 +35,7 @@
 set -uo pipefail
 
 KNOTES_OUT="$(dirname "$(readlink -f "$0")")/../knotes_out.py"
-OUTROOT="${NIBRAS_KNOTES_DIR:-$HOME/new/h-knotes-new}"
+OUTROOT="${NIBRAS_KNOTES_DIR:-$HOME/new/knotes}"
 PRIORITY=""
 CATEGORY=""
 AUDIO_FMT="${MEDIA_DL_AUDIO_FMT:-mp3}"

@@ -46,6 +46,8 @@ class PrayerReceiver : BroadcastReceiver() {
         val prayer = Prayer.of(intent.getStringExtra(PrayerScheduler.EXTRA_PRAYER))
         val at = intent.getLongExtra(PrayerScheduler.EXTRA_AT, 0L)
         val settings = PrayerSettingsStore(context).value
+        // A volume left raised by an athan whose process was killed mid-call goes back first.
+        restorePendingAlarmLevel(context)
 
         try {
             if (kind == null || prayer == null || !settings.enabled) return
@@ -207,13 +209,59 @@ class PrayerReceiver : BroadcastReceiver() {
             settings: PrayerSettings,
             volumePercent: Int,
             startNow: Boolean = false,
+            /** False for "hear the chosen file": that plays at the phone's own alarm volume. */
+            setDeviceLevel: Boolean = true,
         ) {
             playOnce(
                 context, settings.athanSoundUri, AudioAttributes.USAGE_ALARM,
                 RingtoneManager.TYPE_ALARM, volumePercent = volumePercent,
                 fallback = com.knotes.util.DefaultSounds.athan(context),
                 startNow = startNow,
+                alarmLevel = setDeviceLevel,
             )
+        }
+
+        /**
+         * Put the alarm volume back if an athan changed it and nothing is sounding now — for when
+         * the process died mid-athan, so the stop that would have restored it never ran. Called
+         * on every prayer event and every re-sync (app start, boot, settings change).
+         */
+        fun restorePendingAlarmLevel(context: Context) {
+            if (player == null) restoreAlarmLevel(context.applicationContext)
+        }
+
+        private const val VOLUME_PREFS = "prayer_athan_volume"
+        private const val K_RESTORE_STEP = "alarm_step_to_restore"
+
+        /** The context the pending restore will need — stopAthan() is called without one. */
+        @Volatile
+        private var restoreContext: Context? = null
+
+        /**
+         * Set the alarm stream to [percent] of its range for the athan, remembering (on disk, so a
+         * killed process can still put it back) the level it was at. An athan replacing another
+         * keeps the FIRST saved level — the one the user actually set.
+         */
+        private fun applyAlarmLevel(context: Context, percent: Int) {
+            val am = context.getSystemService(AudioManager::class.java) ?: return
+            val stream = AudioManager.STREAM_ALARM
+            val max = am.getStreamMaxVolume(stream)
+            val min = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) am.getStreamMinVolume(stream) else 0
+            val prefs = context.getSharedPreferences(VOLUME_PREFS, Context.MODE_PRIVATE)
+            if (!prefs.contains(K_RESTORE_STEP)) {
+                prefs.edit().putInt(K_RESTORE_STEP, am.getStreamVolume(stream)).commit()
+            }
+            restoreContext = context
+            runCatching { am.setStreamVolume(stream, PrayerSettings.alarmStepFor(percent, min, max), 0) }
+        }
+
+        private fun restoreAlarmLevel(context: Context) {
+            val prefs = context.getSharedPreferences(VOLUME_PREFS, Context.MODE_PRIVATE)
+            val saved = prefs.getInt(K_RESTORE_STEP, -1)
+            if (saved < 0) return
+            val am = context.getSystemService(AudioManager::class.java)
+            runCatching { am?.setStreamVolume(AudioManager.STREAM_ALARM, saved, 0) }
+            prefs.edit().remove(K_RESTORE_STEP).commit()
         }
 
         /**
@@ -300,6 +348,10 @@ class PrayerReceiver : BroadcastReceiver() {
             runCatching { player?.stop() }
             runCatching { player?.release() }
             player = null
+            // An athan that set the alarm volume puts it back the moment it stops — ended, Stop,
+            // or replaced by another sound (which sets its own level again if it needs one).
+            restoreContext?.let { ctx -> runCatching { restoreAlarmLevel(ctx) } }
+            restoreContext = null
             beepsRemaining = 0
             toneRun++
             runCatching { tone?.stopTone() }
@@ -368,6 +420,8 @@ class PrayerReceiver : BroadcastReceiver() {
             volumePercent: Int = PrayerSettings.MAX_VOLUME,
             fallback: Uri? = null,
             startNow: Boolean = false,
+            /** Set the alarm stream to [volumePercent] instead of scaling within it — the athan. */
+            alarmLevel: Boolean = false,
         ) {
             stopAthan()
             // A muted athan is a decision, not a reason to fall back to the default sound.
@@ -376,7 +430,7 @@ class PrayerReceiver : BroadcastReceiver() {
                 ?: fallback
                 ?: RingtoneManager.getDefaultUri(defaultType)
                 ?: return
-            val scalar = PrayerSettings.volumeScalar(volumePercent)
+            if (alarmLevel) applyAlarmLevel(context.applicationContext, volumePercent)
             runCatching {
                 player = MediaPlayer().apply {
                     setAudioAttributes(
@@ -387,9 +441,9 @@ class PrayerReceiver : BroadcastReceiver() {
                     )
                     setDataSource(context, uri)
                     isLooping = false
-                    // Scales within the alarm stream: this can quieten the athan, never make it
-                    // louder than the device's own alarm volume.
-                    setVolume(scalar, scalar)
+                    // Full within the stream: the loudness is the stream level, set above for the
+                    // athan, or the phone's own level for everything else.
+                    setVolume(1f, 1f)
                     setOnCompletionListener { stopAthan() }
                     if (startNow) {
                         prepare()

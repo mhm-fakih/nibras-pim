@@ -13,9 +13,9 @@ The panel holds, top to bottom:
   list already on screen, and because seven expanded sections are roughly twice a laptop
   sidebar's height — whatever sits fifth is effectively invisible. A folder with no hashtags
   hides the section outright rather than spending that slot on an empty box;
-* a **calendar heat map** — one cell per day, shaded by how many notes were written (or
-  last touched) that day, so a month of note-taking is legible at a glance; clicking a day
-  filters the board to it, shift-clicking picks a range;
+* a **calendar** — one cell per day with its note count; a day that has notes shows its number
+  in bold, and a day picked as a filter is filled with the accent; clicking a day filters the
+  board to it, shift-clicking picks a range;
 * **priority**, **type** and **category** facets — every option the folder defines, plus any
   *foreign* code the notes actually use;
 * the **non-standard** tri-state — include / hide / show only the visible files and folders whose
@@ -212,6 +212,9 @@ class FilterSidebar(Gtk.Box):
         footer.set_border_width(6)
         self.clear_button = Gtk.Button(label="Clear all filters")
         self.clear_button.get_style_context().add_class("sidebar-clear")
+        self.clear_button.set_tooltip_text(
+            "Back to the launch view (today and yesterday, non-standard items hidden) — "
+            "click again for the whole folder")
         self.clear_button.connect("clicked", lambda _b: self._clear_all())
         footer.pack_start(self.clear_button, True, True, 0)
         self.panel.pack_start(footer, False, False, 0)
@@ -268,7 +271,7 @@ class FilterSidebar(Gtk.Box):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.set_no_show_all(True)
 
-        # Which date the heat map shades AND a clicked day filters on — one switch drives both, so
+        # Which date the calendar counts AND a clicked day filters on — one switch drives both, so
         # "show me what I wrote in June" and "show me what I revised in June" are one click apart.
         metric = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         metric.get_style_context().add_class("linked")
@@ -314,7 +317,8 @@ class FilterSidebar(Gtk.Box):
         actions.pack_start(today_button, True, True, 0)
         self.clear_days_button = Gtk.Button(label="Clear days")
         self.clear_days_button.get_style_context().add_class("sidebar-clear")
-        self.clear_days_button.set_tooltip_text("Drop the day selection (keeps the other filters)")
+        self.clear_days_button.set_tooltip_text(
+            "Back to today and yesterday (keeps the other filters) — click again for every day")
         self.clear_days_button.connect("clicked", lambda _b: self._clear_days())
         actions.pack_start(self.clear_days_button, True, True, 0)
         box.pack_start(actions, False, False, 0)
@@ -334,8 +338,6 @@ class FilterSidebar(Gtk.Box):
         created = self._counts.created_days if self._counts else {}
         updated = self._counts.updated_days if self._counts else {}
         by_updated = self.state.date_field == F.BY_UPDATED
-        heat = updated if by_updated else created
-        ramp = "u" if by_updated else "c"
 
         self.month_label.set_markup(f'<b>{self._month:%B %Y}</b>')
         for column, initial in enumerate(WEEKDAY_INITIALS):
@@ -343,9 +345,6 @@ class FilterSidebar(Gtk.Box):
             label.get_style_context().add_class("cal-weekday")
             self.day_grid.attach(label, column, 0, 1, 1)
 
-        # Scale the shading to the busiest day of THIS month, so a quiet month still reads as a
-        # gradient rather than one flat wash.
-        peak = max([heat.get(d, 0) for d in _month_days(self._month)] or [0])
         start = self._month - timedelta(days=self._month.weekday())   # back to that week's Monday
         today = date.today()
         for cell in range(CAL_CELLS):
@@ -359,9 +358,13 @@ class FilterSidebar(Gtk.Box):
             style.add_class("cal-day")
             if not in_month:
                 style.add_class("cal-other-month")
-            level = F.heat_level(count, peak) if in_month else 0
-            if level:
-                style.add_class(f"heat-{ramp}{level}")
+            # One signal per question, so they can't be confused. HAS NOTES: the day number goes
+            # bold (the count under it says how many). PICKED as a filter: the whole cell fills
+            # with the accent. The cells used to be shaded by count in that same accent, and a
+            # picked day was only an accent outline — on a busy day the outline vanished into the
+            # shading, and you could not tell which days were actually filtering the board.
+            if count:
+                style.add_class("cal-has-notes")
             if day == today:
                 style.add_class("cal-today")
             if day in self.state.days:
@@ -413,9 +416,15 @@ class FilterSidebar(Gtk.Box):
         self._rebuild_days()
 
     def _clear_days(self) -> None:
-        if not self.state.days:
-            return
-        self.state.days.clear()
+        """Back to the default days (today and yesterday); from there, to no day at all. Going
+        straight to "every day" drew the whole folder, which on a big one takes seconds."""
+        default = F.default_days(self.settings.start_filter_today)
+        if self.state.days == default:
+            if not self.state.days:
+                return
+            self.state.days.clear()
+        else:
+            self.state.days = set(default)
         self._day_anchor = None
         self._emit()
 
@@ -720,9 +729,10 @@ class FilterSidebar(Gtk.Box):
         self._suppress = False
 
     def _clear_all(self) -> None:
+        """Back to the launch view, then to nothing — see FilterState.reset_to_default."""
         if not self.state.active():
             return
-        self.state.clear()
+        self.state.reset_to_default(F.default_filter(self.settings))
         self._day_anchor = None
         self._emit()
 

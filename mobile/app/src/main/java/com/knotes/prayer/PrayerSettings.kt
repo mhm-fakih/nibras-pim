@@ -82,8 +82,8 @@ data class PrayerSettings(
      *
      * The Fajr athan and the Dhuhr athan want different volumes from the same phone — one is heard
      * in a silent house at dawn, the other over a working day — and a single setting cannot serve
-     * both. Scaled within the alarm stream, so it can quieten the athan but never make it louder
-     * than the device's own alarm volume.
+     * both. Applied as the phone's alarm volume while the athan plays (and restored after) — see
+     * [alarmStepFor] — so it means the same loudness whatever that volume was left at.
      */
     val athanVolumes: Map<Prayer, Int> = emptyMap(),
 
@@ -147,17 +147,23 @@ data class PrayerSettings(
         const val DEFAULT_ATHAN_VOLUME = 80
 
         /**
-         * Percentage → amplitude scalar for [android.media.MediaPlayer.setVolume].
+         * Percentage → the alarm-stream step to set while the athan plays, on a stream whose steps
+         * run [minStep]..[maxStep].
          *
-         * Squared, not linear. The player takes an amplitude multiplier, and amplitude is not
-         * loudness: a linear 50% is only about 6 dB down, which sounds barely quieter and leaves
-         * the whole useful range crammed into the bottom of the slider. Squaring puts 50% at
-         * roughly 12 dB down, which is about what someone means when they drag a volume control
-         * to the middle.
+         * The setting is a level of the PHONE's alarm volume, not a share of wherever that slider
+         * happens to sit. It used to scale the player inside the current alarm volume, so "25%"
+         * meant a quarter of an unknown — near-silent on a phone left at a low alarm volume, and
+         * different every day. Now the stream itself is set (and put back afterwards), so 25% is
+         * the same loudness whatever the slider was at.
+         *
+         * Linear on the steps: the system's steps are already spaced for loudness, unlike the raw
+         * amplitude the old squared curve was compensating for. Anything above 0% gets at least
+         * one audible step; 0 is handled before this (a muted athan does not play).
          */
-        fun volumeScalar(percent: Int): Float {
-            val p = percent.coerceIn(MIN_VOLUME, MAX_VOLUME) / 100f
-            return p * p
+        fun alarmStepFor(percent: Int, minStep: Int, maxStep: Int): Int {
+            val p = percent.coerceIn(MIN_VOLUME, MAX_VOLUME)
+            val step = minStep + Math.round((maxStep - minStep) * p / 100f)
+            return step.coerceIn(maxOf(minStep, 1), maxStep)
         }
     }
 }

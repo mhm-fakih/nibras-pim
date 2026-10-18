@@ -28,7 +28,7 @@ from pathlib import Path
 
 # Where notes go unless --dir / --knotes says otherwise. The backend reads the
 # same variable, so setting it once points capture and import at one folder.
-DEFAULT_DIR = "~/new/h-knotes-new"
+DEFAULT_DIR = "~/new/knotes"
 FALLBACK_PRIORITY = 2      # used when the folder has no .knotes.json
 FALLBACK_CATEGORY = "D"
 

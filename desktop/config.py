@@ -126,6 +126,10 @@ class Settings:
     # showing a blank board. The calendar shows the day picked, so the sidebar's "Clear all
     # filters" gets the whole board back.
     start_filter_today: bool = True
+    # Part of the same default view: hide the non-standard items (files and folders in the notes
+    # folder that aren't canonical notes yet — the "N to settle" backlog). They are a clean-up
+    # queue, not reading; the sidebar's Non-standard switch shows them, or shows only them.
+    hide_nonstandard_default: bool = True
     sidebar_sections_collapsed: list[str] = field(default_factory=list)
     # Right-hand editor pane (Ctrl+E): a full-height panel that edits the selected note's body in
     # place and saves itself, for the fix-a-typo / flesh-out-a-line edits that aren't worth a round
@@ -249,6 +253,7 @@ class Settings:
         s.sidebar_visible = bool(raw.get("sidebar_visible", s.sidebar_visible))
         s.heatmap_metric = raw.get("heatmap_metric", s.heatmap_metric)
         s.start_filter_today = bool(raw.get("start_filter_today", s.start_filter_today))
+        s.hide_nonstandard_default = bool(raw.get("hide_nonstandard_default", s.hide_nonstandard_default))
         s.sidebar_sections_collapsed = [
             str(k) for k in raw.get("sidebar_sections_collapsed", s.sidebar_sections_collapsed)]
         s.editor_pane_visible = bool(raw.get("editor_pane_visible", s.editor_pane_visible))

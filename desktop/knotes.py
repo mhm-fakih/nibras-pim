@@ -34,7 +34,7 @@ from notes import (NoteRepository, Note, is_rtl, companion_dir, companion_files,
                    fmt_count, split_highlights, apply_highlights, clause_bounds,
                    parse as parse_name)
 from backend import fetch_taxonomy, import_note  # noqa: E402
-from filters import FilterState, Taxonomy, BY_CREATED, NS_INCLUDE, NS_ONLY, TX_INCLUDE, TX_ONLY  # noqa: E402
+from filters import FilterState, Taxonomy, default_filter, BY_CREATED, NS_INCLUDE, NS_ONLY, TX_INCLUDE, TX_ONLY  # noqa: E402
 import tagbank  # noqa: E402
 from sidebar import FilterSidebar  # noqa: E402
 
@@ -56,7 +56,7 @@ DEFAULT_OPENER = "start" if IS_WINDOWS else ("open" if IS_MACOS else "xdg-open")
 # file beside it. Display name and identity are allowed to differ; that's what this constant is for.
 APP_NAME = "Nibras Notes (dev)" if DEV_MODE else "Nibras Notes"
 
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 
 
 def _data_dir() -> str:
@@ -877,6 +877,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # hundreds of notes — made the entry lag and pinned a core. The one live reaction kept is
         # emptying the box (Escape, the clear icon, backspacing to nothing) restoring the board.
         self._search_query = ""   # the SUBMITTED query, which is what the board reflects
+        # The sidebar picks a search cleared, so ending the search can put them back (see
+        # _on_search_activate). None when the search cleared nothing.
+        self._filters_before_search: FilterState | None = None
         self.search_entry.connect("activate", self._on_search_activate)
         self.search_entry.connect("search-changed", self._on_search_changed)
         # …and again beside the box, because GTK3 hides an entry's placeholder while it has focus,
@@ -903,7 +906,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.filter_summary_row.pack_start(self.filter_summary, True, True, 0)
         clear_all = Gtk.Button(label="clear")
         clear_all.get_style_context().add_class("filter-summary-clear")
-        clear_all.set_tooltip_text("Clear every filter and the search box")
+        clear_all.set_tooltip_text(
+            "Clear the search box and go back to the launch view (today and yesterday) — "
+            "click again for the whole folder")
         clear_all.connect("clicked", lambda _b: self._clear_everything())
         self.filter_summary_row.pack_end(clear_all, False, False, 0)
         self.filter_summary_row.set_no_show_all(True)
@@ -2756,10 +2761,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         """
         if not folder_has_notes:
             text = "No notes in this folder yet"
-        elif not query and self.filters == FilterState(
-                date_field=self.filters.date_field,
-                days={datetime.now().date(), datetime.now().date() - timedelta(days=1)}):
-            # Today and yesterday, and nothing else — the state the app opens in.
+        elif not query and self.settings.start_filter_today and self.filters.is_like(
+                default_filter(self.settings)):
+            # The state the app opens in.
             text = "No notes entered today or yesterday"
         elif not query and self.filters == FilterState(date_field=self.filters.date_field,
                                                        days={datetime.now().date()}):
@@ -2945,7 +2949,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if self.search_bar.get_search_mode():
             self._set_search(False)      # also clears the entry text
         if self.filters.active():
-            self.filters.clear()
+            # The launch view first, the whole folder only on a second click — see
+            # FilterState.reset_to_default for why straight-to-everything was the wrong default.
+            self.filters.reset_to_default(default_filter(self.settings))
         self.reload_notes()
 
     def _update_tags_summary(self, notes: list[Note]) -> None:
@@ -4372,11 +4378,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
                 RepoConfig.load(full, self.settings)
 
     def _apply_start_filter(self) -> None:
-        """The launch view: today and yesterday selected in the calendar (Settings.start_filter_today),
-        or nothing when that's off. Also what a folder opens on the first time it's switched to."""
-        if self.settings.start_filter_today:
-            today = datetime.now().date()
-            self.filters.select_range(today - timedelta(days=1), today)
+        """The launch view (filters.default_filter): today and yesterday, non-standard items hidden.
+        Also what a folder opens on the first time it's switched to."""
+        self.filters.restore(default_filter(self.settings))
 
     def _on_repo_changed(self, combo: Gtk.ComboBoxText) -> None:
         """Switch the active note folder: new notes go there and the board shows its notes. The text
@@ -4399,6 +4403,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # a big one. So each folder keeps its own picks — stash the old folder's, bring back the new
         # one's, and a folder not yet visited this session opens like a launch (today + yesterday).
         self._repo_filters[old_code] = self.filters.snapshot()
+        self._filters_before_search = None   # a search's stash belongs to the folder being left
         if code in self._repo_filters:
             self.filters.restore(self._repo_filters[code])
         else:
@@ -4478,12 +4483,10 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.search_button.set_active(active)
         self.search_bar.set_search_mode(active)
         if active:
-            # Searching starts from everything. A search that quietly ran inside yesterday's
-            # sidebar selection is the worst kind of empty result: the note IS there, the filter
-            # hid it, and nothing on screen says so. Clearing first makes "no results" mean it.
-            if self.filters.active():
-                self.filters.clear()
-                self.reload_notes()   # re-render the board unfiltered, and re-mirror the sidebar
+            # Opening the box costs nothing: the board stays as it is until a query is submitted.
+            # It used to clear the filters and re-render right here — which drew every card in
+            # the folder before the box had even appeared, a multi-second stall on a big folder.
+            # The clearing now happens on Enter, where only the matches get drawn.
             # Focus now AND once the reveal has finished: Gtk.SearchBar reveals the entry through a
             # GtkRevealer, so at this instant the widget is not yet mapped and a grab on it is
             # dropped when the animation completes — which is why clicking the button used to leave
@@ -4505,13 +4508,29 @@ class KnotesWindow(Gtk.ApplicationWindow):
         query = entry.get_text().strip().lower()
         if query != self._search_query:
             self._search_query = query
+            # Searching runs over everything. A search that quietly ran inside yesterday's sidebar
+            # selection is the worst kind of empty result: the note IS there, the filter hid it,
+            # and nothing on screen says so. Cleared here, with the query, so the one render is of
+            # the matches — and stashed, so ending the search brings the picks back.
+            if query and self.filters.active():
+                self._filters_before_search = self.filters.snapshot()
+                self.filters.clear()
             self.reload_notes()
 
     def _on_search_changed(self, entry: Gtk.SearchEntry) -> None:
         """Typing doesn't search (see the entry's setup) — but emptying the box does un-search."""
         if not entry.get_text().strip() and self._search_query:
             self._search_query = ""
+            self._restore_filters_after_search()
             self.reload_notes()
+
+    def _restore_filters_after_search(self) -> None:
+        """Put back the sidebar picks a search cleared — unless new ones were made meanwhile, which
+        are the user's latest word. Without this, ending a search drew the whole unfiltered folder:
+        the same stall the search used to cost on the way in."""
+        saved, self._filters_before_search = self._filters_before_search, None
+        if saved is not None and not self.filters.active():
+            self.filters.restore(saved)
 
     # -------------------------------------------------------- shortcuts
 
@@ -4970,9 +4989,17 @@ class SettingsDialog(Gtk.Dialog):
         self.start_today_check.set_tooltip_text(
             "On: launch with today and yesterday selected in the calendar, so the board opens on "
             "what you've captured lately — a folder switched to for the first time opens the same "
-            "way. \"Clear all filters\" at the foot of the sidebar shows everything. Off: the "
-            "whole board.")
+            "way, and every \"clear\" button returns here first (a second click shows "
+            "everything). Off: no day filter.")
         add("Startup", self.start_today_check)
+
+        self.hide_nonstandard_check = Gtk.CheckButton(label="Hide non-standard items by default")
+        self.hide_nonstandard_check.set_active(settings.hide_nonstandard_default)
+        self.hide_nonstandard_check.set_tooltip_text(
+            "On: the default view leaves out the files and folders that aren't canonical notes yet "
+            "(the \"to settle\" backlog). The sidebar's Non-standard switch still shows them, or "
+            "shows only them.")
+        add("Startup", self.hide_nonstandard_check)
 
         # Colour of a ==highlighted== clause in the side pane's reading mode. A colour button rather
         # than a hex field: the point of the setting is to pick something that reads well against
@@ -5124,6 +5151,7 @@ class SettingsDialog(Gtk.Dialog):
         settings.save_on_enter = self.save_enter_check.get_active()
         settings.show_tags_summary = self.show_tags_summary_check.get_active()
         settings.start_filter_today = self.start_today_check.get_active()
+        settings.hide_nonstandard_default = self.hide_nonstandard_check.get_active()
         # Stored as #rrggbb rather than Gdk's "rgb(r,g,b)": Pango markup can't parse the latter (see
         # _highlight_colors), and hex is what a hand-edited config.json is expected to hold anyway.
         settings.highlight_color = _rgba_hex(self.highlight_button.get_rgba())

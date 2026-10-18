@@ -138,4 +138,7 @@
     <string name="widgets_label_recent_notes">Recent notes</string>
     <string name="widgets_label_alarms_countdown">Alarms countdown</string>
     <string name="widgets_label_prayer_times">Prayer times</string>
+    <string name="widgets_collect_describe_label">What is this set?</string>
+    <string name="widgets_collect_describe_hint">A few lines describing these files — it becomes the note\'s title and opening. Optional.</string>
+    <string name="widgets_collect_confirm">Collect</string>
 </resources>
