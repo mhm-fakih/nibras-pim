@@ -201,4 +201,21 @@
     <string name="settings_wizard_not_there">غير موجود — سيبقى هذا الجزء من التطبيق فارغًا</string>
     <string name="settings_videos_folder_label">مجلد الفيديو</string>
     <string name="settings_videos_folder_hint">تعرضه صفحة الفيديو مع مجلداته الفرعية، مثل ‎/storage/emulated/0/Nibras</string>
+    <string name="settings_tab_general">عام</string>
+    <string name="settings_tab_server">الخادم</string>
+    <string name="settings_tab_prayer">أوقات الصلاة</string>
+    <string name="settings_tab_media">الوسائط</string>
+    <string name="settings_tab_collect">جمع الملفات</string>
+    <string name="settings_tab_alerts">التنبيهات</string>
+    <string name="settings_tab_calendar">التقويم والأدوات</string>
+    <string name="settings_feature_server_title">استخدام خادم نبراس</string>
+    <string name="settings_feature_server_desc">مزامنة الملاحظات والسجلات مع خادمك. عند الإيقاف: لا اتصال بأي مكان، وتختفي صفحات الخادم من الشريط.</string>
+    <string name="settings_feature_prayer_title">أوقات الصلاة</string>
+    <string name="settings_feature_prayer_desc">صفحة الصلاة والأذان والكتم والأداة. الموقع وطريقة الحساب والأصوات تُضبط في صفحة الصلاة نفسها. عند الإيقاف: تختفي الصفحة ولا يُجدول شيء.</string>
+    <string name="settings_feature_media_title">صفحات مشغّل الوسائط</string>
+    <string name="settings_feature_media_desc">صفحتا الوسائط (مكتبة الصوت) والفيديو. عند الإيقاف: تختفيان من الشريط؛ وتبقى الملفات المفتوحة من الملاحظات قابلة للتشغيل.</string>
+    <string name="settings_feature_gallery_title">المعرض</string>
+    <string name="settings_feature_gallery_desc">مجلد صور تتصفحه وتعلّق عليه. عند الإيقاف: تختفي الصفحة من الشريط.</string>
+    <string name="settings_wizard_feature_on">مفعّل</string>
+    <string name="settings_wizard_feature_off">متوقف</string>
 </resources>

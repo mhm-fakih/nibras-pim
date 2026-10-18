@@ -1,5 +1,13 @@
 package com.knotes.ui
 
+import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.ScrollState
+import androidx.annotation.StringRes
 import android.app.Activity
 import android.content.Intent
 import android.media.RingtoneManager
@@ -69,7 +77,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () -> Unit = {}) {
     val current = store.value
@@ -104,6 +112,10 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
     var calendarEnabled by remember { mutableStateOf(current.calendarEnabled) }
     var prayerEnabled by remember { mutableStateOf(current.prayerEnabled) }
     var collectEnabled by remember { mutableStateOf(current.collectEnabled) }
+    var mediaEnabled by remember { mutableStateOf(current.mediaEnabled) }
+    var galleryEnabled by remember { mutableStateOf(current.galleryEnabled) }
+    var serverEnabled by remember { mutableStateOf(current.serverEnabled) }
+    var tab by rememberSaveable { mutableStateOf(SettingsTab.GENERAL) }
     var feedDays by remember { mutableStateOf(current.feedDays) }
     var feedWords by remember { mutableStateOf(current.feedWords) }
     var feedTextSp by remember { mutableStateOf(current.feedTextSp) }
@@ -209,6 +221,9 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 calendarEnabled = calendarEnabled,
                 prayerEnabled = prayerEnabled,
                 collectEnabled = collectEnabled,
+                mediaEnabled = mediaEnabled,
+                galleryEnabled = galleryEnabled,
+                serverEnabled = serverEnabled,
                 feedDays = feedDays,
                 feedWords = feedWords,
                 feedTextSp = feedTextSp,
@@ -253,566 +268,647 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             )
         },
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            // First, so it can be found whatever language the screen is currently in.
-            LanguagePicker()
-            OutlinedTextField(
-                value = appName,
-                onValueChange = { appName = it },
-                label = { Text(stringResource(R.string.settings_app_name_label)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            OutlinedTextField(
-                value = defType,
-                onValueChange = { defType = it.trim() },
-                label = { Text(stringResource(R.string.settings_default_type_label)) },
-                supportingText = { Text(stringResource(R.string.settings_default_type_hint)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            OutlinedTextField(
-                value = defCategory,
-                onValueChange = { defCategory = it.trim() },
-                label = { Text(stringResource(R.string.settings_default_category_label)) },
-                supportingText = { Text(stringResource(R.string.settings_default_category_hint)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            OutlinedTextField(
-                value = defPriority,
-                onValueChange = { defPriority = it.filter { c -> c.isDigit() } },
-                label = { Text(stringResource(R.string.settings_default_priority_label)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            OutlinedTextField(
-                value = topPriority,
-                onValueChange = { topPriority = it.filter { c -> c.isDigit() } },
-                label = { Text(stringResource(R.string.settings_top_priority_label)) },
-                supportingText = { Text(stringResource(R.string.settings_top_priority_hint)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            FolderField(
-                value = dir,
-                onValueChange = { dir = it },
-                label = stringResource(R.string.settings_notes_dir_label),
-                supportingText = stringResource(R.string.settings_notes_dir_hint),
-                onPick = { pickFolder { path -> dir = path } },
-            )
-
-            FolderField(
-                value = aiDir,
-                onValueChange = { aiDir = it },
-                label = stringResource(R.string.settings_ai_dir_label),
-                // Blank is the normal state: the folder is a sibling of the notes folder, and
-                // saying where it would be is more use than an empty box.
-                supportingText = stringResource(
-                    R.string.settings_ai_dir_hint,
-                    SettingsStore.aiDirFor(dir.ifBlank { current.notesDir }),
-                ),
-                onPick = { pickFolder { path -> aiDir = path } },
-            )
-
-            OutlinedTextField(
-                value = format,
-                onValueChange = { format = it },
-                label = { Text(stringResource(R.string.settings_timestamp_format_label)) },
-                supportingText = { Text(stringResource(R.string.settings_timestamp_now, previewTimestamp(format) ?: stringResource(R.string.settings_timestamp_invalid))) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            OutlinedTextField(
-                value = previewLines,
-                onValueChange = { previewLines = it.filter { c -> c.isDigit() } },
-                label = { Text(stringResource(R.string.settings_preview_lines_label)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedTextField(
-                    value = priorityMin,
-                    onValueChange = { priorityMin = it.filter { c -> c.isDigit() } },
-                    label = { Text(stringResource(R.string.settings_priority_min_label)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = priorityMax,
-                    onValueChange = { priorityMax = it.filter { c -> c.isDigit() } },
-                    label = { Text(stringResource(R.string.settings_priority_max_label)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            HorizontalDivider()
-            Text(stringResource(R.string.settings_nibras_header), style = MaterialTheme.typography.titleMedium)
-            Text(
-                stringResource(R.string.settings_nibras_desc),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                SchemeDropdown(
-                    value = nibrasScheme,
-                    onChange = { nibrasScheme = it },
-                    modifier = Modifier.width(120.dp),
-                )
-                OutlinedTextField(
-                    value = nibrasHost,
-                    onValueChange = { nibrasHost = it.trim() },
-                    label = { Text(stringResource(R.string.settings_host_label)) },
-                    placeholder = { Text("192.168.0.47") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = nibrasPort,
-                    onValueChange = { nibrasPort = it.filter { c -> c.isDigit() } },
-                    label = { Text(stringResource(R.string.settings_port_label)) },
-                    placeholder = { Text("8081") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = nibrasContext,
-                    onValueChange = { nibrasContext = it },
-                    label = { Text(stringResource(R.string.settings_context_label)) },
-                    placeholder = { Text(stringResource(R.string.settings_context_placeholder)) },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Text(
-                stringResource(R.string.settings_full_url, buildNibrasUrl(nibrasScheme, nibrasHost, nibrasPort, nibrasContext)),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            OutlinedTextField(
-                value = nibrasUser,
-                onValueChange = { nibrasUser = it },
-                label = { Text(stringResource(R.string.settings_username_label)) },
-                supportingText = { Text(stringResource(R.string.settings_username_hint)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = nibrasPassword,
-                onValueChange = { nibrasPassword = it },
-                label = { Text(stringResource(R.string.settings_password_label)) },
-                supportingText = { Text(stringResource(R.string.settings_password_hint)) },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            FolderField(
-                value = nibrasFiles,
-                onValueChange = { nibrasFiles = it },
-                label = stringResource(R.string.settings_files_folder_label),
-                supportingText = stringResource(R.string.settings_files_folder_hint),
-                onPick = { pickFolder { path -> nibrasFiles = path } },
-            )
-
-            // What the star on a record row means. Two genuinely different readings — see StarAction.
-            Text(stringResource(R.string.settings_star_header), style = MaterialTheme.typography.bodyLarge)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(
-                    selected = starAction == StarAction.LOCAL_BOOKMARK,
-                    onClick = { starAction = StarAction.LOCAL_BOOKMARK },
-                )
-                Column(modifier = Modifier.clickable { starAction = StarAction.LOCAL_BOOKMARK }) {
-                    Text(stringResource(R.string.settings_star_local_title), style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        stringResource(R.string.settings_star_local_desc),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // One tab per feature, so a setting is found by what it is for rather than by scrolling
+            // a forty-row page. Every tab is one screen of its own; the Save button covers them all.
+            // Wrapping chips rather than a scrolling tab row: seven tabs do not fit across a phone,
+            // and a row that scrolls sideways hid most of them — you could not see what was there.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            ) {
+                SettingsTab.entries.forEach { t ->
+                    FilterChip(
+                        selected = tab == t,
+                        onClick = { tab = t },
+                        label = { Text(stringResource(t.labelRes)) },
                     )
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(
-                    selected = starAction == StarAction.BACKEND_UNBOOKMARK,
-                    onClick = { starAction = StarAction.BACKEND_UNBOOKMARK },
+            HorizontalDivider()
+            // Each tab keeps its own scroll position — coming back to a tab lands where you were.
+            val scroll = rememberSaveable(tab, saver = ScrollState.Saver) { ScrollState(0) }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(scroll)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+            when (tab) {
+                SettingsTab.GENERAL -> {
+                // First, so it can be found whatever language the screen is currently in.
+                LanguagePicker()
+                OutlinedTextField(
+                    value = appName,
+                    onValueChange = { appName = it },
+                    label = { Text(stringResource(R.string.settings_app_name_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                Column(modifier = Modifier.clickable { starAction = StarAction.BACKEND_UNBOOKMARK }) {
-                    Text(stringResource(R.string.settings_star_backend_title), style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        stringResource(R.string.settings_star_backend_desc),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+
+                OutlinedTextField(
+                    value = defType,
+                    onValueChange = { defType = it.trim() },
+                    label = { Text(stringResource(R.string.settings_default_type_label)) },
+                    supportingText = { Text(stringResource(R.string.settings_default_type_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                OutlinedTextField(
+                    value = defCategory,
+                    onValueChange = { defCategory = it.trim() },
+                    label = { Text(stringResource(R.string.settings_default_category_label)) },
+                    supportingText = { Text(stringResource(R.string.settings_default_category_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                OutlinedTextField(
+                    value = defPriority,
+                    onValueChange = { defPriority = it.filter { c -> c.isDigit() } },
+                    label = { Text(stringResource(R.string.settings_default_priority_label)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                OutlinedTextField(
+                    value = topPriority,
+                    onValueChange = { topPriority = it.filter { c -> c.isDigit() } },
+                    label = { Text(stringResource(R.string.settings_top_priority_label)) },
+                    supportingText = { Text(stringResource(R.string.settings_top_priority_hint)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                FolderField(
+                    value = dir,
+                    onValueChange = { dir = it },
+                    label = stringResource(R.string.settings_notes_dir_label),
+                    supportingText = stringResource(R.string.settings_notes_dir_hint),
+                    onPick = { pickFolder { path -> dir = path } },
+                )
+
+                FolderField(
+                    value = aiDir,
+                    onValueChange = { aiDir = it },
+                    label = stringResource(R.string.settings_ai_dir_label),
+                    // Blank is the normal state: the folder is a sibling of the notes folder, and
+                    // saying where it would be is more use than an empty box.
+                    supportingText = stringResource(
+                        R.string.settings_ai_dir_hint,
+                        SettingsStore.aiDirFor(dir.ifBlank { current.notesDir }),
+                    ),
+                    onPick = { pickFolder { path -> aiDir = path } },
+                )
+
+                OutlinedTextField(
+                    value = format,
+                    onValueChange = { format = it },
+                    label = { Text(stringResource(R.string.settings_timestamp_format_label)) },
+                    supportingText = { Text(stringResource(R.string.settings_timestamp_now, previewTimestamp(format) ?: stringResource(R.string.settings_timestamp_invalid))) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                OutlinedTextField(
+                    value = previewLines,
+                    onValueChange = { previewLines = it.filter { c -> c.isDigit() } },
+                    label = { Text(stringResource(R.string.settings_preview_lines_label)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    OutlinedTextField(
+                        value = priorityMin,
+                        onValueChange = { priorityMin = it.filter { c -> c.isDigit() } },
+                        label = { Text(stringResource(R.string.settings_priority_min_label)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = priorityMax,
+                        onValueChange = { priorityMax = it.filter { c -> c.isDigit() } },
+                        label = { Text(stringResource(R.string.settings_priority_max_label)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
                     )
                 }
-            }
 
-            StepSlider(
-                label = stringResource(R.string.settings_font_size, "%.1f".format(fulltextScale)),
-                value = fulltextScale,
-                min = 0.8f,
-                max = 3f,
-                step = 0.1f,
-                labelWidth = 130.dp,
-                onChange = { fulltextScale = it },
-            )
-
-            HorizontalDivider()
-            Text(stringResource(R.string.settings_media_header), style = MaterialTheme.typography.titleMedium)
-            FolderListEditor(
-                label = stringResource(R.string.settings_audio_folders_label),
-                supportingText = stringResource(R.string.settings_audio_folders_hint),
-                paths = audioLibraryRoots,
-                onPick = ::pickFolder,
-            )
-            FolderField(
-                value = galleryDir,
-                onValueChange = { galleryDir = it },
-                label = stringResource(R.string.settings_gallery_folder_label),
-                supportingText = stringResource(R.string.settings_gallery_folder_hint),
-                onPick = { pickFolder { path -> galleryDir = path } },
-            )
-            FolderField(
-                value = videosDir,
-                onValueChange = { videosDir = it },
-                label = stringResource(R.string.settings_videos_folder_label),
-                supportingText = stringResource(R.string.settings_videos_folder_hint),
-                onPick = { pickFolder { path -> videosDir = path } },
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedTextField(
-                    value = calStart,
-                    onValueChange = { calStart = it.filter { c -> c.isDigit() } },
-                    label = { Text(stringResource(R.string.settings_calendar_start_hour)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
+                HorizontalDivider()
+                TagListEditor(
+                    title = stringResource(R.string.settings_types_title),
+                    subtitle = stringResource(R.string.settings_types_subtitle),
+                    addLabel = stringResource(R.string.settings_add_type),
+                    tags = types,
                 )
-                OutlinedTextField(
-                    value = calEnd,
-                    onValueChange = { calEnd = it.filter { c -> c.isDigit() } },
-                    label = { Text(stringResource(R.string.settings_calendar_end_hour)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-            }
 
-            HorizontalDivider()
-            Text(stringResource(R.string.settings_reminders_header), style = MaterialTheme.typography.titleMedium)
-            Text(
-                stringResource(R.string.settings_reminders_desc),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            OutlinedTextField(
-                value = reminderOffsets,
-                onValueChange = { reminderOffsets = it },
-                label = { Text(stringResource(R.string.settings_lead_times_label)) },
-                supportingText = { Text(stringResource(R.string.settings_lead_times_hint)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = {
-                    val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
-                        putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALL)
-                        putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, context.getString(R.string.settings_reminder_sound_title))
-                        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-                        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
-                        if (reminderSound.isNotBlank()) {
-                            putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(reminderSound))
+                HorizontalDivider()
+                TagListEditor(
+                    title = stringResource(R.string.settings_categories_title),
+                    subtitle = stringResource(R.string.settings_categories_subtitle),
+                    addLabel = stringResource(R.string.settings_add_category),
+                    tags = categories,
+                )
+
+                HorizontalDivider()
+                // The tour is also the only place that says what each folder above actually turns on,
+                // so it is worth being able to reach again — not a one-shot that vanishes after install.
+                Text(stringResource(R.string.settings_tour_header), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    stringResource(R.string.settings_tour_desc),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedButton(
+                    onClick = {
+                        // Saved first: the tour opens from the stored settings, so unsaved edits on
+                        // this screen would silently vanish behind it.
+                        save()
+                        // The flag is cleared as well as the callback fired: if the app is killed
+                        // before the tour is finished, it should still be waiting on the next launch.
+                        Onboarding.replayWelcome(context)
+                        onReplayTour()
+                    },
+                    modifier = Modifier.padding(top = 6.dp),
+                ) {
+                    Text(stringResource(R.string.settings_tour_button))
+                }
+                }
+
+                SettingsTab.SERVER -> {
+                    FeatureSwitch(
+                        stringResource(R.string.settings_feature_server_title),
+                        stringResource(R.string.settings_feature_server_desc),
+                        serverEnabled,
+                    ) { serverEnabled = it }
+                    if (serverEnabled) {
+                    Text(stringResource(R.string.settings_nibras_header), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        stringResource(R.string.settings_nibras_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        SchemeDropdown(
+                            value = nibrasScheme,
+                            onChange = { nibrasScheme = it },
+                            modifier = Modifier.width(120.dp),
+                        )
+                        OutlinedTextField(
+                            value = nibrasHost,
+                            onValueChange = { nibrasHost = it.trim() },
+                            label = { Text(stringResource(R.string.settings_host_label)) },
+                            placeholder = { Text("192.168.0.47") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(
+                            value = nibrasPort,
+                            onValueChange = { nibrasPort = it.filter { c -> c.isDigit() } },
+                            label = { Text(stringResource(R.string.settings_port_label)) },
+                            placeholder = { Text("8081") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = nibrasContext,
+                            onValueChange = { nibrasContext = it },
+                            label = { Text(stringResource(R.string.settings_context_label)) },
+                            placeholder = { Text(stringResource(R.string.settings_context_placeholder)) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Text(
+                        stringResource(R.string.settings_full_url, buildNibrasUrl(nibrasScheme, nibrasHost, nibrasPort, nibrasContext)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = nibrasUser,
+                        onValueChange = { nibrasUser = it },
+                        label = { Text(stringResource(R.string.settings_username_label)) },
+                        supportingText = { Text(stringResource(R.string.settings_username_hint)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = nibrasPassword,
+                        onValueChange = { nibrasPassword = it },
+                        label = { Text(stringResource(R.string.settings_password_label)) },
+                        supportingText = { Text(stringResource(R.string.settings_password_hint)) },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    FolderField(
+                        value = nibrasFiles,
+                        onValueChange = { nibrasFiles = it },
+                        label = stringResource(R.string.settings_files_folder_label),
+                        supportingText = stringResource(R.string.settings_files_folder_hint),
+                        onPick = { pickFolder { path -> nibrasFiles = path } },
+                    )
+
+                    // What the star on a record row means. Two genuinely different readings — see StarAction.
+                    Text(stringResource(R.string.settings_star_header), style = MaterialTheme.typography.bodyLarge)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = starAction == StarAction.LOCAL_BOOKMARK,
+                            onClick = { starAction = StarAction.LOCAL_BOOKMARK },
+                        )
+                        Column(modifier = Modifier.clickable { starAction = StarAction.LOCAL_BOOKMARK }) {
+                            Text(stringResource(R.string.settings_star_local_title), style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                stringResource(R.string.settings_star_local_desc),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
-                    ringtonePicker.launch(intent)
-                }) { Text(stringResource(R.string.settings_choose_sound)) }
-                Spacer(Modifier.width(12.dp))
-                Text(soundLabel(reminderSound), style = MaterialTheme.typography.bodyMedium)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_require_dismissal_title), style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        stringResource(R.string.settings_require_dismissal_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(checked = reminderDismiss, onCheckedChange = { reminderDismiss = it })
-            }
-            OutlinedTextField(
-                value = reminderRepeat,
-                onValueChange = { reminderRepeat = it.filter { c -> c.isDigit() } },
-                label = { Text(stringResource(R.string.settings_repeat_sound_label)) },
-                supportingText = { Text(stringResource(R.string.settings_repeat_sound_hint)) },
-                singleLine = true,
-                enabled = !reminderDismiss,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = starAction == StarAction.BACKEND_UNBOOKMARK,
+                            onClick = { starAction = StarAction.BACKEND_UNBOOKMARK },
+                        )
+                        Column(modifier = Modifier.clickable { starAction = StarAction.BACKEND_UNBOOKMARK }) {
+                            Text(stringResource(R.string.settings_star_backend_title), style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                stringResource(R.string.settings_star_backend_desc),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
 
-            HorizontalDivider()
-            Text(stringResource(R.string.settings_sync_header), style = MaterialTheme.typography.titleMedium)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_sync_title), style = MaterialTheme.typography.bodyLarge)
+                    StepSlider(
+                        label = stringResource(R.string.settings_font_size, "%.1f".format(fulltextScale)),
+                        value = fulltextScale,
+                        min = 0.8f,
+                        max = 3f,
+                        step = 0.1f,
+                        labelWidth = 130.dp,
+                        onChange = { fulltextScale = it },
+                    )
+
+                    HorizontalDivider()
+                    Text(stringResource(R.string.settings_sync_header), style = MaterialTheme.typography.titleMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_sync_title), style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                stringResource(R.string.settings_sync_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(checked = syncEnabled, onCheckedChange = { syncEnabled = it })
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        OutlinedTextField(
+                            value = syncCheckSec,
+                            onValueChange = { syncCheckSec = it.filter { c -> c.isDigit() } },
+                            label = { Text(stringResource(R.string.settings_check_every_label)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = syncSec,
+                            onValueChange = { syncSec = it.filter { c -> c.isDigit() } },
+                            label = { Text(stringResource(R.string.settings_sync_every_label)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                     Text(
-                        stringResource(R.string.settings_sync_desc),
+                        stringResource(R.string.settings_sync_intervals_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+
+                    }
                 }
-                Switch(checked = syncEnabled, onCheckedChange = { syncEnabled = it })
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedTextField(
-                    value = syncCheckSec,
-                    onValueChange = { syncCheckSec = it.filter { c -> c.isDigit() } },
-                    label = { Text(stringResource(R.string.settings_check_every_label)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
+
+                SettingsTab.PRAYER -> {
+                    // Times, method, athan and alarms live on the Prayer page itself; this tab is the
+                    // switch — reachable even while the page is out of the rail.
+                    FeatureSwitch(
+                        stringResource(R.string.settings_feature_prayer_title),
+                        stringResource(R.string.settings_feature_prayer_desc),
+                        prayerEnabled,
+                    ) { prayerEnabled = it }
+                }
+
+                SettingsTab.MEDIA -> {
+                    FeatureSwitch(
+                        stringResource(R.string.settings_feature_media_title),
+                        stringResource(R.string.settings_feature_media_desc),
+                        mediaEnabled,
+                    ) { mediaEnabled = it }
+                    if (mediaEnabled) {
+                    FolderListEditor(
+                        label = stringResource(R.string.settings_audio_folders_label),
+                        supportingText = stringResource(R.string.settings_audio_folders_hint),
+                        paths = audioLibraryRoots,
+                        onPick = ::pickFolder,
+                    )
+                    FolderField(
+                        value = videosDir,
+                        onValueChange = { videosDir = it },
+                        label = stringResource(R.string.settings_videos_folder_label),
+                        supportingText = stringResource(R.string.settings_videos_folder_hint),
+                        onPick = { pickFolder { path -> videosDir = path } },
+                    )
+                    }
+                    HorizontalDivider()
+                    FeatureSwitch(
+                        stringResource(R.string.settings_feature_gallery_title),
+                        stringResource(R.string.settings_feature_gallery_desc),
+                        galleryEnabled,
+                    ) { galleryEnabled = it }
+                    if (galleryEnabled) {
+                    FolderField(
+                        value = galleryDir,
+                        onValueChange = { galleryDir = it },
+                        label = stringResource(R.string.settings_gallery_folder_label),
+                        supportingText = stringResource(R.string.settings_gallery_folder_hint),
+                        onPick = { pickFolder { path -> galleryDir = path } },
+                    )
+                    }
+                }
+
+                SettingsTab.COLLECT -> {
+                    FeatureSwitch(
+                        stringResource(R.string.settings_file_collection_title),
+                        stringResource(R.string.settings_file_collection_toggle_desc),
+                        collectEnabled,
+                    ) { collectEnabled = it }
+                    if (collectEnabled) {
+                    Text(
+                        stringResource(R.string.settings_collect_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FolderListEditor(
+                        label = stringResource(R.string.settings_source_folders_label),
+                        supportingText = stringResource(R.string.settings_source_folders_hint),
+                        paths = collectSources,
+                        allowDisable = true,
+                        onPick = ::pickFolder,
+                    )
+                    FolderField(
+                        value = collectNew,
+                        onValueChange = { collectNew = it },
+                        label = stringResource(R.string.settings_destination_label),
+                        supportingText = stringResource(R.string.settings_destination_hint),
+                        onPick = { pickFolder { path -> collectNew = path } },
+                    )
+
+                    // Unattended collection. Off by default and stated plainly, because it MOVES files out
+                    // of Camera and Downloads — that is not something to discover by accident.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_collect_auto_title), style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                stringResource(R.string.settings_collect_auto_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(checked = collectAuto, onCheckedChange = { collectAuto = it })
+                    }
+                    if (collectAuto) {
+                        StepSlider(
+                            stringResource(R.string.settings_collect_at, "%02d:%02d".format(collectAutoHour, collectAutoMinute)),
+                            (collectAutoHour * 60 + collectAutoMinute).toFloat(),
+                            0f,
+                            (23 * 60 + 55).toFloat(),
+                            5f,
+                            labelWidth = 96.dp,
+                        ) { v ->
+                            val minuteOfDay = v.toInt().coerceIn(0, 23 * 60 + 55)
+                            collectAutoHour = minuteOfDay / 60
+                            collectAutoMinute = minuteOfDay % 60
+                        }
+                    }
+
+                    }
+                }
+
+                SettingsTab.ALERTS -> {
+                Text(stringResource(R.string.settings_reminders_header), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.settings_reminders_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 OutlinedTextField(
-                    value = syncSec,
-                    onValueChange = { syncSec = it.filter { c -> c.isDigit() } },
-                    label = { Text(stringResource(R.string.settings_sync_every_label)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    value = reminderOffsets,
+                    onValueChange = { reminderOffsets = it },
+                    label = { Text(stringResource(R.string.settings_lead_times_label)) },
+                    supportingText = { Text(stringResource(R.string.settings_lead_times_hint)) },
                     singleLine = true,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                 )
-            }
-            Text(
-                stringResource(R.string.settings_sync_intervals_desc),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            HorizontalDivider()
-            Text(stringResource(R.string.settings_status_header), style = MaterialTheme.typography.titleMedium)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_persistent_notif_title), style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        stringResource(R.string.settings_persistent_notif_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(onClick = {
+                        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALL)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, context.getString(R.string.settings_reminder_sound_title))
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                            if (reminderSound.isNotBlank()) {
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(reminderSound))
+                            }
+                        }
+                        ringtonePicker.launch(intent)
+                    }) { Text(stringResource(R.string.settings_choose_sound)) }
+                    Spacer(Modifier.width(12.dp))
+                    Text(soundLabel(reminderSound), style = MaterialTheme.typography.bodyMedium)
                 }
-                Switch(checked = statusNotif, onCheckedChange = { statusNotif = it })
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_mini_calendar_title))
-                    Text(
-                        stringResource(R.string.settings_mini_calendar_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(checked = calendarEnabled, onCheckedChange = { calendarEnabled = it })
-            }
-            // Whole features, not display preferences: switching one off takes its page out of the
-            // rail AND cancels what it had scheduled — see PrayerScheduler.sync and
-            // CollectScheduler.sync, which each check this before arming anything.
-            // The recent-notes feed widget. Two numbers, and they are the whole of it — the widget
-            // has no controls of its own by design.
-            Text(stringResource(R.string.settings_feed_header), style = MaterialTheme.typography.titleSmall)
-            StepSlider(
-                if (feedDays == 1) stringResource(R.string.settings_feed_today_only)
-                else pluralStringResource(R.plurals.settings_feed_days_back, feedDays, feedDays),
-                feedDays.toFloat(), 1f, 30f, 1f, labelWidth = 130.dp,
-            ) { v -> feedDays = v.toInt() }
-            StepSlider(
-                pluralStringResource(R.plurals.settings_feed_words, feedWords, feedWords),
-                feedWords.toFloat(), 10f, 200f, 10f, labelWidth = 190.dp,
-            ) { v -> feedWords = v.toInt() }
-            StepSlider(
-                stringResource(R.string.settings_feed_text_size, feedTextSp),
-                feedTextSp.toFloat(), 10f, 28f, 1f, labelWidth = 130.dp,
-            ) { v -> feedTextSp = v.toInt() }
-
-            // Prayer times are configured on the prayer page, not here — including this switch.
-            // What is left is the way BACK: turning it off there takes that page out of the rail,
-            // so the switch cannot be reached to undo it. This row appears only while it is off.
-            if (!prayerEnabled) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_prayer_hidden_title), style = MaterialTheme.typography.bodyLarge)
+                        Text(stringResource(R.string.settings_require_dismissal_title), style = MaterialTheme.typography.bodyLarge)
                         Text(
-                            stringResource(R.string.settings_prayer_hidden_desc),
+                            stringResource(R.string.settings_require_dismissal_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Switch(checked = false, onCheckedChange = { prayerEnabled = true })
+                    Switch(checked = reminderDismiss, onCheckedChange = { reminderDismiss = it })
                 }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_file_collection_title), style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        stringResource(R.string.settings_file_collection_toggle_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                OutlinedTextField(
+                    value = reminderRepeat,
+                    onValueChange = { reminderRepeat = it.filter { c -> c.isDigit() } },
+                    label = { Text(stringResource(R.string.settings_repeat_sound_label)) },
+                    supportingText = { Text(stringResource(R.string.settings_repeat_sound_hint)) },
+                    singleLine = true,
+                    enabled = !reminderDismiss,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                    HorizontalDivider()
+                Text(stringResource(R.string.settings_status_header), style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_persistent_notif_title), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.settings_persistent_notif_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = statusNotif, onCheckedChange = { statusNotif = it })
                 }
-                Switch(checked = collectEnabled, onCheckedChange = { collectEnabled = it })
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_chime_title), style = MaterialTheme.typography.bodyLarge)
-                    Text(
+                    HorizontalDivider()
+                    FeatureSwitch(
+                        stringResource(R.string.settings_chime_title),
                         stringResource(R.string.settings_chime_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(checked = chimeEnabled, onCheckedChange = { chimeEnabled = it })
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = {
-                    chimePicker.launch(arrayOf("audio/*"))
-                }) { Text(stringResource(R.string.settings_choose_chime_file)) }
-                Spacer(Modifier.width(12.dp))
-                Text(fileLabel(chimeSound), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-            }
-            Text(
-                stringResource(R.string.settings_chime_file_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedTextField(
-                    value = chimeStart,
-                    onValueChange = { chimeStart = it.filter { c -> c.isDigit() } },
-                    label = { Text(stringResource(R.string.settings_chime_start_hour)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = chimeEnd,
-                    onValueChange = { chimeEnd = it.filter { c -> c.isDigit() } },
-                    label = { Text(stringResource(R.string.settings_chime_end_hour)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            HorizontalDivider()
-            Text(stringResource(R.string.settings_file_collection_title), style = MaterialTheme.typography.titleMedium)
-            Text(
-                stringResource(R.string.settings_collect_desc),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FolderListEditor(
-                label = stringResource(R.string.settings_source_folders_label),
-                supportingText = stringResource(R.string.settings_source_folders_hint),
-                paths = collectSources,
-                allowDisable = true,
-                onPick = ::pickFolder,
-            )
-            FolderField(
-                value = collectNew,
-                onValueChange = { collectNew = it },
-                label = stringResource(R.string.settings_destination_label),
-                supportingText = stringResource(R.string.settings_destination_hint),
-                onPick = { pickFolder { path -> collectNew = path } },
-            )
-
-            // Unattended collection. Off by default and stated plainly, because it MOVES files out
-            // of Camera and Downloads — that is not something to discover by accident.
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_collect_auto_title), style = MaterialTheme.typography.bodyLarge)
+                        chimeEnabled,
+                    ) { chimeEnabled = it }
+                    if (chimeEnabled) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(onClick = {
+                            chimePicker.launch(arrayOf("audio/*"))
+                        }) { Text(stringResource(R.string.settings_choose_chime_file)) }
+                        Spacer(Modifier.width(12.dp))
+                        Text(fileLabel(chimeSound), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                    }
                     Text(
-                        stringResource(R.string.settings_collect_auto_desc),
+                        stringResource(R.string.settings_chime_file_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        OutlinedTextField(
+                            value = chimeStart,
+                            onValueChange = { chimeStart = it.filter { c -> c.isDigit() } },
+                            label = { Text(stringResource(R.string.settings_chime_start_hour)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = chimeEnd,
+                            onValueChange = { chimeEnd = it.filter { c -> c.isDigit() } },
+                            label = { Text(stringResource(R.string.settings_chime_end_hour)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+
+                    }
                 }
-                Switch(checked = collectAuto, onCheckedChange = { collectAuto = it })
-            }
-            if (collectAuto) {
+
+                SettingsTab.CALENDAR -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_mini_calendar_title))
+                        Text(
+                            stringResource(R.string.settings_mini_calendar_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = calendarEnabled, onCheckedChange = { calendarEnabled = it })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    OutlinedTextField(
+                        value = calStart,
+                        onValueChange = { calStart = it.filter { c -> c.isDigit() } },
+                        label = { Text(stringResource(R.string.settings_calendar_start_hour)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = calEnd,
+                        onValueChange = { calEnd = it.filter { c -> c.isDigit() } },
+                        label = { Text(stringResource(R.string.settings_calendar_end_hour)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                    HorizontalDivider()
+                // The recent-notes feed widget. Two numbers, and they are the whole of it — the widget
+                // has no controls of its own by design.
+                Text(stringResource(R.string.settings_feed_header), style = MaterialTheme.typography.titleSmall)
                 StepSlider(
-                    stringResource(R.string.settings_collect_at, "%02d:%02d".format(collectAutoHour, collectAutoMinute)),
-                    (collectAutoHour * 60 + collectAutoMinute).toFloat(),
-                    0f,
-                    (23 * 60 + 55).toFloat(),
-                    5f,
-                    labelWidth = 96.dp,
-                ) { v ->
-                    val minuteOfDay = v.toInt().coerceIn(0, 23 * 60 + 55)
-                    collectAutoHour = minuteOfDay / 60
-                    collectAutoMinute = minuteOfDay % 60
+                    if (feedDays == 1) stringResource(R.string.settings_feed_today_only)
+                    else pluralStringResource(R.plurals.settings_feed_days_back, feedDays, feedDays),
+                    feedDays.toFloat(), 1f, 30f, 1f, labelWidth = 130.dp,
+                ) { v -> feedDays = v.toInt() }
+                StepSlider(
+                    pluralStringResource(R.plurals.settings_feed_words, feedWords, feedWords),
+                    feedWords.toFloat(), 10f, 200f, 10f, labelWidth = 190.dp,
+                ) { v -> feedWords = v.toInt() }
+                StepSlider(
+                    stringResource(R.string.settings_feed_text_size, feedTextSp),
+                    feedTextSp.toFloat(), 10f, 28f, 1f, labelWidth = 130.dp,
+                ) { v -> feedTextSp = v.toInt() }
+
                 }
             }
-
-            HorizontalDivider()
-            TagListEditor(
-                title = stringResource(R.string.settings_types_title),
-                subtitle = stringResource(R.string.settings_types_subtitle),
-                addLabel = stringResource(R.string.settings_add_type),
-                tags = types,
-            )
-
-            HorizontalDivider()
-            TagListEditor(
-                title = stringResource(R.string.settings_categories_title),
-                subtitle = stringResource(R.string.settings_categories_subtitle),
-                addLabel = stringResource(R.string.settings_add_category),
-                tags = categories,
-            )
-
-            HorizontalDivider()
-            // The tour is also the only place that says what each folder above actually turns on,
-            // so it is worth being able to reach again — not a one-shot that vanishes after install.
-            Text(stringResource(R.string.settings_tour_header), style = MaterialTheme.typography.titleSmall)
-            Text(
-                stringResource(R.string.settings_tour_desc),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            OutlinedButton(
-                onClick = {
-                    // Saved first: the tour opens from the stored settings, so unsaved edits on
-                    // this screen would silently vanish behind it.
-                    save()
-                    // The flag is cleared as well as the callback fired: if the app is killed
-                    // before the tour is finished, it should still be waiting on the next launch.
-                    Onboarding.replayWelcome(context)
-                    onReplayTour()
-                },
-                modifier = Modifier.padding(top = 6.dp),
-            ) {
-                Text(stringResource(R.string.settings_tour_button))
             }
         }
+    }
+}
+
+/** Settings' tabs, in rail order: what every install has first, then each optional feature. */
+private enum class SettingsTab(@StringRes val labelRes: Int) {
+    GENERAL(R.string.settings_tab_general),
+    SERVER(R.string.settings_tab_server),
+    PRAYER(R.string.settings_tab_prayer),
+    MEDIA(R.string.settings_tab_media),
+    COLLECT(R.string.settings_tab_collect),
+    ALERTS(R.string.settings_tab_alerts),
+    CALENDAR(R.string.settings_tab_calendar),
+}
+
+/**
+ * The switch at the top of a feature's tab. Off means the feature is not in the app — its page
+ * leaves the rail and its schedules are cancelled — so the rest of the tab is hidden behind it:
+ * options for something that is off are noise.
+ */
+@Composable
+private fun FeatureSwitch(title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+            .clickable { onChange(!checked) }
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }
 

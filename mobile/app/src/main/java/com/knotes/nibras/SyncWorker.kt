@@ -37,7 +37,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
 
     override suspend fun doWork(): Result {
         val settings = SettingsStore(applicationContext).value
-        if (!settings.syncEnabled || settings.nibrasBaseUrl.isBlank()) {
+        if (!settings.syncActive || settings.nibrasBaseUrl.isBlank()) {
             return Result.success()   // switched off since this was scheduled; not a failure
         }
         val ok = runCatching { SyncCenter.syncNow(applicationContext) }.getOrDefault(false)
@@ -57,7 +57,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         fun sync(context: Context) {
             val settings = SettingsStore(context).value
             val wm = WorkManager.getInstance(context)
-            if (!settings.syncEnabled || settings.nibrasBaseUrl.isBlank()) {
+            if (!settings.syncActive || settings.nibrasBaseUrl.isBlank()) {
                 wm.cancelUniqueWork(WORK_NAME)
                 return
             }

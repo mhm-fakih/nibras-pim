@@ -408,7 +408,7 @@ fun MainScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            if (settings.syncEnabled) {
+                            if (settings.syncActive) {
                                 Text(
                                     syncLabel,
                                     style = MaterialTheme.typography.labelSmall,

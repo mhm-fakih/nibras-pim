@@ -105,6 +105,14 @@ data class AppSettings(
     val calendarEnabled: Boolean,
     /** Whether the prayer times exist at all — the page, the alarms and the widget's data. */
     val prayerEnabled: Boolean = true,
+    /**
+     * Whole features that can be switched off, each from the top of its Settings tab and its step
+     * in the welcome tour. Off takes the pages out of the rail; for the server it also means
+     * nothing connects or syncs at all — see [syncActive].
+     */
+    val mediaEnabled: Boolean = true,
+    val galleryEnabled: Boolean = true,
+    val serverEnabled: Boolean = true,
     /** Reminder lead times in minutes before a plan starts, e.g. [60, 5]. */
     val reminderOffsetsMin: List<Int>,
     /** Sound URI played for reminders (blank = system default). */
@@ -143,6 +151,9 @@ data class AppSettings(
     fun aiDir(): String = aiNotesDir.trim().ifBlank { SettingsStore.aiDirFor(notesDir) }
 
     val priorities: IntRange get() = priorityMin..priorityMax.coerceAtLeast(priorityMin)
+
+    /** Background sync actually runs: the server feature is on AND its sync switch is. */
+    val syncActive: Boolean get() = serverEnabled && syncEnabled
 
     /** Effective default type code for a new note: the configured one, else the first type. */
     val effectiveDefaultType: String? get() = defaultType.ifBlank { types.firstOrNull()?.code }
@@ -197,6 +208,9 @@ class SettingsStore(context: Context) {
         calendarEndHour = prefs.getInt(K_CAL_END, 22),
         calendarEnabled = prefs.getBoolean(K_CAL_ENABLED, true),
         prayerEnabled = prefs.getBoolean(K_PRAYER_ENABLED, true),
+        mediaEnabled = prefs.getBoolean(K_MEDIA_ENABLED, true),
+        galleryEnabled = prefs.getBoolean(K_GALLERY_ENABLED, true),
+        serverEnabled = prefs.getBoolean(K_SERVER_ENABLED, true),
         collectEnabled = prefs.getBoolean(K_COLLECT_ENABLED, true),
         feedDays = prefs.getInt(K_FEED_DAYS, 3),
         feedWords = prefs.getInt(K_FEED_WORDS, 40),
@@ -266,6 +280,9 @@ class SettingsStore(context: Context) {
             .putInt(K_CAL_END, settings.calendarEndHour.coerceIn(settings.calendarStartHour + 1, 24))
             .putBoolean(K_CAL_ENABLED, settings.calendarEnabled)
             .putBoolean(K_PRAYER_ENABLED, settings.prayerEnabled)
+            .putBoolean(K_MEDIA_ENABLED, settings.mediaEnabled)
+            .putBoolean(K_GALLERY_ENABLED, settings.galleryEnabled)
+            .putBoolean(K_SERVER_ENABLED, settings.serverEnabled)
             .putBoolean(K_COLLECT_ENABLED, settings.collectEnabled)
             .putInt(K_FEED_DAYS, settings.feedDays.coerceIn(1, 60))
             .putInt(K_FEED_WORDS, settings.feedWords.coerceIn(10, 400))
@@ -324,6 +341,9 @@ class SettingsStore(context: Context) {
         private const val K_CAL_END = "calendar_end_hour"
         private const val K_CAL_ENABLED = "calendar_enabled"
         private const val K_PRAYER_ENABLED = "prayer_enabled"
+        private const val K_MEDIA_ENABLED = "media_enabled"
+        private const val K_GALLERY_ENABLED = "gallery_enabled"
+        private const val K_SERVER_ENABLED = "server_enabled"
         private const val K_COLLECT_ENABLED = "collect_enabled"
         private const val K_FEED_DAYS = "feed_days"
         private const val K_FEED_WORDS = "feed_words"

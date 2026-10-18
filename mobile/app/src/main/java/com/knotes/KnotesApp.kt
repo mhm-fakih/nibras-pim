@@ -26,7 +26,7 @@ class KnotesApp : Application() {
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
             PushCenter.drainAll(this@KnotesApp)
-            if (SettingsStore(this@KnotesApp).value.syncEnabled) {
+            if (SettingsStore(this@KnotesApp).value.syncActive) {
                 scope.launch { SyncCenter.syncNow(this@KnotesApp) }
             }
         }

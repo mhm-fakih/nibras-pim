@@ -5,6 +5,9 @@ import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -133,6 +136,7 @@ fun WelcomeWizard(store: SettingsStore, onDone: () -> Unit) {
                 StepKey.COLLECT -> CollectStep(draft, { draft = it }, pickFolder)
                 StepKey.MEDIA -> MediaStep(draft, { draft = it }, pickFolder)
                 StepKey.GALLERY -> GalleryStep(draft, { draft = it }, pickFolder)
+                StepKey.PRAYER -> PrayerStep(draft) { draft = it }
                 StepKey.NIBRAS -> NibrasStep(draft) { draft = it }
                 StepKey.ALERTS -> AlertsStep(draft, { draft = it }) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -165,7 +169,7 @@ fun WelcomeWizard(store: SettingsStore, onDone: () -> Unit) {
     }
 }
 
-private enum class StepKey { LANGUAGE, WELCOME, NOTES, COLLECT, MEDIA, GALLERY, NIBRAS, ALERTS, DONE }
+private enum class StepKey { LANGUAGE, WELCOME, NOTES, COLLECT, MEDIA, GALLERY, PRAYER, NIBRAS, ALERTS, DONE }
 
 /** [fixedTitle], when set, is shown as-is instead of [titleRes] — only the language page has one. */
 private data class WelcomeStep(val key: StepKey, @StringRes val titleRes: Int, val fixedTitle: String? = null)
@@ -178,6 +182,7 @@ private fun welcomeSteps(): List<WelcomeStep> = listOf(
     WelcomeStep(StepKey.COLLECT, R.string.settings_wizard_title_collect),
     WelcomeStep(StepKey.MEDIA, R.string.settings_wizard_title_media),
     WelcomeStep(StepKey.GALLERY, R.string.settings_wizard_title_gallery),
+    WelcomeStep(StepKey.PRAYER, R.string.settings_feature_prayer_title),
     WelcomeStep(StepKey.NIBRAS, R.string.settings_wizard_title_nibras),
     WelcomeStep(StepKey.ALERTS, R.string.settings_wizard_title_alerts),
     WelcomeStep(StepKey.DONE, R.string.settings_wizard_title_done),
@@ -218,6 +223,10 @@ private fun NotesStep(settings: AppSettings, onChange: (AppSettings) -> Unit, pi
 
 @Composable
 private fun CollectStep(settings: AppSettings, onChange: (AppSettings) -> Unit, pick: ((String) -> Unit) -> Unit) {
+    FeatureToggle(stringResource(R.string.settings_file_collection_title), settings.collectEnabled) {
+        onChange(settings.copy(collectEnabled = it))
+    }
+    if (!settings.collectEnabled) return
     Body(stringResource(R.string.settings_wizard_collect_1))
     Note(
         pluralStringResource(
@@ -239,6 +248,10 @@ private fun CollectStep(settings: AppSettings, onChange: (AppSettings) -> Unit, 
 
 @Composable
 private fun MediaStep(settings: AppSettings, onChange: (AppSettings) -> Unit, pick: ((String) -> Unit) -> Unit) {
+    FeatureToggle(stringResource(R.string.settings_feature_media_title), settings.mediaEnabled) {
+        onChange(settings.copy(mediaEnabled = it))
+    }
+    if (!settings.mediaEnabled) return
     Body(stringResource(R.string.settings_wizard_media_1))
     Body(stringResource(R.string.settings_wizard_media_2))
     FolderField(
@@ -260,6 +273,10 @@ private fun MediaStep(settings: AppSettings, onChange: (AppSettings) -> Unit, pi
 
 @Composable
 private fun GalleryStep(settings: AppSettings, onChange: (AppSettings) -> Unit, pick: ((String) -> Unit) -> Unit) {
+    FeatureToggle(stringResource(R.string.settings_feature_gallery_title), settings.galleryEnabled) {
+        onChange(settings.copy(galleryEnabled = it))
+    }
+    if (!settings.galleryEnabled) return
     Body(stringResource(R.string.settings_wizard_gallery_1))
     FolderField(
         label = stringResource(R.string.settings_wizard_pictures_folder),
@@ -270,7 +287,20 @@ private fun GalleryStep(settings: AppSettings, onChange: (AppSettings) -> Unit, 
 }
 
 @Composable
+private fun PrayerStep(settings: AppSettings, onChange: (AppSettings) -> Unit) {
+    FeatureToggle(stringResource(R.string.settings_feature_prayer_title), settings.prayerEnabled) {
+        onChange(settings.copy(prayerEnabled = it))
+    }
+    if (!settings.prayerEnabled) return
+    Body(stringResource(R.string.settings_feature_prayer_desc))
+}
+
+@Composable
 private fun NibrasStep(settings: AppSettings, onChange: (AppSettings) -> Unit) {
+    FeatureToggle(stringResource(R.string.settings_feature_server_title), settings.serverEnabled) {
+        onChange(settings.copy(serverEnabled = it))
+    }
+    if (!settings.serverEnabled) return
     Body(stringResource(R.string.settings_wizard_nibras_1))
     Body(stringResource(R.string.settings_wizard_nibras_2))
     WizardField(stringResource(R.string.settings_wizard_server_address), settings.nibrasBaseUrl) { onChange(settings.copy(nibrasBaseUrl = it)) }
@@ -279,6 +309,13 @@ private fun NibrasStep(settings: AppSettings, onChange: (AppSettings) -> Unit) {
         onChange(settings.copy(nibrasPassword = it))
     }
     Note(stringResource(R.string.settings_wizard_nibras_note))
+    // Background sync is part of the server feature, so it is asked here rather than among the
+    // alerts — and only once there is a server to sync with.
+    Toggle(
+        stringResource(R.string.settings_wizard_sync_toggle),
+        settings.syncEnabled,
+        stringResource(R.string.settings_wizard_sync_help),
+    ) { onChange(settings.copy(syncEnabled = it)) }
 }
 
 @Composable
@@ -288,17 +325,15 @@ private fun AlertsStep(
     requestNotifications: () -> Unit,
 ) {
     Body(stringResource(R.string.settings_wizard_alerts_1))
-    Toggle(stringResource(R.string.settings_wizard_chime_toggle), settings.chimeEnabled) { onChange(settings.copy(chimeEnabled = it)) }
-    Toggle(
+    // Each alert is its own feature with its own switch; nothing here is needed for the app to work.
+    FeatureToggle(stringResource(R.string.settings_wizard_chime_toggle), settings.chimeEnabled) {
+        onChange(settings.copy(chimeEnabled = it))
+    }
+    FeatureToggle(
         stringResource(R.string.settings_wizard_status_toggle),
         settings.statusNotificationEnabled,
         stringResource(R.string.settings_wizard_status_help),
     ) { onChange(settings.copy(statusNotificationEnabled = it)) }
-    Toggle(
-        stringResource(R.string.settings_wizard_sync_toggle),
-        settings.syncEnabled,
-        stringResource(R.string.settings_wizard_sync_help),
-    ) { onChange(settings.copy(syncEnabled = it)) }
     Spacer(Modifier.height(8.dp))
     OutlinedButton(onClick = requestNotifications) { Text(stringResource(R.string.settings_wizard_allow_notifications)) }
     Note(stringResource(R.string.settings_wizard_notifications_note))
@@ -308,10 +343,21 @@ private fun AlertsStep(
 private fun DoneStep(settings: AppSettings) {
     Body(stringResource(R.string.settings_wizard_done_1))
     Summary(stringResource(R.string.settings_wizard_summary_notes), settings.notesDir)
-    Summary(stringResource(R.string.settings_wizard_summary_collected), settings.collectNewDir)
-    Summary(stringResource(R.string.settings_wizard_summary_media), settings.audioLibraryRoots.firstOrNull().orEmpty())
-    Summary(stringResource(R.string.settings_wizard_summary_pictures), settings.galleryDir)
-    Summary("Nibras", settings.nibrasBaseUrl.ifBlank { stringResource(R.string.settings_wizard_not_connected) }, checkFolder = false)
+    val off = stringResource(R.string.settings_wizard_feature_off)
+    // A feature switched off is summarised as "Off", not by a folder it will never read.
+    if (settings.collectEnabled) Summary(stringResource(R.string.settings_wizard_summary_collected), settings.collectNewDir)
+    else Summary(stringResource(R.string.settings_wizard_summary_collected), off, checkFolder = false)
+    if (settings.mediaEnabled) Summary(stringResource(R.string.settings_wizard_summary_media), settings.audioLibraryRoots.firstOrNull().orEmpty())
+    else Summary(stringResource(R.string.settings_wizard_summary_media), off, checkFolder = false)
+    if (settings.galleryEnabled) Summary(stringResource(R.string.settings_wizard_summary_pictures), settings.galleryDir)
+    else Summary(stringResource(R.string.settings_wizard_summary_pictures), off, checkFolder = false)
+    Summary(stringResource(R.string.settings_feature_prayer_title), if (settings.prayerEnabled) stringResource(R.string.settings_wizard_feature_on) else off, checkFolder = false)
+    Summary(
+        "Nibras",
+        if (!settings.serverEnabled) off
+        else settings.nibrasBaseUrl.ifBlank { stringResource(R.string.settings_wizard_not_connected) },
+        checkFolder = false,
+    )
     Spacer(Modifier.height(12.dp))
     Note(stringResource(R.string.settings_wizard_done_note))
 }
@@ -435,6 +481,33 @@ private fun WizardField(
         visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
     )
+}
+
+/**
+ * The switch a feature's step opens with, set apart from the step's own controls: it answers
+ * "do you want this at all?" before anything asks how to set it up. Off hides the rest of the step.
+ */
+@Composable
+private fun FeatureToggle(label: String, checked: Boolean, help: String? = null, onChange: (Boolean) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+            .clickable { onChange(!checked) }
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.titleMedium)
+            Text(
+                help ?: stringResource(if (checked) R.string.settings_wizard_feature_on else R.string.settings_wizard_feature_off),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
 }
 
 @Composable

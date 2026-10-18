@@ -287,10 +287,12 @@ private fun AppRoot(
     LaunchedEffect(
         settings.nibrasBaseUrl, settings.nibrasUsername, settings.nibrasPassword,
         settings.reminderOffsetsMin, settings.reminderSoundUri, settings.reminderRequireDismiss,
+        settings.serverEnabled,
     ) {
         // Make the login credentials available to every NibrasApi instance before any sync runs.
         NibrasApi.configure(settings.nibrasBaseUrl, settings.nibrasUsername, settings.nibrasPassword)
-        if (hasPermission) {
+        // The server switched off means no server at all — not even this refresh.
+        if (hasPermission && settings.serverEnabled) {
             PlansStore.seed(context)
             PlansRepository.refresh(context, settings)
         }
@@ -316,7 +318,7 @@ private fun AppRoot(
 
     // Persistent status notification + quarter-hour chime; re-applied when their settings change.
     LaunchedEffect(
-        settings.statusNotificationEnabled, settings.syncEnabled, settings.chimeEnabled,
+        settings.statusNotificationEnabled, settings.syncEnabled, settings.serverEnabled, settings.chimeEnabled,
         settings.chimeStartHour, settings.chimeEndHour,
     ) {
         com.knotes.status.StatusService.sync(context)
@@ -396,9 +398,19 @@ private fun AppShell(
     // that handle their own back — e.g. an open record — register closer BackHandlers that win first.)
     BackHandler(enabled = dest != HOME_DEST) { onDest(HOME_DEST) }
 
-    // Load Nibras counts once so the rail badges populate even while on the home screen.
-    LaunchedEffect(Unit) {
-        if (conn == ConnState.Unknown) nibrasVm.connect(settings.nibrasBaseUrl, settings.nibrasUsername)
+    // Load Nibras counts once so the rail badges populate even while on the home screen — unless
+    // the server feature is switched off, in which case nothing connects at all.
+    LaunchedEffect(settings.serverEnabled) {
+        if (settings.serverEnabled && conn == ConnState.Unknown) {
+            nibrasVm.connect(settings.nibrasBaseUrl, settings.nibrasUsername)
+        }
+    }
+
+    // A page whose feature was just switched off is no longer in the rail; staying on it would
+    // leave you somewhere the rail can't show. Back to the notes.
+    LaunchedEffect(dest, settings.prayerEnabled, settings.collectEnabled, settings.mediaEnabled,
+        settings.galleryEnabled, settings.serverEnabled) {
+        if (!destAvailable(dest, settings)) onDest(HOME_DEST)
     }
 
     // When the mini player is shown it carries the navigation-bar inset, so the content above it
@@ -416,6 +428,9 @@ private fun AppShell(
                 counts = counts,
                 prayerEnabled = settings.prayerEnabled,
                 collectEnabled = settings.collectEnabled,
+                mediaEnabled = settings.mediaEnabled,
+                galleryEnabled = settings.galleryEnabled,
+                serverEnabled = settings.serverEnabled,
                 onHome = { onDest(HOME_DEST) },
                 onAiNotes = { onDest(AI_NOTES_DEST) },
                 onAlarms = { onDest(ALARMS_DEST) },
@@ -570,6 +585,16 @@ private fun AppShell(
         // Persistent mini player (only visible once something is loaded), tap to reopen the player.
         MiniPlayerBar(player, onExpand = onExpandPlayer)
     }
+}
+
+/** Whether [dest]'s feature is switched on — the same rule the rail uses to show it. */
+private fun destAvailable(dest: String, s: AppSettings): Boolean = when (dest) {
+    HOME_DEST, AI_NOTES_DEST, ALARMS_DEST, CALENDAR_DEST, SETTINGS_DEST -> true
+    PRAYER_DEST -> s.prayerEnabled
+    COLLECT_DEST -> s.collectEnabled
+    AUDIOBOOKS_DEST, VIDEOS_DEST -> s.mediaEnabled
+    GALLERY_DEST -> s.galleryEnabled
+    else -> s.serverEnabled          // record types, search, flash cards, highlights, contacts
 }
 
 @Composable

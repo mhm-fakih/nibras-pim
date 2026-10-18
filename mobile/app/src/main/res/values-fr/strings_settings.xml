@@ -189,4 +189,21 @@
     <string name="settings_wizard_not_there">introuvable — cette partie de l’application sera vide</string>
     <string name="settings_videos_folder_label">Dossier des vidéos</string>
     <string name="settings_videos_folder_hint">Affiché par la page Vidéos, sous-dossiers compris, p. ex. /storage/emulated/0/Nibras</string>
+    <string name="settings_tab_general">Général</string>
+    <string name="settings_tab_server">Serveur</string>
+    <string name="settings_tab_prayer">Heures de prière</string>
+    <string name="settings_tab_media">Médias</string>
+    <string name="settings_tab_collect">Collecte de fichiers</string>
+    <string name="settings_tab_alerts">Alertes</string>
+    <string name="settings_tab_calendar">Calendrier et widgets</string>
+    <string name="settings_feature_server_title">Utiliser un serveur Nibras</string>
+    <string name="settings_feature_server_desc">Synchroniser notes et fiches avec votre propre serveur. Désactivé : aucune connexion, et les pages du serveur quittent la barre.</string>
+    <string name="settings_feature_prayer_title">Heures de prière</string>
+    <string name="settings_feature_prayer_desc">La page de prière, l\'athan, le silence et le widget. Lieu, méthode et sons se règlent sur la page Prière elle-même. Désactivé : la page quitte la barre et rien n\'est programmé.</string>
+    <string name="settings_feature_media_title">Pages du lecteur multimédia</string>
+    <string name="settings_feature_media_desc">Les pages Médias (bibliothèque audio) et Vidéos. Désactivé : elles quittent la barre ; les fichiers ouverts depuis une note se lisent toujours.</string>
+    <string name="settings_feature_gallery_title">Galerie</string>
+    <string name="settings_feature_gallery_desc">Un dossier d\'images à parcourir et annoter. Désactivé : la page quitte la barre.</string>
+    <string name="settings_wizard_feature_on">Activé</string>
+    <string name="settings_wizard_feature_off">Désactivé</string>
 </resources>

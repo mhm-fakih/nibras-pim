@@ -154,7 +154,7 @@ class StatusService : Service() {
             } else {
                 title = settings.appName
             }
-            if (settings.syncEnabled) {
+            if (settings.syncActive) {
                 val online = SyncStatusStore.online.value
                 val status = when (online) {
                     true -> context.getString(R.string.widgets_status_online)

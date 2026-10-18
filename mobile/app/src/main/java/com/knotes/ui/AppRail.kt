@@ -106,6 +106,9 @@ fun AppRail(
     /** Switched off in Settings, these two are not in the app at all — see SettingsStore. */
     prayerEnabled: Boolean = true,
     collectEnabled: Boolean = true,
+    mediaEnabled: Boolean = true,
+    galleryEnabled: Boolean = true,
+    serverEnabled: Boolean = true,
     onHome: () -> Unit,
     onAiNotes: () -> Unit,
     onAlarms: () -> Unit,
@@ -142,7 +145,8 @@ fun AppRail(
             label = stringResource(R.string.notes_rail_on_this_phone),
             tint = MaterialTheme.colorScheme.tertiary,
             alpha = LOCAL_ALPHA,
-            expanded = open == RailBand.LOCAL.name,
+            // With no server band there is nothing to switch to, so this one is always open.
+            expanded = open == RailBand.LOCAL.name || !serverEnabled,
             onToggle = { open = RailBand.LOCAL.name },
         ) {
             // Order set deliberately: prayer times first, being the one opened at a fixed hour
@@ -200,30 +204,34 @@ fun AppRail(
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            RailCell(selected == GALLERY_DEST, onGallery) {
-                Icon(
-                    Icons.Filled.PhotoLibrary,
-                    contentDescription = stringResource(R.string.notes_rail_gallery),
-                    tint = if (selected == GALLERY_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            if (galleryEnabled) {
+                RailCell(selected == GALLERY_DEST, onGallery) {
+                    Icon(
+                        Icons.Filled.PhotoLibrary,
+                        contentDescription = stringResource(R.string.notes_rail_gallery),
+                        tint = if (selected == GALLERY_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
-            RailCell(selected == AUDIOBOOKS_DEST, onAudiobooks) {
-                Icon(
-                    Icons.Filled.Headset,
-                    contentDescription = stringResource(R.string.notes_rail_media),
-                    tint = if (selected == AUDIOBOOKS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            // Beside the audio browser: the same player plays both, this page just shows pictures.
-            RailCell(selected == VIDEOS_DEST, onVideos) {
-                Icon(
-                    Icons.Filled.VideoLibrary,
-                    contentDescription = stringResource(R.string.notes_rail_videos),
-                    tint = if (selected == VIDEOS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            if (mediaEnabled) {
+                RailCell(selected == AUDIOBOOKS_DEST, onAudiobooks) {
+                    Icon(
+                        Icons.Filled.Headset,
+                        contentDescription = stringResource(R.string.notes_rail_media),
+                        tint = if (selected == AUDIOBOOKS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                // Beside the audio browser: the same player plays both, this page just shows pictures.
+                RailCell(selected == VIDEOS_DEST, onVideos) {
+                    Icon(
+                        Icons.Filled.VideoLibrary,
+                        contentDescription = stringResource(R.string.notes_rail_videos),
+                        tint = if (selected == VIDEOS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             // Gathering files into the notes folder is a job done entirely on the phone; what it
             // collects is pushed later, by sync, which is a different thing from this page.
@@ -239,83 +247,86 @@ fun AppRail(
             }
         }
 
-        RailSection(
-            icon = Icons.Filled.CloudQueue,
-            label = stringResource(R.string.notes_rail_from_the_server),
-            tint = MaterialTheme.colorScheme.primary,
-            alpha = SERVER_ALPHA,
-            expanded = open == RailBand.SERVER.name,
-            onToggle = { open = RailBand.SERVER.name },
-        ) {
-            NIBRAS_TYPES.forEach { type ->
-                val sel = type.code == selected
-                // Letter + count on one line, e.g. "T (12)", so the cell stays short.
-                RailCell(sel, { onType(type.code) }, height = 38.dp) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            type.code,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (sel) MaterialTheme.colorScheme.onPrimaryContainer
-                            else MaterialTheme.colorScheme.onSurface,
-                        )
-                        counts[type.code]?.let { c ->
+        // Switched off in Settings, the server is not in the app at all: no band, no pages.
+        if (serverEnabled) {
+            RailSection(
+                icon = Icons.Filled.CloudQueue,
+                label = stringResource(R.string.notes_rail_from_the_server),
+                tint = MaterialTheme.colorScheme.primary,
+                alpha = SERVER_ALPHA,
+                expanded = open == RailBand.SERVER.name,
+                onToggle = { open = RailBand.SERVER.name },
+            ) {
+                NIBRAS_TYPES.forEach { type ->
+                    val sel = type.code == selected
+                    // Letter + count on one line, e.g. "T (12)", so the cell stays short.
+                    RailCell(sel, { onType(type.code) }, height = 38.dp) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = " ($c)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                type.code,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (sel) MaterialTheme.colorScheme.onPrimaryContainer
+                                else MaterialTheme.colorScheme.onSurface,
                             )
+                            counts[type.code]?.let { c ->
+                                Text(
+                                    text = " ($c)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
+                    HorizontalDivider(modifier = Modifier.width(36.dp))
                 }
-                HorizontalDivider(modifier = Modifier.width(36.dp))
-            }
-            RailCell(selected == FLASHCARDS_DEST, onFlashcards) {
-                Icon(
-                    Icons.Filled.Style,
-                    contentDescription = stringResource(R.string.notes_rail_flash_cards),
-                    tint = if (selected == FLASHCARDS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            RailCell(selected == HIGHLIGHTS_DEST, onHighlights) {
-                Icon(
-                    Icons.Filled.FormatQuote,
-                    contentDescription = stringResource(R.string.notes_rail_highlights),
-                    tint = if (selected == HIGHLIGHTS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            // The people this work is with — tasks are tagged by contact as well as by tag, and
-            // this is the page that reads that back.
-            RailCell(selected == CONTACTS_DEST, onContacts) {
-                Icon(
-                    Icons.Filled.Groups,
-                    contentDescription = stringResource(R.string.notes_rail_contacts),
-                    tint = if (selected == CONTACTS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            // Last in the band, and deliberately so: it searches the SERVER, over everything there,
-            // where every cell above it browses what sync already pulled down. Ending the section
-            // with the widest-reaching thing reads as "and if it is not up there, look here".
-            RailCell(selected == SEARCH_DEST, onSearch) {
-                Icon(
-                    Icons.Filled.TravelExplore,
-                    contentDescription = stringResource(R.string.notes_rail_search_server),
-                    tint = if (selected == SEARCH_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            // Closes the band: refresh what the band shows. The record browsers carry their own
-            // refresh, but flash cards, highlights and contacts had none — the only way to pull new
-            // rows was to visit a records page, refresh there, and come back.
-            RailCell(false, onRefreshServer) {
-                Icon(
-                    Icons.Filled.Refresh,
-                    contentDescription = stringResource(R.string.notes_rail_refresh_server_pages),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                RailCell(selected == FLASHCARDS_DEST, onFlashcards) {
+                    Icon(
+                        Icons.Filled.Style,
+                        contentDescription = stringResource(R.string.notes_rail_flash_cards),
+                        tint = if (selected == FLASHCARDS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                RailCell(selected == HIGHLIGHTS_DEST, onHighlights) {
+                    Icon(
+                        Icons.Filled.FormatQuote,
+                        contentDescription = stringResource(R.string.notes_rail_highlights),
+                        tint = if (selected == HIGHLIGHTS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                // The people this work is with — tasks are tagged by contact as well as by tag, and
+                // this is the page that reads that back.
+                RailCell(selected == CONTACTS_DEST, onContacts) {
+                    Icon(
+                        Icons.Filled.Groups,
+                        contentDescription = stringResource(R.string.notes_rail_contacts),
+                        tint = if (selected == CONTACTS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                // Last in the band, and deliberately so: it searches the SERVER, over everything there,
+                // where every cell above it browses what sync already pulled down. Ending the section
+                // with the widest-reaching thing reads as "and if it is not up there, look here".
+                RailCell(selected == SEARCH_DEST, onSearch) {
+                    Icon(
+                        Icons.Filled.TravelExplore,
+                        contentDescription = stringResource(R.string.notes_rail_search_server),
+                        tint = if (selected == SEARCH_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                // Closes the band: refresh what the band shows. The record browsers carry their own
+                // refresh, but flash cards, highlights and contacts had none — the only way to pull new
+                // rows was to visit a records page, refresh there, and come back.
+                RailCell(false, onRefreshServer) {
+                    Icon(
+                        Icons.Filled.Refresh,
+                        contentDescription = stringResource(R.string.notes_rail_refresh_server_pages),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 

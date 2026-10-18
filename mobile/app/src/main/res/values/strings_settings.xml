@@ -185,4 +185,21 @@
     <string name="settings_wizard_not_there">not there — this part of the app will be empty</string>
     <string name="settings_videos_folder_label">Videos folder</string>
     <string name="settings_videos_folder_hint">Shown by the Videos page, subfolders included, e.g. /storage/emulated/0/Nibras</string>
+    <string name="settings_tab_general">General</string>
+    <string name="settings_tab_server">Server</string>
+    <string name="settings_tab_prayer">Prayer times</string>
+    <string name="settings_tab_media">Media</string>
+    <string name="settings_tab_collect">File collection</string>
+    <string name="settings_tab_alerts">Alerts</string>
+    <string name="settings_tab_calendar">Calendar &amp; widgets</string>
+    <string name="settings_feature_server_title">Use a Nibras server</string>
+    <string name="settings_feature_server_desc">Sync notes and records with your own server. Off: nothing connects anywhere, and the server pages leave the rail.</string>
+    <string name="settings_feature_prayer_title">Prayer times</string>
+    <string name="settings_feature_prayer_desc">The prayer page, athan, silence and widget. Location, method and sounds are set on the Prayer page itself. Off: the page leaves the rail and nothing is scheduled.</string>
+    <string name="settings_feature_media_title">Media player pages</string>
+    <string name="settings_feature_media_desc">The Media (audio library) and Videos pages. Off: both leave the rail; files opened from notes still play.</string>
+    <string name="settings_feature_gallery_title">Gallery</string>
+    <string name="settings_feature_gallery_desc">A folder of pictures you can browse and mark up. Off: the page leaves the rail.</string>
+    <string name="settings_wizard_feature_on">On</string>
+    <string name="settings_wizard_feature_off">Off</string>
 </resources>

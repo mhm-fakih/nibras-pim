@@ -424,6 +424,27 @@ The six components share one version and codename — see the top of `backend/bu
 Python apps. `file-watch/`, `scr-annotator/` and `window-tracker/` are separate small tools, each
 its own git repo, carrying the same tag in a plain `VERSION` file.
 
+## Install the Android app (knotes)
+
+**From an F-Droid client** (F-Droid, Droid-ify, Neo Store…) — updates arrive like any other app.
+Add this repository under *Settings → Repositories*, or open the link on the phone:
+
+```
+https://mhm-fakih.github.io/nibras-fdroid/repo?fingerprint=4E6533C6F4783BD04CF7A9278CF5963A5E7DE77D486EA32FBD3AA4E5CCEDC2F3
+```
+
+**With [Obtainium](https://obtainium.imranr.dev)** — installs and updates straight from this
+project's GitHub releases:
+[add knotes to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/mhm-fakih/nibras-pim).
+Each release carries a `-release.apk` and a `-debug.apk`; pick the **release** one (or set
+*Filter APKs by regular expression* to `-release\.apk$` in the app's Obtainium settings).
+
+**Directly** — download `knotes-…-release.apk` from the
+[latest release](https://github.com/mhm-fakih/nibras-pim/releases/latest).
+
+All three are the same file, signed with the same key (certificate SHA-256
+`dd066db93bf4538b9100f5003e39f0e56d8f1c80652ee5be398b471af2112d78`). Android 6 to 16.
+
 ## License
 
 Nibras PIM is free software, licensed under the **GNU Affero General Public License v3.0** —
