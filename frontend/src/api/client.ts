@@ -1982,3 +1982,52 @@ export async function updateLocalNotesConfig(body: {
   const { data } = await http.put('/local-notes/config', body);
   return data;
 }
+
+// ---------------------------------------------------------------- checklists (read-only)
+
+/** One mark of a checklist item: per day for a daily group, one for the week for a weekly one. */
+export type ChecklistMark = 'DONE' | 'PARTIAL' | 'NONE';
+
+export interface ChecklistItem {
+  code: number;
+  text: string;
+  marks: ChecklistMark[];
+}
+
+export interface ChecklistGroup {
+  code: number;
+  title: string;
+  weekly: boolean;
+  items: ChecklistItem[];
+}
+
+export interface ChecklistWeek {
+  id: string;
+  year: number;
+  week: number;
+  monday: string;
+  sunday: string;
+  groups: ChecklistGroup[];
+}
+
+export interface ChecklistIndex {
+  weeks: string[];
+  current: string;
+  dir: string;
+  /** When the week files last changed (epoch ms) — the dashboard re-reads the week when it moves. */
+  changed: number;
+  /** Minutes between the dashboard's full reloads; 0 = never. */
+  reloadMinutes: number;
+}
+
+/** Which weeks the phone has written, and which week it is now. */
+export async function getChecklistIndex(): Promise<ChecklistIndex> {
+  const { data } = await http.get('/checklists');
+  return data;
+}
+
+/** One week of the phone's checklists, as the phone last saved it. */
+export async function getChecklistWeek(id: string): Promise<ChecklistWeek> {
+  const { data } = await http.get(`/checklists/${encodeURIComponent(id)}`);
+  return data;
+}

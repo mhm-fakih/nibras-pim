@@ -20,6 +20,7 @@ import { ShortcutsProvider } from './components/ShortcutsProvider';
 import { NotificationWatcher } from './components/NotificationWatcher';
 import { CalendarPage } from './pages/CalendarPage';
 import { RecordReadPage } from './pages/RecordReadPage';
+import { ChecklistDashboardPage } from './pages/ChecklistDashboardPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AuditPage } from './pages/AuditPage';
 import { ImportNotesPage } from './pages/ImportNotesPage';
@@ -90,6 +91,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                         {/* Chrome-free, narrow reading view for a single record — opened in a new
                             tab (e.g. from a calendar event) so the page it was opened from stays put. */}
                         <Route path="/read/:entity/:id" element={<RecordReadPage />} />
+                        {/* The phone's checklists for a week, read-only, fitted to one screen with no
+                            navigation around it — opened in its own tab from the side rail. */}
+                        <Route path="/checklists/view" element={<ChecklistDashboardPage />} />
                         <Route path="/kanban" element={<KanbanPage />} />
                         <Route path="/dashboards" element={<DashboardsPage />} />
                         <Route path="/bookmarks" element={<BookmarksPage />} />

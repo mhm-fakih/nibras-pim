@@ -67,7 +67,7 @@ carrying the WM class exists, its `Icon=` path wins over the theme lookup.
 **Auto-start at login.** A `~/.config/autostart/knotes-desktop.desktop` pointing `Exec=` at
 `run.sh` (with `X-GNOME-Autostart-enabled=true` and a small `X-GNOME-Autostart-Delay`) launches the
 app with the session; Cinnamon lists it under *Startup Applications*. If it silently never appears,
-run `./run.sh` in a terminal — an autostart failure is almost always a startup crash that the
+check `desktop.log` (run.sh appends all app output there) — an autostart failure is almost always a startup crash that the
 launcher swallows, not an autostart problem.
 
 Requires PyGObject + GTK 3:

@@ -84,6 +84,8 @@ import com.knotes.ui.GALLERY_DEST
 import com.knotes.ui.GalleryScreen
 import com.knotes.ui.VIDEOS_DEST
 import com.knotes.ui.VideosScreen
+import com.knotes.ui.CHECKLISTS_DEST
+import com.knotes.ui.ChecklistsScreen
 import com.knotes.ui.AI_NOTES_DEST
 import com.knotes.ui.ALARMS_DEST
 import com.knotes.ui.AiNotesScreen
@@ -409,7 +411,7 @@ private fun AppShell(
     // A page whose feature was just switched off is no longer in the rail; staying on it would
     // leave you somewhere the rail can't show. Back to the notes.
     LaunchedEffect(dest, settings.prayerEnabled, settings.collectEnabled, settings.mediaEnabled,
-        settings.galleryEnabled, settings.serverEnabled) {
+        settings.galleryEnabled, settings.serverEnabled, settings.checklistsEnabled) {
         if (!destAvailable(dest, settings)) onDest(HOME_DEST)
     }
 
@@ -431,6 +433,8 @@ private fun AppShell(
                 mediaEnabled = settings.mediaEnabled,
                 galleryEnabled = settings.galleryEnabled,
                 serverEnabled = settings.serverEnabled,
+                checklistsEnabled = settings.checklistsEnabled,
+                onChecklists = { onDest(CHECKLISTS_DEST) },
                 onHome = { onDest(HOME_DEST) },
                 onAiNotes = { onDest(AI_NOTES_DEST) },
                 onAlarms = { onDest(ALARMS_DEST) },
@@ -543,6 +547,7 @@ private fun AppShell(
                             onPlayMedia = onPlayMedia,
                         )
                         GALLERY_DEST -> GalleryScreen(dir = settings.galleryDir)
+                        CHECKLISTS_DEST -> ChecklistsScreen(folder = settings.checklistsFolder())
                         VIDEOS_DEST -> VideosScreen(
                             dir = settings.videosDir.ifBlank { SettingsStore.defaultVideosDir() },
                             currentPath = player.currentFile?.absolutePath,
@@ -594,6 +599,7 @@ private fun destAvailable(dest: String, s: AppSettings): Boolean = when (dest) {
     COLLECT_DEST -> s.collectEnabled
     AUDIOBOOKS_DEST, VIDEOS_DEST -> s.mediaEnabled
     GALLERY_DEST -> s.galleryEnabled
+    CHECKLISTS_DEST -> s.checklistsEnabled
     else -> s.serverEnabled          // record types, search, flash cards, highlights, contacts
 }
 

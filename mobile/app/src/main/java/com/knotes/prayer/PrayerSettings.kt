@@ -165,6 +165,19 @@ data class PrayerSettings(
             val step = minStep + Math.round((maxStep - minStep) * p / 100f)
             return step.coerceIn(maxOf(minStep, 1), maxStep)
         }
+
+        /**
+         * The player gain that makes the stream at full sound as loud as [targetDb] — the athan's
+         * step — given [maxDb], the full step. The athan opens the stream to full and plays this
+         * much quieter, so it starts at the configured loudness yet every step of the alarm slider
+         * below full still lowers it, down to far quieter than the configured step allows on its
+         * own. Null when the levels make no sense (unknown, or the target above full): the caller
+         * then sets the step itself, as before.
+         */
+        fun athanGain(targetDb: Float, maxDb: Float): Float? {
+            if (!targetDb.isFinite() || !maxDb.isFinite() || targetDb > maxDb) return null
+            return Math.pow(10.0, (targetDb - maxDb) / 20.0).toFloat().coerceIn(0f, 1f)
+        }
     }
 }
 

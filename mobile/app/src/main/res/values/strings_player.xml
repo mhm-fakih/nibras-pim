@@ -128,4 +128,12 @@
     <string name="player_video_auto_next_hint">Off: a finished video stays paused at its start, whatever “Play next” says. ⏭ still plays the next one.</string>
     <string name="player_open_folder">Folder</string>
     <string name="player_share">Share</string>
+    <string name="player_next_countdown">Playing next file in %1$ds</string>
+    <string name="player_next_stop">Stop</string>
+    <string name="player_tab_starred">Starred</string>
+    <string name="player_starred_count">Starred files (%1$d)</string>
+    <string name="player_star">Star</string>
+    <string name="player_starred">Starred</string>
+    <string name="player_unstar">Remove the star</string>
+    <string name="player_starred_empty">No starred files yet. Tap ☆ Star under a file’s name on the Player tab to keep it here.</string>
 </resources>

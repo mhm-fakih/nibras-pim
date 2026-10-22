@@ -7,6 +7,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
@@ -239,12 +240,17 @@ class PrayerReceiver : BroadcastReceiver() {
         private var restoreContext: Context? = null
 
         /**
-         * Set the alarm stream to [percent] of its range for the athan, remembering (on disk, so a
+         * Start the athan at [percent] of the alarm stream's range, remembering (on disk, so a
          * killed process can still put it back) the level it was at. An athan replacing another
-         * keeps the FIRST saved level — the one the user actually set.
+         * keeps the FIRST saved level — the one the user actually set. Returns the player gain.
+         *
+         * Where the phone can say how loud a step is (Android 9+), the stream goes to full and the
+         * player plays quieter by the difference — the same starting loudness, but the alarm
+         * slider can then bring it down step by step from there. Setting the step itself left the
+         * slider only the few steps below it, and the lowest of those still loud.
          */
-        private fun applyAlarmLevel(context: Context, percent: Int) {
-            val am = context.getSystemService(AudioManager::class.java) ?: return
+        private fun applyAlarmLevel(context: Context, percent: Int): Float {
+            val am = context.getSystemService(AudioManager::class.java) ?: return 1f
             val stream = AudioManager.STREAM_ALARM
             val max = am.getStreamMaxVolume(stream)
             val min = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) am.getStreamMinVolume(stream) else 0
@@ -253,7 +259,16 @@ class PrayerReceiver : BroadcastReceiver() {
                 prefs.edit().putInt(K_RESTORE_STEP, am.getStreamVolume(stream)).commit()
             }
             restoreContext = context
-            runCatching { am.setStreamVolume(stream, PrayerSettings.alarmStepFor(percent, min, max), 0) }
+            val step = PrayerSettings.alarmStepFor(percent, min, max)
+            val gain = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) runCatching {
+                val speaker = AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                PrayerSettings.athanGain(
+                    am.getStreamVolumeDb(stream, step, speaker),
+                    am.getStreamVolumeDb(stream, max, speaker),
+                )
+            }.getOrNull() else null
+            runCatching { am.setStreamVolume(stream, if (gain != null) max else step, 0) }
+            return gain ?: 1f
         }
 
         private fun restoreAlarmLevel(context: Context) {
@@ -431,7 +446,7 @@ class PrayerReceiver : BroadcastReceiver() {
                 ?: fallback
                 ?: RingtoneManager.getDefaultUri(defaultType)
                 ?: return
-            if (alarmLevel) applyAlarmLevel(context.applicationContext, volumePercent)
+            val gain = if (alarmLevel) applyAlarmLevel(context.applicationContext, volumePercent) else 1f
             runCatching {
                 player = MediaPlayer().apply {
                     setAudioAttributes(
@@ -442,9 +457,9 @@ class PrayerReceiver : BroadcastReceiver() {
                     )
                     setDataSource(context, uri)
                     isLooping = false
-                    // Full within the stream: the loudness is the stream level, set above for the
-                    // athan, or the phone's own level for everything else.
-                    setVolume(1f, 1f)
+                    // The athan's starting loudness, from above; the phone's own level for
+                    // everything else.
+                    setVolume(gain, gain)
                     setOnCompletionListener { stopAthan() }
                     if (startNow) {
                         prepare()

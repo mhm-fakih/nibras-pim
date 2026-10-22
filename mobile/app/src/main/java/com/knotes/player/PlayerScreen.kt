@@ -102,6 +102,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material.icons.filled.OpenInFull
@@ -128,7 +130,7 @@ import kotlinx.coroutines.withContext
  * The player's full-page tabs. [PLAYER] holds the picture and the transport; every other tab gets
  * the whole page to itself instead of a short box squeezed in under the controls.
  */
-private enum class PlayerTab { PLAYER, BOOKMARKS, FOLDER, RECENT_FOLDERS, RECENTS, SETTINGS }
+private enum class PlayerTab { PLAYER, STARRED, FOLDER, RECENT_FOLDERS, RECENTS, SETTINGS }
 
 /** Dark theme shared by the player, whether shown full-screen or as part of the app shell. */
 @Composable
@@ -427,6 +429,17 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.player_back)) }
                 },
+                // The star, where it is always in sight whatever the file's name does to the card.
+                actions = {
+                    val starredNow = controller.isStarred(currentFile)
+                    IconButton(onClick = { controller.toggleStar(currentFile) }) {
+                        Icon(
+                            if (starredNow) Icons.Filled.Star else Icons.Filled.StarBorder,
+                            stringResource(if (starredNow) R.string.player_unstar else R.string.player_star),
+                            tint = if (starredNow) Color(0xFFFFC107) else Color.White,
+                        )
+                    }
+                },
                 // No delete here any more: it sits under the file's name, beside the thing it
                 // deletes. One delete control, not two.
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black),
@@ -445,8 +458,10 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
             ) {
                 PlayerTabButton(tab == PlayerTab.PLAYER, Icons.Filled.PlayCircle,
                     stringResource(R.string.player_tab_player), null) { tab = PlayerTab.PLAYER }
-                PlayerTabButton(tab == PlayerTab.BOOKMARKS, Icons.Filled.Bookmark,
-                    stringResource(R.string.player_panel_bookmarks), "${bookmarks.size}") { tab = PlayerTab.BOOKMARKS }
+                // Only files still on disk are counted and listed; a moved one reappears when it is back.
+                val starredHere = controller.starred.filter { it.exists() }
+                PlayerTabButton(tab == PlayerTab.STARRED, Icons.Filled.Star,
+                    stringResource(R.string.player_tab_starred), "${starredHere.size}") { tab = PlayerTab.STARRED }
                 PlayerTabButton(tab == PlayerTab.FOLDER, Icons.Filled.Folder,
                     stringResource(R.string.player_panel_in_folder), "${siblings.size}") { tab = PlayerTab.FOLDER }
                 PlayerTabButton(tab == PlayerTab.RECENT_FOLDERS, Icons.Filled.FolderOpen,
@@ -455,6 +470,11 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                     stringResource(R.string.player_panel_recently_played), "${recents.size}") { tab = PlayerTab.RECENTS }
                 PlayerTabButton(tab == PlayerTab.SETTINGS, Icons.Filled.Settings,
                     stringResource(R.string.player_panel_settings), null) { tab = PlayerTab.SETTINGS }
+            }
+
+            // A file finished and the next one is about to start: say so, on every tab, with a way out.
+            controller.nextCountdown?.let { secs ->
+                NextCountdownBanner(secs, onStop = { controller.cancelAutoNext() })
             }
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -529,15 +549,18 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                                 }
                             }
                         }
-                        Spacer(Modifier.height(24.dp))
-                    }
-
-                    // Bookmarks, newest first.
-                    PlayerTab.BOOKMARKS -> TabList(
-                        stringResource(R.string.player_panel_bookmarks_count, bookmarks.size),
-                        empty = bookmarks.isEmpty(),
-                    ) {
-                        items(bookmarks.sortedByDescending { it.positionMs }) { b ->
+                        // The file's bookmarks, newest first, right under its controls: where you
+                        // are and where you marked are read together, with no tab to switch to.
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            stringResource(R.string.player_panel_bookmarks_count, bookmarks.size),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        if (bookmarks.isEmpty()) {
+                            Text("—", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF888888))
+                        }
+                        bookmarks.sortedByDescending { it.positionMs }.forEach { b ->
                             Row(
                                 modifier = Modifier.fillMaxWidth().clickable { seekTo(b.positionMs) }.padding(vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -547,6 +570,7 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                                 IconButton(onClick = { deleteBookmark(b) }) { Icon(Icons.Filled.Delete, stringResource(R.string.player_delete), modifier = Modifier.size(20.dp)) }
                             }
                         }
+                        Spacer(Modifier.height(24.dp))
                     }
 
                     // What's next: other media sitting in the same folder, current one highlighted.
@@ -555,7 +579,7 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                         empty = siblings.isEmpty(),
                     ) {
                         items(siblings) { f ->
-                            MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = false) { controller.open(f) }
+                            MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = false) { controller.open(f); tab = PlayerTab.PLAYER }
                         }
                     }
 
@@ -568,18 +592,47 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                         items(recentFolders) { folder ->
                             FolderRow(folder, current = folder.absolutePath == currentFile.parentFile?.absolutePath) {
                                 recents.firstOrNull { it.parentFile?.absolutePath == folder.absolutePath }
-                                    ?.let { controller.open(it) }
+                                    ?.let { controller.open(it); tab = PlayerTab.PLAYER }
                             }
                         }
                     }
 
                     // Jump back to anything played recently.
+                    // Starred files: whole files kept close at hand, newest star first.
+                    PlayerTab.STARRED -> {
+                        val starredFiles = controller.starred.filter { it.exists() }
+                        TabList(
+                            stringResource(R.string.player_starred_count, starredFiles.size),
+                            empty = false,
+                        ) {
+                            if (starredFiles.isEmpty()) item {
+                                Text(
+                                    stringResource(R.string.player_starred_empty),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color(0xFF888888),
+                                )
+                            }
+                            items(starredFiles) { f ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = true) {
+                                            controller.open(f); tab = PlayerTab.PLAYER
+                                        }
+                                    }
+                                    IconButton(onClick = { controller.toggleStar(f) }) {
+                                        Icon(Icons.Filled.Star, stringResource(R.string.player_unstar), tint = Color(0xFFFFC107))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     PlayerTab.RECENTS -> TabList(
                         stringResource(R.string.player_panel_recently_played),
                         empty = recents.isEmpty(),
                     ) {
                         items(recents) { f ->
-                            MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = true) { controller.open(f) }
+                            MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = true) { controller.open(f); tab = PlayerTab.PLAYER }
                         }
                     }
 
@@ -778,6 +831,7 @@ private fun BigVideoLayout(
  * says which session it is. The row grows with the name instead, and the bookmark button grows
  * with the row.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NowPlayingCard(
     controller: PlayerController,
@@ -849,33 +903,42 @@ private fun NowPlayingCard(
                 // Under the name, deliberately small and red: it deletes the recording, its
                 // transcripts and its bookmarks, and it is the one control on this screen that
                 // cannot be undone.
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.size(30.dp),
-                    ) {
-                        Icon(
-                            Icons.Filled.Delete,
-                            contentDescription = stringResource(R.string.player_delete_this_file),
-                            tint = Color(0xFFE57373),
-                            modifier = Modifier.size(18.dp),
+                // Wraps onto a second line when the column is narrow: as a plain Row the last
+                // button (the star) was pushed past the edge and simply not there on a phone.
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier.size(30.dp),
+                        ) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.player_delete_this_file),
+                                tint = Color(0xFFE57373),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Text(
+                            stringResource(R.string.player_delete),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFFE57373),
                         )
                     }
-                    Text(
-                        stringResource(R.string.player_delete),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFFE57373),
-                    )
                     // The folder in the phone's file manager, and the file itself to the share
                     // sheet — the two ways of passing a recording on to someone else.
-                    Spacer(Modifier.width(14.dp))
                     SmallAction(Icons.Filled.FolderOpen, stringResource(R.string.player_open_folder)) {
                         currentFile.parentFile?.let { com.knotes.ui.openFolder(context, it) }
                     }
-                    Spacer(Modifier.width(14.dp))
                     SmallAction(Icons.Filled.Share, stringResource(R.string.player_share)) {
                         com.knotes.ui.shareLocalFile(context, currentFile)
                     }
+                    // A star for the whole file — it then waits on the Starred tab.
+                    val starredNow = controller.isStarred(currentFile)
+                    SmallAction(
+                        if (starredNow) Icons.Filled.Star else Icons.Filled.StarBorder,
+                        stringResource(if (starredNow) R.string.player_starred else R.string.player_star),
+                        tint = if (starredNow) Color(0xFFFFC107) else Color(0xFF8AB4F8),
+                    ) { controller.toggleStar(currentFile) }
                 }
                 Spacer(Modifier.height(4.dp))
                 // Slim single-line note field with little padding.
@@ -969,15 +1032,36 @@ private fun NowPlayingCard(
 private fun SmallAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
+    tint: Color = Color(0xFF8AB4F8),
     onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onClick).padding(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = Color(0xFF8AB4F8), modifier = Modifier.size(18.dp))
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(4.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall, color = Color(0xFF8AB4F8))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = tint)
+    }
+}
+
+/** "Playing next file in 4 s" with Stop — shown while [PlayerController.nextCountdown] runs. */
+@Composable
+private fun NextCountdownBanner(secs: Int, onStop: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF1E3A5F))
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+    ) {
+        Text(
+            stringResource(R.string.player_next_countdown, secs),
+            color = Color.White,
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onStop) { Text(stringResource(R.string.player_next_stop), color = Color(0xFFFFC107), fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -1165,14 +1249,22 @@ fun MiniPlayerBar(controller: PlayerController, onExpand: () -> Unit) {
                 modifier = Modifier.size(28.dp).clickable { controller.togglePlay() },
             )
             Spacer(Modifier.width(10.dp))
+            // While the next file is counting down, the bar says so and offers the same Stop as the
+            // player page — the countdown runs wherever in the app you happen to be.
+            val countdown = controller.nextCountdown
             Text(
-                file.name,
-                color = Color.White,
+                if (countdown != null) stringResource(R.string.player_next_countdown, countdown) else file.name,
+                color = if (countdown != null) Color(0xFFFFC107) else Color.White,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            if (countdown != null) {
+                TextButton(onClick = { controller.cancelAutoNext() }) {
+                    Text(stringResource(R.string.player_next_stop), color = Color(0xFFFFC107), fontWeight = FontWeight.Bold)
+                }
+            }
             Spacer(Modifier.width(10.dp))
             Icon(Icons.AutoMirrored.Filled.List, contentDescription = stringResource(R.string.player_open_player), tint = Color(0xFF8AB4F8), modifier = Modifier.size(24.dp))
         }

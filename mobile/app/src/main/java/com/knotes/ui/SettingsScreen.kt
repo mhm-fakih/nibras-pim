@@ -115,6 +115,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
     var mediaEnabled by remember { mutableStateOf(current.mediaEnabled) }
     var galleryEnabled by remember { mutableStateOf(current.galleryEnabled) }
     var serverEnabled by remember { mutableStateOf(current.serverEnabled) }
+    var checklistsEnabled by remember { mutableStateOf(current.checklistsEnabled) }
+    var checklistsDir by remember { mutableStateOf(current.checklistsDir) }
     var tab by rememberSaveable { mutableStateOf(SettingsTab.GENERAL) }
     var feedDays by remember { mutableStateOf(current.feedDays) }
     var feedWords by remember { mutableStateOf(current.feedWords) }
@@ -224,6 +226,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 mediaEnabled = mediaEnabled,
                 galleryEnabled = galleryEnabled,
                 serverEnabled = serverEnabled,
+                checklistsEnabled = checklistsEnabled,
+                checklistsDir = checklistsDir,
                 feedDays = feedDays,
                 feedWords = feedWords,
                 feedTextSp = feedTextSp,
@@ -710,6 +714,27 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                     }
                 }
 
+                SettingsTab.CHECKLISTS -> {
+                    FeatureSwitch(
+                        stringResource(R.string.checklists_title),
+                        stringResource(R.string.settings_feature_checklists_desc),
+                        checklistsEnabled,
+                    ) { checklistsEnabled = it }
+                    if (checklistsEnabled) {
+                        FolderField(
+                            value = checklistsDir,
+                            onValueChange = { checklistsDir = it },
+                            label = stringResource(R.string.settings_checklists_folder_label),
+                            // Blank is normal: the folder sits beside the notes folder.
+                            supportingText = stringResource(
+                                R.string.settings_checklists_folder_hint,
+                                SettingsStore.checklistsDirFor(dir.ifBlank { current.notesDir }),
+                            ),
+                            onPick = { pickFolder { path -> checklistsDir = path } },
+                        )
+                    }
+                }
+
                 SettingsTab.ALERTS -> {
                 Text(stringResource(R.string.settings_reminders_header), style = MaterialTheme.typography.titleMedium)
                 Text(
@@ -880,6 +905,7 @@ private enum class SettingsTab(@StringRes val labelRes: Int) {
     PRAYER(R.string.settings_tab_prayer),
     MEDIA(R.string.settings_tab_media),
     COLLECT(R.string.settings_tab_collect),
+    CHECKLISTS(R.string.checklists_title),
     ALERTS(R.string.settings_tab_alerts),
     CALENDAR(R.string.settings_tab_calendar),
 }

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="checklists_title">قوائم التحقق</string>
+    <string name="checklists_group_start">بداية اليوم</string>
+    <string name="checklists_group_mid">منتصف اليوم</string>
+    <string name="checklists_group_end">نهاية اليوم</string>
+    <string name="checklists_group_study">الدراسة</string>
+    <string name="checklists_group_weekly">أسبوعي</string>
+    <string name="checklists_week_title">الأسبوع %1$d</string>
+    <string name="checklists_this_week">هذا الأسبوع</string>
+    <string name="checklists_not_started">لم يبدأ</string>
+    <string name="checklists_prev_week">الأسبوع السابق</string>
+    <string name="checklists_next_week">الأسبوع التالي</string>
+    <string name="checklists_edit">تعديل القوائم</string>
+    <string name="checklists_done_editing">إنهاء التعديل</string>
+    <string name="checklists_view_day">اليوم</string>
+    <string name="checklists_view_week">الأسبوع</string>
+    <string name="checklists_go_this_week">هذا الأسبوع</string>
+    <string name="checklists_plan_next">تخطيط الأسبوع التالي</string>
+    <string name="checklists_empty_hint">لا بنود بعد. اضغط القلم لإضافة بنود إلى كل مجموعة — وتنتقل إلى الأسابيع التالية.</string>
+    <string name="checklists_add_item">إضافة بند</string>
+    <string name="checklists_rename_item">إعادة تسمية البند</string>
+    <string name="checklists_rename_group">إعادة تسمية المجموعة</string>
+    <string name="checklists_add_group">إضافة مجموعة</string>
+    <string name="checklists_remove_group">حذف المجموعة</string>
+    <string name="checklists_remove_item">حذف البند</string>
+    <string name="checklists_move_up">نقل لأعلى</string>
+    <string name="checklists_move_down">نقل لأسفل</string>
+    <string name="checklists_add">إضافة</string>
+    <string name="checklists_ok">موافق</string>
+    <string name="checklists_done">تم</string>
+    <string name="checklists_mark_done">منجز</string>
+    <string name="checklists_mark_partial">منجز جزئيًا</string>
+    <string name="checklists_mark_none">غير منجز</string>
+    <string name="settings_feature_checklists_desc">قوائم تحقق يومية وأسبوعية، تُعلَّم لكل يوم وتُحفظ في ملف لكل أسبوع. منفصلة عن قائمة المهام. عند الإيقاف: تختفي الصفحة من الشريط.</string>
+    <string name="settings_checklists_folder_label">مجلد قوائم التحقق</string>
+    <string name="settings_checklists_folder_hint">ملف ‎.md‎ لكل أسبوع. فارغ = %1$s</string>
+    <string name="checklists_edit_text">تعديل كنص</string>
+    <string name="checklists_save">حفظ</string>
+    <string name="checklists_edit_text_help">بند في كل سطر، تحت عنوان «## المجموعة»؛ أضف «[weekly]» بعد اسم المجموعة للبنود الأسبوعية. الصق أو رتّب أو احذف بحرية — يحتفظ البند بعلاماته ما دام نصه لم يتغير.</string>
+</resources>

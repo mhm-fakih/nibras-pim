@@ -42,4 +42,18 @@ class AthanVolumeTest {
         assertEquals(15, PrayerSettings.alarmStepFor(400, 0, 15))
         assertEquals(1, PrayerSettings.alarmStepFor(-40, 0, 15))
     }
+
+    @Test
+    fun `the gain brings full down to the athan's step`() {
+        // A step 20 dB under full is a tenth of the amplitude.
+        assertEquals(0.1f, PrayerSettings.athanGain(-30f, -10f)!!, 1e-4f)
+        assertEquals(1f, PrayerSettings.athanGain(-5f, -5f)!!, 1e-6f)
+    }
+
+    @Test
+    fun `nonsense levels fall back to setting the step`() {
+        assertEquals(null, PrayerSettings.athanGain(Float.NEGATIVE_INFINITY, -5f))
+        assertEquals(null, PrayerSettings.athanGain(-2f, -5f))
+        assertEquals(null, PrayerSettings.athanGain(Float.NaN, 0f))
+    }
 }

@@ -11,3 +11,5 @@ build-number.txt
 
 __pycache__/
 *.pyc
+# run.sh appends the app's output here (see run.sh); local to each machine.
+desktop.log

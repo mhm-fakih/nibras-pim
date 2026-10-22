@@ -10,7 +10,10 @@ the record's attachments. So the integration is one shared folder — capture wr
 |---|---|---|---|
 | `./run.sh telegram` | the latest N messages of a group, channel or Saved Messages | `N` — one transcript per run, titled `Telegram <chat> export` | the messages' photos/videos/files |
 | `./run.sh firefox` | a Firefox profile's bookmarks (`places.sqlite`) | `R` — one list per run, titled `Firefox bookmarks export`, grouped by date added | — |
-| `./run.sh media URL…` | anything yt-dlp reads (YouTube, Aparat, …) | `R` — one per video: title, duration/site/resolution, URL | mp4 + 128k mp3 + `.srt` in the audio's language |
+| `./run.sh media [URL…]` | anything yt-dlp reads (YouTube, Aparat, …); bare YouTube ids too | `R` — one per run: a line you type (`-m TEXT`), then each video's title, duration/site/resolution, URL | per video: mp4 + 128k mp3 + `.srt` in the audio's language (`-a`: audio only, no mp4; `-V`: voice quality, mono 64k; `-p`: a whole playlist, unavailable entries skipped) |
+
+With no URL, `media` asks for links (several per line, empty line ends); it always asks for the
+note's one-line text unless `-m` is given — empty uses the media's title.
 
 `R` notes need a resource type when imported — the Import page asks for it. Each Telegram and
 Firefox run can also **delete** what it exported (`--delete`), which turns a chat or the bookmarks

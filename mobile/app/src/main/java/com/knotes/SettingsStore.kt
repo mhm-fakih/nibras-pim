@@ -113,6 +113,9 @@ data class AppSettings(
     val mediaEnabled: Boolean = true,
     val galleryEnabled: Boolean = true,
     val serverEnabled: Boolean = true,
+    /** Daily/weekly checklists page. Blank folder = [SettingsStore.checklistsDirFor] the notes folder. */
+    val checklistsEnabled: Boolean = true,
+    val checklistsDir: String = "",
     /** Reminder lead times in minutes before a plan starts, e.g. [60, 5]. */
     val reminderOffsetsMin: List<Int>,
     /** Sound URI played for reminders (blank = system default). */
@@ -147,6 +150,9 @@ data class AppSettings(
     /** What the star on a Nibras record row does — see [StarAction]. */
     val starAction: StarAction = StarAction.LOCAL_BOOKMARK,
 ) {
+    /** The checklists folder, with the blank-means-derive rule applied. Never blank. */
+    fun checklistsFolder(): String = checklistsDir.trim().ifBlank { SettingsStore.checklistsDirFor(notesDir) }
+
     /** The AI-answers folder, with the blank-means-derive rule applied. Never blank. */
     fun aiDir(): String = aiNotesDir.trim().ifBlank { SettingsStore.aiDirFor(notesDir) }
 
@@ -211,6 +217,8 @@ class SettingsStore(context: Context) {
         mediaEnabled = prefs.getBoolean(K_MEDIA_ENABLED, true),
         galleryEnabled = prefs.getBoolean(K_GALLERY_ENABLED, true),
         serverEnabled = prefs.getBoolean(K_SERVER_ENABLED, true),
+        checklistsEnabled = prefs.getBoolean(K_CHECKLISTS_ENABLED, true),
+        checklistsDir = prefs.getString(K_CHECKLISTS_DIR, "") ?: "",
         collectEnabled = prefs.getBoolean(K_COLLECT_ENABLED, true),
         feedDays = prefs.getInt(K_FEED_DAYS, 3),
         feedWords = prefs.getInt(K_FEED_WORDS, 40),
@@ -283,6 +291,8 @@ class SettingsStore(context: Context) {
             .putBoolean(K_MEDIA_ENABLED, settings.mediaEnabled)
             .putBoolean(K_GALLERY_ENABLED, settings.galleryEnabled)
             .putBoolean(K_SERVER_ENABLED, settings.serverEnabled)
+            .putBoolean(K_CHECKLISTS_ENABLED, settings.checklistsEnabled)
+            .putString(K_CHECKLISTS_DIR, settings.checklistsDir.trim().trimEnd('/'))
             .putBoolean(K_COLLECT_ENABLED, settings.collectEnabled)
             .putInt(K_FEED_DAYS, settings.feedDays.coerceIn(1, 60))
             .putInt(K_FEED_WORDS, settings.feedWords.coerceIn(10, 400))
@@ -344,6 +354,8 @@ class SettingsStore(context: Context) {
         private const val K_MEDIA_ENABLED = "media_enabled"
         private const val K_GALLERY_ENABLED = "gallery_enabled"
         private const val K_SERVER_ENABLED = "server_enabled"
+        private const val K_CHECKLISTS_ENABLED = "checklists_enabled"
+        private const val K_CHECKLISTS_DIR = "checklists_dir"
         private const val K_COLLECT_ENABLED = "collect_enabled"
         private const val K_FEED_DAYS = "feed_days"
         private const val K_FEED_WORDS = "feed_words"
@@ -401,6 +413,13 @@ class SettingsStore(context: Context) {
          * a blank one falls through to this, which is why blank is stored rather than replaced.
          */
         fun aiDirFor(notesDir: String): String = notesDir.trimEnd('/') + "-ai"
+
+        /**
+         * Where the week files go by default: a `checklists` subfolder of the notes folder, so they
+         * travel with the notes through the same folder sync. Both apps list it as a housekeeping
+         * folder (see AUX_DIR_STEMS), so it never shows up as an item "to settle".
+         */
+        fun checklistsDirFor(notesDir: String): String = notesDir.trimEnd('/') + "/checklists"
 
         fun defaultNibrasFilesDir(): String =
             Environment.getExternalStorageDirectory().absolutePath + "/Nibras"

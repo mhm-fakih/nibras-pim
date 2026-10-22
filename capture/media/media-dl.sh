@@ -1,19 +1,26 @@
 #!/usr/bin/env bash
 #
-# media-dl.sh - download a media link with yt-dlp into a knotes Resource note.
+# media-dl.sh - download media links with yt-dlp into one knotes Resource note.
 #
-# Each item becomes  <yyyy_mm_dd-hhmmss>~R~p<priority>~<category>.md  in the
-# knotes folder - title, duration/site/resolution, URL - and its companion
-# folder  <same name>.d/  holds three things:
-#   1. the full media file  (best video + best audio, merged to mp4)
+# A run becomes  <yyyy_mm_dd-hhmmss>~R~p<priority>~<category>.md  in the knotes
+# folder: the line you type at the "Note:" prompt (or -m TEXT), then each item's
+# title, duration/site/resolution and URL. Its companion folder  <same name>.d/
+# holds, for every item:
+#   1. the full media file  (best video + best audio, merged to mp4) - not with -a
 #   2. an audio-only file   (128 kbps, default mp3)
 #   3. a subtitle file      (.srt) in the *audio* language - the human-made track
 #      if the uploader provided one, otherwise the auto-generated (ASR) track.
 #      YouTube's auto-captions scroll, repeating every line ~3x; those duplicate
 #      cues are collapsed automatically (uploader-authored subs are left alone).
 #
-# Usage:  ./media-dl.sh [options] URL [URL...]
+# Usage:  ./media-dl.sh [options] [URL...]
 #
+# Several links may share one argument (a pasted block works); a bare 11-char
+# YouTube id is taken as that video. With no URL, the
+# links are asked for, one or more per line, until an empty line. Then the note's
+# text is asked for - one line; empty uses the (first) media title.
+#
+#   -m TEXT   the note's text, no prompt (empty = the media title)
 #   -o DIR    knotes folder          (default: $NIBRAS_KNOTES_DIR, else ~/new/knotes)
 #   -P N      note priority          (default: the folder's .knotes.json, else 2)
 #   -k X      note category letter   (default: the folder's .knotes.json, else D)
@@ -22,6 +29,9 @@
 #   -l LANG   force subtitle language instead of auto-detecting it
 #   -c BROWSER  read cookies from browser (chrome|firefox|brave|edge...)
 #   -p        treat the URL as a playlist (default: single video only)
+#   -a        audio only: download just the audio stream, keep the mp3, no video
+#   -V        voice quality: mono 64k (speech sounds the same at half the size);
+#             -b after -V still sets the bitrate
 #   -A        skip the audio-only file
 #   -S        skip subtitles
 #   -E        also embed the (cleaned) subtitles into the video container
@@ -37,13 +47,17 @@ set -uo pipefail
 KNOTES_OUT="$(dirname "$(readlink -f "$0")")/../knotes_out.py"
 OUTROOT="${NIBRAS_KNOTES_DIR:-$HOME/new/knotes}"
 PRIORITY=""
+TEXT=""
+HAVE_TEXT=0
 CATEGORY=""
 AUDIO_FMT="${MEDIA_DL_AUDIO_FMT:-mp3}"
 AUDIO_BR="${MEDIA_DL_AUDIO_BR:-128k}"
+AUDIO_CH=2
 COOKIES_BROWSER="${MEDIA_DL_COOKIES_BROWSER:-}"
 FORCE_LANG=""
 PLAYLIST=0
 WANT_AUDIO=1
+AUDIO_ONLY=0
 WANT_SUBS=1
 EMBED_SUBS=0
 DO_DEDUP=1
@@ -77,8 +91,9 @@ iso3() {
   esac
 }
 
-while getopts ":o:P:k:f:b:l:c:pASEDUh" opt; do
+while getopts ":m:o:P:k:f:b:l:c:paVASEDUh" opt; do
   case "$opt" in
+    m) TEXT="$OPTARG"; HAVE_TEXT=1 ;;
     o) OUTROOT="$OPTARG" ;;
     P) PRIORITY="$OPTARG" ;;
     k) CATEGORY="$OPTARG" ;;
@@ -87,6 +102,8 @@ while getopts ":o:P:k:f:b:l:c:pASEDUh" opt; do
     l) FORCE_LANG="$OPTARG" ;;
     c) COOKIES_BROWSER="$OPTARG" ;;
     p) PLAYLIST=1 ;;
+    a) AUDIO_ONLY=1 ;;
+    V) AUDIO_BR=64k; AUDIO_CH=1 ;;
     A) WANT_AUDIO=0 ;;
     S) WANT_SUBS=0 ;;
     E) EMBED_SUBS=1 ;;
@@ -98,7 +115,31 @@ while getopts ":o:P:k:f:b:l:c:pASEDUh" opt; do
   esac
 done
 shift $((OPTIND - 1))
-[ $# -ge 1 ] || usage
+[ "$AUDIO_ONLY" = 1 ] && [ "$WANT_AUDIO" = 0 ] && die "-a and -A together leave nothing to keep"
+
+# ------------------------------------------------------- links and note text
+# Asked before any download, so the run can then be left alone.
+URLS=()
+for arg in "$@"; do
+  read -r -d '' -a words <<<"$arg" || true      # split pasted blocks of links
+  URLS+=("${words[@]}")
+done
+if [ ${#URLS[@]} -eq 0 ]; then
+  [ -t 0 ] || usage
+  echo "Media links - one or more per line, an empty line ends:"
+  while IFS= read -r -p '  link: ' line && [ -n "${line//[[:space:]]/}" ]; do
+    read -r -a words <<<"$line"
+    URLS+=("${words[@]}")
+  done
+  [ ${#URLS[@]} -ge 1 ] || die "no links given"
+fi
+if [ "$HAVE_TEXT" = 0 ] && [ -t 0 ]; then
+  read -r -e -p "Note (one line, empty = the media title): " TEXT || TEXT=""
+fi
+for i in "${!URLS[@]}"; do                       # a bare YouTube id -> its URL
+  [[ "${URLS[$i]}" =~ ^[A-Za-z0-9_-]{11}$ ]] && URLS[$i]="https://www.youtube.com/watch?v=${URLS[$i]}"
+done
+TEXT="$(printf '%s' "$TEXT" | tr '\t\r\n' '   ' | sed 's/^ *//; s/ *$//')"
 
 command -v yt-dlp  >/dev/null || die "yt-dlp not found on PATH"
 command -v ffmpeg  >/dev/null || die "ffmpeg not found on PATH"
@@ -117,14 +158,16 @@ info "yt-dlp $(yt-dlp --version)"
 COMMON=(--ignore-config --no-warnings --retries 10 --fragment-retries 10
         --retry-sleep 'fragment:exp=1:20' --concurrent-fragments 4)
 [ -n "$COOKIES_BROWSER" ] && COMMON+=(--cookies-from-browser "$COOKIES_BROWSER")
-[ "$PLAYLIST" = 1 ] && COMMON+=(--yes-playlist) || COMMON+=(--no-playlist)
+# A playlist carries on past private/removed entries instead of failing whole.
+[ "$PLAYLIST" = 1 ] && COMMON+=(--yes-playlist --ignore-errors) || COMMON+=(--no-playlist)
 
 mkdir -p "$OUTROOT" || die "cannot create $OUTROOT"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 # --------------------------------------------------------- metadata inspector
-# Reads newline-delimited JSON on stdin, emits one TAB-separated row per entry:
+# Reads newline-delimited JSON on stdin, emits one row per entry, fields separated by
+# the ASCII unit separator (\x1f) - a TAB would let `read` merge empty fields:
 #   id <TAB> webpage_url <TAB> audio_lang <TAB> sub_mode <TAB> sub_key <TAB> about <TAB> title
 # about is the note's description line, e.g. "Video, 19:00 (Youtube, 720p)".
 # sub_mode is "native" (uploader-provided), "auto" (ASR/google-generated) or "none".
@@ -191,7 +234,7 @@ for line in sys.stdin:
     if not key:
         mode = "none"
 
-    print("\t".join([
+    print("\x1f".join([
         info.get("id") or "",
         info.get("webpage_url") or info.get("original_url") or "",
         lang or "?",
@@ -297,15 +340,37 @@ if __name__ == "__main__":
 PYDEDUP
 
 # ----------------------------------------------------------------------- main
+# One run is one note: every link's media lands in the same companion folder,
+# and the note lists them all under the line typed at the prompt (or -m TEXT).
+NOTE_ARGS=(new --dir "$OUTROOT" --type R)
+[ -n "$PRIORITY" ] && NOTE_ARGS+=(--priority "$PRIORITY")
+[ -n "$CATEGORY" ] && NOTE_ARGS+=(--category "$CATEGORY")
+NOTE="$(python3 "$KNOTES_OUT" "${NOTE_ARGS[@]}")" || die "cannot create a note in $OUTROOT"
+DEST="${NOTE%.md}.d"
+mkdir -p "$DEST"
+BODY="$WORK/body.md"; : > "$BODY"
+FIRST_TITLE=""
+ITEMS=0                                          # entries written to the note
+SAVED=0                                          # of which downloaded
+
+failed() {                                       # keep the link even if it failed
+  printf '%s\n_download failed_\n\n' "$1" >> "$BODY"; ITEMS=$((ITEMS + 1)); rc=1
+}
+
 rc=0
-for URL in "$@"; do
+for URL in "${URLS[@]}"; do
   info "inspecting $URL"
   if ! yt-dlp "${COMMON[@]}" --dump-json "$URL" > "$WORK/meta.ndjson" 2>"$WORK/meta.err"; then
-    warn "could not read metadata for $URL"; sed 's/^/    /' "$WORK/meta.err" >&2; rc=1; continue
+    if [ ! -s "$WORK/meta.ndjson" ]; then
+      warn "could not read metadata for $URL"; sed 's/^/    /' "$WORK/meta.err" >&2; failed "$URL"; continue
+    fi
+    warn "some entries of $URL are unavailable - skipped:"; grep ERROR "$WORK/meta.err" | sed 's/^/    /' >&2; rc=1
   fi
-  python3 -c "$INSPECT" < "$WORK/meta.ndjson" > "$WORK/rows.tsv" || { warn "metadata parse failed"; rc=1; continue; }
+  python3 -c "$INSPECT" < "$WORK/meta.ndjson" > "$WORK/rows.tsv" || { warn "metadata parse failed"; failed "$URL"; continue; }
 
-  while IFS=$'\t' read -r VID VURL ALANG SMODE SKEY ABOUT TITLE; do
+  # Rows come in on fd 3: yt-dlp and ffmpeg inside the loop read stdin, and
+  # would otherwise swallow the rows still waiting (a playlist lost 28 of 42).
+  while IFS=$'\x1f' read -r VID VURL ALANG SMODE SKEY ABOUT TITLE <&3; do
     [ -n "$VID" ] || continue
     [ -n "$VURL" ] || VURL="$URL"
 
@@ -317,20 +382,17 @@ for URL in "$@"; do
     info "$TITLE"
     printf '    audio language: %s | %s\n' "$ALANG" "$subnote"
 
-    # Reserve the note's name first; the media goes into its companion folder.
-    NOTE_ARGS=(new --dir "$OUTROOT" --type R)
-    [ -n "$PRIORITY" ] && NOTE_ARGS+=(--priority "$PRIORITY")
-    [ -n "$CATEGORY" ] && NOTE_ARGS+=(--category "$CATEGORY")
-    NOTE="$(python3 "$KNOTES_OUT" "${NOTE_ARGS[@]}")" || { warn "cannot create a note in $OUTROOT"; rc=1; continue; }
-    DEST="${NOTE%.md}.d"
-    mkdir -p "$DEST"
-
-    # ---- 1. full media -----------------------------------------------------
+    # ---- 1. full media (or, with -a, just the audio stream) ----------------
     DL=("${COMMON[@]}" --no-playlist
-        -f 'bv*+ba/b' --merge-output-format mp4
-        --embed-metadata --embed-thumbnail --write-thumbnail --convert-thumbnails jpg
+        --embed-metadata --write-thumbnail --convert-thumbnails jpg
         -o "$DEST/%(title).120B [%(id)s].%(ext)s"
         --print-to-file after_move:filepath "$WORK/path.txt")
+    if [ "$AUDIO_ONLY" = 1 ]; then   # the source is converted below, then removed;
+      DL+=(-f 'ba/b')                # webm audio cannot take an embedded thumbnail
+      ABOUT="$(printf '%s' "$ABOUT" | sed -E 's/^Video/Audio/; s/, [0-9]+p\)/)/')"
+    else
+      DL+=(-f 'bv*+ba/b' --merge-output-format mp4 --embed-thumbnail)
+    fi
     if [ "$WANT_SUBS" = 1 ] && [ -n "$SKEY" ]; then
       [ "$SMODE" = native ] && DL+=(--write-subs) || DL+=(--write-auto-subs)
       DL+=(--sub-langs "$SKEY" --convert-subs srt)
@@ -339,20 +401,21 @@ for URL in "$@"; do
     fi
 
     : > "$WORK/path.txt"
-    info "downloading full media ..."
-    if ! yt-dlp "${DL[@]}" "$VURL"; then
-      warn "download failed: $TITLE"; rc=1
-      rm -rf "$DEST"; rm -f "$NOTE"            # drop the reserved, empty note
-      continue
+    [ "$AUDIO_ONLY" = 1 ] && info "downloading audio ..." || info "downloading full media ..."
+    if ! yt-dlp "${DL[@]}" "$VURL" </dev/null; then
+      warn "download failed: $TITLE"; failed "$VURL"; continue
     fi
     VIDEO="$(tail -n1 "$WORK/path.txt")"
-    [ -f "$VIDEO" ] || VIDEO="$(find "$DEST" -maxdepth 1 -type f \
-        \( -name '*.mp4' -o -name '*.mkv' -o -name '*.webm' \) -print -quit)"
+    [ -f "$VIDEO" ] || VIDEO="$(find "$DEST" -maxdepth 1 -type f -name "*$VID*" \
+        \( -name '*.mp4' -o -name '*.mkv' -o -name '*.webm' -o -name '*.m4a' -o -name '*.opus' \) -print -quit)"
+    # The folder is shared by every link, so this entry's subtitles and cover
+    # are found by the video's own name, not by "the first .srt/.jpg there".
+    STEM="${VIDEO%.*}"
 
     # ---- 2. subtitles: collapse rolling auto-caption duplicates ------------
     SRT=""
-    if [ "$WANT_SUBS" = 1 ]; then
-      SRT="$(find "$DEST" -maxdepth 1 -type f -name '*.srt' -print -quit)"
+    if [ "$WANT_SUBS" = 1 ] && [ -n "$VIDEO" ]; then
+      for f in "$STEM".*.srt; do [ -f "$f" ] && { SRT="$f"; break; }; done
       if [ -n "$SRT" ] && [ "$DO_DEDUP" = 1 ]; then
         python3 -c "$DEDUP_PY" "$SRT" | sed 's/^/    /' \
           || warn "subtitle dedup skipped (subtitles left as downloaded)"
@@ -360,15 +423,15 @@ for URL in "$@"; do
     fi
 
     # ---- 3. optionally embed the cleaned subtitles into the container ------
-    if [ "$EMBED_SUBS" = 1 ] && [ -n "$SRT" ] && [ -f "$VIDEO" ]; then
+    if [ "$EMBED_SUBS" = 1 ] && [ "$AUDIO_ONLY" = 0 ] && [ -n "$SRT" ] && [ -f "$VIDEO" ]; then
       info "embedding subtitles ..."
       TMPV="$DEST/.embed-$$.mp4"
       LANGTAG="$ALANG"                            # fall back to the subtitle key
       { [ -z "$LANGTAG" ] || [ "$LANGTAG" = "?" ]; } && LANGTAG="$SKEY"
       TAG=(-metadata:s:s:0 language="$(iso3 "$LANGTAG")")
-      if ffmpeg -y -loglevel error -i "$VIDEO" -i "$SRT" -map 0 -map 1 \
+      if ffmpeg -nostdin -y -loglevel error -i "$VIDEO" -i "$SRT" -map 0 -map 1 \
            -c copy -c:s mov_text "${TAG[@]+"${TAG[@]}"}" "$TMPV" 2>/dev/null \
-         || ffmpeg -y -loglevel error -i "$VIDEO" -i "$SRT" -map 0:v:0 -map 0:a -map 1 \
+         || ffmpeg -nostdin -y -loglevel error -i "$VIDEO" -i "$SRT" -map 0:v:0 -map 0:a -map 1 \
            -c copy -c:s mov_text "${TAG[@]+"${TAG[@]}"}" "$TMPV"; then
         mv -f "$TMPV" "$VIDEO"
       else
@@ -378,39 +441,62 @@ for URL in "$@"; do
 
     # ---- 4. audio-only, 128 kbps ------------------------------------------
     if [ "$WANT_AUDIO" = 1 ] && [ -f "$VIDEO" ]; then
-      base="${VIDEO##*/}"; base="${base%.*}"
-      AUDIO="$DEST/$base.${AUDIO_BR}.$AUDIO_FMT"
+      AUDIO="$STEM.${AUDIO_BR}.$AUDIO_FMT"
       case "$AUDIO_FMT" in
-        mp3)  acodec=(-c:a libmp3lame -b:a "$AUDIO_BR" -ar 44100 -ac 2) ;;
-        m4a)  acodec=(-c:a aac        -b:a "$AUDIO_BR" -ar 44100 -ac 2) ;;
+        mp3)  acodec=(-c:a libmp3lame -b:a "$AUDIO_BR" -ar 44100 -ac "$AUDIO_CH") ;;
+        m4a)  acodec=(-c:a aac        -b:a "$AUDIO_BR" -ar 44100 -ac "$AUDIO_CH") ;;
         opus) acodec=(-c:a libopus    -b:a "$AUDIO_BR") ;;
         flac) acodec=(-c:a flac) ;;
         *)    acodec=(-b:a "$AUDIO_BR") ;;
       esac
-      COVER="$(find "$DEST" -maxdepth 1 -type f \( -name '*.jpg' -o -name '*.png' \) -print -quit)"
+      COVER=""
+      for f in "$STEM.jpg" "$STEM.png"; do [ -f "$f" ] && { COVER="$f"; break; }; done
       info "extracting ${AUDIO_BR} audio -> ${AUDIO##*/}"
-      if [ -n "$COVER" ] && [ "$AUDIO_FMT" = mp3 ]; then
-        ffmpeg -y -loglevel error -i "$VIDEO" -i "$COVER" \
+      AUDIO_OK=0
+      if [ -n "$COVER" ] && [ "$AUDIO_FMT" = mp3 ] \
+         && ffmpeg -nostdin -y -loglevel error -i "$VIDEO" -i "$COVER" \
                -map 0:a:0 -map 1:v:0 "${acodec[@]}" -c:v mjpeg -disposition:v:0 attached_pic \
-               -map_metadata 0 -id3v2_version 3 "$AUDIO" 2>/dev/null \
-          || ffmpeg -y -loglevel error -i "$VIDEO" -vn "${acodec[@]}" -map_metadata 0 "$AUDIO" \
-          || { warn "audio extraction failed"; rc=1; }
+               -map_metadata 0 -id3v2_version 3 "$AUDIO" 2>/dev/null; then
+        AUDIO_OK=1
+      elif ffmpeg -nostdin -y -loglevel error -i "$VIDEO" -vn "${acodec[@]}" -map_metadata 0 "$AUDIO"; then
+        AUDIO_OK=1
       else
-        ffmpeg -y -loglevel error -i "$VIDEO" -vn "${acodec[@]}" -map_metadata 0 "$AUDIO" \
-          || { warn "audio extraction failed"; rc=1; }
+        warn "audio extraction failed"; rc=1
+      fi
+      # -a: the downloaded stream was only the source - unless the conversion
+      # failed, in which case it is the only copy of the audio and stays.
+      if [ "$AUDIO_ONLY" = 1 ] && [ "$AUDIO_OK" = 1 ] && [ -s "$AUDIO" ] && [ "$AUDIO" != "$VIDEO" ]; then
+        rm -f -- "$VIDEO"
       fi
     fi
 
-    # ---- 5. the note: title line, what it is, where it came from ------------
-    { printf '%s\n\n' "${TITLE:-$VID}"
+    # ---- 5. this entry in the note: title, what it is, where it came from ---
+    { printf '%s\n' "${TITLE:-$VID}"
       printf '%s\n' "$ABOUT"
       printf '%s\n' "$VURL"
-      printf '\n_audio language: %s · %s_\n' "$ALANG" "$subnote"
-    } > "$NOTE"
-
-    printf '\033[32m    done:\033[0m %s\n' "$NOTE"
-    find "$DEST" -maxdepth 1 -type f -printf '      %f (%s bytes)\n' | sort
-  done < "$WORK/rows.tsv"
+      printf '_audio language: %s · %s_\n\n' "$ALANG" "$subnote"
+    } >> "$BODY"
+    [ -n "$FIRST_TITLE" ] || FIRST_TITLE="${TITLE:-$VID}"
+    ITEMS=$((ITEMS + 1)); SAVED=$((SAVED + 1))
+  done 3< "$WORK/rows.tsv"
 done
+
+# ------------------------------------------------------------------- the note
+if [ "$SAVED" = 0 ]; then                        # nothing downloaded: drop the
+  rm -rf "$DEST"; rm -f "$NOTE"                  # reserved, empty note
+  [ -n "$TEXT" ] && warn "note not written - its text was: $TEXT"
+  exit 1
+fi
+{ if [ -n "$TEXT" ]; then
+    printf '%s\n\n' "$TEXT"; cat "$BODY"
+  elif [ "$ITEMS" = 1 ]; then                    # a lone entry's title is the title
+    head -n1 "$BODY"; printf '\n'; tail -n +2 "$BODY"
+  else
+    printf '%s\n\n' "$FIRST_TITLE"; cat "$BODY"
+  fi
+} | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > "$NOTE"   # no trailing blank lines
+
+printf '\033[32mdone:\033[0m %s  (%d of %d saved)\n' "$NOTE" "$SAVED" "$ITEMS"
+find "$DEST" -maxdepth 1 -type f -printf '      %f (%s bytes)\n' | sort
 
 exit $rc

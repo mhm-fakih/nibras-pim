@@ -103,6 +103,37 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         prefs.edit().putBoolean(K_VIDEO_AUTO_NEXT, enabled).apply()
     }
 
+    /**
+     * Seconds left before the next file starts by itself, or null when nothing is pending.
+     *
+     * Playing on straight away gave no chance to say no: the end of a lecture rolled into another
+     * one before you could reach the phone. Now there is a short countdown — on the player page and
+     * the mini bar — with a Stop. Opening a file or pressing play/next yourself cancels it.
+     */
+    var nextCountdown by mutableStateOf<Int?>(null)
+        private set
+    private var nextJob: kotlinx.coroutines.Job? = null
+
+    /** Stop the pending play-next; the finished file stays where it is. */
+    fun cancelAutoNext() {
+        nextJob?.cancel()
+        nextJob = null
+        nextCountdown = null
+    }
+
+    private fun startAutoNext(action: () -> Unit) {
+        cancelAutoNext()
+        nextJob = viewModelScope.launch {
+            for (s in NEXT_COUNTDOWN_SECS downTo 1) {
+                nextCountdown = s
+                delay(1000)
+            }
+            nextCountdown = null
+            nextJob = null
+            action()
+        }
+    }
+
     /** True while the library is being walked for a RANDOM_OLD pick, so the UI can say so. */
     var pickingNext by mutableStateOf(false)
         private set
@@ -142,6 +173,25 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
     /** Folders those recent files came from, newest first (capped), persisted across launches. */
     var recentFolders by mutableStateOf(loadRecentFolders())
         private set
+
+    /**
+     * Files starred from the player, most recently starred first, persisted. A star marks a whole
+     * file to come back to — distinct from a bookmark, which marks a moment inside one.
+     */
+    var starred by mutableStateOf(loadStarred())
+        private set
+
+    fun isStarred(file: File): Boolean = starred.any { it.absolutePath == file.absolutePath }
+
+    /** Star or unstar [file]; a new star goes to the top of the list. */
+    fun toggleStar(file: File) {
+        starred = if (isStarred(file)) starred.filter { it.absolutePath != file.absolutePath }
+        else listOf(file) + starred
+        prefs.edit().putString(K_STARRED, starred.joinToString("\n") { it.absolutePath }).apply()
+    }
+
+    private fun loadStarred(): List<File> =
+        prefs.getString(K_STARRED, "").orEmpty().split("\n").filter { it.isNotBlank() }.map(::File)
 
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(playing: Boolean) {
@@ -208,6 +258,7 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
 
     /** Load [file] and start playback (resuming from its saved position, if any). */
     fun open(file: File) {
+        cancelAutoNext()       // an explicit choice overrides a pending automatic one
         saveCurrentPosition()  // persist the outgoing file's position before switching
         currentFile = file
         duration = 0L
@@ -281,6 +332,7 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
     }
 
     fun togglePlay() {
+        cancelAutoNext()
         val c = controller ?: return
         if (c.isPlaying) c.pause() else c.play()
     }
@@ -380,6 +432,7 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
             .remove(posKey(file))
             .apply()
         recents = recents.filter { it.absolutePath != file.absolutePath }
+        if (isStarred(file)) toggleStar(file)   // a deleted file keeps no star
         prefs.edit().putString(K_RECENTS, recents.joinToString("\n") { it.absolutePath }).apply()
 
         if (next != null) {
@@ -403,6 +456,7 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
      * next one in the folder. NONE governs what happens *by itself*, not what happens when asked.
      */
     fun playNext() {
+        cancelAutoNext()
         when (playNextMode) {
             PlayNextMode.RANDOM_OLD -> pickRandom(libraryRoots(), NextTrack.Pick.OLDEST) { open(it) }
             PlayNextMode.RANDOM_OLD_PARENT -> pickRandom(parentRoots(), NextTrack.Pick.OLDEST) { open(it) }
@@ -436,10 +490,11 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         else playNextMode
         when (mode) {
             PlayNextMode.NONE -> finished?.let { openPaused(it, 0L) }
-            PlayNextMode.SAME_FOLDER -> nextSibling()?.let { open(it) }
-            PlayNextMode.RANDOM_OLD -> pickRandom(libraryRoots(), NextTrack.Pick.OLDEST) { open(it) }
-            PlayNextMode.RANDOM_OLD_PARENT -> pickRandom(parentRoots(), NextTrack.Pick.OLDEST) { open(it) }
-            PlayNextMode.RANDOM_NEW_PARENT -> pickRandom(parentRoots(), NextTrack.Pick.NEWEST) { open(it) }
+            // Each starts only after the countdown, so it can still be stopped.
+            PlayNextMode.SAME_FOLDER -> nextSibling()?.let { next -> startAutoNext { open(next) } }
+            PlayNextMode.RANDOM_OLD -> startAutoNext { pickRandom(libraryRoots(), NextTrack.Pick.OLDEST) { open(it) } }
+            PlayNextMode.RANDOM_OLD_PARENT -> startAutoNext { pickRandom(parentRoots(), NextTrack.Pick.OLDEST) { open(it) } }
+            PlayNextMode.RANDOM_NEW_PARENT -> startAutoNext { pickRandom(parentRoots(), NextTrack.Pick.NEWEST) { open(it) } }
         }
     }
 
@@ -548,6 +603,7 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         const val K_PLAY_NEXT = "play_next_mode"
         const val K_VIDEO_DISABLED = "video_disabled"
         const val K_VIDEO_AUTO_NEXT = "video_auto_next"
+        const val NEXT_COUNTDOWN_SECS = 5
         // PlaybackService reads this one too (auto-bookmark on pause rewinds by it).
         const val K_BOOKMARK_REWIND = PlaybackService.PREF_BOOKMARK_REWIND
         const val K_BOOKMARK_DOUBLE = "bookmark_double_secs"
@@ -557,6 +613,7 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         const val MIN_RECENTS_MAX = 10
         const val MAX_RECENTS_MAX = 200
         const val K_RECENT_FOLDERS = "recent_media_folders"
+        const val K_STARRED = "starred_media"
         const val K_LAST_FILE = "last_media"
     }
 }

@@ -39,6 +39,7 @@ import DirectionsRun from '@mui/icons-material/DirectionsRun';
 import StarIcon from '@mui/icons-material/Star';
 import StyleIcon from '@mui/icons-material/Style';
 import FormatQuote from '@mui/icons-material/FormatQuote';
+import ChecklistIcon from '@mui/icons-material/Checklist';
 import NotesIcon from '@mui/icons-material/Description';
 import AdminPanelSettings from '@mui/icons-material/AdminPanelSettings';
 import Tune from '@mui/icons-material/Tune';
@@ -91,7 +92,7 @@ const ROLE_LABEL: Record<string, string> = {
 // Each tool optionally requires a capability key; who holds it is decided by the DB permission
 // matrix (editable at /permissions). Tools with no `perm` are visible to any signed-in user. All are
 // still subject to the per-page enabled setting.
-const TOOLS: { path: string; label: string; icon: typeof Flag; perm?: Permission }[] = [
+const TOOLS: { path: string; label: string; icon: typeof Flag; perm?: Permission; newTab?: boolean }[] = [
   { path: '/', label: 'Today', icon: Today },
   { path: '/calendar', label: 'Calendar', icon: CalendarMonth },
   { path: '/kanban', label: 'Kanban', icon: ViewKanban },
@@ -103,6 +104,8 @@ const TOOLS: { path: string; label: string; icon: typeof Flag; perm?: Permission
   { path: '/flashcards', label: 'Flash cards', icon: StyleIcon },
   { path: '/highlights', label: 'Highlights', icon: FormatQuote },
   { path: '/local-notes', label: 'Local notes', icon: NotesIcon },
+  // A full-screen wall view, so it opens in its own tab rather than replacing this one.
+  { path: '/checklists/view', label: 'Checklists (week)', icon: ChecklistIcon, newTab: true },
   { path: '/parameters', label: 'Parameters', icon: Tune, perm: 'params.write' },
   { path: '/admin', label: 'Admin', icon: AdminPanelSettings, perm: 'tools.admin' },
   { path: '/batch', label: 'Batch entry', icon: PlaylistAdd, perm: 'content.write' },
@@ -122,6 +125,8 @@ interface ToolEntry {
   path: string;
   label: string;
   icon: typeof Flag;
+  /** Open in a new browser tab instead of navigating this one. */
+  newTab?: boolean;
 }
 
 /** Height of one labelled tool row: a dense ListItemButton, py 0.1, around a 20px icon. */
@@ -292,7 +297,7 @@ export function SideNav({
   const tools: ToolEntry[] = useMemo(() => {
     const list: ToolEntry[] = TOOLS
       .filter((t) => (!t.perm || can(t.perm)) && pageEnabled(pageSettings, t.path.slice(1)))
-      .map(({ path, label, icon }) => ({ path, label, icon }));
+      .map(({ path, label, icon, newTab }) => ({ path, label, icon, newTab }));
     if (can('users.manage')) {
       list.push({ path: '/users', label: 'Users', icon: People });
       list.push({ path: '/permissions', label: 'Roles & permissions', icon: Security });
@@ -327,7 +332,13 @@ export function SideNav({
         </Typography>
         <Typography
           variant="caption"
-          sx={{ color: 'text.secondary', alignSelf: 'flex-end', mb: 0.5, whiteSpace: 'nowrap' }}
+          title={`v${__APP_VERSION__}.b${__BUILD_NUMBER__}${showCodename ? ` "${__APP_CODENAME__}"` : ''}`}
+          sx={{
+            color: 'text.secondary', alignSelf: 'flex-end', mb: 0.5, whiteSpace: 'nowrap',
+            // Gives way to the collapse button: a long version and codename used to push the
+            // button past the sidebar's edge, onto the page's own back arrow.
+            minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+          }}
         >
           {/* Version and build number always; the codename only when Settings → Features says so
               — the same switch the status bar reads, so the two never disagree. */}
@@ -335,13 +346,6 @@ export function SideNav({
           {showCodename && ` "${__APP_CODENAME__}"`}
         </Typography>
         <Box sx={{ flex: 1 }} />
-        {!isMobile && (
-          <Tooltip title="Collapse sidebar">
-            <IconButton size="small" onClick={() => setRail(true)}>
-              <ChevronLeftIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
       </Stack>
 
       {/* Global full-text search */}
@@ -474,7 +478,7 @@ export function SideNav({
               <ListItemButton
                 key={t.path}
                 selected={pathname === t.path}
-                onClick={() => goTool(t.path)}
+                onClick={() => (t.newTab ? window.open(`${BASE}${t.path.slice(1)}`, '_blank', 'noopener') : goTool(t.path))}
                 sx={{ py: 0.1, borderRadius: 1 }}
               >
                 <ListItemIcon sx={{ minWidth: 32, color: 'primary.main' }}>
@@ -494,7 +498,7 @@ export function SideNav({
                 <IconButton
                   size="small"
                   color="primary"
-                  onClick={() => goTool(t.path)}
+                  onClick={() => (t.newTab ? window.open(`${BASE}${t.path.slice(1)}`, '_blank', 'noopener') : goTool(t.path))}
                   sx={{ bgcolor: pathname === t.path ? 'action.selected' : undefined }}
                 >
                   <Icon fontSize="small" />
@@ -543,6 +547,32 @@ export function SideNav({
             '&:hover': { bgcolor: 'primary.main', opacity: 0.4 },
           }}
         />
+      )}
+
+      {/* Collapse: a small round button sitting on the middle of the right edge. */}
+      {!isMobile && (
+        <Tooltip title="Collapse sidebar" placement="right">
+          <IconButton
+            size="small"
+            onClick={() => setRail(true)}
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              right: 0,
+              transform: 'translate(50%, -50%)',
+              zIndex: 2,
+              width: 22,
+              height: 22,
+              bgcolor: 'background.paper',
+              border: 1,
+              borderColor: 'divider',
+              boxShadow: 1,
+              '&:hover': { bgcolor: 'background.paper', borderColor: 'primary.main' },
+            }}
+          >
+            <ChevronLeftIcon sx={{ fontSize: 16 }} />
+          </IconButton>
+        </Tooltip>
       )}
     </Box>
   );

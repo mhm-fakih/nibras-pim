@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="checklists_title">Checklists</string>
+    <string name="checklists_group_start">Start of day</string>
+    <string name="checklists_group_mid">Mid-day</string>
+    <string name="checklists_group_end">End of day</string>
+    <string name="checklists_group_study">Study</string>
+    <string name="checklists_group_weekly">Weekly</string>
+    <string name="checklists_week_title">Week %1$d</string>
+    <string name="checklists_this_week">this week</string>
+    <string name="checklists_not_started">not started</string>
+    <string name="checklists_prev_week">Previous week</string>
+    <string name="checklists_next_week">Next week</string>
+    <string name="checklists_edit">Edit the lists</string>
+    <string name="checklists_done_editing">Done editing</string>
+    <string name="checklists_view_day">Day</string>
+    <string name="checklists_view_week">Week</string>
+    <string name="checklists_go_this_week">This week</string>
+    <string name="checklists_plan_next">Plan next week</string>
+    <string name="checklists_empty_hint">No items yet. Tap the pencil to add items to each group — they carry over to the following weeks.</string>
+    <string name="checklists_add_item">Add item</string>
+    <string name="checklists_rename_item">Rename item</string>
+    <string name="checklists_rename_group">Rename group</string>
+    <string name="checklists_add_group">Add group</string>
+    <string name="checklists_remove_group">Remove group</string>
+    <string name="checklists_remove_item">Remove item</string>
+    <string name="checklists_move_up">Move up</string>
+    <string name="checklists_move_down">Move down</string>
+    <string name="checklists_add">Add</string>
+    <string name="checklists_ok">OK</string>
+    <string name="checklists_done">Done</string>
+    <string name="checklists_mark_done">done</string>
+    <string name="checklists_mark_partial">partly done</string>
+    <string name="checklists_mark_none">not done</string>
+    <string name="settings_feature_checklists_desc">Daily and weekly checklists, ticked per day and kept one file per week. Separate from the tasks list. Off: the page leaves the rail.</string>
+    <string name="settings_checklists_folder_label">Checklists folder</string>
+    <string name="settings_checklists_folder_hint">One .md file per week. Blank = %1$s</string>
+    <string name="checklists_edit_text">Edit as text</string>
+    <string name="checklists_save">Save</string>
+    <string name="checklists_edit_text_help">One item per line, under a “## Group” heading; add “[weekly]” after a group’s name for once-a-week items. Paste, reorder or delete freely — an item keeps its ticks as long as its text is unchanged.</string>
+</resources>

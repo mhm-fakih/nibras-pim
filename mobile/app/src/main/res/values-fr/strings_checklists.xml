@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="checklists_title">Listes de contrôle</string>
+    <string name="checklists_group_start">Début de journée</string>
+    <string name="checklists_group_mid">Mi-journée</string>
+    <string name="checklists_group_end">Fin de journée</string>
+    <string name="checklists_group_study">Études</string>
+    <string name="checklists_group_weekly">Hebdomadaire</string>
+    <string name="checklists_week_title">Semaine %1$d</string>
+    <string name="checklists_this_week">cette semaine</string>
+    <string name="checklists_not_started">pas commencée</string>
+    <string name="checklists_prev_week">Semaine précédente</string>
+    <string name="checklists_next_week">Semaine suivante</string>
+    <string name="checklists_edit">Modifier les listes</string>
+    <string name="checklists_done_editing">Terminer</string>
+    <string name="checklists_view_day">Jour</string>
+    <string name="checklists_view_week">Semaine</string>
+    <string name="checklists_go_this_week">Cette semaine</string>
+    <string name="checklists_plan_next">Planifier la semaine prochaine</string>
+    <string name="checklists_empty_hint">Aucun élément. Touchez le crayon pour en ajouter à chaque groupe — ils sont repris les semaines suivantes.</string>
+    <string name="checklists_add_item">Ajouter un élément</string>
+    <string name="checklists_rename_item">Renommer l’élément</string>
+    <string name="checklists_rename_group">Renommer le groupe</string>
+    <string name="checklists_add_group">Ajouter un groupe</string>
+    <string name="checklists_remove_group">Supprimer le groupe</string>
+    <string name="checklists_remove_item">Supprimer l’élément</string>
+    <string name="checklists_move_up">Monter</string>
+    <string name="checklists_move_down">Descendre</string>
+    <string name="checklists_add">Ajouter</string>
+    <string name="checklists_ok">OK</string>
+    <string name="checklists_done">Terminé</string>
+    <string name="checklists_mark_done">fait</string>
+    <string name="checklists_mark_partial">fait en partie</string>
+    <string name="checklists_mark_none">pas fait</string>
+    <string name="settings_feature_checklists_desc">Listes de contrôle quotidiennes et hebdomadaires, cochées par jour, un fichier par semaine. Séparées de la liste des tâches. Désactivé : la page quitte la barre.</string>
+    <string name="settings_checklists_folder_label">Dossier des listes</string>
+    <string name="settings_checklists_folder_hint">Un fichier .md par semaine. Vide = %1$s</string>
+    <string name="checklists_edit_text">Modifier en texte</string>
+    <string name="checklists_save">Enregistrer</string>
+    <string name="checklists_edit_text_help">Un élément par ligne, sous un titre « ## Groupe » ; ajoutez « [weekly] » après le nom d’un groupe pour des éléments hebdomadaires. Collez, réordonnez ou supprimez librement — un élément garde ses coches tant que son texte ne change pas.</string>
+</resources>

@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.StickyNote2
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.TravelExplore
@@ -61,6 +62,7 @@ const val ALARMS_DEST = "alarms"
 const val AUDIOBOOKS_DEST = "audiobooks"
 const val GALLERY_DEST = "gallery"
 const val VIDEOS_DEST = "videos"
+const val CHECKLISTS_DEST = "checklists"
 const val CALENDAR_DEST = "calendar"
 const val PRAYER_DEST = "prayer"
 const val FLASHCARDS_DEST = "flashcards"
@@ -76,7 +78,7 @@ private enum class RailBand { LOCAL, SERVER }
 /** The band a destination lives in, or null for one that sits outside both (Settings). */
 private fun bandOf(dest: String): RailBand? = when (dest) {
     HOME_DEST, AI_NOTES_DEST, CALENDAR_DEST, ALARMS_DEST, AUDIOBOOKS_DEST, GALLERY_DEST, VIDEOS_DEST,
-    PRAYER_DEST, COLLECT_DEST -> RailBand.LOCAL
+    PRAYER_DEST, COLLECT_DEST, CHECKLISTS_DEST -> RailBand.LOCAL
     SETTINGS_DEST -> null
     else -> RailBand.SERVER          // every record type, search, flash cards, highlights, contacts
 }
@@ -109,6 +111,8 @@ fun AppRail(
     mediaEnabled: Boolean = true,
     galleryEnabled: Boolean = true,
     serverEnabled: Boolean = true,
+    checklistsEnabled: Boolean = true,
+    onChecklists: () -> Unit = {},
     onHome: () -> Unit,
     onAiNotes: () -> Unit,
     onAlarms: () -> Unit,
@@ -203,6 +207,17 @@ fun AppRail(
                     tint = if (selected == CALENDAR_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            // Beside the calendar: the other page about what a day holds.
+            if (checklistsEnabled) {
+                RailCell(selected == CHECKLISTS_DEST, onChecklists) {
+                    Icon(
+                        Icons.Filled.Checklist,
+                        contentDescription = stringResource(R.string.checklists_title),
+                        tint = if (selected == CHECKLISTS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             if (galleryEnabled) {
                 RailCell(selected == GALLERY_DEST, onGallery) {

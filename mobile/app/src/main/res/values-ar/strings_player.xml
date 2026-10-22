@@ -148,4 +148,12 @@
     <string name="player_video_auto_next_hint">عند الإيقاف: يبقى الفيديو المنتهي متوقفًا عند بدايته أيًّا كان إعداد «التشغيل التالي». يبقى ⏭ يشغّل التالي.</string>
     <string name="player_open_folder">المجلد</string>
     <string name="player_share">مشاركة</string>
+    <string name="player_next_countdown">تشغيل الملف التالي بعد %1$d ث</string>
+    <string name="player_next_stop">إيقاف</string>
+    <string name="player_tab_starred">المميّزة</string>
+    <string name="player_starred_count">الملفات المميّزة (%1$d)</string>
+    <string name="player_star">تمييز</string>
+    <string name="player_starred">مميّز</string>
+    <string name="player_unstar">إزالة التمييز</string>
+    <string name="player_starred_empty">لا ملفات مميّزة بعد. اضغط ☆ تمييز تحت اسم الملف في تبويب المشغّل لإبقائه هنا.</string>
 </resources>

@@ -28,20 +28,29 @@ export function LoginPage() {
       const from = (location.state as { from?: string })?.from ?? '/tasks';
       navigate(from, { replace: true });
     } catch (err) {
-      const res = (err as AxiosError<{ message?: string; error?: string; detail?: string }>)?.response;
-      // The backend's own error responses are always JSON: a message/error field (SecurityConfig's
-      // writeError) or an RFC 9457 problem detail (ApiExceptionHandler — how a bad-credentials 401
-      // from /auth/login arrives). A response WITHOUT
-      // that shape (e.g. an empty text/plain body) didn't come from the app — it's the dev
-      // proxy (or a reverse proxy) reporting it can't reach the backend at all, which reads very
-      // differently from "wrong password" and shouldn't be presented as one.
+      const res = (err as AxiosError<{ message?: string; error?: string; detail?: string; title?: string; status?: number }>)?.response;
+      // Which failure is it? The backend's own errors are always JSON: a message/error field
+      // (SecurityConfig's writeError) or an RFC 9457 problem detail (ApiExceptionHandler, and how a
+      // bad-credentials 401 from /auth/login arrives — application/problem+json with
+      // type/title/status/instance, and detail only when there is one: Spring omits an empty
+      // detail, so testing for `detail` alone misread such a reply as the server being down).
+      // Only the app answers 401, so a 401 is "wrong credentials" whatever its body. "Can't reach
+      // the server" is kept for real outages: no response at all, or a server error that is not
+      // the app's own JSON — a proxy reporting the backend unreachable (Vite's dev proxy answers
+      // 500 with an empty text/plain body, a reverse proxy 502/503/504).
       const data = res?.data;
       const isAppError =
-        typeof data === 'object' && data !== null && (('message' in data) || ('error' in data) || ('detail' in data));
-      if (!res || !isAppError) {
+        typeof data === 'object' && data !== null &&
+        ['message', 'error', 'detail', 'title', 'status'].some((k) => k in data);
+      const gatewayDown = !!res && res.status >= 500 && !isAppError;
+      if (!res || gatewayDown) {
         setError("Can't reach the server — the backend may be down. Check with your administrator.");
       } else if (res.status === 401) {
         setError('Invalid username or password.');
+      } else if (isAppError) {
+        // The app said why; show it rather than a generic line.
+        const why = data?.detail ?? data?.message ?? data?.error ?? data?.title;
+        setError(why ? `Sign-in failed: ${why}` : 'Sign-in failed. Please try again.');
       } else {
         setError('Sign-in failed. Please try again.');
       }

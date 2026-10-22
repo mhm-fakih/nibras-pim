@@ -25,7 +25,7 @@ const val COMPANION_SUFFIX = ".d"
  * these arrive from several machines through Syncthing and their spelling isn't consistent.
  * Mirrors desktop's `NoteRepository.AUX_DIR_STEMS`.
  */
-private val AUX_DIR_STEMS = setOf("deleted", "merged", "imported", "trash", "trashed")
+private val AUX_DIR_STEMS = setOf("deleted", "merged", "imported", "trash", "trashed", "checklists")
 
 /**
  * Extensions whose contents are shown as a note's text. Deliberately just these two: the note

@@ -14,4 +14,8 @@ if ! python3 -c "import gi; gi.require_version('Gtk', '3.0'); from gi.repository
     exit 1
 fi
 
-exec python3 "$HERE/knotes.py" "$@"
+# Detach from the terminal (closing it won't kill the app) and append all output to desktop.log.
+LOG="$HERE/desktop.log"
+printf '\n=== %s  knotes start (pid %s) ===\n' "$(date '+%F %T')" "$$" >>"$LOG"
+setsid nohup python3 "$HERE/knotes.py" "$@" >>"$LOG" 2>&1 </dev/null &
+echo "knotes started (pid $!) — log: $LOG"

@@ -764,7 +764,9 @@ class NoteRepository:
     # (a leading dot), so they never show on the board. AUX_DIR_STEMS also lets is_aux_dir() catch
     # legacy or phone-synced variants in ANY case, dotted or not — so a stray ``Imported``, ``Trash``
     # or ``Deleted`` can't leak in as a "needs metadata" card.
-    AUX_DIR_STEMS = frozenset({"deleted", "merged", "imported", "trash", "trashed"})
+    # ``checklists``: the phone app's week files (2026-W43.md …) live in this subfolder of the notes
+    # folder, so it syncs with them — it is the app's data, not an item waiting to be settled.
+    AUX_DIR_STEMS = frozenset({"deleted", "merged", "imported", "trash", "trashed", "checklists"})
 
     @classmethod
     def is_aux_dir(cls, name: str) -> bool:
