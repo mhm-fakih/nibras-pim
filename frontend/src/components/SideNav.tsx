@@ -1,4 +1,4 @@
-import { MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
@@ -10,6 +10,8 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Menu,
+  MenuItem,
   Stack,
   TextField,
   Tooltip,
@@ -58,6 +60,9 @@ import SearchIcon from '@mui/icons-material/Search';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import ViewQuilt from '@mui/icons-material/ViewQuilt';
+import CollectionsBookmark from '@mui/icons-material/CollectionsBookmark';
+import ImportExport from '@mui/icons-material/ImportExport';
 import People from '@mui/icons-material/People';
 import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import Security from '@mui/icons-material/Security';
@@ -89,102 +94,67 @@ const ROLE_LABEL: Record<string, string> = {
   READ_ONLY: 'Read only',
 };
 
+type ToolGroupKey = 'views' | 'library' | 'io' | 'admin' | 'help';
+
+/**
+ * The tool pages, in named groups. The rail shows one labelled row per group and a click opens the
+ * group's pages in a menu beside it — five short rows instead of two dozen unnamed icons, and the
+ * reports panel above keeps its height.
+ */
+const TOOL_GROUPS: { key: ToolGroupKey; label: string; icon: typeof Flag }[] = [
+  { key: 'views', label: 'Views', icon: ViewQuilt },
+  { key: 'library', label: 'Library', icon: CollectionsBookmark },
+  { key: 'io', label: 'Import & export', icon: ImportExport },
+  { key: 'admin', label: 'Admin', icon: AdminPanelSettings },
+  { key: 'help', label: 'Help & shortcuts', icon: HelpOutline },
+];
+
 // Each tool optionally requires a capability key; who holds it is decided by the DB permission
 // matrix (editable at /permissions). Tools with no `perm` are visible to any signed-in user. All are
 // still subject to the per-page enabled setting.
-const TOOLS: { path: string; label: string; icon: typeof Flag; perm?: Permission; newTab?: boolean }[] = [
-  { path: '/', label: 'Today', icon: Today },
-  { path: '/calendar', label: 'Calendar', icon: CalendarMonth },
-  { path: '/kanban', label: 'Kanban', icon: ViewKanban },
-  { path: '/dashboards', label: 'Dashboards', icon: Dashboard },
-  { path: '/insights', label: 'Insights', icon: InsightsIcon },
-  { path: '/sprints', label: 'Sprints', icon: DirectionsRun },
-  { path: '/reports', label: 'Reports', icon: TableChart },
-  { path: '/bookmarks', label: 'All bookmarks', icon: StarIcon },
-  { path: '/flashcards', label: 'Flash cards', icon: StyleIcon },
-  { path: '/highlights', label: 'Highlights', icon: FormatQuote },
-  { path: '/local-notes', label: 'Local notes', icon: NotesIcon },
+const TOOLS: {
+  path: string;
+  label: string;
+  icon: typeof Flag;
+  group: ToolGroupKey;
+  perm?: Permission;
+  newTab?: boolean;
+}[] = [
+  { path: '/', label: 'Today', icon: Today, group: 'views' },
+  { path: '/calendar', label: 'Calendar', icon: CalendarMonth, group: 'views' },
+  { path: '/kanban', label: 'Kanban', icon: ViewKanban, group: 'views' },
+  { path: '/dashboards', label: 'Dashboards', icon: Dashboard, group: 'views' },
+  { path: '/insights', label: 'Insights', icon: InsightsIcon, group: 'views' },
+  { path: '/sprints', label: 'Sprints', icon: DirectionsRun, group: 'views' },
+  { path: '/reports', label: 'Reports', icon: TableChart, group: 'views' },
+  { path: '/bookmarks', label: 'All bookmarks', icon: StarIcon, group: 'library' },
+  { path: '/flashcards', label: 'Flash cards', icon: StyleIcon, group: 'library' },
+  { path: '/highlights', label: 'Highlights', icon: FormatQuote, group: 'library' },
+  { path: '/local-notes', label: 'Local notes', icon: NotesIcon, group: 'library' },
   // A full-screen wall view, so it opens in its own tab rather than replacing this one.
-  { path: '/checklists/view', label: 'Checklists (week)', icon: ChecklistIcon, newTab: true },
-  { path: '/parameters', label: 'Parameters', icon: Tune, perm: 'params.write' },
-  { path: '/admin', label: 'Admin', icon: AdminPanelSettings, perm: 'tools.admin' },
-  { path: '/batch', label: 'Batch entry', icon: PlaylistAdd, perm: 'content.write' },
-  { path: '/import-files', label: 'Import files', icon: DriveFileMove, perm: 'content.write' },
-  { path: '/import', label: 'Import notes', icon: MoveToInbox, perm: 'content.write' },
-  { path: '/images', label: 'Image renamer', icon: Photo, perm: 'content.write' },
-  { path: '/sites', label: 'Static website', icon: Public, perm: 'content.write' },
-  { path: '/maintenance', label: 'Maintenance', icon: Storage, perm: 'content.write' },
-  { path: '/audit', label: 'Audit log', icon: History, perm: 'tools.audit' },
-  { path: '/trash', label: 'Trash', icon: DeleteOutline, perm: 'content.write' },
-  { path: '/settings', label: 'Settings', icon: Settings, perm: 'tools.settings' },
-  { path: '/help', label: 'Help & shortcuts', icon: HelpOutline },
+  { path: '/checklists/view', label: 'Checklists (week)', icon: ChecklistIcon, group: 'library', newTab: true },
+  { path: '/batch', label: 'Batch entry', icon: PlaylistAdd, group: 'io', perm: 'content.write' },
+  { path: '/import-files', label: 'Import files', icon: DriveFileMove, group: 'io', perm: 'content.write' },
+  { path: '/import', label: 'Import notes', icon: MoveToInbox, group: 'io', perm: 'content.write' },
+  { path: '/images', label: 'Image renamer', icon: Photo, group: 'io', perm: 'content.write' },
+  { path: '/sites', label: 'Static website', icon: Public, group: 'io', perm: 'content.write' },
+  { path: '/parameters', label: 'Parameters', icon: Tune, group: 'admin', perm: 'params.write' },
+  { path: '/admin', label: 'Admin', icon: AdminPanelSettings, group: 'admin', perm: 'tools.admin' },
+  { path: '/maintenance', label: 'Maintenance', icon: Storage, group: 'admin', perm: 'content.write' },
+  { path: '/audit', label: 'Audit log', icon: History, group: 'admin', perm: 'tools.audit' },
+  { path: '/trash', label: 'Trash', icon: DeleteOutline, group: 'admin', perm: 'content.write' },
+  { path: '/settings', label: 'Settings', icon: Settings, group: 'admin', perm: 'tools.settings' },
+  { path: '/help', label: 'Help & shortcuts', icon: HelpOutline, group: 'help' },
 ];
 
-/** A tool button as the rail draws it, in either mode. */
+/** A tool as the rail's group menus draw it. */
 interface ToolEntry {
   path: string;
   label: string;
   icon: typeof Flag;
+  group: ToolGroupKey;
   /** Open in a new browser tab instead of navigating this one. */
   newTab?: boolean;
-}
-
-/** Height of one labelled tool row: a dense ListItemButton, py 0.1, around a 20px icon. */
-const LABELLED_ROW_PX = 30;
-
-/**
- * Should the tool buttons show their names, or shrink to bare icons?
- *
- * "The rail is mostly empty" is a claim about the REPORTS region: it is the only part that grows
- * with your data (the module report shortcuts, then however many saved searches you have), and it
- * is the part that gives way — it is the flex child, so the rail never overflows, it just squeezes
- * that box.
- *
- * The subtlety is that the obvious measurement flaps. Ask "does the reports box have slack for
- * the extra height?" and the answer changes the moment you act on it: labels appear, the flex box
- * shrinks by exactly that much, slack is gone, labels come off, the box grows back. Every render,
- * forever.
- *
- * So measure the quantity that does NOT depend on the current answer — the space the reports box
- * and the tool block occupy TOGETHER. Whichever way the tools are drawn, that total is the same,
- * because the box absorbs whatever the tools give up. The test then reads directly: would the
- * reports content still fit if the tools took `labelsPx`?
- *
- * A ResizeObserver on all three elements re-decides on a window resize, a rail drag, the calendar
- * opening to a full month, a saved search being added, or a module switch that changes the report
- * list — every one of which moves the free space.
- */
-function useRoomForLabels(
-  boxRef: React.RefObject<HTMLDivElement | null>,
-  contentRef: React.RefObject<HTMLDivElement | null>,
-  toolsRef: React.RefObject<HTMLDivElement | null>,
-  toolCount: number,
-): boolean {
-  const [roomy, setRoomy] = useState(false);
-
-  useEffect(() => {
-    const box = boxRef.current;
-    const content = contentRef.current;
-    const tools = toolsRef.current;
-    if (!box || !content || !tools || toolCount === 0) return;
-
-    const measure = () => {
-      const shared = box.clientHeight + tools.offsetHeight;   // same in either mode
-      const needed = content.offsetHeight + toolCount * LABELLED_ROW_PX;
-      // The 8px is hysteresis, not a fudge: a rail sitting exactly on the boundary would otherwise
-      // toggle as sub-pixel layout rounding moved it either side.
-      setRoomy(shared >= needed + 8);
-    };
-
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(box);
-    observer.observe(content);
-    observer.observe(tools);
-    return () => observer.disconnect();
-  }, [boxRef, contentRef, toolsRef, toolCount]);
-
-  return roomy;
 }
 
 /** Outlook-style rail: search · calendar · reports for the active module · module + tool buttons. */
@@ -242,11 +212,8 @@ export function SideNav({
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // The tool buttons draw as labelled rows when the rail has room, and as a wrapped strip of bare
-  // icons when it hasn't. See useRoomForLabels.
-  const reportsBoxRef = useRef<HTMLDivElement | null>(null);
-  const reportsContentRef = useRef<HTMLDivElement | null>(null);
-  const toolsRef = useRef<HTMLDivElement | null>(null);
+  // The tool group whose menu is open, and the row it opened from.
+  const [toolMenu, setToolMenu] = useState<{ group: ToolGroupKey; anchor: HTMLElement } | null>(null);
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => setMobileOpen(false), [pathname, search]);
@@ -297,16 +264,21 @@ export function SideNav({
   const tools: ToolEntry[] = useMemo(() => {
     const list: ToolEntry[] = TOOLS
       .filter((t) => (!t.perm || can(t.perm)) && pageEnabled(pageSettings, t.path.slice(1)))
-      .map(({ path, label, icon, newTab }) => ({ path, label, icon, newTab }));
+      .map(({ path, label, icon, group, newTab }) => ({ path, label, icon, group, newTab }));
     if (can('users.manage')) {
-      list.push({ path: '/users', label: 'Users', icon: People });
-      list.push({ path: '/permissions', label: 'Roles & permissions', icon: Security });
+      list.push({ path: '/users', label: 'Users', icon: People, group: 'admin' });
+      list.push({ path: '/permissions', label: 'Roles & permissions', icon: Security, group: 'admin' });
     }
     return list;
     // `can` closes over the user's permissions, which change when the matrix is edited.
   }, [pageSettings, user]);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  const labelledTools = useRoomForLabels(reportsBoxRef, reportsContentRef, toolsRef, tools.length);
+  const openTool = (t: ToolEntry) =>
+    t.newTab ? window.open(`${BASE}${t.path.slice(1)}`, '_blank', 'noopener') : goTool(t.path);
+  const groups = TOOL_GROUPS
+    .map((g) => ({ ...g, tools: tools.filter((t) => t.group === g.key) }))
+    .filter((g) => g.tools.length > 0);
+  const menuTools = toolMenu ? tools.filter((t) => t.group === toolMenu.group) : [];
 
   const runReport = (params: Record<string, string>) =>
     navigate(`/${activeModule}?${new URLSearchParams(params).toString()}`);
@@ -382,8 +354,8 @@ export function SideNav({
           the user's own and nobody would look in Settings for why they vanished. */}
       {/* At least the heading and about three reports, even with the mini calendar open above;
           the module list below gives way (scrolls) on a short window instead. */}
-      <Box ref={reportsBoxRef} sx={{ flex: 1, minHeight: 130, overflow: 'auto', px: 1, py: 0.5 }}>
-        <Box ref={reportsContentRef}>
+      <Box sx={{ flex: 1, minHeight: 130, overflow: 'auto', px: 1, py: 0.5 }}>
+        <Box>
         {showModuleReports && (
           <Stack direction="row" alignItems="center" spacing={0.5} sx={{ px: 1, py: 0.5 }}>
             <AssessmentIcon fontSize="small" color="action" />
@@ -468,49 +440,64 @@ export function SideNav({
 
       <Divider />
 
-      {/* Tool pages — directly under the enabled modules. Labelled rows when the rail has the
-          room for them, a wrapped strip of bare icons when it hasn't; useRoomForLabels re-decides
-          on every resize, so widening the window or dragging the rail brings the names back. */}
-      <Box ref={toolsRef}>
-      {labelledTools ? (
-        <List dense disablePadding sx={{ px: 1, py: 0.25 }}>
-          {tools.map((t) => {
-            const Icon = t.icon;
-            return (
-              <ListItemButton
-                key={t.path}
-                selected={pathname === t.path}
-                onClick={() => (t.newTab ? window.open(`${BASE}${t.path.slice(1)}`, '_blank', 'noopener') : goTool(t.path))}
-                sx={{ py: 0.1, borderRadius: 1 }}
-              >
-                <ListItemIcon sx={{ minWidth: 32, color: 'primary.main' }}>
-                  <Icon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText primary={t.label} primaryTypographyProps={{ fontSize: 13 }} />
-              </ListItemButton>
-            );
-          })}
-        </List>
-      ) : (
-        <Stack direction="row" flexWrap="wrap" sx={{ p: 0.5, justifyContent: 'center' }}>
-          {tools.map((t) => {
-            const Icon = t.icon;
-            return (
-              <Tooltip key={t.path} title={t.label}>
-                <IconButton
-                  size="small"
-                  color="primary"
-                  onClick={() => (t.newTab ? window.open(`${BASE}${t.path.slice(1)}`, '_blank', 'noopener') : goTool(t.path))}
-                  sx={{ bgcolor: pathname === t.path ? 'action.selected' : undefined }}
-                >
-                  <Icon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            );
-          })}
-        </Stack>
-      )}
-      </Box>
+      {/* Tool pages, in a few named groups directly under the modules. A group with one page opens
+          it; the others open a menu of their pages beside the rail. The group holding the current
+          page is marked and says which page it is. */}
+      <List dense disablePadding sx={{ px: 1, py: 0.25, flexShrink: 0 }}>
+        {groups.map((g) => {
+          const Icon = g.icon;
+          const current = g.tools.find((t) => t.path === pathname);
+          const single = g.tools.length === 1 ? g.tools[0] : null;
+          return (
+            <ListItemButton
+              key={g.key}
+              selected={Boolean(current)}
+              onClick={(e) => (single ? openTool(single) : setToolMenu({ group: g.key, anchor: e.currentTarget }))}
+              sx={{ py: 0.1, borderRadius: 1 }}
+            >
+              <ListItemIcon sx={{ minWidth: 32, color: 'primary.main' }}>
+                <Icon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary={single ? single.label : g.label}
+                secondary={!single && current ? current.label : undefined}
+                primaryTypographyProps={{ fontSize: 13 }}
+                secondaryTypographyProps={{ fontSize: 11, noWrap: true }}
+                sx={{ my: 0.25, display: 'flex', alignItems: 'baseline', gap: 1, minWidth: 0 }}
+              />
+              {!single && <ChevronRightIcon fontSize="small" color="action" />}
+            </ListItemButton>
+          );
+        })}
+      </List>
+      <Menu
+        anchorEl={toolMenu?.anchor}
+        open={Boolean(toolMenu)}
+        onClose={() => setToolMenu(null)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        slotProps={{ paper: { sx: { minWidth: 200 } } }}
+      >
+        {menuTools.map((t) => {
+          const Icon = t.icon;
+          return (
+            <MenuItem
+              key={t.path}
+              dense
+              selected={pathname === t.path}
+              onClick={() => {
+                setToolMenu(null);
+                openTool(t);
+              }}
+            >
+              <ListItemIcon sx={{ color: 'primary.main' }}>
+                <Icon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primary={t.label} primaryTypographyProps={{ fontSize: 13 }} />
+            </MenuItem>
+          );
+        })}
+      </Menu>
 
       {/* Signed-in user + sign out */}
       {user && (

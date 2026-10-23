@@ -122,9 +122,9 @@ public class FileIndexService {
 
     /**
      * Bumped when what a document holds changes, so the index re-reads every file once on the
-     * first scan after an upgrade. 2: the damage category of a file whose text could not be read.
+     * first scan after an upgrade. 2: the damage category of a file whose text could not be read; 3: 0-byte files named as such.
      */
-    private static final String SCHEMA = "2";
+    private static final String SCHEMA = "3";
     private boolean schemaOutdated;
 
     private FSDirectory directory;
@@ -428,6 +428,7 @@ public class FileIndexService {
             return "pdf".equals(ext) || "djvu".equals(ext) ? "No text layer (scanned pages)" : "Empty — no text inside";
         }
         String e = error.toLowerCase(Locale.ROOT);
+        if (e.contains("zerobytefile")) return "Empty file (0 bytes)";
         if (e.contains("timed out")) return "Too slow to read (over 90 s)";
         if (e.contains("djvutxt is not installed")) return "DjVu converter not installed";
         if (e.contains("encrypt") || e.contains("password")) return "Password-protected";
