@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A heading on the tasks board: a priority, or a department under it. Size and colour are set
+     per level from the code. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/board_group"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:ellipsize="end"
+    android:maxLines="1"
+    android:paddingTop="8dp"
+    android:paddingBottom="2dp"
+    android:textColor="#8AB4F8"
+    android:textStyle="bold" />

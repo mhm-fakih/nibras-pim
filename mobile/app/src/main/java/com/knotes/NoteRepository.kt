@@ -264,6 +264,24 @@ class NoteRepository(
             .map(::toNote)
             .sortedByDescending { it.createdMillis }
 
+    /** Notes of [type] at any of [priorities], whenever written. Only the matching files are read. */
+    fun listByTypeAndPriorities(type: String, priorities: Set<Int>): List<Note> =
+        (dir().listFiles() ?: emptyArray())
+            .filter {
+                it.isFile && isFormattedNote(it.name) &&
+                    NoteFiles.parse(it.name).let { p ->
+                        p.priority in priorities && type.equals(p.type.orEmpty(), ignoreCase = true)
+                    }
+            }
+            .map(::toNote)
+
+    /** How many notes of [type] sit at [priority], from the file names alone. */
+    fun countByTypeAndPriority(type: String, priority: Int): Int =
+        (dir().listFiles() ?: emptyArray()).count {
+            it.isFile && isFormattedNote(it.name) &&
+                NoteFiles.parse(it.name).let { p -> p.priority == priority && type.equals(p.type.orEmpty(), ignoreCase = true) }
+        }
+
     /** How many there are, without reading a single one of them. */
     fun countTasksSince(type: String, priority: Int?, sinceMillis: Long): Int =
         (dir().listFiles() ?: emptyArray())

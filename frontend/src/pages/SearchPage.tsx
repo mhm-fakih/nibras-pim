@@ -5,15 +5,31 @@ import {
   Alert,
   Box,
   Chip,
+  IconButton,
   InputAdornment,
   List,
-  ListItemButton,
+  ListItem,
   ListItemText,
+  ListItemButton,
+  MenuItem,
+  Stack,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import { getSearchIndexStatus, searchEverything, SearchHit } from '../api/client';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import {
+  FILE_SOURCES,
+  FileHit,
+  getFileSearchConfig,
+  getSearchIndexStatus,
+  openFoundFile,
+  searchEverything,
+  searchFiles,
+  SearchHit,
+} from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { ENTITY_BY_KEY } from '../config/entities';
 
@@ -55,6 +71,27 @@ export function SearchPage() {
   }, [hits]);
 
   const dedupe = q.trimStart().startsWith('~');
+
+  // Files: the free text only — the record tokens (p4, ?code, #type…) mean nothing to a file.
+  const fileQuery = useMemo(
+    () =>
+      q
+        .trim()
+        .split(/\s+/)
+        .filter((w) => w && !/^[#?@=*]/.test(w) && !/^[pP]\d+$/.test(w))
+        .join(' '),
+    [q],
+  );
+  const [fileSources, setFileSources] = useState<string[]>([]);
+  const [fileKind, setFileKind] = useState('');
+  const { data: fileConfig } = useQuery({ queryKey: ['file-search-config'], queryFn: getFileSearchConfig, staleTime: 300_000 });
+  const coveredSources = FILE_SOURCES.filter((s) => fileConfig?.sources[s]?.names);
+  const { data: files, isFetching: filesFetching } = useQuery({
+    queryKey: ['search-files', fileQuery, fileSources, fileKind],
+    queryFn: () => searchFiles(fileQuery, { sources: fileSources, exts: FILE_KINDS[fileKind]?.exts, limit: 100 }),
+    enabled: fileQuery.length > 0 && !dedupe,
+  });
+  const fileHits = files?.hits ?? [];
 
   // Highlight only the free-text words — drop the leading ~ and command tokens (#?@=* and p3).
   const terms = useMemo(
@@ -105,7 +142,7 @@ export function SearchPage() {
           </Typography>
         )}
 
-        {q && !isFetching && hits.length === 0 && notes.length === 0 && (
+        {q && !isFetching && !filesFetching && hits.length === 0 && notes.length === 0 && fileHits.length === 0 && (
           indexStatus?.indexed === 0 ? (
             // Distinguish "genuinely no matches" from "the index was never built" — the latter
             // silently returns nothing on a fresh install over an existing database, while each
@@ -191,7 +228,146 @@ export function SearchPage() {
             </List>
           </Box>
         )}
+
+        {fileQuery && !dedupe && coveredSources.length > 0 && (files?.total || fileSources.length > 0 || fileKind) ? (
+          <Box sx={{ mb: 3 }}>
+            <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 0.5 }}>
+              <Typography variant="overline" color="text.secondary" sx={{ mr: 1 }}>
+                Files · {files?.total ?? 0}
+                {files && files.total > fileHits.length ? ` (first ${fileHits.length})` : ''}
+              </Typography>
+              {coveredSources.map((s) => (
+                <Chip
+                  key={s}
+                  size="small"
+                  label={SOURCE_LABEL[s]}
+                  color={fileSources.includes(s) ? 'primary' : 'default'}
+                  variant={fileSources.includes(s) ? 'filled' : 'outlined'}
+                  onClick={() =>
+                    setFileSources((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]))
+                  }
+                />
+              ))}
+              <TextField
+                select
+                size="small"
+                label="Type"
+                value={fileKind}
+                onChange={(e) => setFileKind(e.target.value)}
+                sx={{ minWidth: 140 }}
+              >
+                <MenuItem value="">Any type</MenuItem>
+                {Object.entries(FILE_KINDS).map(([k, v]) => (
+                  <MenuItem key={k} value={k}>
+                    {v.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Stack>
+            <List dense>
+              {fileHits.map((f) => (
+                <FileRow key={f.path} f={f} terms={terms} onOwner={navigate} />
+              ))}
+            </List>
+            {fileHits.length === 0 && !filesFetching && (
+              <Typography color="text.secondary" variant="body2">
+                No files match with these filters.
+              </Typography>
+            )}
+          </Box>
+        ) : null}
       </Box>
+    </Box>
+  );
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  repo1: 'Repo 1',
+  repo2: 'Repo 2',
+  repo3: 'Repo 3',
+  notes: 'Note files',
+};
+
+const FILE_KINDS: Record<string, { label: string; exts: string[] }> = {
+  pdf: { label: 'PDF', exts: ['pdf'] },
+  word: { label: 'Documents', exts: ['doc', 'docx', 'odt', 'rtf', 'epub', 'djvu'] },
+  sheet: { label: 'Spreadsheets', exts: ['xls', 'xlsx', 'ods', 'csv'] },
+  slides: { label: 'Slides', exts: ['ppt', 'pptx', 'odp'] },
+  text: { label: 'Text', exts: ['txt', 'md', 'tex', 'html', 'htm', 'json', 'xml'] },
+  audio: { label: 'Audio', exts: ['mp3', 'm4a', 'wav', 'ogg', 'opus', 'flac', 'aac', 'amr'] },
+  video: { label: 'Video', exts: ['mp4', 'mkv', 'webm', 'avi', 'mov', '3gp'] },
+  image: { label: 'Images', exts: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'tif', 'tiff', 'svg'] },
+};
+
+function formatSize(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** One found file: name, where it lives (record or note), the matched text, and open actions. */
+function FileRow({ f, terms, onOwner }: { f: FileHit; terms: string[]; onOwner: (to: string) => void }) {
+  const folder = f.rel.includes('/') ? f.rel.slice(0, f.rel.lastIndexOf('/')) : '';
+  const owner = f.ownerModule && f.ownerId != null
+    ? { label: `${f.ownerLabel ?? f.ownerModule} #${f.ownerId}`, to: `/${f.ownerModule}?select=${f.ownerId}` }
+    : f.ownerNote
+      ? { label: 'Note', to: `/local-notes?open=${encodeURIComponent(f.ownerNote)}` }
+      : null;
+  return (
+    <ListItem
+      divider
+      alignItems="flex-start"
+      secondaryAction={
+        <Stack direction="row">
+          <Tooltip title="Open the file">
+            <IconButton size="small" onClick={() => openFoundFile(f.path)}>
+              <OpenInNewIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Open its folder">
+            <IconButton size="small" onClick={() => openFoundFile(f.path, true)}>
+              <FolderOpenIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      }
+      sx={{ pr: 10 }}
+    >
+      <ListItemText
+        primary={<Highlight text={f.name} terms={terms} />}
+        primaryTypographyProps={{ dir: 'auto', noWrap: true, fontWeight: 600, sx: { textAlign: 'start' } }}
+        secondary={
+          <>
+            <Box component="span" sx={{ display: 'block', color: 'text.disabled', fontFamily: 'monospace', fontSize: 12 }} dir="ltr">
+              {SOURCE_LABEL[f.source]} · {folder || '/'} · {formatSize(f.size)}
+              {f.nameOnly ? ' · name match' : ''}
+            </Box>
+            {f.snippet && <Marked text={f.snippet} />}
+          </>
+        }
+        secondaryTypographyProps={{ dir: 'auto', component: 'span', sx: { display: 'block', textAlign: 'start' } }}
+      />
+      {owner && (
+        <Chip size="small" variant="outlined" label={owner.label} onClick={() => onOwner(owner.to)} sx={{ ml: 1, mt: 0.5 }} />
+      )}
+    </ListItem>
+  );
+}
+
+/** A snippet from the file index, its matches already marked with \u0001…\u0002. */
+function Marked({ text }: { text: string }) {
+  const parts = text.split(/(\u0001[^\u0002]*\u0002)/);
+  return (
+    <Box component="span" sx={{ display: 'block' }}>
+      {parts.map((p, i) =>
+        p.startsWith('\u0001') ? (
+          <Box key={i} component="mark" sx={{ bgcolor: 'warning.light', px: 0.25, borderRadius: 0.5 }}>
+            {p.slice(1, -1)}
+          </Box>
+        ) : (
+          <span key={i}>{p.replace(/\s+/g, ' ')}</span>
+        ),
+      )}
     </Box>
   );
 }

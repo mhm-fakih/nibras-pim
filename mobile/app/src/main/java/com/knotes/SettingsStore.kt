@@ -85,6 +85,10 @@ data class AppSettings(
     val feedWords: Int = 40,
     /** Note text size in the recent-notes widget, in sp; the date line above it is 2sp smaller. */
     val feedTextSp: Int = 15,
+    /** Task text size in the tasks board widget, in sp; its group headings follow it. */
+    val boardTextSp: Int = 13,
+    /** How many tasks sit side by side in the tasks board widget. */
+    val boardColumns: Int = 2,
 
     val collectEnabled: Boolean = true,
     val collectAutoEnabled: Boolean = false,
@@ -223,6 +227,8 @@ class SettingsStore(context: Context) {
         feedDays = prefs.getInt(K_FEED_DAYS, 3),
         feedWords = prefs.getInt(K_FEED_WORDS, 40),
         feedTextSp = prefs.getInt(K_FEED_TEXT_SP, 15),
+        boardTextSp = prefs.getInt(K_BOARD_TEXT_SP, 13),
+        boardColumns = prefs.getInt(K_BOARD_COLUMNS, 2),
         reminderOffsetsMin = decodeInts(prefs.getString(K_REM_OFFSETS, DEFAULT_REM_OFFSETS) ?: DEFAULT_REM_OFFSETS),
         reminderSoundUri = prefs.getString(K_REM_SOUND, "") ?: "",
         reminderRequireDismiss = prefs.getBoolean(K_REM_DISMISS, false),
@@ -297,6 +303,8 @@ class SettingsStore(context: Context) {
             .putInt(K_FEED_DAYS, settings.feedDays.coerceIn(1, 60))
             .putInt(K_FEED_WORDS, settings.feedWords.coerceIn(10, 400))
             .putInt(K_FEED_TEXT_SP, settings.feedTextSp.coerceIn(10, 28))
+            .putInt(K_BOARD_TEXT_SP, settings.boardTextSp.coerceIn(10, 24))
+            .putInt(K_BOARD_COLUMNS, settings.boardColumns.coerceIn(1, 4))
             .putString(K_REM_OFFSETS, settings.reminderOffsetsMin.filter { it >= 0 }.joinToString(","))
             .putString(K_REM_SOUND, settings.reminderSoundUri.trim())
             .putBoolean(K_REM_DISMISS, settings.reminderRequireDismiss)
@@ -360,6 +368,8 @@ class SettingsStore(context: Context) {
         private const val K_FEED_DAYS = "feed_days"
         private const val K_FEED_WORDS = "feed_words"
         private const val K_FEED_TEXT_SP = "feed_text_sp"
+        private const val K_BOARD_TEXT_SP = "board_text_sp"
+        private const val K_BOARD_COLUMNS = "board_columns"
         private const val K_REM_OFFSETS = "reminder_offsets_min"
         private const val K_REM_SOUND = "reminder_sound_uri"
         private const val K_REM_DISMISS = "reminder_require_dismiss"

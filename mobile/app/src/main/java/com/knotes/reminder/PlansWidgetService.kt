@@ -6,6 +6,7 @@ import android.text.Spannable
 import android.text.SpannableString
 import android.text.style.StrikethroughSpan
 import android.util.TypedValue
+import android.view.View
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 import com.knotes.NoteRepository
@@ -19,7 +20,8 @@ import java.util.Locale
 
 /**
  * Serves the rows for every list-style widget in the app: "Upcoming plans", "Top priority" (notes
- * at the top priority, any type) and "Today's tasks" (type T at the top priority, written today).
+ * at the top priority, any type), "Today's tasks" (type T at the top priority, written today) and
+ * the tasks board (type T at the top two priorities, grouped, in columns).
  *
  * The lists are told apart by the section segment of the service intent's `data` URI
  * ({@code widget://plans/<section>/<widgetId>}) — Android matches a RemoteViewsService adapter by
@@ -31,12 +33,19 @@ class PlansWidgetService : RemoteViewsService() {
         PlansFactory(applicationContext, intent.data?.pathSegments?.firstOrNull().orEmpty())
 }
 
-/** [key] names the underlying record where a row's tap needs to act on it — the feed's notes. */
+/**
+ * [key] names the underlying record where a row's tap needs to act on it — the feed's notes.
+ * [kind] and [cells] are the tasks board's: a heading (priority or department) or a line of tasks.
+ */
 private data class ItemRow(
     val lead: CharSequence,
     val text: CharSequence,
     val key: String = "",
+    val kind: BoardKind = BoardKind.ITEM,
+    val cells: List<String> = emptyList(),
 )
+
+private enum class BoardKind { ITEM, PRIORITY, DEPT, CELLS }
 
 private class PlansFactory(
     private val context: Context,
@@ -47,6 +56,8 @@ private class PlansFactory(
     private var rows: List<ItemRow> = emptyList()
     /** Read with the rows, so a size change lands on the same refresh as the content. */
     private var feedTextSp = 15
+    private var boardTextSp = 13
+    private var boardColumns = 2
 
     override fun onCreate() {}
 
@@ -56,6 +67,7 @@ private class PlansFactory(
             TodayTasksWidget.SECTION -> todayTaskRows()
             TodayJournalWidget.SECTION -> todayJournalRows()
             RecentNotesWidget.SECTION -> feedRows()
+            TasksBoardWidget.SECTION -> boardRows()
             else -> planRows()
         }
     }
@@ -68,6 +80,40 @@ private class PlansFactory(
         }.getOrDefault(emptyList())
         return if (topNotes.isEmpty()) listOf(ItemRow("", context.getString(R.string.widgets_no_priority_notes, priority)))
         else topNotes.map { n -> ItemRow(n.type ?: "·", widgetRowText(n.content)) }
+    }
+
+    /**
+     * The tasks board: top priority first, then by department in the configured order (codes the
+     * settings do not know after them, tasks with no department last), newest first inside each,
+     * cut into lines of [boardColumns]. No placeholder row — the widget sets a real empty view.
+     */
+    private fun boardRows(): List<ItemRow> {
+        val settings = SettingsStore(context)
+        val s = settings.value
+        boardTextSp = s.boardTextSp.coerceIn(10, 24)
+        boardColumns = s.boardColumns.coerceIn(1, TasksBoardWidget.MAX_COLUMNS)
+        val tasks = runCatching {
+            NoteRepository(settings).listByTypeAndPriorities(
+                TodayTasksWidget.TASK_TYPE, TasksBoardWidget.priorities(s.topPriority),
+            )
+        }.getOrDefault(emptyList())
+        val deptOrder = s.categories.map { it.code }
+        val noDept = context.getString(R.string.widgets_board_no_dept)
+        val rows = mutableListOf<ItemRow>()
+        tasks.groupBy { it.priority ?: 0 }.toSortedMap(compareByDescending { it }).forEach { (p, inP) ->
+            rows += ItemRow("", "P$p · ${inP.size}", kind = BoardKind.PRIORITY)
+            inP.groupBy { it.category?.takeIf(String::isNotBlank) }
+                .toSortedMap(compareBy<String?>({ it == null }, { deptOrder.indexOf(it).let { i -> if (i < 0) Int.MAX_VALUE else i } }, { it }))
+                .forEach { (code, inDept) ->
+                    val name = code?.let { c -> s.categories.firstOrNull { it.code == c }?.name ?: c } ?: noDept
+                    rows += ItemRow("", "$name · ${inDept.size}", kind = BoardKind.DEPT)
+                    inDept.sortedByDescending { it.createdMillis }
+                        .map { widgetRowText(it.content) }
+                        .chunked(boardColumns)
+                        .forEach { rows += ItemRow("", "", kind = BoardKind.CELLS, cells = it) }
+                }
+        }
+        return rows
     }
 
     /**
@@ -175,6 +221,7 @@ private class PlansFactory(
         // The launcher can ask for a position from the count before the last refresh shrank the
         // list. Throwing here kills the whole process — once, at the Fajr unlock, the athan with it.
         val row = rows.getOrNull(position) ?: return RemoteViews(context.packageName, R.layout.widget_row_compact)
+        if (section == TasksBoardWidget.SECTION) return boardView(row)
         // The feed reads down and wraps; every other section is a one-line working list.
         if (section == RecentNotesWidget.SECTION) {
             return RemoteViews(context.packageName, R.layout.widget_feed_row).apply {
@@ -197,8 +244,36 @@ private class PlansFactory(
         }
     }
 
+    private fun boardView(row: ItemRow): RemoteViews {
+        if (row.kind != BoardKind.CELLS) {
+            return RemoteViews(context.packageName, R.layout.widget_board_group).apply {
+                setTextViewText(R.id.board_group, row.text)
+                val priority = row.kind == BoardKind.PRIORITY
+                setTextViewTextSize(R.id.board_group, TypedValue.COMPLEX_UNIT_SP, (boardTextSp + if (priority) 2 else 0).toFloat())
+                setTextColor(R.id.board_group, if (priority) 0xFFFFFFFF.toInt() else 0xFF8AB4F8.toInt())
+            }
+        }
+        return RemoteViews(context.packageName, R.layout.widget_board_row).apply {
+            BOARD_CELLS.forEachIndexed { i, id ->
+                val text = row.cells.getOrNull(i)
+                setViewVisibility(
+                    id,
+                    when {
+                        i >= boardColumns -> View.GONE
+                        text == null -> View.INVISIBLE  // keeps the column's width on a short last line
+                        else -> View.VISIBLE
+                    },
+                )
+                setTextViewText(id, text.orEmpty())
+                setTextViewTextSize(id, TypedValue.COMPLEX_UNIT_SP, boardTextSp.toFloat())
+                if (text != null) setOnClickFillInIntent(id, Intent())
+            }
+        }
+    }
+
     override fun getLoadingView(): RemoteViews? = null
-    override fun getViewTypeCount(): Int = 1
+    // Rows of one list use up to two layouts (the board's heading and cells); 3 covers every list.
+    override fun getViewTypeCount(): Int = 3
     override fun getItemId(position: Int): Long = position.toLong()
     override fun hasStableIds(): Boolean = false
 
@@ -221,3 +296,5 @@ private class PlansFactory(
         }
     }
 }
+
+private val BOARD_CELLS = intArrayOf(R.id.board_cell_0, R.id.board_cell_1, R.id.board_cell_2, R.id.board_cell_3)

@@ -29,9 +29,24 @@ import java.util.Map;
 public class LocalNotesController {
 
     private final LocalNotesService service;
+    private final com.nibras.pim.service.localnotes.LocalNotesCleanupService cleanup;
 
-    public LocalNotesController(LocalNotesService service) {
+    public LocalNotesController(LocalNotesService service,
+                                com.nibras.pim.service.localnotes.LocalNotesCleanupService cleanup) {
         this.service = service;
+        this.cleanup = cleanup;
+    }
+
+    /** What the nightly cleanup would do now: empty notes to trash, empty folders removed. */
+    @GetMapping("/cleanup/preview")
+    public com.nibras.pim.service.localnotes.LocalNotesCleanupService.Plan cleanupPreview() throws java.io.IOException {
+        return cleanup.plan(service.dir());
+    }
+
+    /** Runs the cleanup now instead of at 03:30. */
+    @org.springframework.web.bind.annotation.PostMapping("/cleanup")
+    public com.nibras.pim.service.localnotes.LocalNotesCleanupService.Done cleanupNow() throws java.io.IOException {
+        return cleanup.run(service.dir());
     }
 
     /** The whole folder, grouped by day AND by subject. */

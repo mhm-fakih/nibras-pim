@@ -89,3 +89,10 @@ springdoc:
 logging:
   level:
     org.hibernate.SQL: info
+    # File search reads thousands of PDFs and Office files; their parsers warn about every odd font
+    # or broken cross-reference, which buried the app's own log. A file that cannot be read still
+    # shows in Settings → File search as "text could not be read".
+    org.apache.pdfbox: error
+    org.apache.fontbox: error
+    org.apache.poi: error
+    org.apache.tika: error

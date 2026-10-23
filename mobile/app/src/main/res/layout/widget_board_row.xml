@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One line of the tasks board: up to four tasks side by side. The code shows as many cells as
+     the columns setting asks for, and hides (keeping their width) the unused ones on a group's last
+     line so the columns stay aligned. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:baselineAligned="false"
+    android:orientation="horizontal"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp">
+
+    <TextView
+        android:id="@+id/board_cell_0"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="2dp"
+        android:layout_marginEnd="2dp"
+        android:layout_weight="1"
+        android:background="@drawable/widget_cell_bg"
+        android:ellipsize="end"
+        android:maxLines="3"
+        android:padding="6dp"
+        android:textAlignment="viewStart"
+        android:textColor="#EEEEEE" />
+
+    <TextView
+        android:id="@+id/board_cell_1"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="2dp"
+        android:layout_marginEnd="2dp"
+        android:layout_weight="1"
+        android:background="@drawable/widget_cell_bg"
+        android:ellipsize="end"
+        android:maxLines="3"
+        android:padding="6dp"
+        android:textAlignment="viewStart"
+        android:textColor="#EEEEEE" />
+
+    <TextView
+        android:id="@+id/board_cell_2"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="2dp"
+        android:layout_marginEnd="2dp"
+        android:layout_weight="1"
+        android:background="@drawable/widget_cell_bg"
+        android:ellipsize="end"
+        android:maxLines="3"
+        android:padding="6dp"
+        android:textAlignment="viewStart"
+        android:textColor="#EEEEEE" />
+
+    <TextView
+        android:id="@+id/board_cell_3"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="2dp"
+        android:layout_marginEnd="2dp"
+        android:layout_weight="1"
+        android:background="@drawable/widget_cell_bg"
+        android:ellipsize="end"
+        android:maxLines="3"
+        android:padding="6dp"
+        android:textAlignment="viewStart"
+        android:textColor="#EEEEEE" />
+</LinearLayout>

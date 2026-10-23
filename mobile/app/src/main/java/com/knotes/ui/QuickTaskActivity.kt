@@ -48,6 +48,7 @@ import com.knotes.R
 import com.knotes.SettingsStore
 import com.knotes.util.autoDirection
 import com.knotes.reminder.TodayJournalWidget
+import com.knotes.reminder.TasksBoardWidget
 import com.knotes.reminder.TodayTasksWidget
 
 /**
@@ -159,7 +160,11 @@ private fun QuickCaptureBar(type: String, onClose: () -> Unit) {
             field = TextFieldValue("")
             // Only now: the text has become a note, so there is nothing left pending to restore.
             QuickDraft.clear(context, type)
-            if (journal) TodayJournalWidget.refresh(context) else TodayTasksWidget.refresh(context)
+            if (journal) TodayJournalWidget.refresh(context)
+            else {
+                TodayTasksWidget.refresh(context)
+                TasksBoardWidget.refresh(context)
+            }
             onClose()
         }.onFailure {
             // Stay open and say so. The text is still in the field, which is the only copy of it.

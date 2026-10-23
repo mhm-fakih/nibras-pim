@@ -128,6 +128,11 @@
         <!-- Prayer alarms: athan, the reminder before it, the ringer silence and its restore, and
              the beeps before Shurooq. Each firing arms the next, so this one receiver keeps the
              whole schedule going with the app closed. -->
+        <!-- Checklist reminders: the time written before a group's title, daily, silent. -->
+        <receiver
+            android:name=".checklist.ChecklistReminders$ChecklistReminderReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".prayer.PrayerReceiver"
             android:exported="false" />
@@ -246,6 +251,19 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/today_tasks_widget_info" />
+        </receiver>
+
+        <!-- Home-screen widget: every p3/p4 task, grouped by priority and department, in columns. -->
+        <receiver
+            android:name=".reminder.TasksBoardWidget"
+            android:exported="false"
+            android:label="@string/widgets_label_tasks_board">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tasks_board_widget_info" />
         </receiver>
 
         <!-- Home-screen widget: a read-only feed of recently written notes. -->

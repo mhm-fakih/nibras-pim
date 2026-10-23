@@ -89,5 +89,6 @@ object Widgets {
         TodayTasksWidget.refresh(context)
         TodayJournalWidget.refresh(context)
         RecentNotesWidget.refresh(context)
+        TasksBoardWidget.refresh(context)
     }
 }

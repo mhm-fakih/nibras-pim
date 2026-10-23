@@ -557,7 +557,9 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
     }
 
     protected static LookupDto lookup(com.nibras.pim.domain.lookup.LookupEntity e) {
-        return new LookupDto(e.getId(), e.getName(), e.getCode(), e.getStyle());
+        Boolean active = e instanceof com.nibras.pim.domain.lookup.WorkStatus w
+                ? Boolean.TRUE.equals(w.getMarkedAsActive()) : null;
+        return new LookupDto(e.getId(), e.getName(), e.getCode(), e.getStyle(), active);
     }
 
     /** Department isn't a LookupEntity (no style column), so it gets its own projection. */
@@ -708,6 +710,18 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
             // "the p3s", and a module without a priority column simply ignores it.
             if (f.priority() != null && has(root, "priority")) {
                 ps.add(cb.equal(root.get("priority"), f.priority()));
+            }
+
+            // Active / not active, by the status's marked_as_active flag. Only where the status is a
+            // WorkStatus (tasks, planners, goals) — other modules' statuses have no such flag. A
+            // task with no status counts as active: unset is not the same as finished.
+            if (f.activeStatus() != null && has(root, "status")
+                    && root.get("status").getJavaType() == com.nibras.pim.domain.lookup.WorkStatus.class) {
+                var status = root.join("status", jakarta.persistence.criteria.JoinType.LEFT);
+                var active = cb.isTrue(status.<Boolean>get("markedAsActive"));
+                ps.add(f.activeStatus()
+                        ? cb.or(cb.isNull(root.get("status")), active)
+                        : cb.and(cb.isNotNull(root.get("status")), cb.not(cb.coalesce(status.<Boolean>get("markedAsActive"), false))));
             }
 
             // ---- report presets ----

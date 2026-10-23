@@ -5,6 +5,7 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   FormControlLabel,
   Paper,
   MenuItem,
@@ -20,10 +21,17 @@ import {
 } from '@mui/material';
 import {
   AppModule,
+  FILE_SOURCES,
+  FileSearchConfig,
   RepoSettings,
   errorDetail,
   getLocalNotesConfig,
+  getFileSearchConfig,
+  getFileSearchStatus,
+  getUnreadableFiles,
   getLookups,
+  reindexFiles,
+  saveFileSearchConfig,
   getRepoSettings,
   getSetting,
   getSettingsMulti,
@@ -104,6 +112,7 @@ export function SettingsPage() {
 
         <RepositoriesSection />
         <LocalNotesSection />
+        <FileSearchSection />
 
         <ExportSection />
 
@@ -857,6 +866,199 @@ function LocalNotesSection() {
               </Alert>
             )}
           </Stack>
+        </Stack>
+      </Paper>
+    </Box>
+  );
+}
+
+const FILE_SOURCE_LABEL: Record<string, string> = {
+  repo1: 'Repo 1',
+  repo2: 'Repo 2',
+  repo3: 'Repo 3',
+  notes: 'Note companion folders',
+};
+
+/**
+ * Search page → Files: per source, index the file names, the contents (whitelisted types), or
+ * both — the matrix — plus the whitelist, a size cap, and the index's state.
+ */
+function FileSearchSection() {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ['file-search-config'], queryFn: getFileSearchConfig });
+  const { data: status } = useQuery({
+    queryKey: ['file-search-status'],
+    queryFn: getFileSearchStatus,
+    // Live while a scan runs, so the counts move; idle otherwise.
+    refetchInterval: (query) => (query.state.data?.running ? 3000 : 30000),
+  });
+  const [form, setForm] = useState<FileSearchConfig | null>(null);
+  const [types, setTypes] = useState('');
+  const [saved, setSaved] = useState(false);
+  const [showUnreadable, setShowUnreadable] = useState(false);
+  const { data: unreadable } = useQuery({
+    queryKey: ['file-search-unreadable'],
+    queryFn: getUnreadableFiles,
+    enabled: showUnreadable,
+  });
+
+  useEffect(() => {
+    if (data) {
+      setForm(data);
+      setTypes(data.contentTypes.join(', '));
+    }
+  }, [data]);
+
+  const save = useMutation({
+    mutationFn: () => saveFileSearchConfig({ ...form!, contentTypes: types.split(/[\s,]+/).filter(Boolean) }),
+    onSuccess: (res) => {
+      setForm(res);
+      setTypes(res.contentTypes.join(', '));
+      setSaved(true);
+      qc.invalidateQueries({ queryKey: ['file-search-config'] });
+      qc.invalidateQueries({ queryKey: ['file-search-status'] });
+    },
+  });
+  const rebuild = useMutation({
+    mutationFn: reindexFiles,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['file-search-status'] }),
+  });
+
+  if (!form) return null;
+  const set = (src: keyof FileSearchConfig['sources'], key: 'names' | 'contents', v: boolean) => {
+    setSaved(false);
+    setForm((f) => {
+      const cur = f!.sources[src];
+      // Contents imply names: a file whose text is found is found by its name too.
+      const next = key === 'contents' ? { names: v || cur.names, contents: v } : { names: v, contents: v && cur.contents };
+      return { ...f!, sources: { ...f!.sources, [src]: next } };
+    });
+  };
+  const when = (ms?: number) => (ms ? new Date(ms).toLocaleString() : 'not yet');
+  const last = status?.lastScan;
+
+  return (
+    <Box sx={{ mt: 5 }}>
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        File search
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        What the Search page finds among files. <strong>Names</strong> covers every file;{' '}
+        <strong>Contents</strong> also reads the text of the types listed below (PDF, Office, DjVu…
+        converted to plain text). Folders and files starting with a dot are skipped, and symlinks are
+        not followed. The index updates itself every 10 minutes, reading only what changed.
+      </Typography>
+      <Paper variant="outlined" sx={{ p: 2, overflowX: 'auto' }}>
+        <Table size="small" sx={{ mb: 2 }}>
+          <TableHead>
+            <TableRow>
+              <TableCell>Source</TableCell>
+              <TableCell width={90} align="center">
+                Names
+              </TableCell>
+              <TableCell width={90} align="center">
+                Contents
+              </TableCell>
+              <TableCell width={90} align="right">
+                Indexed
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {FILE_SOURCES.map((src) => (
+              <TableRow key={src}>
+                <TableCell>
+                  {FILE_SOURCE_LABEL[src]}
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontFamily: 'monospace' }}>
+                    {status?.roots[src] ?? '—'}
+                  </Typography>
+                </TableCell>
+                <TableCell align="center">
+                  <Checkbox size="small" checked={form.sources[src].names} onChange={(e) => set(src, 'names', e.target.checked)} />
+                </TableCell>
+                <TableCell align="center">
+                  <Checkbox size="small" checked={form.sources[src].contents} onChange={(e) => set(src, 'contents', e.target.checked)} />
+                </TableCell>
+                <TableCell align="right">{status?.perSource[src]?.toLocaleString() ?? '—'}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <Stack spacing={2}>
+          <TextField
+            size="small"
+            fullWidth
+            label="Contents of these types"
+            helperText="File extensions, comma-separated. Other files are found by name only."
+            value={types}
+            onChange={(e) => {
+              setTypes(e.target.value);
+              setSaved(false);
+            }}
+            inputProps={{ style: { fontFamily: 'monospace' } }}
+          />
+          <TextField
+            size="small"
+            type="number"
+            label="Largest file to read (MB)"
+            value={form.maxMb}
+            onChange={(e) => {
+              setForm((f) => ({ ...f!, maxMb: Number(e.target.value) || 0 }));
+              setSaved(false);
+            }}
+            sx={{ width: 220 }}
+          />
+          {status && !status.djvuAvailable && types.split(/[\s,]+/).includes('djvu') && (
+            <Alert severity="warning" sx={{ py: 0 }}>
+              DjVu text needs <code>djvutxt</code>: <code>sudo apt install djvulibre-bin</code>. Until then .djvu
+              files are found by name only.
+            </Alert>
+          )}
+          {status?.readOnly && (
+            <Alert severity="info" sx={{ py: 0 }}>
+              Another running copy of the app owns this index; this one only reads it.
+            </Alert>
+          )}
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Button variant="contained" onClick={() => save.mutate()} disabled={save.isPending}>
+              Save
+            </Button>
+            <Button onClick={() => rebuild.mutate()} disabled={rebuild.isPending || status?.running}>
+              Re-read all files
+            </Button>
+            {saved && (
+              <Alert severity="success" sx={{ py: 0 }}>
+                Saved — the index is updating.
+              </Alert>
+            )}
+          </Stack>
+          {status && (
+            <Typography variant="body2" color="text.secondary">
+              {status.running && status.progress
+                ? `Scanning ${FILE_SOURCE_LABEL[status.progress.source ?? ''] ?? ''}… ${status.progress.seen.toLocaleString()} files seen, ${status.progress.indexed.toLocaleString()} (re)indexed.`
+                : `${status.files.toLocaleString()} files indexed, ${status.withText.toLocaleString()} with their text. Last scan: ${when(last?.finishedAt)}${last?.error ? ` — failed: ${last.error}` : ''}.`}{' '}
+              <Button size="small" onClick={() => setShowUnreadable((v) => !v)}>
+                {showUnreadable ? 'Hide' : 'Show'} files whose text could not be read
+              </Button>
+            </Typography>
+          )}
+          {showUnreadable && unreadable && (
+            <Box sx={{ maxHeight: 360, overflow: 'auto', fontSize: 12 }}>
+              {Object.keys(unreadable).length === 0 && <Typography variant="body2">None.</Typography>}
+              {Object.entries(unreadable).map(([kind, paths]) => (
+                <Box key={kind} sx={{ mb: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {kind} · {paths.length}
+                  </Typography>
+                  {paths.map((p) => (
+                    <Box key={p} sx={{ fontFamily: 'monospace', pl: 2, wordBreak: 'break-all' }}>
+                      {p}
+                    </Box>
+                  ))}
+                </Box>
+              ))}
+            </Box>
+          )}
         </Stack>
       </Paper>
     </Box>

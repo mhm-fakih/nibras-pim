@@ -218,4 +218,13 @@
     <string name="settings_feature_gallery_desc">مجلد صور تتصفحه وتعلّق عليه. عند الإيقاف: تختفي الصفحة من الشريط.</string>
     <string name="settings_wizard_feature_on">مفعّل</string>
     <string name="settings_wizard_feature_off">متوقف</string>
+    <string name="settings_board_header">أداة لوحة المهام</string>
+    <plurals name="settings_board_columns">
+        <item quantity="zero">%d عمود</item>
+        <item quantity="one">عمود واحد</item>
+        <item quantity="two">عمودان</item>
+        <item quantity="few">%d أعمدة</item>
+        <item quantity="many">%d عمودًا</item>
+        <item quantity="other">%d عمود</item>
+    </plurals>
 </resources>

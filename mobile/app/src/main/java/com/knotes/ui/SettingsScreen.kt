@@ -121,6 +121,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
     var feedDays by remember { mutableStateOf(current.feedDays) }
     var feedWords by remember { mutableStateOf(current.feedWords) }
     var feedTextSp by remember { mutableStateOf(current.feedTextSp) }
+    var boardTextSp by remember { mutableStateOf(current.boardTextSp) }
+    var boardColumns by remember { mutableStateOf(current.boardColumns) }
     var reminderOffsets by remember { mutableStateOf(current.reminderOffsetsMin.joinToString(", ")) }
     var reminderSound by remember { mutableStateOf(current.reminderSoundUri) }
     var reminderDismiss by remember { mutableStateOf(current.reminderRequireDismiss) }
@@ -231,6 +233,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 feedDays = feedDays,
                 feedWords = feedWords,
                 feedTextSp = feedTextSp,
+                boardTextSp = boardTextSp,
+                boardColumns = boardColumns,
                 reminderOffsetsMin = SettingsStore.decodeInts(reminderOffsets),
                 reminderSoundUri = reminderSound,
                 reminderRequireDismiss = reminderDismiss,
@@ -254,6 +258,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
         // The widget only redraws when told to; without this a new size or day range waits for
         // the next note or sync to show up.
         runCatching { com.knotes.reminder.RecentNotesWidget.refresh(context) }
+        runCatching { com.knotes.reminder.TasksBoardWidget.refresh(context) }
         onBack()
     }
 
@@ -890,6 +895,18 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                     stringResource(R.string.settings_feed_text_size, feedTextSp),
                     feedTextSp.toFloat(), 10f, 28f, 1f, labelWidth = 130.dp,
                 ) { v -> feedTextSp = v.toInt() }
+
+                    HorizontalDivider()
+                // The tasks board widget: like the feed, no controls of its own — these two are all.
+                Text(stringResource(R.string.settings_board_header), style = MaterialTheme.typography.titleSmall)
+                StepSlider(
+                    stringResource(R.string.settings_feed_text_size, boardTextSp),
+                    boardTextSp.toFloat(), 10f, 24f, 1f, labelWidth = 130.dp,
+                ) { v -> boardTextSp = v.toInt() }
+                StepSlider(
+                    pluralStringResource(R.plurals.settings_board_columns, boardColumns, boardColumns),
+                    boardColumns.toFloat(), 1f, 4f, 1f, labelWidth = 130.dp,
+                ) { v -> boardColumns = v.toInt() }
 
                 }
             }

@@ -148,6 +148,8 @@ export interface Lookup {
   name: string;
   code?: string;
   style?: string;
+  /** Task statuses only: whether the status means the task is still open (marked_as_active). */
+  active?: boolean;
 }
 
 export interface TagRef {
@@ -214,6 +216,8 @@ export interface ListParams {
   urgent?: boolean;
   dashboard?: boolean;
   statusId?: number;
+  /** Only tasks whose status is active (or unset); false = only the closed ones. */
+  activeStatus?: boolean;
   typeId?: number;
   /** Exact priority, e.g. 3 — distinct from the highPriority preset's ">= 3". */
   priority?: number;
@@ -1951,6 +1955,105 @@ export interface ConsolidatedSearch {
 export async function searchEverything(q: string, limit = 100): Promise<ConsolidatedSearch> {
   const { data } = await http.get('/search/all', { params: { q, limit } });
   return data;
+}
+
+// ---- File search (Search page → Files) ------------------------------------------------------
+
+/** repo1–3 are the repository roots; notes = the local notes' companion `.d` folders. */
+export const FILE_SOURCES = ['repo1', 'repo2', 'repo3', 'notes'] as const;
+export type FileSource = (typeof FILE_SOURCES)[number];
+
+export interface FileHit {
+  source: FileSource;
+  path: string;
+  /** Path under the source's root. */
+  rel: string;
+  name: string;
+  ext: string;
+  size: number;
+  modified: number;
+  score: number;
+  /** Matched text with \u0001…\u0002 around each hit; null when only the name or folder matched. */
+  snippet: string | null;
+  nameOnly: boolean;
+  ownerModule?: string;
+  ownerLabel?: string;
+  ownerId?: number;
+  ownerNote?: string;
+}
+
+export async function searchFiles(
+  q: string,
+  opts: { sources?: string[]; exts?: string[]; limit?: number } = {},
+): Promise<{ total: number; hits: FileHit[] }> {
+  const { data } = await http.get('/search/files', {
+    params: clean({
+      q,
+      source: opts.sources?.length ? opts.sources.join(',') : undefined,
+      ext: opts.exts?.length ? opts.exts.join(',') : undefined,
+      limit: opts.limit ?? 100,
+    }),
+  });
+  return data;
+}
+
+export interface FileSearchConfig {
+  sources: Record<FileSource, { names: boolean; contents: boolean }>;
+  contentTypes: string[];
+  maxMb: number;
+}
+
+export async function getFileSearchConfig(): Promise<FileSearchConfig> {
+  const { data } = await http.get('/search/files/config');
+  return data;
+}
+
+export async function saveFileSearchConfig(c: FileSearchConfig): Promise<FileSearchConfig> {
+  const { data } = await http.put('/search/files/config', c);
+  return data;
+}
+
+export interface FileSearchStatus {
+  running: boolean;
+  readOnly: boolean;
+  indexDir: string;
+  files: number;
+  withText: number;
+  perSource: Record<string, number>;
+  progress: { source: string | null; seen: number; indexed: number; removed: number; failed: number } | null;
+  lastScan: {
+    startedAt: number;
+    finishedAt: number;
+    seen: number;
+    indexed: number;
+    removed: number;
+    failed: number;
+    error: string | null;
+  } | null;
+  djvuAvailable: boolean;
+  roots: Record<string, string | null>;
+}
+
+export async function getFileSearchStatus(): Promise<FileSearchStatus> {
+  const { data } = await http.get('/search/files/status');
+  return data;
+}
+
+/** Re-read every file (the background scan only reads what changed). False if one is running. */
+export async function reindexFiles(): Promise<boolean> {
+  const { data } = await http.post('/search/files/reindex');
+  return data;
+}
+
+/** Files whose text could not be read, grouped by kind of damage. */
+export async function getUnreadableFiles(): Promise<Record<string, string[]>> {
+  const { data } = await http.get('/search/files/unreadable');
+  return data;
+}
+
+/** Opens the file, or its folder, on the server's desktop. */
+export async function openFoundFile(path: string, folder = false): Promise<void> {
+  await http.post('/search/files/open', null, { params: { path, folder } });
 }
 
 /** Where the Local notes page reads from, and what each path actually yielded. */

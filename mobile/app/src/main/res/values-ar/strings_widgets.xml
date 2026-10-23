@@ -181,4 +181,10 @@
     <string name="widgets_collect_describe_label">ما هذه المجموعة؟</string>
     <string name="widgets_collect_describe_hint">بضعة أسطر تصف هذه الملفات — تصبح عنوان الملاحظة ومطلعها. اختياري.</string>
     <string name="widgets_collect_confirm">اجمع</string>
+    <string name="widgets_tasks_board_title">المهام p%1$d–p%2$d</string>
+    <string name="widgets_tasks_board_empty">لا مهام p3 أو p4.</string>
+    <string name="widgets_board_no_dept">بلا قسم</string>
+    <string name="widgets_label_tasks_board">لوحة المهام</string>
+    <string name="checklist_reminders_channel">تذكيرات قوائم التحقق</string>
+    <string name="checklist_reminder_text">حان وقت تعبئة بنودها.</string>
 </resources>

@@ -7,6 +7,7 @@ import {
   Button,
   CircularProgress,
   Checkbox,
+  FormControlLabel,
   Chip,
   IconButton,
   InputAdornment,
@@ -109,6 +110,7 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
   const [qInput, setQInput] = useState('');
   const [q, setQ] = useState('');
   const [statusId, setStatusId] = useState<number | ''>('');
+  const [activeOnly, setActiveOnly] = useState(Boolean(config.activeOnly));
   const [typeId, setTypeId] = useState<number | ''>('');
   const [priority, setPriority] = useState<number | ''>('');
   const [pageSize, setPageSize] = useState<number>(storedPageSize);
@@ -154,7 +156,7 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
 
   useEffect(() => {
     setPage(0);
-  }, [config.key, q, statusId, typeId, priority, bookmarked, pageSize, reportKey]);
+  }, [config.key, q, statusId, activeOnly, typeId, priority, bookmarked, pageSize, reportKey]);
 
   // Clear selection/feedback when switching entities or report.
   useEffect(() => {
@@ -167,17 +169,24 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
     queryFn: () => getLookups(config.key),
   });
 
+  // Only statuses that carry the flag (tasks, planners, goals) get the "Active only" box; ticked,
+  // the list and the Status menu both keep to the active statuses.
+  const hasActiveFlag = Boolean(lookups?.statuses?.some((s) => s.active !== undefined));
+  const statusOptions =
+    activeOnly && hasActiveFlag ? lookups?.statuses?.filter((s) => s.active) : lookups?.statuses;
+
   const { data, isFetching, isError, error, refetch } = useQuery({
     queryKey: [
       'list',
       config.key,
-      { q, onDay, statusId, typeId, priority, bookmarked, page, pageSize, reportKey },
+      { q, onDay, statusId, activeOnly: activeOnly && hasActiveFlag, typeId, priority, bookmarked, page, pageSize, reportKey },
     ],
     queryFn: () =>
       listEntities(config.key, {
         q: q || undefined,
         onDay,
         statusId: statusId === '' ? undefined : statusId,
+        activeStatus: activeOnly && hasActiveFlag ? true : undefined,
         typeId: typeId === '' ? undefined : typeId,
         priority: priority === '' ? undefined : priority,
         bookmarked: bookmarked || undefined,
@@ -290,8 +299,28 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
           }}
         />
         <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
+          {config.hasStatus && hasActiveFlag && (
+            <Tooltip title="Only open tasks: statuses marked active, and tasks with no status">
+              <FormControlLabel
+                sx={{ mr: 0 }}
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={activeOnly}
+                    onChange={(e) => {
+                      setActiveOnly(e.target.checked);
+                      // A closed status picked before ticking the box would match nothing.
+                      const picked = lookups?.statuses?.find((s) => s.id === statusId);
+                      if (e.target.checked && picked && !picked.active) setStatusId('');
+                    }}
+                  />
+                }
+                label="Active only"
+              />
+            </Tooltip>
+          )}
           {config.hasStatus && (
-            <FilterSelect label="Status" value={statusId} options={lookups?.statuses} onChange={setStatusId} />
+            <FilterSelect label="Status" value={statusId} options={statusOptions} onChange={setStatusId} />
           )}
           {config.hasType && (
             <FilterSelect label="Type" value={typeId} options={lookups?.types} onChange={setTypeId} />

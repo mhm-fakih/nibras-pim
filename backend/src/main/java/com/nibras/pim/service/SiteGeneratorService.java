@@ -204,7 +204,7 @@ public class SiteGeneratorService {
                 bool(m.get("noStatus")), bool(m.get("noType")), bool(m.get("noDepartment")),
                 bool(m.get("noPriority")), bool(m.get("hasTags")), bool(m.get("overdue")),
                 bool(m.get("dueSoon")), bool(m.get("highPriority")),
-                bool(m.get("recentCreated")), bool(m.get("recentUpdated")));
+                bool(m.get("recentCreated")), bool(m.get("recentUpdated")), bool(m.get("activeStatus")));
     }
 
     private static Boolean bool(String s) {

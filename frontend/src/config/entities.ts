@@ -52,6 +52,8 @@ export interface EntityConfig {
   /** Whether this entity exposes status / type filters. */
   hasStatus: boolean;
   hasType: boolean;
+  /** The list opens with "Active only" ticked (statuses that carry the active flag). */
+  activeOnly?: boolean;
   fields: FieldDef[];
 }
 
@@ -69,6 +71,7 @@ export const ENTITIES: EntityConfig[] = [
     label: 'Tasks',
     icon: 'CheckCircleOutline',
     hasStatus: true,
+    activeOnly: true,
     hasType: false,
     fields: [
       { name: 'summary', label: 'Summary', type: 'text' },
@@ -197,6 +200,7 @@ export const ENTITIES: EntityConfig[] = [
     label: 'Goals',
     icon: 'Flag',
     hasStatus: true,
+    activeOnly: true,
     hasType: true,
     fields: [
       // Goals also have a legacy `title` column, but like the other main records the form

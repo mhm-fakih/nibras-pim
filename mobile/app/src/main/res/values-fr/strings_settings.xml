@@ -206,4 +206,10 @@
     <string name="settings_feature_gallery_desc">Un dossier d\'images à parcourir et annoter. Désactivé : la page quitte la barre.</string>
     <string name="settings_wizard_feature_on">Activé</string>
     <string name="settings_wizard_feature_off">Désactivé</string>
+    <string name="settings_board_header">Widget tableau des tâches</string>
+    <plurals name="settings_board_columns">
+        <item quantity="one">%d colonne</item>
+        <item quantity="many">%d colonnes</item>
+        <item quantity="other">%d colonnes</item>
+    </plurals>
 </resources>

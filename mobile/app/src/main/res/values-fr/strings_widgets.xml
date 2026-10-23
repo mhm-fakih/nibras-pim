@@ -151,4 +151,10 @@
     <string name="widgets_collect_describe_label">Qu\'est-ce que cet ensemble ?</string>
     <string name="widgets_collect_describe_hint">Quelques lignes pour décrire ces fichiers — elles deviennent le titre et le début de la note. Facultatif.</string>
     <string name="widgets_collect_confirm">Collecter</string>
+    <string name="widgets_tasks_board_title">Tâches p%1$d–p%2$d</string>
+    <string name="widgets_tasks_board_empty">Aucune tâche p3 ou p4.</string>
+    <string name="widgets_board_no_dept">Sans département</string>
+    <string name="widgets_label_tasks_board">Tableau des tâches</string>
+    <string name="checklist_reminders_channel">Rappels des listes</string>
+    <string name="checklist_reminder_text">C’est le moment de cocher ses éléments.</string>
 </resources>

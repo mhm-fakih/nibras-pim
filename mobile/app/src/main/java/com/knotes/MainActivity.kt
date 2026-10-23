@@ -307,6 +307,10 @@ private fun AppRoot(
     // alarm, and an effect that only ran once per composition would have left the athan to fire
     // from a feature the user had just switched off, until the next app restart.
     LaunchedEffect(settings.prayerEnabled) { PrayerScheduler.sync(context) }
+    // The checklist reminders' chain, the same way; off with the checklists, back with them.
+    LaunchedEffect(settings.checklistsEnabled, settings.checklistsFolder()) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.knotes.checklist.ChecklistReminders.sync(context) }
+    }
 
     // The daily automatic collection, re-armed whenever its switches or its time change.
     LaunchedEffect(

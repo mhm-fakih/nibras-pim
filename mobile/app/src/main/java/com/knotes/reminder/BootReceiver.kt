@@ -20,6 +20,7 @@ class BootReceiver : BroadcastReceiver() {
         BookmarksWidget.refresh(context)
         KpiWidget.refresh(context)
         TodayTasksWidget.refresh(context)
+        TasksBoardWidget.refresh(context)
         // Re-assert the persistent status notification and the quarter-hour chime.
         StatusService.sync(context)
         ChimeScheduler.sync(context)
@@ -27,6 +28,7 @@ class BootReceiver : BroadcastReceiver() {
         // alarm that would have ended it did not survive the reboot either.
         SilenceState.restoreIfInterrupted(context)
         PrayerScheduler.sync(context)
+        com.knotes.checklist.ChecklistReminders.sync(context)
         // The user's own alarms. A reboot clears them like every other exact alarm, and an alarm
         // that silently stops existing after a restart is the worst failure this feature has.
         AlarmScheduler.rearm(context)

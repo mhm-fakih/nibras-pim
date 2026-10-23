@@ -202,4 +202,9 @@
     <string name="settings_feature_gallery_desc">A folder of pictures you can browse and mark up. Off: the page leaves the rail.</string>
     <string name="settings_wizard_feature_on">On</string>
     <string name="settings_wizard_feature_off">Off</string>
+    <string name="settings_board_header">Tasks board widget</string>
+    <plurals name="settings_board_columns">
+        <item quantity="one">%d column</item>
+        <item quantity="other">%d columns</item>
+    </plurals>
 </resources>

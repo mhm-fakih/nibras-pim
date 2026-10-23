@@ -99,6 +99,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // into the widget's own add bar; without this it would not appear there until the
             // next half-hourly redraw.
             com.knotes.reminder.TodayTasksWidget.refresh(getApplication())
+            com.knotes.reminder.TasksBoardWidget.refresh(getApplication())
         }
     }
 

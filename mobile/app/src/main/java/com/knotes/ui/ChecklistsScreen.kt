@@ -74,6 +74,8 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import com.knotes.R
+import androidx.compose.ui.platform.LocalContext
+import com.knotes.checklist.ChecklistReminders
 import com.knotes.checklist.ChecklistStore
 import com.knotes.checklist.ChecklistWeek
 import com.knotes.checklist.DAYS
@@ -103,6 +105,7 @@ import java.util.Locale
 @Composable
 fun ChecklistsScreen(folder: String) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current.applicationContext
     val store = remember(folder) { ChecklistStore(File(folder)) }
     val today = remember { LocalDate.now() }
     val thisWeek = remember(today) { WeekId.of(today) }
@@ -170,6 +173,8 @@ fun ChecklistsScreen(folder: String) {
                 val next = if (moved) change(base) else base
                 if (store.save(next)) {
                     loadedStamp = store.stamp(id)
+                    // A group's reminder time is part of its title; any edit may have changed one.
+                    ChecklistReminders.sync(context)
                     if (moved) week = next      // show what the file now holds, both edits included
                 }
             }

@@ -141,4 +141,10 @@
     <string name="widgets_collect_describe_label">What is this set?</string>
     <string name="widgets_collect_describe_hint">A few lines describing these files — it becomes the note\'s title and opening. Optional.</string>
     <string name="widgets_collect_confirm">Collect</string>
+    <string name="widgets_tasks_board_title">Tasks p%1$d–p%2$d</string>
+    <string name="widgets_tasks_board_empty">No p3 or p4 tasks.</string>
+    <string name="widgets_board_no_dept">No department</string>
+    <string name="widgets_label_tasks_board">Tasks board</string>
+    <string name="checklist_reminders_channel">Checklist reminders</string>
+    <string name="checklist_reminder_text">Time to fill in its items.</string>
 </resources>

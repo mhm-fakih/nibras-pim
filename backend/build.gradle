@@ -81,6 +81,19 @@ dependencies {
     implementation 'org.commonmark:commonmark-ext-gfm-tables:0.22.0'
     implementation 'org.commonmark:commonmark-ext-gfm-strikethrough:0.22.0'
     implementation 'org.commonmark:commonmark-ext-autolink:0.22.0'
+    // File search (Search page → Files): an embedded Lucene index over the repo folders and the
+    // notes' companion folders, with Tika turning PDF / Office / OpenDocument / HTML into text.
+    // Only the parser modules for the whitelisted formats, not Tika's whole standard package.
+    implementation 'org.apache.lucene:lucene-core:10.5.1'
+    implementation 'org.apache.lucene:lucene-analysis-common:10.5.1'
+    implementation 'org.apache.lucene:lucene-queryparser:10.5.1'
+    implementation 'org.apache.lucene:lucene-highlighter:10.5.1'
+    implementation 'org.apache.tika:tika-core:3.3.3'
+    implementation 'org.apache.tika:tika-parser-pdf-module:3.3.3'
+    implementation 'org.apache.tika:tika-parser-microsoft-module:3.3.3'
+    implementation 'org.apache.tika:tika-parser-miscoffice-module:3.3.3'
+    implementation 'org.apache.tika:tika-parser-html-module:3.3.3'
+    implementation 'org.apache.tika:tika-parser-text-module:3.3.3'
     runtimeOnly 'com.mysql:mysql-connector-j'
 
     // Schema migrations applied at startup (see db/migration). Replaces hand-running
