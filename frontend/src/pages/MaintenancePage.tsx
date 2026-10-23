@@ -40,6 +40,7 @@ import {
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { ENTITY_BY_KEY } from '../config/entities';
+import { dirOf } from '../util/rtl';
 
 const TOP = 30;
 
@@ -205,7 +206,7 @@ function DiskSection() {
                         </span>
                       </Tooltip>
                     </TableCell>
-                    <TableCell sx={{ maxWidth: 340 }}>
+                    <TableCell dir={dirOf(r.title)} sx={{ maxWidth: 340, textAlign: 'start' }}>
                       <Link
                         component={RouterLink}
                         to={`/${r.module}?select=${r.id}`}
@@ -379,7 +380,8 @@ function FulltextSection() {
                     <TableCell padding="checkbox">
                       <Checkbox size="small" checked={picked.has(r.id)} onChange={() => toggle(r)} />
                     </TableCell>
-                    <TableCell sx={{ maxWidth: 420 }}>
+                    {/* The title's own direction, so an Arabic title keeps its #id beside it, not flipped. */}
+                    <TableCell dir={dirOf(r.title)} sx={{ maxWidth: 420, textAlign: 'start' }}>
                       <Link
                         component={RouterLink}
                         to={`/resources?select=${r.id}`}

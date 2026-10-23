@@ -14,6 +14,7 @@ import android.media.RingtoneManager
 import android.media.ToneGenerator
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.knotes.R
@@ -232,6 +233,7 @@ class PrayerReceiver : BroadcastReceiver() {
             if (player == null) restoreAlarmLevel(context.applicationContext)
         }
 
+        private const val TAG = "PrayerReceiver"
         private const val VOLUME_PREFS = "prayer_athan_volume"
         private const val K_RESTORE_STEP = "alarm_step_to_restore"
 
@@ -265,8 +267,10 @@ class PrayerReceiver : BroadcastReceiver() {
                 PrayerSettings.athanGain(
                     am.getStreamVolumeDb(stream, step, speaker),
                     am.getStreamVolumeDb(stream, max, speaker),
+                    am.getStreamVolumeDb(stream, maxOf(min, 1), speaker),
                 )
             }.getOrNull() else null
+            Log.i(TAG, "athan at $percent%: step $step of $min..$max, gain ${gain ?: "none (step set)"}")
             runCatching { am.setStreamVolume(stream, if (gain != null) max else step, 0) }
             return gain ?: 1f
         }

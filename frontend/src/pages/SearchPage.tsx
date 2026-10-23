@@ -137,9 +137,9 @@ export function SearchPage() {
                 >
                   <ListItemText
                     primary={h.title || '(untitled)'}
-                    primaryTypographyProps={{ dir: 'auto', noWrap: true, fontWeight: 600 }}
+                    primaryTypographyProps={{ dir: 'auto', noWrap: true, fontWeight: 600, sx: { textAlign: 'start' } }}
                     secondary={h.snippet ? <Highlight text={h.snippet} terms={terms} /> : undefined}
-                    secondaryTypographyProps={{ dir: 'auto', component: 'span' }}
+                    secondaryTypographyProps={{ dir: 'auto', component: 'span', sx: { display: 'block', textAlign: 'start' } }}
                   />
                   {dedupe && (
                     <Chip
@@ -171,9 +171,9 @@ export function SearchPage() {
                 >
                   <ListItemText
                     primary={n.title || n.filename}
-                    primaryTypographyProps={{ dir: 'auto', noWrap: true, fontWeight: 600 }}
+                    primaryTypographyProps={{ dir: 'auto', noWrap: true, fontWeight: 600, sx: { textAlign: 'start' } }}
                     secondary={n.snippet ? <Highlight text={n.snippet} terms={terms} /> : undefined}
-                    secondaryTypographyProps={{ dir: 'auto', component: 'span' }}
+                    secondaryTypographyProps={{ dir: 'auto', component: 'span', sx: { display: 'block', textAlign: 'start' } }}
                   />
                   {n.courseName && (
                     <Chip

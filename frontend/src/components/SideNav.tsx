@@ -380,7 +380,9 @@ export function SideNav({
       {/* Reports for the active module. The built-in shortcuts and the RSS link are each behind
           their own Settings feature toggle; saved searches below are always shown, since those are
           the user's own and nobody would look in Settings for why they vanished. */}
-      <Box ref={reportsBoxRef} sx={{ flex: 1, overflow: 'auto', px: 1, py: 0.5 }}>
+      {/* At least the heading and about three reports, even with the mini calendar open above;
+          the module list below gives way (scrolls) on a short window instead. */}
+      <Box ref={reportsBoxRef} sx={{ flex: 1, minHeight: 130, overflow: 'auto', px: 1, py: 0.5 }}>
         <Box ref={reportsContentRef}>
         {showModuleReports && (
           <Stack direction="row" alignItems="center" spacing={0.5} sx={{ px: 1, py: 0.5 }}>
@@ -440,7 +442,7 @@ export function SideNav({
       <Divider />
 
       {/* Module buttons (Outlook navigation) */}
-      <List dense disablePadding sx={{ px: 1, py: 0.25 }}>
+      <List dense disablePadding sx={{ px: 1, py: 0.25, flexShrink: 1, minHeight: 0, overflowY: 'auto' }}>
         {enabled.map((m) => {
           const Icon = ICONS[MODULE_ICON[m.moduleKey] ?? ENTITY_BY_KEY[m.moduleKey]?.icon ?? ''] ?? Flag;
           return (

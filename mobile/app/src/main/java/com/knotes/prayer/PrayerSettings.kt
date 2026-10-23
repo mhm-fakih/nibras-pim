@@ -160,6 +160,9 @@ data class PrayerSettings(
          * amplitude the old squared curve was compensating for. Anything above 0% gets at least
          * one audible step; 0 is handled before this (a muted athan does not play).
          */
+        /** Real volume curves run 40–60 dB from the lowest step to full; less is a curve that lies. */
+        const val MIN_CURVE_SPAN_DB = 20f
+
         fun alarmStepFor(percent: Int, minStep: Int, maxStep: Int): Int {
             val p = percent.coerceIn(MIN_VOLUME, MAX_VOLUME)
             val step = minStep + Math.round((maxStep - minStep) * p / 100f)
@@ -171,11 +174,15 @@ data class PrayerSettings(
          * step — given [maxDb], the full step. The athan opens the stream to full and plays this
          * much quieter, so it starts at the configured loudness yet every step of the alarm slider
          * below full still lowers it, down to far quieter than the configured step allows on its
-         * own. Null when the levels make no sense (unknown, or the target above full): the caller
-         * then sets the step itself, as before.
+         * own. Null when the levels make no sense (unknown, or the target above full), or when
+         * [minDb], the lowest step, is not at least [MIN_CURVE_SPAN_DB] under full: the caller then
+         * sets the step itself, as before. That last check exists for Samsung, which does its
+         * volume in its own layer and reports a nearly flat curve — 10% came out as a 0.9 gain on
+         * a full alarm stream, and the athan woke the house.
          */
-        fun athanGain(targetDb: Float, maxDb: Float): Float? {
-            if (!targetDb.isFinite() || !maxDb.isFinite() || targetDb > maxDb) return null
+        fun athanGain(targetDb: Float, maxDb: Float, minDb: Float): Float? {
+            if (!targetDb.isFinite() || !maxDb.isFinite() || !minDb.isFinite() || targetDb > maxDb) return null
+            if (maxDb - minDb < MIN_CURVE_SPAN_DB) return null
             return Math.pow(10.0, (targetDb - maxDb) / 20.0).toFloat().coerceIn(0f, 1f)
         }
     }

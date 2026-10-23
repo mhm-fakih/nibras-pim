@@ -172,7 +172,9 @@ private class PlansFactory(
     override fun getCount(): Int = rows.size
 
     override fun getViewAt(position: Int): RemoteViews {
-        val row = rows[position]
+        // The launcher can ask for a position from the count before the last refresh shrank the
+        // list. Throwing here kills the whole process — once, at the Fajr unlock, the athan with it.
+        val row = rows.getOrNull(position) ?: return RemoteViews(context.packageName, R.layout.widget_row_compact)
         // The feed reads down and wraps; every other section is a one-line working list.
         if (section == RecentNotesWidget.SECTION) {
             return RemoteViews(context.packageName, R.layout.widget_feed_row).apply {

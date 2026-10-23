@@ -535,8 +535,9 @@ function eventsForDay(events: CalendarEvent[], day: Date): CalendarEvent[] {
   return events.filter((e) => isSameDay(parseISO(e.start), day));
 }
 
-/** Thin red "current time" bar, auto-advancing (see the 30s tick in CalendarPage) — only drawn on
- * today's column, and only while the current time is within the visible hour range. */
+/** Thin red "current time" bar, auto-advancing (see the 30s tick in CalendarPage), on today's
+ * column. Outside the visible hours it stays, pinned dashed to the top or bottom edge with the time
+ * and an arrow, rather than vanishing — which read as the line being gone. */
 function NowIndicator({
   day,
   now,
@@ -552,8 +553,10 @@ function NowIndicator({
 }) {
   if (!isSameDay(day, now)) return null;
   const minutesFromStart = now.getHours() * 60 + now.getMinutes() - startHour * 60;
-  if (minutesFromStart < 0 || minutesFromStart > (endHour - startHour) * 60) return null;
-  const top = (minutesFromStart / slotMinutes) * SLOT_PX;
+  const span = (endHour - startHour) * 60;
+  const before = minutesFromStart < 0;
+  const after = minutesFromStart > span;
+  const top = (Math.min(Math.max(minutesFromStart, 0), span) / slotMinutes) * SLOT_PX;
 
   return (
     <Box
@@ -562,12 +565,31 @@ function NowIndicator({
         left: 0,
         right: 0,
         top: top - 1,
-        height: 2,
-        bgcolor: 'error.main',
+        ...(before || after
+          ? { height: 0, borderTop: '2px dashed', borderColor: 'error.main' }
+          : { height: 2, bgcolor: 'error.main' }),
         zIndex: 3,
         pointerEvents: 'none',
       }}
     >
+      {(before || after) && (
+        <Box
+          sx={{
+            position: 'absolute',
+            right: 4,
+            ...(before ? { top: 2 } : { bottom: 2 }),
+            px: 0.5,
+            fontSize: 11,
+            fontWeight: 700,
+            lineHeight: 1.4,
+            color: 'error.main',
+            bgcolor: 'background.paper',
+            borderRadius: 0.5,
+          }}
+        >
+          {format(now, 'HH:mm')} {before ? '▲' : '▼'}
+        </Box>
+      )}
       <Box
         sx={{
           position: 'absolute',

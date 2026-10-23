@@ -223,7 +223,13 @@ function RecordColumn({
               underline="hover"
               color="inherit"
               variant="body2"
+              // Direction from the title itself: Arabic aligns right with its "…" on the left end,
+              // as in the module lists.
+              dir="auto"
               sx={{
+                flex: 1,
+                minWidth: 0,
+                textAlign: 'start',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',

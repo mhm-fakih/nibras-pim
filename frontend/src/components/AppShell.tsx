@@ -1,6 +1,6 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Alert, Box, Button, Snackbar, Typography, useMediaQuery, useTheme } from '@mui/material';
 import ChevronLeft from '@mui/icons-material/ChevronLeft';
 import { batchEdit, createJournalDay, exportFulltext, getSetting, listEntities, listModules, openRecordFolder, setCoverFromUrl, EntityRecord, SavedSearchRecordRef,
@@ -166,10 +166,9 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKey);
   }, [config, selectedId, itemIds, mode, shortcuts, quick, qc, canWriteContent]);
 
-  if (!config) {
-    navigate('/tasks', { replace: true });
-    return null;
-  }
+  // An unknown module in the address (a typo, an old link) goes to Tasks. As an element, not a
+  // navigate() call: called during render, that was ignored and left a blank page.
+  if (!config) return <Navigate to="/tasks" replace />;
 
   // On mobile, show the list OR the detail/form (not both side by side).
   const showDetail =
@@ -477,7 +476,7 @@ export function AppShell() {
         )}
         {mode === 'view' && selectedId == null && (
           <Box sx={{ p: 6, color: 'text.secondary' }}>
-            <Typography>Select an item, or create a new {config.label.toLowerCase()}.</Typography>
+            <Typography>Select an item, or create a new one.</Typography>
           </Box>
         )}
         </Box>

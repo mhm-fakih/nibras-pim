@@ -316,26 +316,6 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
               field: { clearable: true },
             }}
           />
-          {/* Sits with the filters rather than beside the pager: how much you want to see at once
-              is part of how you're looking, and it's remembered for next time. */}
-          <TextField
-            select
-            size="small"
-            label="Per page"
-            value={pageSize}
-            onChange={(e) => {
-              const next = Number(e.target.value);
-              setPageSize(next);
-              localStorage.setItem(PAGE_SIZE_KEY, String(next));
-            }}
-            sx={{ width: 110 }}
-          >
-            {PAGE_SIZES.map((n) => (
-              <MenuItem key={n} value={n}>
-                {n}
-              </MenuItem>
-            ))}
-          </TextField>
         </Stack>
         <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
           {onDay && (
@@ -517,7 +497,8 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
                         sx={{ height: 18, fontSize: 11, ...statusStyle(it.type) }}
                       />
                     )}
-                    {it.tags?.slice(0, 3).map((t) => (
+                    {/* Only the shared tag list — courses have a free-text field of the same name. */}
+                    {(Array.isArray(it.tags) ? it.tags : []).slice(0, 3).map((t) => (
                       <Chip
                         component="span"
                         key={t.id}
@@ -567,9 +548,35 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
           justifyContent: 'space-between',
         }}
       >
-        <Typography variant="caption" color="text.secondary">
-          {data?.totalElements ?? 0} items
-        </Typography>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <Typography variant="caption" color="text.secondary">
+            {data?.totalElements ?? 0} items
+          </Typography>
+          {/* Beside the count, small: on the filter rows it took a row of its own in most modules.
+              Remembered for next time. */}
+          <Tooltip title="Per page">
+            <TextField
+              select
+              variant="standard"
+              size="small"
+              value={pageSize}
+              onChange={(e) => {
+                const next = Number(e.target.value);
+                setPageSize(next);
+                localStorage.setItem(PAGE_SIZE_KEY, String(next));
+              }}
+              InputProps={{ disableUnderline: true }}
+              SelectProps={{ renderValue: (v) => `${v} / page` }}
+              sx={{ '& .MuiSelect-select': { fontSize: 12, color: 'text.secondary', py: 0 } }}
+            >
+              {PAGE_SIZES.map((n) => (
+                <MenuItem key={n} value={n} dense>
+                  {n}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Tooltip>
+        </Stack>
         <Pagination
           size="small"
           count={data?.totalPages ?? 1}

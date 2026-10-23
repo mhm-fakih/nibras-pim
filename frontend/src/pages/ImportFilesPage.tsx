@@ -87,7 +87,7 @@ export function ImportFilesPage() {
           record's id-named folder. Preview the plan first, then import.
         </Typography>
 
-        <Stack direction="row" spacing={2} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap>
+        <Stack direction="row" spacing={2} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap alignItems="flex-start">
           <TextField
             size="small"
             label="Drop folder"

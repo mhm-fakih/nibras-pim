@@ -70,20 +70,21 @@ export function SettingsPage() {
           Enable or disable a module in the navigation and give it a short code (e.g. T) used
           for command-style search/update.
         </Typography>
-        <Paper variant="outlined">
+        {/* Scrolls in its own box when the window is narrow, not the whole page sideways. */}
+        <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
           <Table size="small">
             <TableHead>
               <TableRow>
                 <TableCell>Module</TableCell>
-                <TableCell>Label</TableCell>
-                <TableCell width={90}>Code</TableCell>
-                <TableCell width={70}>Color</TableCell>
-                <TableCell width={90}>Order</TableCell>
-                <TableCell width={90}>Sync order</TableCell>
-                <TableCell width={90}>Enabled</TableCell>
-                <TableCell width={90}>Bucket /100</TableCell>
-                <TableCell width={90}>Bucket by type</TableCell>
-                <TableCell width={90} />
+                <TableCell sx={{ minWidth: 120 }}>Label</TableCell>
+                <TableCell width={60}>Code</TableCell>
+                <TableCell width={60}>Color</TableCell>
+                <TableCell width={70}>Order</TableCell>
+                <TableCell width={70}>Sync order</TableCell>
+                <TableCell width={70}>Enabled</TableCell>
+                <TableCell width={70}>Bucket /100</TableCell>
+                <TableCell width={70}>Bucket by type</TableCell>
+                <TableCell width={70} />
               </TableRow>
             </TableHead>
             <TableBody>

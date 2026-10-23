@@ -77,7 +77,7 @@ export function BookmarksPage() {
                       <ModuleBar code={meta?.code} color={meta?.color} title={ENTITY_BY_KEY[module]?.label} />
                       <ListItemText
                         primary={it.title || '(untitled)'}
-                        primaryTypographyProps={{ dir: 'auto', noWrap: true }}
+                        primaryTypographyProps={{ dir: 'auto', noWrap: true, sx: { textAlign: 'start' } }}
                       />
                       <Chip size="small" variant="outlined" label={`#${it.id}`} sx={{ ml: 1 }} />
                     </ListItemButton>

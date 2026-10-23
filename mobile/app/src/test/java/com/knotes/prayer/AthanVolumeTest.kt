@@ -46,14 +46,20 @@ class AthanVolumeTest {
     @Test
     fun `the gain brings full down to the athan's step`() {
         // A step 20 dB under full is a tenth of the amplitude.
-        assertEquals(0.1f, PrayerSettings.athanGain(-30f, -10f)!!, 1e-4f)
-        assertEquals(1f, PrayerSettings.athanGain(-5f, -5f)!!, 1e-6f)
+        assertEquals(0.1f, PrayerSettings.athanGain(-30f, -10f, -50f)!!, 1e-4f)
+        assertEquals(1f, PrayerSettings.athanGain(-5f, -5f, -50f)!!, 1e-6f)
     }
 
     @Test
     fun `nonsense levels fall back to setting the step`() {
-        assertEquals(null, PrayerSettings.athanGain(Float.NEGATIVE_INFINITY, -5f))
-        assertEquals(null, PrayerSettings.athanGain(-2f, -5f))
-        assertEquals(null, PrayerSettings.athanGain(Float.NaN, 0f))
+        assertEquals(null, PrayerSettings.athanGain(Float.NEGATIVE_INFINITY, -5f, -50f))
+        assertEquals(null, PrayerSettings.athanGain(-2f, -5f, -50f))
+        assertEquals(null, PrayerSettings.athanGain(Float.NaN, 0f, -50f))
+    }
+
+    @Test
+    fun `a flat curve falls back to setting the step`() {
+        // What the Samsung reported: step 2 barely a dB under full, the lowest step not much more.
+        assertEquals(null, PrayerSettings.athanGain(-0.96f, 0f, -2f))
     }
 }
