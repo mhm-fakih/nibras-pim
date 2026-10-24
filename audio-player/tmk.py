@@ -136,6 +136,44 @@ def load(media_path: str) -> list[Bookmark]:
         return []
 
 
+def bookmarked_between(root: str, media_exts, since_ts: float,
+                       until_ts: float | None = None) -> list[str]:
+    """Media files under ``root`` whose ``.tmk`` sidecar was last written in
+    ``[since_ts, until_ts)`` — i.e. the files you bookmarked in that window, newest first.
+
+    The sidecar's mtime *is* the bookmarking time: :func:`save` rewrites the file on every add or
+    edit, and deletes it once the last bookmark goes. Walking for sidecars (rather than reading a
+    log) also picks up marks that arrived from the phone over Syncthing, which never touch this
+    app's own state. Media is matched by name within each directory, so a sidecar is one dict
+    lookup rather than a stat per candidate extension. Hidden directories are skipped.
+    """
+    exts = {e.lower() for e in media_exts}
+    hits: list[tuple[float, str]] = []
+    for dirpath, dirnames, names in os.walk(root):
+        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        media: dict[str, str] = {}
+        sidecars: list[tuple[str, str]] = []
+        for name in sorted(names):
+            stem, ext = os.path.splitext(name)
+            ext = ext.lower()
+            if ext == TMK_EXT:
+                sidecars.append((stem, name))
+            elif ext in exts:
+                media.setdefault(stem, name)   # first by name wins, so the answer is stable
+        for stem, name in sidecars:
+            partner = media.get(stem)
+            if partner is None:
+                continue                       # an orphaned sidecar has nothing to play
+            try:
+                mtime = os.stat(os.path.join(dirpath, name)).st_mtime
+            except OSError:
+                continue
+            if mtime >= since_ts and (until_ts is None or mtime < until_ts):
+                hits.append((mtime, os.path.join(dirpath, partner)))
+    hits.sort(reverse=True)
+    return [path for _mtime, path in hits]
+
+
 def save(media_path: str, bookmarks: list[Bookmark]) -> None:
     """Write the bookmarks to the media file's sidecar. An empty list removes the sidecar (rather
     than leaving a zero-byte file) so a cleared media file looks untouched to the phone/Syncthing.
@@ -170,4 +208,20 @@ if __name__ == "__main__":
     assert [b.position_ms for b in bms] == [5000, 724000, 3800000], bms
     assert bms[2].text == "auto"  # 1:03:20 sorts after 12:04
     assert dump(bms) == "[0:05] p2 intro\n[12:04]\n[1:03:20] auto\n", repr(dump(bms))
+
+    # bookmarked_between: only sidecars in the window, only those with media beside them, newest first.
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        sub = os.path.join(tmp, "day")
+        os.mkdir(sub)
+        for name in ("new.mp3", "new.tmk", "old.mp3", "old.tmk", "orphan.tmk"):
+            open(os.path.join(sub, name), "w").close()
+        os.utime(os.path.join(sub, "new.tmk"), (1000, 1000))
+        os.utime(os.path.join(sub, "old.tmk"), (100, 100))
+        os.utime(os.path.join(sub, "orphan.tmk"), (1001, 1001))
+        got = bookmarked_between(tmp, {".mp3"}, 500)
+        assert got == [os.path.join(sub, "new.mp3")], got
+        got = bookmarked_between(tmp, {".mp3"}, 0)
+        assert got == [os.path.join(sub, "new.mp3"), os.path.join(sub, "old.mp3")], got
+        assert bookmarked_between(tmp, {".mp3"}, 0, 50) == []
     print("tmk.py self-test OK")

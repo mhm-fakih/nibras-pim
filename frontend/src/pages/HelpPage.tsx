@@ -154,8 +154,9 @@ export function HelpPage() {
               (<code>W18.md</code>-style, in its repo-1 folder) and edited in any editor — edits
               show up under <b>Import files → Pending sync</b> for one-click apply (audit-tracked).
               The <b>Bookmarked TOC</b> button checks out every bookmarked record across all
-              modules and rebuilds <code>repo1/TOC.md</code> (department → course → record, with
-              manuscript-index embeds for the Zettlr-style writer). A checkout that already exists
+              modules and rebuilds <code>repo1/TOC.md</code> (module → department → record, by priority then
+              age, like the local-notes manuscript; every checked-out record is embedded, for the
+              Zettlr-style writer). A checkout that already exists
               with different content is never overwritten: the old file is parked beside it with a
               timestamp and listed as a conflict for manual merging.
             </Typography>

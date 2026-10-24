@@ -13,4 +13,4 @@ chmod +x run.sh
 update-desktop-database "$(dirname "$DEST")" 2>/dev/null || true
 
 echo "Installed: $DEST"
-echo "Launch 'Audio Player' from the menu, then right-click its panel icon → Pin."
+echo "Launch 'Nibras Audio Player' from the menu, then right-click its panel icon → Pin."

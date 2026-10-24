@@ -160,7 +160,7 @@ public class RepositoryService {
         List<String> parts = new ArrayList<>(Arrays.asList(cmd.trim().split("\\s+")));
         parts.add(dir.toString());
         try {
-            new ProcessBuilder(parts).start();   // fire-and-forget; runs in the user's desktop session
+            DesktopLauncher.launch(parts);   // fire-and-forget; runs in the user's desktop session
         } catch (IOException e) {
             throw new ResponseStatusException(BAD_REQUEST, "Could not launch file manager: " + e.getMessage());
         }

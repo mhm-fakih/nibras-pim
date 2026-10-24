@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Shared app mark: the same #133155 ground and the same white symbolic
+       line-art (24-unit grid, 1.6 stroke, round caps) as the audio player.
+       Here the glyph is a picture, for the image annotator. -->
+  <rect width="128" height="128" rx="26" fill="#133155"/>
+  <g transform="translate(26.8,26.8) scale(3.1)"
+     fill="none" stroke="#FFFFFF" stroke-width="1.6"
+     stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2"/>
+    <circle cx="8.5" cy="8.5" r="1.5"/>
+    <path d="M21,15 L16,10 L5,21"/>
+  </g>
+</svg>

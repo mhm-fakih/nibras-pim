@@ -83,7 +83,10 @@ creates the record and moves the file into the repo's `imported/` subfolder. Req
 | `/login <user> <pass>` | authenticate (stores the JWT) |
 | `/heartbeat` | check the backend (`/page/heartbeatJson`, no auth) |
 | `/tasks` / `/goals` / `/journals` / … | list the 20 most-recent records |
+| `/theme [light\|dark]` | switch the Solarized theme (bare `/theme` reports the current one) |
 | `/help` · `/quit` | help · exit |
+**Theme** — the UI uses **Solarized**, light by default. `/theme dark` / `/theme light` switches it
+live and writes the choice to `config.json` (`"theme": "solarized-light"`), so it survives a relaunch.
 
 The command bar **turns green** once the note carries a recognized repo letter + a valid
 `<type><prio><subject>` tag (e.g. `h g3d …`), so you can see at a glance that it's fully tagged.

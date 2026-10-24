@@ -31,6 +31,12 @@ public class GoalService extends AbstractCrudService<Goal, GoalDto> {
         return List.of("title", "summary", "description");
     }
 
+    /** Goals are edited by summary; title is a legacy column filled on a handful of rows. */
+    @Override
+    protected String titleField() {
+        return "summary";
+    }
+
     @Override
     protected GoalDto toDto(Goal g) {
         return new GoalDto(

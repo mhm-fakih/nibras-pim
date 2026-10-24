@@ -1,4 +1,4 @@
-# audio-player
+# Nibras Audio Player
 
 A GTK3 desktop **audio & video player** with a folder library browser, tag editing, subtitles, and
 strong per-file **bookmarking** — the Linux companion to the phone's Media3 player, and a sibling of
@@ -11,6 +11,12 @@ vice versa) when the folder is synced (e.g. Syncthing).
 python3 player.py FILE    # open a specific file and play it
 ./install.sh             # menu entry + pinnable panel launcher
 ```
+
+`install.sh` writes `~/.local/share/applications/audio-player.desktop` (menu name **Nibras Audio
+Player**) with absolute paths into this checkout, so re-run it after moving the folder. The launcher
+and window icon are `audio-player.svg`: a white symbolic sound wave on the `#133155` ground, drawn in
+the same language as the phone app's adaptive icon (`mobile/app/src/main/res/.../ic_launcher_*`) —
+24-unit grid, 1.6 stroke, round caps. Keep the two in step if either is redrawn.
 
 ---
 
@@ -27,6 +33,7 @@ python3 player.py FILE    # open a specific file and play it
 ├───────────────┤   playing row is     │  transport·bkmarks │ RTL-aware │
 │ RECENTLY      │   highlighted        │  speed/gain/sleep  │           │
 │ BOOKMARKED    │                      │  Transcript: ar 🗑 │           │
+│    ★ Today(n) │                      │                    │           │
 └───────────────┴──────────────────────┴────────────────────┴───────────┘
                           status bar: Scanning… / N files found
 ```
@@ -56,6 +63,13 @@ python3 player.py FILE    # open a specific file and play it
 - **Bookmarking** — `Ctrl+B`/`B` drops a mark a few seconds back, **rewinds & plays** from it, and
   writes the `.tmk` sidecar. Ticks on the bar, a list with inline **label editing** (click the “no
   label” placeholder), click-to-seek, delete.
+- **Bookmarked today** — the **★ Today (n)** link in the sidebar's *Recently bookmarked* header
+  (`Ctrl+D`) lists every file whose `.tmk` sidecar was written **today** — from anywhere under the
+  bookmarks root, newest mark first — straight into the playlist pane. It's a walk of the sidecars,
+  not a session log, so marks that arrived from the phone over Syncthing count too, and the counter
+  refreshes every minute (and at midnight). The root is Settings → *Bookmarks root* (blank = the
+  folder-tree root). The folder tree and location bar stay where they were, so the list is a view,
+  not a place you have to navigate back from.
 - **Tag editing** — set a file's **Title** inline; **bulk-tag a whole folder** (genre / artist /
   album) in one action (handy for the Untagged page).
 - **Subtitles** — sidecar `.srt` languages appear as chips; the active line shows over the video (or
@@ -147,6 +161,9 @@ One bracketed timestamp per line, optionally followed by a label — human-reada
   token or the literal `auto` there — preserved verbatim).
 - Sidecar path = the media's base name with the extension swapped to `.tmk`
   (`lecture.mp3` → `lecture.tmk`). Written atomically; an emptied list removes the file.
+- The sidecar's **mtime is the bookmarking time** (every add/edit rewrites it), which is what
+  `tmk.bookmarked_between()` — and so the **★ Today** link — reads. A sidecar left beside a media
+  file that's gone is ignored rather than listed.
 - `tmk.py` is the reference implementation and has a self-test (`python3 tmk.py`).
 
 > **Phone side:** the Android app references `Bookmarks.load/save` + `data class Bookmark(positionMs,
@@ -174,7 +191,7 @@ pressed (`ar` or `en`), and keep that name.
 | `lyrics.py` | Sidecar `.ai.txt` transcript discovery, reading, and atomic write-back. Pure Python, self-tested. |
 | `audio.py` | GStreamer `playbin` engine: play/seek/speed/gain, embeddable video widget. No GUI. |
 | `waveform.py` | Amplitude-envelope extraction for the seek bar spectrum: a background GStreamer `level` decode, cancellable. No GUI. |
-| `library.py` | Folder scan + tag read (`Discoverer`), aggregation, and tag write (`mutagen`). |
+| `library.py` | Folder scan + tag read (`Discoverer`), aggregation, and tag write (`mutagen`). Scans a folder or an explicit file list (`scan_paths`, for virtual playlists). |
 | `subtitles.py` | `.srt` sidecar discovery + parsing. Self-tested. |
 | `config.py` | `Settings` (all persisted state) as `config.json` next to the program. |
 | `player.py` | The GTK3 window: library + playlist + player, tying it all together. |
@@ -186,7 +203,9 @@ timer enable + presets, volume, tree root, column order, pane sizes, window size
 positions, and last-played file. Playback defaults mirror the phone.
 
 `library_root` blank means the built-in default (`~/mdd/knotes-h`, or home if that's missing), so
-leaving it empty keeps following the default rather than freezing today's path.
+leaving it empty keeps following the default rather than freezing today's path. `bookmarks_root`
+(what **★ Today** searches) blank means "wherever the tree is rooted" — it's a separate key so
+re-rooting the tree to browse elsewhere doesn't quietly change what "bookmarked today" covers.
 
 ---
 
@@ -217,6 +236,7 @@ sudo pacman -S python-gobject gtk3 gstreamer gst-plugins-base python-mutagen \
 | `B` · `Ctrl+B` | Add bookmark (rewinds & plays from the mark) |
 | `N` | Focus the bookmark-note field |
 | `Ctrl+O` | Open a media file |
+| `Ctrl+D` | List today's bookmarked files in the playlist |
 | `Ctrl+S` | Save transcript edits now (they also autosave) |
 | `Ctrl+L` | Focus the location bar (go to a path) |
 | `Ctrl+Delete` | Move the playing file to Trash (confirms) |
@@ -226,6 +246,7 @@ sudo pacman -S python-gobject gtk3 gstreamer gst-plugins-base python-mutagen \
 
 ## Settings (Ctrl+, or the ⚙ button)
 
-The folder-tree root (blank = `~/mdd/knotes-h`; `~` allowed, or pick one with Browse…), skip seconds,
+The folder-tree root (blank = `~/mdd/knotes-h`; `~` allowed, or pick one with Browse…), the
+bookmarks root scanned by **★ Today** (blank = the folder-tree root), skip seconds,
 bookmark-rewind seconds, and the sleep timer (off by default — enable it and set its preset
 minutes). Column order, theme, and window/pane layout persist automatically.

@@ -49,6 +49,10 @@ class Settings:
     sleep_presets_min: list[int] = field(default_factory=lambda: [15, 30, 45, 60])
     theme: str = "light"              # "light" (Solarized parchment, the default) or "dark" (slate)
     library_root: str = ""            # root folder of the browser tree; blank = DEFAULT_LIBRARY_ROOT
+    # Where "bookmarked today" looks for .tmk sidecars. Blank = wherever the tree is rooted, which
+    # is the recordings library — kept separate so re-rooting the tree to browse elsewhere doesn't
+    # silently change what "today's bookmarks" means.
+    bookmarks_root: str = ""
     track_columns: list[str] = field(default_factory=list)  # saved playlist column order (by title)
     # Saved layout — 0 means "use the built-in default". Restored on relaunch.
     pane_sidebar: int = 0             # sidebar width (outer split)
@@ -89,6 +93,12 @@ class Settings:
         root = os.path.expanduser(self.library_root or DEFAULT_LIBRARY_ROOT)
         return root if os.path.isdir(root) else os.path.expanduser("~")
 
+    def bookmarks_root_path(self) -> str:
+        """The folder scanned for ``.tmk`` sidecars when listing what you bookmarked today: the
+        configured folder if it exists, else the tree's root (see :meth:`root_path`)."""
+        root = os.path.expanduser(self.bookmarks_root) if self.bookmarks_root else ""
+        return root if root and os.path.isdir(root) else self.root_path()
+
     def push_recent(self, path: str) -> None:
         path = os.path.abspath(path)
         self.recent = [path] + [p for p in self.recent if p != path]
@@ -121,6 +131,7 @@ class Settings:
         s.sleep_presets_min = [int(x) for x in raw.get("sleep_presets_min", s.sleep_presets_min)]
         s.theme = raw.get("theme", s.theme)
         s.library_root = raw.get("library_root", s.library_root)
+        s.bookmarks_root = raw.get("bookmarks_root", s.bookmarks_root)
         s.track_columns = [str(c) for c in raw.get("track_columns", s.track_columns)]
         s.pane_sidebar = int(raw.get("pane_sidebar", s.pane_sidebar))
         s.pane_left = int(raw.get("pane_left", s.pane_left))

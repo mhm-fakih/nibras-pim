@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+# scan state and journal — machine-local, regenerated on every run
+data/

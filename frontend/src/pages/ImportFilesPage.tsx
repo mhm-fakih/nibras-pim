@@ -296,8 +296,9 @@ function PendingSyncSection() {
         Records whose checkout file (<code>W18.md</code>-style, exported to repo 1) differs from the
         database — sync them here instead of opening each record. <b>Bookmarked TOC</b> checks out
         every bookmarked record (tasks, planners, goals, journals, notes, writings, resources) and
-        rebuilds the master index (<code>repo1/TOC.md</code>, department → course → record) for the
-        Zettlr-style editor; edits made there land back in this list. A checkout that already exists
+        rebuilds the master index (<code>repo1/TOC.md</code>) for the Zettlr-style editor: laid out
+        like the local-notes manuscript (module → department → record, by priority then age), and
+        covering every checked-out record, not only the bookmarked; edits made there land back in this list. A checkout that already exists
         with different content is never overwritten — the old file is kept beside it with a
         timestamp for manual merging.
       </Typography>

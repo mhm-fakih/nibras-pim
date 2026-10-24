@@ -89,6 +89,11 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
     /** Columns the free-text {@code q} filter searches (LIKE, OR-combined). */
     protected abstract List<String> searchFields();
 
+    /** The field a search ranks on first (see {@link #list}): by default the first search field. */
+    protected String titleField() {
+        return searchFields().get(0);
+    }
+
     /** Dropdown data for forms: e.g. {"statuses": [...], "types": [...], "tags": [...]}. */
     public abstract Map<String, List<LookupDto>> lookups();
 
@@ -96,7 +101,34 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
 
     @Transactional(readOnly = true)
     public Page<D> list(FilterParams f, Pageable pageable) {
-        return repo.findAll(spec(f), pageable).map(this::toDto);
+        String q = f.q() == null ? "" : f.q().trim();
+        if (q.isEmpty() || q.matches("\\d+") || searchFields().isEmpty()) {
+            return repo.findAll(spec(f), pageable).map(this::toDto);
+        }
+        // While searching, records whose title holds the query come first (title starting with it
+        // ahead of title containing it), and the requested sort only orders within each tier — a
+        // hit buried in a book's full text shouldn't outrank the book called that. The ordering
+        // lives in the spec because Spring Data would replace it with the pageable's sort, so the
+        // page goes in unsorted and its sort is appended here instead.
+        Sort sort = pageable.getSort();
+        Specification<E> ranked = spec(f).and((root, query, cb) -> {
+            String title = titleField();
+            if (Long.class != query.getResultType() && !query.isDistinct() && has(root, title)) {
+                var t = cb.lower(root.get(title).as(String.class));
+                String lq = q.toLowerCase();
+                var tier = cb.selectCase()
+                        .when(cb.like(t, lq + "%"), 0)
+                        .when(cb.like(t, "%" + lq + "%"), 1)
+                        .otherwise(2);
+                List<jakarta.persistence.criteria.Order> orders = new ArrayList<>();
+                orders.add(cb.asc(tier));
+                orders.addAll(org.springframework.data.jpa.repository.query.QueryUtils.toOrders(sort, root, cb));
+                query.orderBy(orders);
+            }
+            return null;
+        });
+        Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        return repo.findAll(ranked, unsorted).map(this::toDto);
     }
 
     /**

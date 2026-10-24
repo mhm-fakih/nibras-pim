@@ -110,25 +110,37 @@ def discover(path: str, discoverer: "GstPbutils.Discoverer") -> Track | None:
     )
 
 
+def _discover_all(paths: list[str], on_track, on_done, timeout_s: int) -> None:
+    """Read every path's tags in order, reporting progress. Runs on the scan thread."""
+    discoverer = GstPbutils.Discoverer.new(timeout_s * Gst.SECOND)
+    tracks: list[Track] = []
+    total = len(paths)
+    for i, path in enumerate(paths, 1):
+        t = discover(path, discoverer)
+        if t is not None:
+            tracks.append(t)
+            if on_track:
+                GLib.idle_add(on_track, t, i, total)
+    if on_done:
+        GLib.idle_add(on_done, tracks)
+
+
 def scan_folder(folder: str, on_track=None, on_done=None, timeout_s: int = 10) -> None:
     """Scan ``folder`` in a background thread. ``on_track(track, done, total)`` fires per file and
     ``on_done(tracks)`` at the end — both marshalled onto the GLib main loop, so callers can touch
     GTK widgets directly. Returns immediately; the scan runs off the UI thread."""
-    def worker():
-        paths = list_media(folder)
-        discoverer = GstPbutils.Discoverer.new(timeout_s * Gst.SECOND)
-        tracks: list[Track] = []
-        total = len(paths)
-        for i, path in enumerate(paths, 1):
-            t = discover(path, discoverer)
-            if t is not None:
-                tracks.append(t)
-                if on_track:
-                    GLib.idle_add(on_track, t, i, total)
-        if on_done:
-            GLib.idle_add(on_done, tracks)
+    threading.Thread(
+        target=lambda: _discover_all(list_media(folder), on_track, on_done, timeout_s),
+        daemon=True).start()
 
-    threading.Thread(target=worker, daemon=True).start()
+
+def scan_paths(paths: list[str], on_track=None, on_done=None, timeout_s: int = 10) -> None:
+    """Like :func:`scan_folder`, but for an explicit list of files that need not share a folder —
+    what a *virtual* playlist (the files you bookmarked today, gathered from all over the tree) is
+    built from. The given order is preserved in the resulting track list."""
+    ordered = list(paths)
+    threading.Thread(target=lambda: _discover_all(ordered, on_track, on_done, timeout_s),
+                     daemon=True).start()
 
 
 # ----------------------------------------------------------------- aggregation for the 3 panes

@@ -21,6 +21,7 @@ from __future__ import annotations
 import os
 import re
 import sys
+import time
 import urllib.parse
 import warnings
 
@@ -150,6 +151,21 @@ STYLE = """
         padding: 5px 10px;
         border-bottom: 1px solid @fg_muted;
     }
+    /* A pane header carrying an action on its right (the bookmarks pane's "Today" link): the bar
+       paints the strip, and its label wears the same lettering as a plain .pane-header. */
+    .pane-headerbar {
+        background: @bg_alt;
+        border-bottom: 1px solid @fg_muted;
+        padding: 1px 10px;
+    }
+    .pane-headerbar > label {
+        color: @fg_strong;
+        font-size: 11px;
+        font-weight: bold;
+        letter-spacing: 1px;
+    }
+    .pane-link { padding: 1px 8px; min-height: 0; }
+    .pane-link label { color: @accent; font-size: 11px; font-weight: bold; }
     .pane { border: 1px solid @bg_alt; }
     paned > separator {
         background: alpha(@fg_muted, 0.35);
@@ -187,7 +203,7 @@ def fmt_time(ms: int) -> str:
 
 class PlayerWindow(Gtk.ApplicationWindow):
     def __init__(self, app: "PlayerApp", open_path: str | None):
-        super().__init__(application=app, title="audio player")
+        super().__init__(application=app, title="Nibras Audio Player")
         self.set_default_size(app.settings.win_w or 1000, app.settings.win_h or 720)
         self.set_position(Gtk.WindowPosition.CENTER)
         self.maximize()  # start maximized (the saved size applies when you un-maximize)
@@ -220,6 +236,12 @@ class PlayerWindow(Gtk.ApplicationWindow):
         # Library state.
         self.tracks: list[library.Track] = []
         self.lib_folder: str = ""
+        # A *virtual* playlist (today's bookmarked files, gathered from all over the tree): the
+        # files it shows, in display order, or None when the playlist is a real scanned folder.
+        self.lib_paths: list[str] | None = None
+        self.lib_label: str = ""              # what the header over the playlist calls this view
+        self._scan_seq = 0                    # guards against a slower earlier scan landing last
+        self._today_count = 0                 # files bookmarked today, as of the last sidecar walk
         self._media_cache: dict[str, bool] = {}   # folder -> "has media anywhere below it?"
         self.sel_genre: str | None = None     # None = "All"
         self.sel_artist: str | None = None
@@ -237,6 +259,9 @@ class PlayerWindow(Gtk.ApplicationWindow):
         self.connect("delete-event", self._on_close)
 
         GLib.timeout_add(250, self._on_timer)
+        # A slow beat of its own for the "★ Today" count: the playback timer only ticks while
+        # something is playing, and this has to stay right on an idle window left open past midnight.
+        GLib.timeout_add_seconds(60, self._tick_today)
 
         start = open_path or (self.settings.last_media or None)
         if start and os.path.exists(start):
@@ -248,7 +273,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
     # ================================================================== UI shell
 
     def _build_ui(self) -> None:
-        header = Gtk.HeaderBar(show_close_button=True, title=f'audio player v{VERSION} "{CODENAME}"')
+        header = Gtk.HeaderBar(show_close_button=True, title=f'Nibras Audio Player v{VERSION} "{CODENAME}"')
         self.set_titlebar(header)
 
         open_btn = Gtk.Button()
@@ -329,7 +354,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
         player_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         player_scroller.add(self._build_player_page())
         # The player and the lyrics side panel (sidecar .ai.txt transcriptions) share the right
-        # side; the panel opens by itself for any file that has a transcription, else stays hidden.
+        # side; the panel is hidden until a transcription language is picked.
         self.player_split = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         self.player_split.pack1(player_scroller, True, True)
         self.player_split.pack2(self._build_lyrics_panel(), False, True)
@@ -364,6 +389,15 @@ class PlayerWindow(Gtk.ApplicationWindow):
         lbl = Gtk.Label(label=text, xalign=0)
         lbl.get_style_context().add_class("pane-header")
         return lbl
+
+    @staticmethod
+    def _pane_header_bar(text: str, action: Gtk.Widget) -> Gtk.Widget:
+        """A pane header with one action button parked at its right end."""
+        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        bar.get_style_context().add_class("pane-headerbar")
+        bar.pack_start(Gtk.Label(label=text, xalign=0), True, True, 0)
+        bar.pack_end(action, False, False, 0)
+        return bar
 
     @staticmethod
     def _cmp_int(model, a, b, col):
@@ -447,10 +481,17 @@ class PlayerWindow(Gtk.ApplicationWindow):
         return box
 
     def _build_recent_bookmarked(self) -> Gtk.Widget:
-        """A short list, under the folder tree, of files you recently bookmarked — click to reopen."""
+        """A short list, under the folder tree, of files you recently bookmarked — click to reopen.
+
+        Its header carries the "Today" link: one click lists every file bookmarked today (from
+        anywhere under the bookmarks root, not just this session) in the playlist pane."""
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         box.get_style_context().add_class("pane")
-        box.pack_start(self._pane_header("RECENTLY BOOKMARKED"), False, False, 0)
+        self.today_btn = Gtk.Button()
+        self.today_btn.set_relief(Gtk.ReliefStyle.NONE)
+        self.today_btn.get_style_context().add_class("pane-link")
+        self.today_btn.connect("clicked", lambda _b: self._show_today_bookmarks())
+        box.pack_start(self._pane_header_bar("RECENTLY BOOKMARKED", self.today_btn), False, False, 0)
         sc = Gtk.ScrolledWindow()
         sc.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         sc.set_min_content_height(96)
@@ -460,6 +501,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
         sc.add(self.recent_bm_list)
         box.pack_start(sc, True, True, 0)
         self._refresh_recent_bookmarked()
+        self._refresh_today_button()
         return box
 
     def _refresh_recent_bookmarked(self) -> None:
@@ -481,6 +523,49 @@ class PlayerWindow(Gtk.ApplicationWindow):
         path = getattr(row, "_path", None)
         if path and os.path.exists(path):
             self.open_media(path, autoplay=True)
+
+    # ------------------------------------------------------- bookmarked today
+
+    @staticmethod
+    def _today_window() -> tuple[float, float]:
+        """(start, end) epoch seconds of the local calendar day — midnight to midnight."""
+        now = time.localtime()
+        start = time.mktime((now.tm_year, now.tm_mon, now.tm_mday, 0, 0, 0, 0, 0, -1))
+        return start, start + 24 * 3600
+
+    def _today_media(self) -> list[str]:
+        """Every media file whose ``.tmk`` sidecar was written today, newest bookmark first. Walked
+        fresh each time rather than cached, so marks that arrived from the phone (Syncthing writes
+        the sidecar behind our back) count the moment they land."""
+        start, end = self._today_window()
+        return tmk.bookmarked_between(self.settings.bookmarks_root_path(), library.MEDIA_EXTS,
+                                      start, end)
+
+    def _refresh_today_button(self) -> None:
+        """Re-count today's bookmarked files and relabel the link. Cheap (a directory walk that
+        stats only the sidecars), so it runs after every bookmark change and once a minute — the
+        latter both to catch synced-in marks and to roll the label over at midnight."""
+        self._today_count = len(self._today_media())
+        self.today_btn.set_label(f"★ Today ({self._today_count})")
+        self.today_btn.set_tooltip_text(
+            "List the files you bookmarked today in the playlist (Ctrl+D)\n"
+            f"Looking under {self.settings.bookmarks_root_path()}")
+
+    def _tick_today(self) -> bool:
+        self._refresh_today_button()
+        return True   # keep the minute timer running
+
+    def _show_today_bookmarks(self) -> None:
+        """The "★ Today" link: fill the playlist with today's bookmarked files. An empty day leaves
+        whatever you were browsing alone — clearing the playlist to say "nothing" helps no one."""
+        paths = self._today_media()
+        self._today_count = len(paths)
+        self.today_btn.set_label(f"★ Today ({self._today_count})")
+        if not paths:
+            self._flash("★ Nothing bookmarked today yet")
+            return
+        # No ★ in the label: it lands in the monospace view header, whose font has no such glyph.
+        self._scan_paths(paths, f"Bookmarked today  ·  {len(paths)} file(s)")
 
     def _build_folder_tree(self) -> Gtk.Widget:
         """A permanent, lazily-populated directory tree rooted at one configurable folder (default:
@@ -805,33 +890,66 @@ class PlayerWindow(Gtk.ApplicationWindow):
     # ----------------------------------------------------------- scanning
 
     def _scan(self, folder: str) -> None:
+        """Scan a real folder into the playlist — what the folder tree and location bar do."""
         self.lib_folder = folder
-        self.tracks = []
-        self.folder_label.set_text(folder)
+        self.lib_paths = None
+        self.lib_label = folder
         self.path_entry.set_text(folder)   # the location bar always shows the scanned folder
+        self.settings.last_folder = folder
+        self.settings.save()
+        self._begin_scan()
+
+    def _scan_paths(self, paths: list[str], label: str) -> None:
+        """Show an explicit set of files — a *virtual* folder, gathered from anywhere in the tree
+        (today's bookmarked files). ``lib_folder`` is left pointing at the real folder you were
+        browsing, so the tree and location bar don't lurch somewhere you never went."""
+        self.lib_paths = list(paths)
+        self.lib_label = label
+        self._begin_scan()
+
+    def _begin_scan(self) -> None:
+        """Run whichever scan ``lib_paths``/``lib_folder`` describe and pour the result into the
+        playlist. Each scan carries a sequence number: results from a scan you've already navigated
+        away from are dropped rather than overwriting the view you asked for last."""
+        self.tracks = []
+        self.folder_label.set_text(self.lib_label)
         self.scan_status.set_text("Scanning…")
         self.scan_spinner.show()
         self.scan_spinner.start()   # animates on the GTK main loop while the scan runs off-thread
-        self.settings.last_folder = folder
-        self.settings.save()
+        self._scan_seq += 1
+        seq, where = self._scan_seq, self.lib_label
 
         def on_track(track, done, total):
+            if seq != self._scan_seq:
+                return False
             self.tracks.append(track)
             self.scan_status.set_text(f"Scanning…  {done}/{total}")
             return False
 
         def on_done(tracks):
+            if seq != self._scan_seq:
+                return False
             self.tracks = tracks
             n = len(tracks)
             self.scan_spinner.stop()
             self.scan_spinner.hide()
-            self.scan_status.set_text(f"{n} media file{'' if n == 1 else 's'} found  ·  {folder}")
+            self.scan_status.set_text(f"{n} media file{'' if n == 1 else 's'} found  ·  {where}")
             self.sel_genre = self.sel_artist = self.sel_album = None
             self._refresh_columns()
             self._refresh_track_list()
             return False
 
-        library.scan_folder(folder, on_track=on_track, on_done=on_done)
+        if self.lib_paths is None:
+            library.scan_folder(self.lib_folder, on_track=on_track, on_done=on_done)
+        else:
+            library.scan_paths(self.lib_paths, on_track=on_track, on_done=on_done)
+
+    def _rescan(self) -> None:
+        """Redo the current view — the virtual list if one is showing, else the scanned folder."""
+        if self.lib_paths is not None:
+            self._scan_paths(self.lib_paths, self.lib_label)
+        elif self.lib_folder:
+            self._scan(self.lib_folder)
 
     # ----------------------------------------------------------- filtering / views
 
@@ -869,11 +987,21 @@ class PlayerWindow(Gtk.ApplicationWindow):
         for value, count in pairs:
             store.append([f"{value}  ({count})", value])
 
+    def _ordered_tracks(self) -> list[library.Track]:
+        """The visible tracks in display order: album/track-number for a scanned folder, but the
+        order the list was handed to us in for a virtual view — today's bookmarks are most useful
+        newest-first, and sorting them by album would scatter the order that matters."""
+        visible = self._visible_tracks()
+        if self.lib_paths is None:
+            return sorted(visible, key=lambda t: (t.al().lower(), t.track_no,
+                                                  t.display_title().lower()))
+        rank = {os.path.abspath(p): i for i, p in enumerate(self.lib_paths)}
+        return sorted(visible, key=lambda t: rank.get(os.path.abspath(t.path), len(rank)))
+
     def _refresh_track_list(self) -> None:
         self.track_store.clear()
         cur = os.path.abspath(self.audio.current_path) if self.audio.current_path else None
-        for t in sorted(self._visible_tracks(),
-                        key=lambda t: (t.al().lower(), t.track_no, t.display_title().lower())):
+        for t in self._ordered_tracks():
             num = str(t.track_no) if t.track_no else ""
             n_bm = len(tmk.load(t.path))                       # bookmark count from the .tmk sidecar
             playing = cur is not None and os.path.abspath(t.path) == cur
@@ -978,7 +1106,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
         double-click would restart the file the first click just started."""
         if self.audio.current_path and os.path.abspath(media) == self.audio.current_path:
             return
-        self.open_media(media, autoplay=True, queue=[t.path for t in self._visible_tracks()])
+        self.open_media(media, autoplay=True, queue=[t.path for t in self._ordered_tracks()])
 
     def _apply_folder_tags(self) -> None:
         targets = [t.path for t in self._visible_tracks()]
@@ -999,7 +1127,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
             return
         written, skipped = library.write_tags(targets, genre, artist, album)
         self._flash(f"Tagged {written} file(s)" + (f", {len(skipped)} unsupported" if skipped else ""))
-        self._scan(self.lib_folder)  # re-scan so the browser reflects the new tags
+        self._rescan()  # re-scan so the browser reflects the new tags
 
     # ================================================================== Player page
 
@@ -1440,12 +1568,14 @@ class PlayerWindow(Gtk.ApplicationWindow):
         self.settings.push_bookmarked(path)
         self.settings.save()
         self._refresh_recent_bookmarked()
+        self._refresh_today_button()   # this file just joined today's list
         self._refresh_track_list()
 
     def _delete_bookmark(self, bm: tmk.Bookmark) -> None:
         self.bookmarks = [b for b in self.bookmarks if b is not bm]
         tmk.save(self.audio.current_path, self.bookmarks)
         self._refresh_bookmarks()
+        self._refresh_today_button()   # clearing the last mark drops the file from today's list
         self._refresh_track_list()  # update the Bkm count in the playlist
 
     # ----------------------------------------------------------- waveform / spectrum
@@ -2168,9 +2298,23 @@ class PlayerWindow(Gtk.ApplicationWindow):
         root_box.pack_start(root_entry, True, True, 0)
         root_box.pack_start(root_browse, False, False, 0)
 
+        # Where "★ Today" hunts for .tmk sidecars — blank follows the tree's root.
+        bm_entry = Gtk.Entry()
+        bm_entry.set_text(self.settings.bookmarks_root)
+        bm_entry.set_width_chars(30)
+        bm_entry.set_placeholder_text("same as the folder-tree root")
+        bm_browse = Gtk.Button(label="Browse…")
+        bm_browse.connect("clicked", lambda _b: self._pick_root_into(bm_entry, dialog))
+        bm_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        bm_box.pack_start(bm_entry, True, True, 0)
+        bm_box.pack_start(bm_browse, False, False, 0)
+
         rows = [("Folder-tree root", root_box,
                  "The folder the FOLDERS tree starts from — keep it narrow (a recordings directory, "
                  f"not all of home). Blank means {DEFAULT_LIBRARY_ROOT}. '~' is allowed."),
+                ("Bookmarks root", bm_box,
+                 "The folder searched for .tmk sidecars when the sidebar's ★ Today link lists what "
+                 "you bookmarked today. Blank follows the folder-tree root. '~' is allowed."),
                 ("Skip forward / back (seconds)", skip_spin,
                  "The ± seek buttons and Ctrl+← / Ctrl+→ jump by this many seconds."),
                 ("Bookmark rewind (seconds)", rewind_spin,
@@ -2202,10 +2346,12 @@ class PlayerWindow(Gtk.ApplicationWindow):
             root_text = root_entry.get_text().strip().strip("\"'")
             root_changed = root_text != self.settings.library_root
             self.settings.library_root = root_text
+            self.settings.bookmarks_root = bm_entry.get_text().strip().strip("\"'")
             self.settings.save()
             self._update_skip_tooltips()
             self._rebuild_sleep_presets()
             self._apply_sleep_visibility()
+            self._refresh_today_button()   # a new bookmarks root means a new count
             if root_changed:
                 self._populate_root()
         dialog.destroy()
@@ -2268,6 +2414,8 @@ class PlayerWindow(Gtk.ApplicationWindow):
             self._delete_current_file(); return True
         if ctrl and kv in (Gdk.KEY_o, Gdk.KEY_O):
             self._choose_file(); return True
+        if ctrl and kv in (Gdk.KEY_d, Gdk.KEY_D):
+            self._show_today_bookmarks(); return True   # today's bookmarked files, in the playlist
         if ctrl and kv in (Gdk.KEY_s, Gdk.KEY_S):
             self._save_lyrics(); return True   # write transcript edits now
         if ctrl and kv in (Gdk.KEY_l, Gdk.KEY_L):

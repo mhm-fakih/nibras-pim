@@ -87,7 +87,7 @@ public class FileSearchController {
         List<String> parts = new ArrayList<>(Arrays.asList(cmd.trim().split("\\s+")));
         parts.add(target.toString());
         try {
-            new ProcessBuilder(parts).start();
+            com.nibras.pim.service.DesktopLauncher.launch(parts);
         } catch (IOException e) {
             throw new ResponseStatusException(BAD_REQUEST, "Could not open: " + e.getMessage());
         }

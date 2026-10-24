@@ -413,6 +413,10 @@ terminal/       Python TUI                             (knotes_tui.py)
 audio-player/   Python                                 (desktop player; writes the .ai.txt transcripts)
 tools/          gather/load/canonical flashcards, API docs dump
 capture/        Python + bash                          (Telegram, Firefox bookmarks, yt-dlp → knotes for Import)
+scr-annotator/  GTK3 / Python                          (Nibras Image Annotator: label and mark up screenshots)
+file-watch/     Python + systemd timer                 (which files in a folder were ever reviewed)
+folder-audit/   Python                                 (hash-based change audit of any folder, git + zip backups)
+dedup/          bash + jdupes                          (replace duplicate files with symlinks)
 db/             clone-dev-db.sh                        (working-copy setup)
 dist/           built artefacts, in a subfolder per type: war/ apk/ zip/ sql/ appimage/
                 newest TWO of each kept; the only directory that leaves this machine
@@ -423,6 +427,28 @@ The six components share one version and codename — see the top of `backend/bu
 `frontend/package.json`, `mobile/app/build.gradle.kts` and the `VERSION` constants in the three
 Python apps. `file-watch/`, `scr-annotator/` and `window-tracker/` are separate small tools, each
 its own git repo, carrying the same tag in a plain `VERSION` file.
+
+## Small tools
+
+Four standalone helpers ship alongside the app. None needs the backend; each has its own README.
+
+- **`scr-annotator/` — Nibras Image Annotator.** Keyboard-first review of a folder of screenshots:
+  pick a folder in the tree, type a label (it becomes part of the file name), mark up the image
+  with pen, box, highlight and crop, rotate, and move on. Edits save when you leave the image.
+  `Alt+M` moves the image to a chosen folder, for sorting a big folder one key per keeper.
+  `GTK3 / Python`, one file; `scr-annotator.desktop` is the menu entry.
+- **`file-watch/` — an inbox for a folder.** Tracks which files under a watched folder have ever
+  been edited since they appeared and which have only accumulated, as a snapshot plus an
+  append-only event journal. Runs as a systemd user timer every 2 minutes (`systemd/install.sh`).
+- **`folder-audit/` — hash-based change auditing for any folder.** Each run hashes every file and
+  reports what is new, changed or deleted since the last accepted audit. Accepting commits the
+  folder to its own git repo and writes a dated zip, so every non-media file is recoverable two
+  ways. `--check` only reports (exit 1 on changes), for cron; `--all` sweeps every audited folder.
+  Install with `ln -s "$PWD/folder-audit/audit.py" ~/.local/bin/folder-audit`.
+- **`dedup/` — `dedup-symlink.sh`.** Finds byte-identical files with `jdupes` and replaces every
+  copy but one with a relative symlink, keeping the real file in the highest-priority folder that
+  has one. Never deletes; `preview` changes nothing, `apply` confirms byte for byte. Put the
+  machine's folders in `dedup/dedup.conf` (gitignored) or edit the CONFIG block.
 
 ## Install the Android app (knotes)
 

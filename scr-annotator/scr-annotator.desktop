@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Nibras Image Annotator
+Comment=Review, label and mark up a folder of images
+Exec=/home/akil/prj/scr-annotator/scr_annotator.py %f
+Icon=/home/akil/prj/scr-annotator/icon.png
+Terminal=false
+Categories=Graphics;Photography;
+MimeType=image/png;image/jpeg;image/webp;image/bmp;image/gif;
+# Must match GLib.set_prgname()/set_wmclass() in the app, or the window and
+# this entry are treated as unrelated and Alt+Tab shows a generic icon.
+StartupWMClass=scr-annotator

@@ -28,7 +28,7 @@ public class FulltextSyncController {
 
     /**
      * Check out every bookmarked record's file (all modules) and rebuild the master TOC
-     * (repo1/TOC.md) — department → course → record, as manuscript-index embeds. Existing
+     * (repo1/TOC.md) over every checkout — module → department → record, as manuscript-index embeds. Existing
      * checkouts with different content are parked with a timestamp (returned as conflicts).
      */
     @PostMapping("/bookmarked-toc")

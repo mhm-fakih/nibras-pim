@@ -1,0 +1,16 @@
+[Unit]
+Description=File review scanner (one pass)
+Documentation=file:///home/akil/prj/file-watch/README.md
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /home/akil/prj/file-watch/file_watch.py --once
+
+# No DISPLAY, no X readiness gate: unlike window-tracker this only touches the
+# filesystem, so it runs happily with no graphical session at all.
+
+Nice=10
+IOSchedulingClass=idle
+
+StandardOutput=journal
+StandardError=journal

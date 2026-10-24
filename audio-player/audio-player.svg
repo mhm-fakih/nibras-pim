@@ -1,12 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="26" fill="#002b36"/>
-  <!-- seek bar -->
-  <rect x="24" y="86" width="80" height="6" rx="3" fill="#073642"/>
-  <rect x="24" y="86" width="44" height="6" rx="3" fill="#268bd2"/>
-  <!-- bookmark ticks -->
-  <rect x="40" y="78" width="3" height="10" rx="1.5" fill="#b58900"/>
-  <rect x="62" y="78" width="3" height="10" rx="1.5" fill="#b58900"/>
-  <rect x="86" y="78" width="3" height="10" rx="1.5" fill="#b58900"/>
-  <!-- play triangle -->
-  <path d="M50 30 L84 50 L50 70 Z" fill="#fdf6e3"/>
+  <!-- Shared app mark, in sync with mobile/app/src/main/res: same #133155 ground and the same
+       white symbolic line-art (24-unit grid, 1.6 stroke, round caps) as ic_launcher_foreground.
+       Here the glyph is a sound wave, for the audio player. -->
+  <rect width="128" height="128" rx="26" fill="#133155"/>
+  <g transform="translate(26.8,26.8) scale(3.1)"
+     fill="none" stroke="#FFFFFF" stroke-width="1.6"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2,10 V14"/>
+    <path d="M6,6 V18"/>
+    <path d="M10,3 V21"/>
+    <path d="M14,7.5 V16.5"/>
+    <path d="M18,5 V19"/>
+    <path d="M22,10 V14"/>
+  </g>
 </svg>

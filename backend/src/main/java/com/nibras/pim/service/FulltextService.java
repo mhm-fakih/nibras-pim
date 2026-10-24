@@ -279,7 +279,7 @@ public class FulltextService {
                 new java.util.ArrayList<>(java.util.Arrays.asList(cmd.trim().split("\\s+")));
         parts.add(file.toString());
         try {
-            new ProcessBuilder(parts).start();   // fire-and-forget in the user's desktop session
+            DesktopLauncher.launch(parts);   // fire-and-forget in the user's desktop session
         } catch (IOException ignored) {
             // opening is best-effort; the export itself already succeeded
         }
@@ -420,84 +420,124 @@ public class FulltextService {
     public record BookmarkedTocResult(int exported, String tocPath, List<TocConflict> conflicts) {
     }
 
-    /** TOC module order (T, P, G, J, N, W, R) — also the record order within a course group. */
+    /** Type sections of the master TOC, in the knotes manuscript's order (G, T, J, W, R, N), with P after T. */
     private static final List<String> TOC_MODULES = List.of(
-            "tasks", "planners", "goals", "journals", "notes", "writings", "resources");
+            "goals", "tasks", "planners", "journals", "writings", "resources", "notes");
+
+    /** Section titles for {@link #TOC_MODULES}. */
+    private static final Map<String, String> TOC_TITLES = Map.of(
+            "goals", "Goals", "tasks", "Tasks", "planners", "Planners", "journals", "Journals",
+            "writings", "Writings", "resources", "Resources", "notes", "Notes");
 
     /**
-     * Check out every bookmarked record's file (all modules — T/P/G/J/N/W/R) and rebuild the
-     * master TOC at {@code <repo1>/TOC.md}: department (level-1 heading) → course (level-2, when
-     * set) → the record's code + title, followed by a structural embed of its checkout file
-     * (e.g. {@code W18.md}). The format follows the writer fork's manuscript-index contract
-     * (docs/MASTER-TOC-FORMAT.md in nbr-zettlr): embeds alone on a top-level line, relative
-     * paths from the including file, blank lines around each. Checkouts never clobber edits:
-     * an existing file with different content is parked as {@code <CODE><id>.<timestamp>.md}
-     * first (reported in {@code conflicts} for manual merging); editing an embedded file later
-     * shows up in the normal fulltext pending-sync list.
+     * Check out every bookmarked record's file and rebuild the master TOC at
+     * {@code <repo1>/TOC.md}, laid out like the knotes manuscript ({@code make-manuscript.py}):
+     * one {@code ##} section per module, one {@code ###} per department (by code, none last under
+     * "No dept."), and within a department the records by priority (highest first), then age
+     * (oldest first). Each record is a {@code ####} code + title heading over a structural embed of
+     * its checkout file, so the whole set reads — and edits — as one manuscript in Zettlr.
+     *
+     * <p>The TOC covers every record that has a checkout in repo1, not only the bookmarked ones:
+     * a record checked out from its own page belongs in the manuscript too. Only the bookmarked
+     * are (re-)exported; other checkouts are embedded as they are, so their unsynced edits are left
+     * alone. Embeds follow the writer fork's manuscript-index contract
+     * (docs/MASTER-TOC-FORMAT.md in nbr-zettlr): alone on a top-level line, relative paths from
+     * the including file, blank lines around each. A bookmarked checkout that already existed with
+     * different content is parked as {@code <CODE><id>.<timestamp>.md} first (reported in
+     * {@code conflicts}); editing an embedded file shows up in the normal pending-sync list.
      */
     @Transactional(readOnly = true)
     public BookmarkedTocResult exportBookmarkedToc() {
-        record Row(String module, BaseEntity entity, String deptKey, String deptName,
-                   String courseName, int moduleRank, int priority) {
+        record Row(String module, BaseEntity entity, Path file, String deptKey, String deptName,
+                   int priority) {
         }
-        List<Row> rows = new ArrayList<>();
+        Path root = repositories.repoRoot(1);
+        List<TocConflict> conflicts = new ArrayList<>();
+        // (module, id) -> checkout file: the bookmarked, freshly exported, plus whatever is on disk.
+        Map<String, Map<Long, Path>> files = new java.util.HashMap<>();
         for (String module : TOC_MODULES) {
             Class<? extends BaseEntity> cls = CLASSES.get(module);
             for (BaseEntity e : em.createQuery(
                             "select e from " + cls.getName() + " e where e.bookmarked = true", cls)
                     .getResultList()) {
+                SafeExport exported = exportSafe(module, e.getId());
+                if (exported.backupName() != null) {
+                    conflicts.add(new TocConflict(module, e.getId(),
+                            nz(e.feedTitle(), "#" + e.getId()), exported.backupName()));
+                }
+                files.computeIfAbsent(module, k -> new java.util.HashMap<>()).put(e.getId(), exported.path());
+            }
+            Path moduleDir = root.resolve(codeFor(module));
+            if (!Files.isDirectory(moduleDir)) {
+                continue;
+            }
+            // <CODE>/[type/][id/100/]<id>/<CODE><id>.md (or the legacy _record.md), as RepositoryService.folder lays it out.
+            String code = codeFor(module);
+            try (var walk = Files.walk(moduleDir, 4)) {
+                for (Path f : (Iterable<Path>) walk.filter(Files::isRegularFile)::iterator) {
+                    String dir = f.getParent().getFileName().toString();
+                    String name = f.getFileName().toString();
+                    if (!dir.matches("\\d{1,18}")
+                            || !(name.equals(code + dir + ".md") || name.equals(LEGACY_FILE))) {
+                        continue;
+                    }
+                    files.computeIfAbsent(module, k -> new java.util.HashMap<>())
+                            .merge(Long.parseLong(dir), f, (had, other) -> had.endsWith(LEGACY_FILE) ? other : had);
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        List<Row> rows = new ArrayList<>();
+        for (String module : TOC_MODULES) {
+            Map<Long, Path> byId = files.getOrDefault(module, Map.of());
+            if (byId.isEmpty()) {
+                continue;
+            }
+            Class<? extends BaseEntity> cls = CLASSES.get(module);
+            // A checkout whose record is gone (deleted, merged away) has nothing to sync back to.
+            for (BaseEntity e : em.createQuery(
+                            "select e from " + cls.getName() + " e where e.id in :ids", cls)
+                    .setParameter("ids", byId.keySet())
+                    .getResultList()) {
                 BeanWrapper bw = new BeanWrapperImpl(e);
                 var dept = (com.nibras.pim.domain.lookup.Department) bw.getPropertyValue("department");
-                var course = (com.nibras.pim.domain.lookup.Course) bw.getPropertyValue("course");
                 Integer prio = (Integer) bw.getPropertyValue("priority");
                 rows.add(new Row(
-                        module, e,
-                        // "￿" sorts departmentless records last; "￾" codeless departments next-to-last
-                        dept == null ? "￿" : nz(dept.getCode(), "￾"),
+                        module, e, byId.get(e.getId()),
+                        // "\uFFFF" sorts departmentless records last; "\uFFFE" codeless departments next-to-last
+                        dept == null ? "\uFFFF" : nz(dept.getCode(), "\uFFFE"),
                         dept == null ? "No dept." : nz(dept.getName(), dept.getCode(), "No dept."),
-                        course == null ? null : nz(course.feedTitle(), null),
-                        TOC_MODULES.indexOf(module),
                         prio == null ? 0 : prio));
             }
         }
-        // Group order: departments by code (none last, under "No dept."); within a department the
-        // course-less records FIRST (an embed after a "##" heading would nest under that course),
-        // then course groups; records by module order, then priority (desc), then id.
+        java.time.LocalDateTime never = java.time.LocalDateTime.MAX;
         rows.sort(java.util.Comparator
-                .comparing(Row::deptKey)
-                .thenComparing(r -> r.courseName() == null ? "" : r.courseName())
-                .thenComparing(Row::moduleRank)
+                .comparing((Row r) -> TOC_MODULES.indexOf(r.module()))
+                .thenComparing(Row::deptKey)
                 .thenComparing(r -> -r.priority())
+                .thenComparing(r -> r.entity().getDateCreated() == null ? never : r.entity().getDateCreated())
                 .thenComparing(r -> r.entity().getId()));
 
-        Path root = repositories.repoRoot(1);
-        StringBuilder sb = new StringBuilder("---\ntitle: Bookmarked records — Master TOC\n---\n");
-        List<TocConflict> conflicts = new ArrayList<>();
+        StringBuilder sb = new StringBuilder("---\ntitle: Records — Manuscript\n---\n\n# Manuscript\n");
+        String module = null;
         String dept = null;
-        String course = null;
-        boolean first = true;
         for (Row r : rows) {
-            SafeExport exported = exportSafe(r.module(), r.entity().getId());
-            String title = nz(r.entity().feedTitle(), "#" + r.entity().getId());
-            if (exported.backupName() != null) {
-                conflicts.add(new TocConflict(r.module(), r.entity().getId(), title, exported.backupName()));
+            if (!r.module().equals(module)) {
+                sb.append("\n## ").append(TOC_TITLES.get(r.module())).append('\n');
+                module = r.module();
+                dept = null;
             }
-
-            if (first || !r.deptName().equals(dept)) {
-                sb.append("\n# ").append(r.deptName()).append('\n');
+            if (!r.deptName().equals(dept)) {
+                sb.append("\n### ").append(r.deptName()).append('\n');
                 dept = r.deptName();
-                course = null;
             }
-            if (r.courseName() != null && !r.courseName().equals(course)) {
-                sb.append("\n## ").append(r.courseName()).append('\n');
-            }
-            course = r.courseName();
-
-            String rel = root.relativize(exported.path()).toString();
-            sb.append("\n### ").append(codeFor(r.module())).append(r.entity().getId())
-                    .append(" — ").append(title).append("\n\n");
+            String rel = root.relativize(r.file()).toString();
+            sb.append("\n#### ").append(codeFor(r.module())).append(r.entity().getId())
+                    .append(" — ").append(nz(r.entity().feedTitle(), "#" + r.entity().getId()))
+                    .append(" (p").append(r.priority()).append(")\n\n");
             sb.append("![](").append(rel.contains(" ") ? "<" + rel + ">" : rel).append(")\n");
-            first = false;
         }
 
         Path toc = root.resolve("TOC.md");

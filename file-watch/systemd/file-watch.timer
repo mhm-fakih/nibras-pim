@@ -1,0 +1,18 @@
+[Unit]
+Description=Run the file review scanner every 2 minutes
+Documentation=file:///home/akil/prj/file-watch/README.md
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+
+# Catch up one missed run after a reboot or a suspend. Without this the journal
+# gains a silent gap across every overnight, and the modification history it
+# exists to record is exactly what would be lost.
+Persistent=true
+
+# Avoid every timer on the machine firing on the same second.
+RandomizedDelaySec=10
+
+[Install]
+WantedBy=timers.target
