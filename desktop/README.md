@@ -208,8 +208,8 @@ Everything is reachable from the keyboard (press **F1** in the app for this list
 |------|--------|
 | `Ctrl+Enter` (or plain `Enter` if "save on enter" is on) | Save / send the note |
 | `Esc` | Text field ⇄ board (once → field · again → board) |
-| `Ctrl+Shift+<letter>` | Type/category: retags the selected card (renames its file), else sets the add form's chip |
-| `Ctrl+Shift+<digit>` | Priority: retags the selected card, else sets the add form's priority |
+| `Ctrl+Shift+<letter>` | Type/category: retags the selected card and every card marked with Ctrl+click / `Ctrl+M` (renames their files), else sets the add form's chip |
+| `Ctrl+Shift+<digit>` | Priority: retags the selected card and every marked card, else sets the add form's priority |
 | Click a card / Arrows | Select a card · move between cards (↑↓ in a column, ←→ across) |
 | `Enter` (card selected) | Open the selected note in your editor |
 | `Ctrl+D` (card selected) | Move the selected note to the `.deleted/` folder (with confirmation) |

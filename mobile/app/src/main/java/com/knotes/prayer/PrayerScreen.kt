@@ -875,11 +875,22 @@ private fun SilencePanel(settings: PrayerSettings, update: ((PrayerSettings) -> 
     val granted = SilenceState.canControlRinger(context)
 
     PanelBody(stringResource(R.string.prayer_silence_title)) {
-        ToggleRow(
-            stringResource(R.string.prayer_silence_toggle),
-            stringResource(R.string.prayer_silence_toggle_note),
-            settings.silenceEnabled,
-        ) { on -> update { it.copy(silenceEnabled = on) } }
+        // None / Silence / Vibration — one choice, stored as the on/off switch plus the mode, so
+        // the schedule (which only asks "is anything to be done?") stays as it was.
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(
+                Triple(R.string.prayer_after_none, false, settings.silenceVibrate),
+                Triple(R.string.prayer_after_silence, true, false),
+                Triple(R.string.prayer_after_vibrate, true, true),
+            ).forEach { (label, on, vibrate) ->
+                FilterChip(
+                    selected = settings.silenceEnabled == on && (!on || settings.silenceVibrate == vibrate),
+                    onClick = { update { it.copy(silenceEnabled = on, silenceVibrate = vibrate) } },
+                    label = { Text(stringResource(label)) },
+                )
+            }
+        }
+        Note(stringResource(R.string.prayer_silence_toggle_note))
 
         if (settings.silenceEnabled && !granted) {
             Spacer(Modifier.height(6.dp))

@@ -51,7 +51,7 @@ except ImportError:
     )
     raise SystemExit(1)
 
-VERSION = "1.2.36"
+VERSION = "1.2.37"
 CODENAME = "Gratitude"
 
 # Local, non-hidden config file, right next to this program — the terminal app owns it.

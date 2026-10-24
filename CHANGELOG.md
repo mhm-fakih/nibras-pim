@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-24 — 1.2.37 "Gratitude"
+
+- **Mobile:** after the athan — None, Silence or Vibration; daily and weekly checklists; Tasks
+  board widget; starred media and a Starred tab; player bookmarks on the Player tab; athan volume
+  fixes for flat (Samsung) volume curves.
+- **Web:** list search ranks title matches first; file search (embedded index, damage report);
+  tool pages grouped in the rail; Tasks "Active only"; master TOC laid out like the manuscript;
+  apps opened from the web app survive a backend restart.
+- **Desktop 1.7.0:** #tags shown once, inline; text direction per line; Ctrl+Shift+<code> retags
+  every marked card.
+- **Audio player:** "Bookmarked today" playlist. **Capture:** audio-only and voice-quality media
+  downloads. **Small tools published:** folder-audit, dedup, scr-annotator (Move key), file-watch.
+
 ## 2026-10-14 — capture/: Telegram, Firefox bookmarks and yt-dlp write knotes for Import
 
 ### Added — three capture tools in one folder

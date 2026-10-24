@@ -88,8 +88,10 @@ data class PrayerSettings(
     val athanVolumes: Map<Prayer, Int> = emptyMap(),
 
     // ---- silence ----
-    /** Drop the ringer to silent from the athan until [silenceMinutes] later. */
+    /** Drop the ringer from the athan until [silenceMinutes] later — to silent, or to vibrate. */
     val silenceEnabled: Boolean = false,
+    /** Vibrate instead of silent: calls still announce themselves, without a sound. */
+    val silenceVibrate: Boolean = false,
     val silenceMinutes: Int = 15,
     val silencePrayers: Set<Prayer> = setOf(Prayer.DHUHR, Prayer.MAGHRIB),
 
@@ -222,6 +224,7 @@ class PrayerSettingsStore(context: Context) {
             athanSoundUri = prefs.getString(K_ATHAN_SOUND, "") ?: "",
             athanVolumes = decodeVolumes(prefs.getString(K_ATHAN_VOLUMES, null)),
             silenceEnabled = prefs.getBoolean(K_SIL_ON, d.silenceEnabled),
+            silenceVibrate = prefs.getBoolean(K_SIL_VIBRATE, d.silenceVibrate),
             silenceMinutes = prefs.getInt(K_SIL_MIN, d.silenceMinutes),
             silencePrayers = decodePrayers(prefs.getString(K_SIL_PRAYERS, null)) ?: d.silencePrayers,
             beepsEnabled = prefs.getBoolean(K_BEEP_ON, d.beepsEnabled),
@@ -267,6 +270,7 @@ class PrayerSettingsStore(context: Context) {
             .putString(K_ATHAN_SOUND, s.athanSoundUri.trim())
             .putString(K_ATHAN_VOLUMES, encodeVolumes(s.athanVolumes))
             .putBoolean(K_SIL_ON, s.silenceEnabled)
+            .putBoolean(K_SIL_VIBRATE, s.silenceVibrate)
             .putInt(K_SIL_MIN, s.silenceMinutes.coerceIn(PrayerSettings.MIN_SILENCE, PrayerSettings.MAX_SILENCE))
             .putString(K_SIL_PRAYERS, encodePrayers(s.effectiveSilence))
             .putBoolean(K_BEEP_ON, s.beepsEnabled)
@@ -299,6 +303,7 @@ class PrayerSettingsStore(context: Context) {
         private const val K_ATHAN_SOUND = "athan_sound_uri"
         private const val K_ATHAN_VOLUMES = "athan_volumes"
         private const val K_SIL_ON = "silence_enabled"
+        private const val K_SIL_VIBRATE = "silence_vibrate"
         private const val K_SIL_MIN = "silence_minutes"
         private const val K_SIL_PRAYERS = "silence_prayers"
         private const val K_BEEP_ON = "beeps_enabled"

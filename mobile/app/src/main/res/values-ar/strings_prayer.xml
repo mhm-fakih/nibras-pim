@@ -146,9 +146,11 @@
     <string name="prayer_builtin_tone_no_file">النغمة المدمجة — لا حاجة إلى ملف</string>
     <string name="prayer_hear_count">استماع %1$d</string>
     <string name="prayer_beep_tone_note">النغمة المدمجة من الجهاز نفسه، ولا يعطّلها حذف أي ملف. الصوت المختار يُشغَّل مرة لكل تنبيه، فالصوت الطويل يُطيل العدّ.</string>
-    <string name="prayer_silence_title">إسكات الهاتف</string>
-    <string name="prayer_silence_toggle">الوضع الصامت في هذه الأوقات</string>
-    <string name="prayer_silence_toggle_note">يتحوّل الرنين إلى صامت عند حلول الوقت، ثم يعود كما كان تمامًا.</string>
+    <string name="prayer_silence_title">بعد الأذان</string>
+    <string name="prayer_after_none">لا شيء</string>
+    <string name="prayer_after_silence">صامت</string>
+    <string name="prayer_after_vibrate">اهتزاز</string>
+    <string name="prayer_silence_toggle_note">عند حلول الوقت يتحوّل الرنين إلى صامت أو اهتزاز، ثم يعود كما كان تمامًا.</string>
     <string name="prayer_dnd_needed">لا يسمح أندرويد لأي تطبيق بتغيير الرنين دون إذن «عدم الإزعاج».</string>
     <string name="prayer_grant_access">منح الإذن</string>
     <string name="prayer_silence_for">لمدة %1$d د</string>

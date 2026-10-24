@@ -18,6 +18,7 @@ import subprocess
 import sys
 import threading
 import traceback
+import unicodedata
 import warnings
 from datetime import datetime, timedelta
 
@@ -418,6 +419,64 @@ EDITOR_PANE_SETTLE_MS = 300
 SCROLL_PIN_MS = 350
 
 
+def _without_hashtags(runs: list[tuple[str, bool]]) -> list[tuple[str, bool]]:
+    """[runs] with every #hashtag removed, spaces collapsed and lines left empty dropped.
+
+    Works on (character, highlighted) pairs, like Note.card_preview, so a highlight survives the
+    cut. The tag itself is matched by _HASHTAG_RE, the same rule _hashtags uses to list them."""
+    text = "".join(t for t, _h in runs)
+    flags = [h for t, h in runs for _c in t]
+    cut = [False] * len(text)
+    for m in _HASHTAG_RE.finditer(text):
+        for i in range(*m.span()):
+            cut[i] = True
+    lines: list[list[tuple[str, bool]]] = [[]]
+    for c, f, x in zip(text, flags, cut):
+        if x:
+            continue
+        if c == "\n":
+            lines.append([])
+        elif not (c.isspace() and (not lines[-1] or lines[-1][-1][0].isspace())):
+            lines[-1].append((c, f))
+    pairs: list[tuple[str, bool]] = []
+    for line in lines:
+        while line and line[-1][0].isspace():
+            line.pop()
+        if line:
+            if pairs:
+                pairs.append(("\n", False))
+            pairs.extend(line)
+    runs_out: list[tuple[str, bool]] = []
+    for c, f in pairs:
+        if runs_out and runs_out[-1][1] == f:
+            runs_out[-1] = (runs_out[-1][0] + c, f)
+        else:
+            runs_out.append((c, f))
+    return runs_out
+
+
+def _split_first_line(runs: list[tuple[str, bool]]):
+    """(first line, the rest) of [runs], the shape Note.card_preview returns."""
+    for i, (t, f) in enumerate(runs):
+        if "\n" in t:
+            a, b = t.split("\n", 1)
+            head = runs[:i] + ([(a, f)] if a else [])
+            rest = ([(b, f)] if b else []) + runs[i + 1:]
+            return head, rest
+    return runs, []
+
+
+def _opens_rtl(markup: str) -> bool:
+    """True when the first strong letter of [markup]'s visible text is right-to-left."""
+    for c in re.sub(r"<[^>]*>", "", markup):
+        kind = unicodedata.bidirectional(c)
+        if kind in ("R", "AL"):
+            return True
+        if kind == "L":
+            return False
+    return False
+
+
 def _tag_span(text: str, color: str) -> str:
     """An inline, badge-like Pango span: bold coloured text on a faint tint of the same colour, with
     surrounding spaces for a little horizontal padding.
@@ -442,23 +501,6 @@ def _tag_chip(text: str, color: str) -> Gtk.Label:
     label.get_style_context().add_provider(provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
     return label
 
-
-def _tag_chip_row(pairs: list[tuple[str, str]], rtl: bool = False) -> Gtk.Widget:
-    """A row of chips that wraps. A FlowBox rather than a Box so a card carrying a dozen hashtags
-    doesn't force the column wider than the board can give it."""
-    flow = Gtk.FlowBox()
-    flow.set_selection_mode(Gtk.SelectionMode.NONE)
-    flow.set_max_children_per_line(99)   # let the width, not a count, decide the wrap
-    flow.set_column_spacing(4)
-    flow.set_row_spacing(3)
-    flow.get_style_context().add_class("tag-pill-row")
-    # Direction, NOT halign, is what puts an Arabic card's chips on the right. A halign of
-    # START/END makes the FlowBox take its NATURAL width instead of the card's — and a FlowBox's
-    # natural width is one child, so every chip ends up on a line of its own.
-    flow.set_direction(Gtk.TextDirection.RTL if rtl else Gtk.TextDirection.LTR)
-    for text, color in pairs:
-        flow.add(_tag_chip(text, color))
-    return flow
 
 # Colour blocks prepended to style.css at runtime. Only these named colours change between themes;
 # the structural rules in style.css reference them and never name a literal colour.
@@ -3156,23 +3198,37 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # note's own first words got in the way of reading it. Down with the actions it's a footer.
         counts = " · ".join(parts)
 
+        # The #hashtags are shown once, as tinted spans at the end of the text: taken out of the
+        # preview where they stand (the tag line, mostly) and appended after its last line. They
+        # used to show twice — as plain text in the preview and again as a chip row beneath it.
+        hashtags = _hashtags(note.content)
+        if hashtags and note.path not in self._unrecognized_paths:
+            head, rest = _split_first_line(_without_hashtags(
+                head + ([("\n", False)] + rest if rest else [])))
+
         # Line 1 bold, the rest beneath it at normal weight — see Note.card_preview for why the
         # note's own line breaks are worth keeping.
-        markup = f"<b>{self._runs_markup(head)}</b>"
+        markup = f"<b>{self._runs_markup(head)}</b>" if head else ""
         if rest:
             markup += "\n" + self._runs_markup(rest)
+        if hashtags:
+            spans = " ".join(_tag_span("#" + h, TAG_COLOR_HASH) for h in hashtags)
+            markup = f"{markup} {spans}" if markup else spans
 
         title = Gtk.Label(xalign=0)
-        title.set_markup(markup)
         title.set_line_wrap(True)
         title.set_lines(4)
         title.set_ellipsize(3)  # END — ellipsize after the wrap cap
         title.set_valign(Gtk.Align.START)
-        # Arabic (and other RTL) content reads from the right — of its own column, not of the card,
-        # so the gutter to its left stays put.
-        if note.is_rtl:
-            title.set_xalign(1.0)
-            title.set_justify(Gtk.Justification.RIGHT)
+        # Direction is per LINE, not per note: an Arabic line reads from the right and an English
+        # one from the left, even inside the same note. Pango resolves each paragraph's direction
+        # from its first strong letter and MIRRORS the alignment of an RTL one, so asking for LEFT
+        # lands every Arabic line on the right and leaves every English line on the left. xalign
+        # only matters when the text is narrower than the column (a short single line), and then
+        # follows the direction the text opens in.
+        title.set_justify(Gtk.Justification.LEFT)
+        title.set_xalign(1.0 if _opens_rtl(markup) else 0.0)
+        title.set_markup(markup)
         title.get_style_context().add_class("title")
 
         # LTR on the row too: widget direction comes from the locale, and under an RTL one
@@ -3182,14 +3238,6 @@ class KnotesWindow(Gtk.ApplicationWindow):
         title_row.pack_start(tag_label, False, False, 0)
         title_row.pack_start(title, True, True, 0)
         outer.pack_start(title_row, False, False, 0)
-
-        # #hashtags extracted from the body, shown as chips at the end so they're always visible even
-        # when the content above is truncated.
-        hashtags = _hashtags(note.content)
-        if hashtags:
-            outer.pack_start(
-                _tag_chip_row([("#" + h, TAG_COLOR_HASH) for h in hashtags], note.is_rtl),
-                False, False, 0)
 
         outer.pack_start(self._build_card_actions(note, counts), False, False, 0)
 
@@ -3863,7 +3911,11 @@ class KnotesWindow(Gtk.ApplicationWindow):
         """Ctrl+Shift+<letter/digit> on the selected card: set its type/category or priority,
         renaming the file. Always sets (never clears) — safe to mass-apply the same tag across
         many notes without checking each one's current state first; un-setting a type/category
-        still needs the full editor. Returns True if it matched a code."""
+        still needs the full editor. Returns True if it matched a code.
+
+        With cards marked (Ctrl+click / Ctrl+M), the change applies to every marked card as well as
+        the selected one — mark several, then one keystroke sets them all. The marks follow the
+        renamed files, so a second retag (type, then priority, …) hits the same set again."""
         # Retagging RENAMES the file, so the pane's pending write has to land on the old name first;
         # the rename then carries it, and the reload re-opens the note under its new name.
         self._editor_flush()
@@ -3874,34 +3926,55 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if not ch:
             return False
         up = ch.upper()
-        new_type, new_cat = note.type, note.category
-        if note.priority is not None:
-            new_prio = note.priority
-        else:
-            lo, hi = self.repo_cfg.priority_min, max(self.repo_cfg.priority_max, self.repo_cfg.priority_min)
-            new_prio = min(max(self.repo_cfg.priority_default, lo), hi)
+        field, value = None, None
         code = next((c for c in self.type_codes if c.upper() == up), None)
         if code is not None:
-            new_type = code
+            field, value = "type", code
         else:
             code = next((c for c in self.category_codes if c.upper() == up), None)
             if code is not None:
-                new_cat = code
+                field, value = "category", code
             elif ch.isdigit() and int(ch) in self.priority_buttons:
-                new_prio = int(ch)
+                field, value = "priority", int(ch)
             else:
                 return False
-        if note.path in self._unrecognized_paths:
-            new_path = self.repo.promote(note, new_type, new_prio, new_cat, self.settings.timestamp_format)
-        else:
-            new_path = self.repo.update(note, note.content, new_type, new_prio, new_cat)
+
+        by_path = {n.path: n for row in self._grid for col in row for (n, _c) in col}
+        targets = [note] + [by_path[p] for p in self._merge_marks
+                            if p in by_path and p != note.path]
+        renamed: dict[str, str] = {}
+        for target in targets:
+            new_type, new_cat = target.type, target.category
+            if target.priority is not None:
+                new_prio = target.priority
+            else:
+                lo = self.repo_cfg.priority_min
+                hi = max(self.repo_cfg.priority_max, lo)
+                new_prio = min(max(self.repo_cfg.priority_default, lo), hi)
+            if field == "type":
+                new_type = value
+            elif field == "category":
+                new_cat = value
+            else:
+                new_prio = value
+            if target.path in self._unrecognized_paths:
+                new_path = self.repo.promote(target, new_type, new_prio, new_cat,
+                                             self.settings.timestamp_format)
+            else:
+                new_path = self.repo.update(target, target.content, new_type, new_prio, new_cat)
+            if new_path:
+                renamed[target.path] = new_path
+        self._merge_marks = [renamed.get(p, p) for p in self._merge_marks]
         # Follow the edited note itself — a note may be retagged several times in a row (type,
         # then priority, then category, ...), and jumping selection to a NEIGHBOUR each time (the
         # earlier fix here) compounds: after a few edits you're focused several cards away from
         # where you started. The real fix for "mass-tagging relocates the card" is sorting by
         # "Date created" instead of "Last updated" — that keeps a retagged note's position stable,
         # so following it here is a no-op move in that mode, and a correct one in every other mode.
-        self._reload_keeping_scroll(new_path)
+        self._reload_keeping_scroll(renamed.get(note.path, note.path))
+        if len(targets) > 1:
+            label = f"P{value}" if field == "priority" else value
+            self._flash_status(f"{label} set on {fmt_count(len(targets))} notes")
         return True
 
     def _save_draft(self) -> None:
@@ -4817,8 +4890,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
         rows = [
             (save_keys, "Save the new note" + (" · Shift+Enter for a newline" if self.settings.save_on_enter else "")),
             ("Esc", "Text field ⇄ board (once → field · again → board)"),
-            ("Ctrl+Shift+<letter>", "Type/category: edit selected card, else the add form"),
-            ("Ctrl+Shift+<digit>", "Priority: edit selected card, else the add form"),
+            ("Ctrl+Shift+<letter>", "Type/category: edit selected card and every marked one, else the add form"),
+            ("Ctrl+Shift+<digit>", "Priority: edit selected card and every marked one, else the add form"),
             ("Click a card / Arrows", "Select a card · move between cards (↑↓ in a column, ←→ across)"),
             ("Enter (card selected)", "Open the selected note in your editor"),
             ("Ctrl+D (card selected)",

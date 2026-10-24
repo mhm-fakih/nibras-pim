@@ -142,9 +142,11 @@
     <string name="prayer_builtin_tone_no_file">Built-in tone — no file needed</string>
     <string name="prayer_hear_count">Hear %1$d</string>
     <string name="prayer_beep_tone_note">The built-in tone is the device\'s own and cannot be broken by deleting a file. A chosen sound plays once per beep, so a long one makes a long countdown.</string>
-    <string name="prayer_silence_title">Silence the phone</string>
-    <string name="prayer_silence_toggle">Go silent at these times</string>
-    <string name="prayer_silence_toggle_note">The ringer drops to silent from the time itself, and is put back exactly as it was.</string>
+    <string name="prayer_silence_title">After the athan</string>
+    <string name="prayer_after_none">None</string>
+    <string name="prayer_after_silence">Silence</string>
+    <string name="prayer_after_vibrate">Vibration</string>
+    <string name="prayer_silence_toggle_note">From the time itself the ringer drops to silent, or to vibrate, and is put back exactly as it was.</string>
     <string name="prayer_dnd_needed">Android will not let an app change the ringer without Do Not Disturb access.</string>
     <string name="prayer_grant_access">Grant access</string>
     <string name="prayer_silence_for">For %1$d min</string>

@@ -78,7 +78,7 @@ class PrayerReceiver : BroadcastReceiver() {
             PrayerEventKind.SILENCE_START -> {
                 val until = at + settings.silenceMinutes
                     .coerceIn(PrayerSettings.MIN_SILENCE, PrayerSettings.MAX_SILENCE) * 60_000L
-                SilenceState.begin(context, until)
+                SilenceState.begin(context, until, settings.silenceVibrate)
             }
             PrayerEventKind.SILENCE_END -> SilenceState.end(context)
             PrayerEventKind.BEEPS -> beeps(context, settings)

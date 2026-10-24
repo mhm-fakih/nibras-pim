@@ -143,9 +143,11 @@
     <string name="prayer_builtin_tone_no_file">Tonalité intégrée — aucun fichier requis</string>
     <string name="prayer_hear_count">Écouter %1$d</string>
     <string name="prayer_beep_tone_note">La tonalité intégrée est celle de l’appareil : supprimer un fichier ne peut pas la casser. Un son choisi est joué une fois par bip, donc un son long allonge le compte à rebours.</string>
-    <string name="prayer_silence_title">Mettre le téléphone en silence</string>
-    <string name="prayer_silence_toggle">Passer en silence à ces horaires</string>
-    <string name="prayer_silence_toggle_note">La sonnerie passe en silence dès l’horaire, puis est rétablie exactement comme avant.</string>
+    <string name="prayer_silence_title">Après l’adhan</string>
+    <string name="prayer_after_none">Rien</string>
+    <string name="prayer_after_silence">Silence</string>
+    <string name="prayer_after_vibrate">Vibreur</string>
+    <string name="prayer_silence_toggle_note">Dès l’horaire, la sonnerie passe en silence ou en vibreur, puis est rétablie exactement comme avant.</string>
     <string name="prayer_dnd_needed">Android ne permet pas à une appli de modifier la sonnerie sans l’accès « Ne pas déranger ».</string>
     <string name="prayer_grant_access">Autoriser l’accès</string>
     <string name="prayer_silence_for">Pendant %1$d min</string>

@@ -34,13 +34,15 @@ object SilenceState {
     fun silenceUntil(context: Context): Long = prefs(context).getLong(K_UNTIL, 0L)
 
     /**
-     * Drop the ringer to silent until [untilMillis], remembering what it was.
+     * Drop the ringer to silent — or to vibrate, with [vibrate] — until [untilMillis], remembering
+     * what it was.
      *
      * A second call while a silence is already running does NOT overwrite the saved mode — two
      * prayers close together would otherwise save "silent" as the mode to restore and leave the
-     * phone that way for good.
+     * phone that way for good. Vibrate never makes a phone LOUDER: one already on silent is left
+     * there.
      */
-    fun begin(context: Context, untilMillis: Long): Boolean {
+    fun begin(context: Context, untilMillis: Long, vibrate: Boolean = false): Boolean {
         if (!canControlRinger(context)) return false
         val am = context.getSystemService(AudioManager::class.java) ?: return false
         return runCatching {
@@ -48,7 +50,11 @@ object SilenceState {
                 prefs(context).edit().putInt(K_SAVED_MODE, am.ringerMode).apply()
             }
             prefs(context).edit().putLong(K_UNTIL, untilMillis).apply()
-            am.ringerMode = AudioManager.RINGER_MODE_SILENT
+            if (!vibrate) {
+                am.ringerMode = AudioManager.RINGER_MODE_SILENT
+            } else if (am.ringerMode == AudioManager.RINGER_MODE_NORMAL) {
+                am.ringerMode = AudioManager.RINGER_MODE_VIBRATE
+            }
             true
         }.getOrDefault(false)
     }

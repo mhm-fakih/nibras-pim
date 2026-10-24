@@ -670,17 +670,6 @@ headerbar > label {
     font-size: 0.8em;
     font-weight: 700;
 }
-.tag-pill-row {
-    margin-top: 1px;
-}
-.tag-pill-row flowboxchild {
-    padding: 0;
-    margin: 0;
-    border: none;
-    background: none;
-    min-height: 0;
-    min-width: 0;
-}
 
 /* The active-filter line above the board. A tinted strip rather than a card: it is a status, and
  * it sits between the search bar and the cards without wanting to be read as one of them. Work-area

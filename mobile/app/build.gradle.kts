@@ -3,7 +3,7 @@ import java.util.Properties
 import java.util.zip.ZipFile
 
 /** Single source for the two strings that end up in both the APK and its published file name. */
-val APP_VERSION_NAME = "1.2.36"
+val APP_VERSION_NAME = "1.2.37"
 val APP_CODENAME = "Gratitude"
 
 plugins {
@@ -68,7 +68,7 @@ android {
         targetSdk = 35
         // Bumped with each released versionName: Android refuses to install over a build with a
         // higher code, so a weekly versionName needs this to move too.
-        versionCode = 6
+        versionCode = 7
         versionName = APP_VERSION_NAME
         buildConfigField("int", "BUILD_NUMBER", "$buildNumber")
         buildConfigField("String", "CODENAME", "\"$APP_CODENAME\"")
