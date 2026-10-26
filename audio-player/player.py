@@ -39,8 +39,8 @@ from config import Settings, DEFAULT_LIBRARY_ROOT  # noqa: E402
 from audio import AudioPlayer, MIN_RATE, MAX_RATE  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-VERSION = "1.2.37"
-CODENAME = "Gratitude"
+VERSION = "1.3.0"
+CODENAME = "Serenity"
 
 # How many directories one "does this branch hold any media?" probe may visit before it stops
 # walking and just says yes. Keeps the folder tree responsive over a pathologically deep tree.

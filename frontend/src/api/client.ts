@@ -1174,6 +1174,9 @@ export interface SyncedModule {
   /** The Settings page's "Order" column — the clients follow the same order the sidebar does. */
   sortOrder: number;
   types: Lookup[];
+  /** Repo folder layout the phone mirrors: <code>/[<type>/][<id/100>/]<id>. */
+  bucketByType?: boolean;
+  bucketBy100?: boolean;
 }
 
 /** What the mobile/terminal/desktop clients are expected to be filtering to — for spotting drift. */
@@ -1952,8 +1955,19 @@ export interface ConsolidatedSearch {
   notesError?: string;
 }
 
-export async function searchEverything(q: string, limit = 100): Promise<ConsolidatedSearch> {
-  const { data } = await http.get('/search/all', { params: { q, limit } });
+/** Where the text is looked for (the Search page's scope). Records and notes: title / body. */
+export type RecordScope = 'title' | 'body';
+/** Files: file and folder names / extracted contents. */
+export type FileScope = 'names' | 'contents';
+
+export async function searchEverything(
+  q: string,
+  limit = 100,
+  scope?: RecordScope[],
+): Promise<ConsolidatedSearch> {
+  const { data } = await http.get('/search/all', {
+    params: clean({ q, limit, in: scope?.length ? scope.join(',') : undefined }),
+  });
   return data;
 }
 
@@ -1984,7 +1998,7 @@ export interface FileHit {
 
 export async function searchFiles(
   q: string,
-  opts: { sources?: string[]; exts?: string[]; limit?: number } = {},
+  opts: { sources?: string[]; exts?: string[]; limit?: number; scope?: FileScope[] } = {},
 ): Promise<{ total: number; hits: FileHit[] }> {
   const { data } = await http.get('/search/files', {
     params: clean({
@@ -1992,6 +2006,7 @@ export async function searchFiles(
       source: opts.sources?.length ? opts.sources.join(',') : undefined,
       ext: opts.exts?.length ? opts.exts.join(',') : undefined,
       limit: opts.limit ?? 100,
+      in: opts.scope?.length ? opts.scope.join(',') : undefined,
     }),
   });
   return data;

@@ -15,6 +15,7 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -71,6 +72,7 @@ import com.knotes.AppSettings
 import com.knotes.R
 import com.knotes.Onboarding
 import com.knotes.SettingsStore
+import com.knotes.SettingsBackup
 import com.knotes.StarAction
 import com.knotes.Tag
 import java.text.SimpleDateFormat
@@ -196,7 +198,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
         return name ?: parsed.lastPathSegment ?: context.getString(R.string.settings_sound_custom)
     }
 
-    fun save() {
+    fun save(close: Boolean = true) {
         store.save(
             AppSettings(
                 notesDir = dir,
@@ -253,13 +255,43 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 defaultPriority = defPriority.toIntOrNull() ?: 2,
                 topPriority = topPriority.toIntOrNull() ?: 4,
                 starAction = starAction,
+                // Not edited here: it comes from the server (MainViewModel.syncTaxonomy).
+                folderLayouts = store.value.folderLayouts,
             ),
         )
         // The widget only redraws when told to; without this a new size or day range waits for
         // the next note or sync to show up.
         runCatching { com.knotes.reminder.RecentNotesWidget.refresh(context) }
         runCatching { com.knotes.reminder.TasksBoardWidget.refresh(context) }
-        onBack()
+        if (close) onBack()
+    }
+
+    // Settings backup: a JSON file through the system file picker (see SettingsBackup).
+    val exportPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val msg = SettingsBackup.export(context, uri).fold(
+            { context.getString(R.string.settings_backup_exported, it) },
+            { context.getString(R.string.settings_backup_failed, it.message ?: it.javaClass.simpleName) },
+        )
+        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+    }
+    val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        SettingsBackup.import(context, uri).fold(
+            {
+                Toast.makeText(context, context.getString(R.string.settings_backup_imported, it), Toast.LENGTH_LONG).show()
+                SettingsBackup.restartApp(context)
+            },
+            {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_backup_failed, it.message ?: it.javaClass.simpleName),
+                    Toast.LENGTH_LONG,
+                ).show()
+            },
+        )
     }
 
     Scaffold(
@@ -451,6 +483,24 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                     modifier = Modifier.padding(top = 6.dp),
                 ) {
                     Text(stringResource(R.string.settings_tour_button))
+                }
+
+                HorizontalDivider()
+                Text(stringResource(R.string.settings_backup_header), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    stringResource(R.string.settings_backup_desc),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                    OutlinedButton(onClick = {
+                        // Saved first, so what is on screen is what goes into the file.
+                        save(close = false)
+                        exportPicker.launch(SettingsBackup.suggestedFileName())
+                    }) { Text(stringResource(R.string.settings_backup_export)) }
+                    OutlinedButton(onClick = {
+                        importPicker.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+                    }) { Text(stringResource(R.string.settings_backup_import)) }
                 }
                 }
 

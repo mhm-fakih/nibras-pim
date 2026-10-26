@@ -143,4 +143,7 @@
         <item quantity="other">%1$d surlignées</item>
     </plurals>
     <string name="notes_rail_videos">Vidéos</string>
+    <string name="notes_add_note">Ajouter une note</string>
+    <string name="notes_quick_add_hint">Note rapide — enregistrée N · P2 · X</string>
+    <string name="notes_open_full_form">Formulaire complet : type, priorité, département</string>
 </resources>

@@ -29,6 +29,8 @@ import {
   searchEverything,
   searchFiles,
   SearchHit,
+  RecordScope,
+  FileScope,
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { ENTITY_BY_KEY } from '../config/entities';
@@ -38,20 +40,35 @@ export function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const q = searchParams.get('q') ?? '';
   const [input, setInput] = useState(q);
+  // Scope: where the text is looked for. Kept in the address (?in=title,files…) so a search can be
+  // bookmarked or repeated with the same scope; absent means everywhere.
+  const scope = useMemo(() => {
+    const raw = (searchParams.get('in') ?? '').split(',').filter((x): x is Scope => SCOPES.some((d) => d.key === x));
+    return raw.length ? raw : SCOPES.map((d) => d.key);
+  }, [searchParams]);
+  const recordScope = scope.filter((x): x is RecordScope => x === 'title' || x === 'body');
+  const fileScope = scope.filter((x): x is FileScope => x === 'names' || x === 'contents');
+  const allScopes = scope.length === SCOPES.length;
+  const setScope = (next: Scope[]) => {
+    const params = new URLSearchParams(searchParams);
+    if (next.length === 0 || next.length === SCOPES.length) params.delete('in');
+    else params.set('in', next.join(','));
+    setSearchParams(params);
+  };
 
   useEffect(() => {
     setInput(q);
   }, [q]);
 
   const { data, isFetching } = useQuery({
-    queryKey: ['search', q],
-    queryFn: () => searchEverything(q, 200),
-    enabled: q.trim().length > 0,
+    queryKey: ['search', q, recordScope],
+    queryFn: () => searchEverything(q, 200, recordScope.length === 2 ? undefined : recordScope),
+    enabled: q.trim().length > 0 && recordScope.length > 0,
   });
-  const hits = data?.records ?? [];
+  const hits = recordScope.length ? data?.records ?? [] : [];
   // A ~query asks "which existing RECORD is this a duplicate of" — a note file is not a candidate
   // answer, so the local half is dropped rather than shown as a near-miss that cannot be merged.
-  const notes = dedupeQuery(q) ? [] : data?.notes ?? [];
+  const notes = dedupeQuery(q) || !recordScope.length ? [] : data?.notes ?? [];
 
   // Only needed to explain a zero-result search, so it's fetched lazily alongside one.
   const { data: indexStatus } = useQuery({
@@ -87,11 +104,17 @@ export function SearchPage() {
   const { data: fileConfig } = useQuery({ queryKey: ['file-search-config'], queryFn: getFileSearchConfig, staleTime: 300_000 });
   const coveredSources = FILE_SOURCES.filter((s) => fileConfig?.sources[s]?.names);
   const { data: files, isFetching: filesFetching } = useQuery({
-    queryKey: ['search-files', fileQuery, fileSources, fileKind],
-    queryFn: () => searchFiles(fileQuery, { sources: fileSources, exts: FILE_KINDS[fileKind]?.exts, limit: 100 }),
-    enabled: fileQuery.length > 0 && !dedupe,
+    queryKey: ['search-files', fileQuery, fileSources, fileKind, fileScope],
+    queryFn: () =>
+      searchFiles(fileQuery, {
+        sources: fileSources,
+        exts: FILE_KINDS[fileKind]?.exts,
+        limit: 100,
+        scope: fileScope.length === 2 ? undefined : fileScope,
+      }),
+    enabled: fileQuery.length > 0 && !dedupe && fileScope.length > 0,
   });
-  const fileHits = files?.hits ?? [];
+  const fileHits = fileScope.length ? files?.hits ?? [] : [];
 
   // Highlight only the free-text words — drop the leading ~ and command tokens (#?@=* and p3).
   const terms = useMemo(
@@ -125,7 +148,13 @@ export function SearchPage() {
           placeholder="e.g.  p4 linux   ·   ?done report"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && setSearchParams(input.trim() ? { q: input.trim() } : {})}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter') return;
+            const params = new URLSearchParams(searchParams);
+            if (input.trim()) params.set('q', input.trim());
+            else params.delete('q');
+            setSearchParams(params);
+          }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -133,8 +162,38 @@ export function SearchPage() {
               </InputAdornment>
             ),
           }}
-          sx={{ mb: 3 }}
+          sx={{ mb: 1 }}
         />
+        <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 3 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
+            Search in
+          </Typography>
+          <Chip
+            size="small"
+            label="All"
+            color={allScopes ? 'primary' : 'default'}
+            variant={allScopes ? 'filled' : 'outlined'}
+            onClick={() => setScope(SCOPES.map((d) => d.key))}
+          />
+          {SCOPES.map((d) => {
+            const on = !allScopes && scope.includes(d.key);
+            return (
+              <Tooltip key={d.key} title={d.hint}>
+                <Chip
+                  size="small"
+                  label={d.label}
+                  color={on ? 'primary' : 'default'}
+                  variant={on ? 'filled' : 'outlined'}
+                  // From "All", a click narrows to that one scope; otherwise it toggles it. Taking
+                  // the last one off goes back to All rather than searching nowhere.
+                  onClick={() =>
+                    setScope(allScopes ? [d.key] : on ? scope.filter((x) => x !== d.key) : [...scope, d.key])
+                  }
+                />
+              </Tooltip>
+            );
+          })}
+        </Stack>
 
         {dedupe && hits.length > 0 && (
           <Typography variant="overline" color="warning.main" sx={{ display: 'block', mb: 1 }}>
@@ -280,6 +339,15 @@ export function SearchPage() {
     </Box>
   );
 }
+
+type Scope = RecordScope | FileScope;
+
+const SCOPES: { key: Scope; label: string; hint: string }[] = [
+  { key: 'title', label: 'Title / summary', hint: 'Records’ titles and summaries; a local note’s first line, file name and tags' },
+  { key: 'body', label: 'Description / notes', hint: 'Records’ descriptions, notes and other text; the rest of a local note' },
+  { key: 'names', label: 'File names', hint: 'Names of files and folders in the repositories and notes’ companion folders' },
+  { key: 'contents', label: 'File contents', hint: 'Text extracted from those files (PDF, documents, text…)' },
+];
 
 const SOURCE_LABEL: Record<string, string> = {
   repo1: 'Repo 1',

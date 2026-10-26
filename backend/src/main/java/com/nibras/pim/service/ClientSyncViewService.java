@@ -51,8 +51,13 @@ public class ClientSyncViewService {
     public record SyncedDepartment(Long id, String code, String name, Integer priority, Integer orderNumber) {
     }
 
+    /**
+     * {@code bucketByType} / {@code bucketBy100} are the module's repo folder layout (see
+     * RepositoryService.folder): the phone reads a record's files from its own copy of repo 1, so it
+     * has to build the same {@code <code>/[<type>/][<id/100>/]<id>} path the server writes.
+     */
     public record SyncedModule(String moduleKey, String label, String code, int sortOrder,
-                               List<LookupDto> types) {
+                               List<LookupDto> types, boolean bucketByType, boolean bucketBy100) {
     }
 
     public record ClientSyncView(List<SyncedDepartment> departments, List<SyncedModule> modules) {
@@ -74,7 +79,8 @@ public class ClientSyncViewService {
                         (AppModule m) -> m.getSortOrder() == null ? Integer.MAX_VALUE : m.getSortOrder())
                         .thenComparing(m -> nz(m.getLabel())))
                 .map(m -> new SyncedModule(m.getModuleKey(), m.getLabel(), m.getCode(),
-                        m.getSortOrder() == null ? 0 : m.getSortOrder(), typesOf(m.getModuleKey())))
+                        m.getSortOrder() == null ? 0 : m.getSortOrder(), typesOf(m.getModuleKey()),
+                        Boolean.TRUE.equals(m.getBucketByType()), Boolean.TRUE.equals(m.getBucketBy100())))
                 .toList();
 
         return new ClientSyncView(deps, mods);

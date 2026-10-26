@@ -159,18 +159,29 @@ class FilterSidebar(Gtk.Box):
         scroller.add(body)
         self.panel.pack_start(scroller, True, True, 0)
 
-        # The tag cloud goes FIRST, above the calendar.
-        #
-        # Not a stylistic choice — a measured one. Stacked in dimension order it landed at y=964 in
-        # a 614px-tall viewport, i.e. a full screen-height of scrolling below Calendar (329px on its
-        # own), Priority, Type, Category and Non-standard, and nothing above the fold hinted it
-        # existed. No ordering of seven sections fits a laptop sidebar, so the one dimension whose
-        # value set is open-ended — the one you go looking for, rather than pick from a list you can
-        # already see — takes the slot that needs no scrolling. It is also the most compact: a
-        # wrapped row of chips, a few rows tall, against the calendar's month grid.
-        #
-        # It costs nothing when unused: a folder with no #hashtags hides the section outright
-        # (header and all, see _sync_tag_cloud) rather than parking an empty box in the best spot.
+        # Order (the user's, 2026-10-24): Calendar, then Type, Category (department) and Priority,
+        # the clean-up queues, and the tag cloud last. The tags used to sit first, above the fold;
+        # they now come after everything else.
+        body.pack_start(self._section(SEC_CALENDAR, "Calendar", self._build_calendar()),
+                        False, False, 0)
+        for dim, caption in ((F.DIM_TYPE, "Type"), (F.DIM_CATEGORY, "Category"),
+                             (F.DIM_PRIORITY, "Priority")):
+            container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            container.set_no_show_all(True)
+            self._lists[dim] = container
+            self._rows[dim] = {}
+            body.pack_start(self._section(dim, caption, container), False, False, 0)
+        # The two clean-up queues: they answer "what needs fixing", not "what am I looking for",
+        # and you visit them on purpose rather than while browsing.
+        body.pack_start(
+            self._section(F.DIM_NONSTANDARD, "Non-standard", self._build_nonstandard()),
+            False, False, 0)
+        body.pack_start(
+            self._section(F.DIM_TAXONOMY, "Bad taxonomy", self._build_taxonomy()),
+            False, False, 0)
+
+        # The tag cloud, last. A folder with no #hashtags hides the section outright (header and
+        # all, see _sync_tag_cloud) rather than showing an empty box.
         self._tag_cloud = Gtk.FlowBox()
         self._tag_cloud.get_style_context().add_class("tag-cloud")
         self._tag_cloud.set_selection_mode(Gtk.SelectionMode.NONE)
@@ -189,24 +200,6 @@ class FilterSidebar(Gtk.Box):
         for child in self._tag_section.get_children():
             child.show_all()
         body.pack_start(self._tag_section, False, False, 0)
-
-        body.pack_start(self._section(SEC_CALENDAR, "Calendar", self._build_calendar()),
-                        False, False, 0)
-        for dim, caption in ((F.DIM_PRIORITY, "Priority"), (F.DIM_TYPE, "Type"),
-                             (F.DIM_CATEGORY, "Category")):
-            container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-            container.set_no_show_all(True)
-            self._lists[dim] = container
-            self._rows[dim] = {}
-            body.pack_start(self._section(dim, caption, container), False, False, 0)
-        # The two clean-up queues last: they answer "what needs fixing", not "what am I looking
-        # for", and you visit them on purpose rather than while browsing.
-        body.pack_start(
-            self._section(F.DIM_NONSTANDARD, "Non-standard", self._build_nonstandard()),
-            False, False, 0)
-        body.pack_start(
-            self._section(F.DIM_TAXONOMY, "Bad taxonomy", self._build_taxonomy()),
-            False, False, 0)
 
         footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         footer.set_border_width(6)

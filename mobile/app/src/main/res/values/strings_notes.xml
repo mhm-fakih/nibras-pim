@@ -143,4 +143,7 @@
         <item quantity="other">%1$d highlighted</item>
     </plurals>
     <string name="notes_rail_videos">Videos</string>
+    <string name="notes_add_note">Add note</string>
+    <string name="notes_quick_add_hint">Quick note — saved as N · P2 · X</string>
+    <string name="notes_open_full_form">Full form: type, priority, department</string>
 </resources>

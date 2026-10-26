@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-26 — 1.3.0 "Serenity"
+
+- **Mobile:** quick add on the Local notes page (one field, saved as N · P2 · X), with the full
+  form on its own Add note page; Settings → General → Backup exports and imports every setting
+  as one JSON file (the server password stays out); a record's files are read from the phone's
+  own copy of its folder, laid out per module the way the server's type / 100s settings say.
+- **Mobile fixes:** quick repeated priority taps no longer make copies of a note, and a note's
+  attachments folder now moves with it when its tags change; a quick second bookmark tap raises
+  the bookmark's priority instead of adding another and rewinding; the rail's refresh runs the
+  full server sync.
+- **Web:** the Search page can search title / summary, description / notes, file names or file
+  contents, or all of them (Flyway V13: per-column FULLTEXT indexes).
+- **Desktop:** Ctrl+D deletes every marked card, sparing notes with attachments; filters ordered
+  Calendar, Type, Department, Priority, clean-up queues, Tags.
+
 ## 2026-10-24 — 1.2.37 "Gratitude"
 
 - **Mobile:** after the athan — None, Silence or Vibration; daily and weekly checklists; Tasks

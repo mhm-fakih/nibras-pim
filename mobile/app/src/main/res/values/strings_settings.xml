@@ -207,4 +207,11 @@
         <item quantity="one">%d column</item>
         <item quantity="other">%d columns</item>
     </plurals>
+    <string name="settings_backup_header">Backup</string>
+    <string name="settings_backup_desc">Save every setting on this phone to a file, or load one back — for a reinstall or a second phone. The server password is not included. Loading restarts the app.</string>
+    <string name="settings_backup_export">Export settings</string>
+    <string name="settings_backup_import">Import settings</string>
+    <string name="settings_backup_exported">Exported %1$d settings</string>
+    <string name="settings_backup_imported">Imported %1$d settings — restarting</string>
+    <string name="settings_backup_failed">Settings backup failed: %1$s</string>
 </resources>

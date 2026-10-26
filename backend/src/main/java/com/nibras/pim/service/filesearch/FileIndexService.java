@@ -518,11 +518,23 @@ public class FileIndexService {
      * work too. A name match weighs three times a text match.
      */
     public Result search(String q, Collection<String> sources, Collection<String> exts, int limit) throws IOException {
-        if (q == null || q.isBlank()) return new Result(0, List.of());
+        return search(q, sources, exts, limit, true, true);
+    }
+
+    /** As above, matching the file and folder names, the extracted contents, or both. */
+    public Result search(String q, Collection<String> sources, Collection<String> exts, int limit,
+                         boolean names, boolean contents) throws IOException {
+        if (q == null || q.isBlank() || (!names && !contents)) return new Result(0, List.of());
         IndexSearcher s = acquire();
         if (s == null) return new Result(0, List.of());
         try {
-            SimpleQueryParser parser = new SimpleQueryParser(analyzer, Map.of("name", 3f, "dir", 1f, "body", 1f));
+            Map<String, Float> fields = new HashMap<>();
+            if (names) {
+                fields.put("name", 3f);
+                fields.put("dir", 1f);
+            }
+            if (contents) fields.put("body", 1f);
+            SimpleQueryParser parser = new SimpleQueryParser(analyzer, fields);
             parser.setDefaultOperator(BooleanClause.Occur.MUST);
             // The name separators an index entry was split on, so "annual_report.pdf" finds it too.
             // Not "-", "+" or "|": those are the query's own operators.

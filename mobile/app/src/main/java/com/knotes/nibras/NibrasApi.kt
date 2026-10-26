@@ -205,6 +205,24 @@ class NibrasApi {
     }
 
     /**
+     * Each enabled module's repo folder layout, by code (bucket_by_type / bucket_by_100), so the
+     * phone finds a record's files where the server put them. Null when the server can't be reached
+     * or predates these fields — the caller keeps what it had.
+     */
+    suspend fun fetchFolderLayouts(base: String): Map<String, com.knotes.FolderLayout>? = withContext(Dispatchers.IO) {
+        val arr = fetchTaxonomy(base)?.optJSONArray("modules") ?: return@withContext null
+        val mods = (0 until arr.length()).map { arr.getJSONObject(it) }
+            .filter { it.optString("code").isNotBlank() }
+        if (mods.none { it.has("bucketBy100") }) return@withContext null
+        mods.associate {
+            it.optString("code").trim() to com.knotes.FolderLayout(
+                byType = it.optBoolean("bucketByType"),
+                by100 = it.optBoolean("bucketBy100"),
+            )
+        }
+    }
+
+    /**
      * Departments of priority >= 2 as (code, name) — the capture "categories", in the server's
      * order. Not the bookmarked ones: priority is what decides whether a department is worth a slot
      * on a phone keypad, and bookmarking means something else entirely.

@@ -302,21 +302,20 @@ class NoteRepository(
         return file
     }
 
-    /** Updates an existing note's body; renames the file if type/priority/category changed. */
-    fun update(note: Note, text: String, type: String?, priority: Int, category: String?): File {
-        val newName = NoteFiles.buildName(note.timestamp, type, priority, category)
-        var target = File(note.file.parentFile, newName)
-        if (target.absolutePath != note.file.absolutePath) {
-            var counter = 2
-            while (target.exists()) {
-                target = File(note.file.parentFile, NoteFiles.buildName("${note.timestamp}-$counter", type, priority, category))
-                counter++
-            }
-            note.file.renameTo(target)
-        }
-        target.writeText(text.withTrailingNewline())
-        return target
-    }
+    /**
+     * Updates an existing note's body; renames the file if type/priority/category changed, and
+     * moves its `<stem>.d` attachments folder along with it (as the desktop does).
+     *
+     * Returns null, writing nothing, when [note]'s file is gone or the rename fails. Writing anyway
+     * is how one note became several: a screen still holding the pre-rename [Note] retagged it again,
+     * the rename of the missing file failed silently, and the body went into a brand-new file.
+     */
+    fun update(note: Note, text: String, type: String?, priority: Int, category: String?): File? =
+        updateNoteFile(note, text, type, priority, category)
+
+    /** One note, read from [file] — without listing the whole folder. Null if it isn't a note. */
+    fun noteAt(file: File): Note? =
+        file.takeIf { it.isFile && isFormattedNote(it.name) }?.let(::toNote)
 
     /**
      * Delete a note — but only when its companion folder holds nothing.
@@ -330,6 +329,45 @@ class NoteRepository(
      * rather than silently appearing to work.
      */
     fun delete(note: Note): Boolean = deleteNoteFile(note.file)
+}
+
+/** [NoteRepository.update] as a function of the note alone, testable like [deleteNoteFile]. */
+fun updateNoteFile(note: Note, text: String, type: String?, priority: Int, category: String?): File? {
+    if (!note.file.isFile) return null
+    val newName = NoteFiles.buildName(note.timestamp, type, priority, category)
+    var target = File(note.file.parentFile, newName)
+    if (target.absolutePath != note.file.absolutePath) {
+        var counter = 2
+        while (target.exists()) {
+            target = File(note.file.parentFile, NoteFiles.buildName("${note.timestamp}-$counter", type, priority, category))
+            counter++
+        }
+        if (!note.file.renameTo(target)) return null
+        moveCompanion(companionDirOf(note.file), companionDirOf(target))
+    }
+    target.writeText(text.withTrailingNewline())
+    return target
+}
+
+/**
+ * Move a note's attachments folder to its new name. A folder already at the new name — even an
+ * empty one, which is how two notes lost their files — gets the files merged in, with a `-N`
+ * suffix on a clashing name, as the desktop's _relocate_companion does.
+ */
+private fun moveCompanion(oldDir: File, newDir: File) {
+    if (!oldDir.isDirectory) return
+    if (!newDir.exists() && oldDir.renameTo(newDir)) return
+    newDir.mkdirs()
+    oldDir.listFiles()?.forEach { f ->
+        var dest = File(newDir, f.name)
+        var n = 2
+        while (dest.exists()) {
+            dest = File(newDir, f.nameWithoutExtension + "-$n" + (if (f.extension.isEmpty()) "" else "." + f.extension))
+            n++
+        }
+        f.renameTo(dest)
+    }
+    if (oldDir.listFiles().isNullOrEmpty()) oldDir.delete()
 }
 
 /**

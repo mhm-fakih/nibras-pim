@@ -323,9 +323,15 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
          * So the playhead must still be AT the previous bookmark as well. The tolerance is the same
          * window measured on the audio rather than on the clock, scaled by playback speed since a
          * second of listening at 1.25x advances 1.25s, plus a second of grace for the tap itself.
+         *
+         * Measured from the PLAYHEAD (`raw`), not from where this tap would bookmark (`pos`): the
+         * first tap seeks back to its mark, so the playhead starts AT it, while `pos` is a further
+         * rewind behind that. Comparing `pos` put every quick second tap a whole rewind (7s by
+         * default) from the mark — outside a 3s window — so it added another bookmark and rewound
+         * again instead of bumping the priority.
          */
         val nearPrev = prev != null &&
-            kotlin.math.abs(pos - prev.positionMs) <= (windowMs * controller.speed).toLong() + 1_000L
+            kotlin.math.abs(raw - prev.positionMs) <= (windowMs * controller.speed).toLong() + 1_000L
         if (prev != null && now - lastTapMs <= windowMs && nearPrev && bookmarks.contains(prev)) {
             val bumped = prev.copy(text = bumpPriority(prev.text))
             bookmarks = Bookmarks.update(currentFile) { it - prev + bumped }

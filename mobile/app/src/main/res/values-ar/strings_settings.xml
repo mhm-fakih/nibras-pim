@@ -227,4 +227,11 @@
         <item quantity="many">%d عمودًا</item>
         <item quantity="other">%d عمود</item>
     </plurals>
+    <string name="settings_backup_header">نسخة احتياطية</string>
+    <string name="settings_backup_desc">احفظ كل إعدادات هذا الهاتف في ملف، أو استعدها منه — عند إعادة التثبيت أو على هاتف آخر. كلمة مرور الخادم غير مشمولة. الاستيراد يعيد تشغيل التطبيق.</string>
+    <string name="settings_backup_export">تصدير الإعدادات</string>
+    <string name="settings_backup_import">استيراد الإعدادات</string>
+    <string name="settings_backup_exported">صُدِّر %1$d إعدادًا</string>
+    <string name="settings_backup_imported">استُورد %1$d إعدادًا — إعادة التشغيل</string>
+    <string name="settings_backup_failed">فشل نسخ الإعدادات: %1$s</string>
 </resources>

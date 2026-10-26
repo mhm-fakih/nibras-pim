@@ -42,8 +42,12 @@ public class FileSearchController {
     public FileIndexService.Result search(@RequestParam String q,
                                           @RequestParam(required = false) List<String> source,
                                           @RequestParam(required = false) List<String> ext,
-                                          @RequestParam(defaultValue = "100") int limit) throws IOException {
-        return index.search(q, source, ext, limit);
+                                          @RequestParam(defaultValue = "100") int limit,
+                                          @RequestParam(name = "in", required = false) List<String> in) throws IOException {
+        // Scope: "names" (file and folder names) and/or "contents"; none given = both.
+        boolean names = in == null || in.isEmpty() || in.contains("names");
+        boolean contents = in == null || in.isEmpty() || in.contains("contents");
+        return index.search(q, source, ext, limit, names, contents);
     }
 
     @GetMapping("/status")

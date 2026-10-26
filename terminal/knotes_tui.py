@@ -51,8 +51,8 @@ except ImportError:
     )
     raise SystemExit(1)
 
-VERSION = "1.2.37"
-CODENAME = "Gratitude"
+VERSION = "1.3.0"
+CODENAME = "Serenity"
 
 # Local, non-hidden config file, right next to this program — the terminal app owns it.
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")

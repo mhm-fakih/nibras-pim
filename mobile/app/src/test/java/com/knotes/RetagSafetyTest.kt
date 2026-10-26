@@ -94,4 +94,48 @@ class RetagSafetyTest {
         assertEquals(1, dir.listFiles()!!.size)
         assertEquals("edited\n", note.file.readText())
     }
+
+    /**
+     * The reported bug: tapping a new priority again before the first retag had finished retagged
+     * the stale note — its rename failed silently and the body went into a fresh file, one copy
+     * per extra tap. The update now refuses a note whose file is gone.
+     */
+    @Test
+    fun retaggingAStaleNoteMakesNoCopy() {
+        val dir = tmp.newFolder("notes")
+        val note = noteAt(dir, "J", 2, "X", "body\n")
+        assertTrue(updateNoteFile(note, "body\n", "J", 4, "X") != null)
+
+        repeat(3) { assertEquals(null, updateNoteFile(note, "body\n", "J", 5, "X")) }
+
+        assertEquals("still one note", 1, dir.listFiles()!!.size)
+    }
+
+    /** The attachments folder follows the note to its new name, as on the desktop. */
+    @Test
+    fun retaggingMovesTheCompanionFolder() {
+        val dir = tmp.newFolder("notes")
+        val note = noteAt(dir, "J", 2, "X", "body\n")
+        File(companionDirOf(note.file).apply { mkdirs() }, "a.jpg").writeText("x")
+
+        val target = updateNoteFile(note, "body\n", "J", 4, "X")!!
+
+        assertTrue(File(companionDirOf(target), "a.jpg").isFile)
+        assertFalse(companionDirOf(note.file).exists())
+    }
+
+    /** An (empty) folder already at the new name must not strand the files under the old one. */
+    @Test
+    fun retaggingMergesIntoAnExistingCompanionFolder() {
+        val dir = tmp.newFolder("notes")
+        val note = noteAt(dir, "N", 2, null, "body\n")
+        File(companionDirOf(note.file).apply { mkdirs() }, "a.md").writeText("x")
+        val newName = File(dir, NoteFiles.buildName(note.timestamp, "N", 2, "Z"))
+        companionDirOf(newName).mkdirs()
+
+        val target = updateNoteFile(note, "body\n", "N", 2, "Z")!!
+
+        assertTrue(File(companionDirOf(target), "a.md").isFile)
+        assertFalse(companionDirOf(note.file).exists())
+    }
 }

@@ -71,6 +71,7 @@ import com.knotes.flash.FlashcardStore
 import com.knotes.prayer.PrayerSettingsStore
 import com.knotes.player.PlayerTheme
 import com.knotes.ui.AUDIOBOOKS_DEST
+import com.knotes.ui.RecordFolders
 import com.knotes.ui.WelcomeWizard
 import com.knotes.ui.BackendSearchScreen
 import com.knotes.ui.SEARCH_DEST
@@ -450,7 +451,14 @@ private fun AppShell(
                 onFlashcards = { onDest(FLASHCARDS_DEST) },
                 onHighlights = { onDest(HIGHLIGHTS_DEST) },
                 onContacts = { onDest(CONTACTS_DEST) },
-                onRefreshServer = { com.knotes.nibras.ServerRefresh.bump() },
+                // The same full sync the record pages' own refresh runs (push the outbox, pull every
+                // type), plus the signal the flash card / highlight / contact pages watch. The bump
+                // alone left T/P/R… untouched, so the button looked like it did nothing there.
+                onRefreshServer = {
+                    nibrasVm.connect(settings.nibrasBaseUrl, settings.nibrasUsername)
+                    vm.syncTaxonomy()   // types, departments, folder layouts
+                    com.knotes.nibras.ServerRefresh.bump()
+                },
                 onCollect = { onDest(COLLECT_DEST) },
                 onSettings = { onDest(SETTINGS_DEST) },
                 onSearch = { onDest(SEARCH_DEST) },
@@ -582,7 +590,7 @@ private fun AppShell(
                             code = dest,
                             baseUrl = settings.nibrasBaseUrl,
                             username = settings.nibrasUsername,
-                            filesDir = settings.nibrasFilesDir,
+                            folders = RecordFolders(settings.nibrasFilesDir, settings.folderLayouts),
                             fulltextScale = settings.fulltextScale,
                             starAction = settings.starAction,
                             onPlayMedia = onPlayMedia,

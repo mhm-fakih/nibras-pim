@@ -212,4 +212,11 @@
         <item quantity="many">%d colonnes</item>
         <item quantity="other">%d colonnes</item>
     </plurals>
+    <string name="settings_backup_header">Sauvegarde</string>
+    <string name="settings_backup_desc">Enregistrez tous les réglages de ce téléphone dans un fichier, ou rechargez-en un — pour une réinstallation ou un autre téléphone. Le mot de passe du serveur n\'est pas inclus. L\'import redémarre l\'application.</string>
+    <string name="settings_backup_export">Exporter les réglages</string>
+    <string name="settings_backup_import">Importer les réglages</string>
+    <string name="settings_backup_exported">%1$d réglages exportés</string>
+    <string name="settings_backup_imported">%1$d réglages importés — redémarrage</string>
+    <string name="settings_backup_failed">Échec de la sauvegarde des réglages : %1$s</string>
 </resources>

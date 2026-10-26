@@ -152,6 +152,16 @@ public class SearchService {
 
     @Transactional(readOnly = true)
     public List<SearchHit> search(String q, int limit) {
+        return search(q, limit, true, true);
+    }
+
+    /**
+     * As {@link #search(String, int)}, with the free text matched in the title, the body, or both
+     * (the Search page's scope). Token filters and an id lookup are not text, so they apply as
+     * before whatever the scope.
+     */
+    @Transactional(readOnly = true)
+    public List<SearchHit> search(String q, int limit, boolean inTitle, boolean inBody) {
         // A purely numeric query means "find the record whose id is this", not "find this number
         // inside the text" — ids aren't unique across modules, so return every module's match
         // (usually exactly one). Falls back to normal search if no record anywhere has that id
@@ -165,7 +175,7 @@ public class SearchService {
         }
         SearchQuery sq = parser.parseSearch(q);
         if (!sq.hasFilters()) {
-            return index.search(q, limit);   // plain full-text, unchanged
+            return index.search(q, limit, inTitle, inBody);   // plain full-text
         }
         // A pure token query (e.g. "* #quote", no free text) has to query each module's fields
         // directly: filtering the "recently updated" window (as the mixed text+token path below
@@ -176,7 +186,7 @@ public class SearchService {
         }
         // Over-fetch, then keep only records whose fields satisfy the token filters.
         int fetch = Math.min(500, Math.max(limit, limit * 5));
-        List<SearchHit> raw = index.search(sq.text(), fetch);
+        List<SearchHit> raw = index.search(sq.text(), fetch, inTitle, inBody);
 
         List<SearchHit> out = new ArrayList<>();
         for (SearchHit h : raw) {

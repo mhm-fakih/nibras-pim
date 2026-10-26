@@ -159,4 +159,7 @@
         <item quantity="other">%1$d عبارة مميَّزة</item>
     </plurals>
     <string name="notes_rail_videos">الفيديو</string>
+    <string name="notes_add_note">إضافة ملاحظة</string>
+    <string name="notes_quick_add_hint">ملاحظة سريعة — تُحفظ N · P2 · X</string>
+    <string name="notes_open_full_form">النموذج الكامل: النوع والأولوية والقسم</string>
 </resources>

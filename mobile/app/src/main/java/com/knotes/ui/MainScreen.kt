@@ -1,5 +1,8 @@
 package com.knotes.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -226,6 +229,12 @@ fun MainScreen(
     var selectedCategory by rememberSaveable { mutableStateOf(settings.effectiveDefaultCategory) }
     var priority by rememberSaveable { mutableStateOf(settings.effectiveDefaultPriority) }
     var editing by remember { mutableStateOf<Note?>(null) }
+    // The full add form (type / priority / department chips) lives on a page of its own; the list
+    // keeps only the one-field quick add below it. Opened from that bar, by "Edit tags" on a card,
+    // and by text shared from another app.
+    var composing by rememberSaveable { mutableStateOf(false) }
+    // The quick-add field: one multiline box, saved as N · P2 · dept X — the least friction there is.
+    var quick by rememberSaveable { mutableStateOf("") }
 
     fun resetInput() {
         input = ""
@@ -250,6 +259,7 @@ fun MainScreen(
         val text = sharedText ?: return@LaunchedEffect
         editing = null
         input = text
+        composing = true
         // Keep the sticky type / priority / category so the shared note is tagged like recent ones.
         onSharedTextConsumed()
     }
@@ -344,6 +354,57 @@ fun MainScreen(
         if (chatOrder && sorted.isNotEmpty() && (grew || reordered)) {
             listState.scrollToItem(sorted.lastIndex)
         }
+    }
+
+    // The full add form takes over the whole screen, like the reader; backing out keeps the draft.
+    if (composing) {
+        BackHandler { composing = false }
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(stringResource(if (editing != null) R.string.notes_editing_note else R.string.notes_add_note)) },
+                    navigationIcon = {
+                        IconButton(onClick = { composing = false }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.notes_back))
+                        }
+                    },
+                )
+            },
+        ) { padding ->
+            Column(modifier = Modifier.fillMaxSize().padding(padding).imePadding()) {
+                InputBar(
+                    settings = settings,
+                    input = input,
+                    onInput = { input = it },
+                    selectedType = selectedType,
+                    onSelectType = { selectedType = it },
+                    priority = priority.coerceIn(settings.priorityMin, settings.priorityMax.coerceAtLeast(settings.priorityMin)),
+                    onPriority = { priority = it },
+                    selectedCategory = selectedCategory,
+                    onSelectCategory = { selectedCategory = it },
+                    isEditing = editing != null,
+                    onCancelEdit = {
+                        resetInput()
+                        composing = false
+                    },
+                    onSend = {
+                        val text = input.trim()
+                        if (text.isNotEmpty()) {
+                            val target = editing
+                            if (target == null) {
+                                vm.add(text, selectedType, priority, selectedCategory)
+                            } else {
+                                vm.update(target, text, selectedType, priority, selectedCategory)
+                            }
+                            resetInput()
+                            composing = false
+                        }
+                    },
+                    fullPage = true,
+                )
+            }
+        }
+        return
     }
 
     // The reader/editor takes over the whole screen; backing out lands on the list untouched.
@@ -533,6 +594,7 @@ fun MainScreen(
                                 onRead = { reading = note to false },
                                 onEdit = { reading = note to true },
                                 onEditTags = {
+                                    composing = true
                                     editing = note
                                     input = note.content
                                     selectedType = note.type
@@ -609,29 +671,25 @@ fun MainScreen(
             }
             }
 
-            InputBar(
-                settings = settings,
-                input = input,
-                onInput = { input = it },
-                selectedType = selectedType,
-                onSelectType = { selectedType = it },
-                priority = priority.coerceIn(settings.priorityMin, settings.priorityMax.coerceAtLeast(settings.priorityMin)),
-                onPriority = { priority = it },
-                selectedCategory = selectedCategory,
-                onSelectCategory = { selectedCategory = it },
-                isEditing = editing != null,
-                onCancelEdit = { resetInput() },
+            QuickAddBar(
+                text = quick,
+                onText = { quick = it },
                 onSend = {
-                    val text = input.trim()
+                    val text = quick.trim()
                     if (text.isNotEmpty()) {
-                        val target = editing
-                        if (target == null) {
-                            vm.add(text, selectedType, priority, selectedCategory)
-                        } else {
-                            vm.update(target, text, selectedType, priority, selectedCategory)
-                        }
-                        resetInput()
+                        vm.add(text, QUICK_TYPE, QUICK_PRIORITY, QUICK_DEPT)
+                        quick = ""
                     }
+                },
+                onFullForm = {
+                    // Carry what was typed over to the full form rather than making it a choice.
+                    val carried = quick.trim()
+                    if (carried.isNotEmpty()) {
+                        input = if (input.isBlank()) carried else input.trimEnd() + "\n" + carried
+                        quick = ""
+                    }
+                    editing = null
+                    composing = true
                 },
             )
         }
@@ -791,6 +849,8 @@ private fun InputBar(
     isEditing: Boolean,
     onCancelEdit: () -> Unit,
     onSend: () -> Unit,
+    /** On the Add note page: always open, no collapse strip, and a taller text box. */
+    fullPage: Boolean = false,
 ) {
     // Collapsible: the form (text box + type/priority/category chips) eats a lot of a phone screen
     // when you're only reading. Collapsed it leaves a single tap-to-expand strip. An edit in
@@ -801,7 +861,7 @@ private fun InputBar(
     // open every morning no matter how often it was collapsed.
     val context = LocalContext.current
     var expanded by rememberSaveable { mutableStateOf(UiStateStore.composerExpanded(context)) }
-    val open = expanded || isEditing
+    val open = expanded || isEditing || fullPage
 
     Surface(tonalElevation = 3.dp) {
         Column(
@@ -814,7 +874,7 @@ private fun InputBar(
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Row(
+            if (!fullPage) Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -894,7 +954,8 @@ private fun InputBar(
                             textDirection = if (NoteFiles.isRtl(input)) TextDirection.Rtl else TextDirection.Ltr,
                         ),
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        maxLines = 6,
+                        maxLines = if (fullPage) 16 else 6,
+                        minLines = if (fullPage) 6 else 1,
                         modifier = Modifier.fillMaxWidth(),
                         decorationBox = { inner ->
                             if (input.isEmpty()) {
@@ -916,6 +977,75 @@ private fun InputBar(
                 ) {
                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.notes_save_note))
                 }
+            }
+        }
+    }
+}
+
+/** What the quick-add bar files a note as: a plain Note, priority 2, the miscellaneous department. */
+private const val QUICK_TYPE = "N"
+private const val QUICK_PRIORITY = 2
+private const val QUICK_DEPT = "X"
+
+/**
+ * The notes page's add bar: one multiline field and a send button, nothing to choose. A note typed
+ * here is saved as N · P2 · X — sorting it out can wait; getting it down should not. The button
+ * on the left opens the full form (Add note page), carrying the text over.
+ */
+@Composable
+private fun QuickAddBar(
+    text: String,
+    onText: (String) -> Unit,
+    onSend: () -> Unit,
+    onFullForm: () -> Unit,
+) {
+    Surface(tonalElevation = 3.dp) {
+        Row(
+            verticalAlignment = Alignment.Bottom,
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+        ) {
+            IconButton(onClick = onFullForm, modifier = Modifier.padding(bottom = 2.dp)) {
+                Icon(Icons.Filled.Tune, contentDescription = stringResource(R.string.notes_open_full_form))
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                BasicTextField(
+                    value = text,
+                    onValueChange = onText,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = if (NoteFiles.isRtl(text)) TextAlign.Right else TextAlign.Start,
+                        textDirection = if (NoteFiles.isRtl(text)) TextDirection.Rtl else TextDirection.Ltr,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    maxLines = 6,
+                    modifier = Modifier.fillMaxWidth(),
+                    decorationBox = { inner ->
+                        if (text.isEmpty()) {
+                            Text(
+                                stringResource(R.string.notes_quick_add_hint),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        inner()
+                    },
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            FilledIconButton(
+                onClick = onSend,
+                enabled = text.isNotBlank(),
+                modifier = Modifier.padding(bottom = 2.dp),
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.notes_save_note))
             }
         }
     }

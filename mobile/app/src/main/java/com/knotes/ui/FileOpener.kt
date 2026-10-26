@@ -7,28 +7,79 @@ import android.provider.DocumentsContract
 import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import com.knotes.FolderLayout
 import com.knotes.R
+import com.knotes.nibras.NibrasRecord
+import com.knotes.nibras.RESOURCES_CODE
 import com.knotes.player.isMediaFile
 import com.knotes.util.FileNames
 import java.io.File
 
 /**
- * Opens a record's file. Audio/video files are handed to [onPlayMedia], which loads them into the
- * persistent in-app player (so playback survives navigation); everything else is handed to another
- * app via [openLocalFile]. Files live at `filesDir/TYPE/bucket/id/filename` (Syncthing keeps that
- * tree in sync), matching the Ionic app. [type] may be a nested path, e.g. `R/<resourceType>` for
- * Resources records.
+ * Where a server record's files are on this phone: the root of the phone's copy of repository 1
+ * (Syncthing keeps it in sync) plus each module's folder layout, as the server's Settings → modules
+ * page configures it and /sync/clientTaxonomy reports it (see [FolderLayout]).
  */
+data class RecordFolders(val root: String, val layouts: Map<String, FolderLayout>) {
+    fun layoutOf(code: String): FolderLayout = layouts[code] ?: FolderLayout.defaultFor(code)
+}
+
+/** The code the server nests type-bucketed folders under: the resource type for R, else the subtype. */
+private val NibrasRecord.typeCode: String
+    get() = if (type == RESOURCES_CODE) resourceType else subtype
+
+/**
+ * A backend record's files, read from the phone's own copy of its folder — not from the server's
+ * `files_list` column. Nothing on the backend keeps that column up to date, so a file dropped into
+ * the repository folder never reached it and the record showed no files. Visible regular files
+ * only, by name; an absent folder is simply no files.
+ */
+fun recordFiles(folders: RecordFolders, record: NibrasRecord): List<String> {
+    return recordDir(folders, record).listFiles()
+        ?.filter { it.isFile && !it.name.startsWith(".") }
+        ?.map { it.name }
+        ?.sortedBy { it.lowercase() }
+        .orEmpty()
+}
+
+/**
+ * The folder holding a record's files, built the way the backend's RepositoryService.folder builds
+ * it: `<CODE>/[<typeCode>/][<id/100>/]<id>`, each level only when the module's layout has it.
+ *
+ * When that folder isn't there the other spellings are tried — a layout cached before the server
+ * changed it, or a type-bucketed record whose type code the export didn't carry (search hits give
+ * the type's name, not its code) — so the files still show up; with none present, the configured
+ * path is returned.
+ */
+fun recordDir(folders: RecordFolders, record: NibrasRecord): File {
+    val layout = folders.layoutOf(record.type)
+    val id = record.id
+    val bucket = id.toLongOrNull()?.div(100)?.toString()
+    val base = File(folders.root, record.type)
+    fun under(dir: File, by100: Boolean): File? =
+        if (by100) bucket?.let { File(File(dir, it), id) } else File(dir, id)
+    val typeDir = record.typeCode.trim().takeIf { layout.byType && it.isNotBlank() }?.let { File(base, it) }
+    val configured = under(typeDir ?: base, layout.by100) ?: File(base, id)
+    if (configured.isDirectory) return configured
+    val others = buildList {
+        add(under(base, !layout.by100))
+        add(under(base, layout.by100))
+        // Every type subfolder, when the record's own type code is unknown or out of date.
+        base.listFiles()?.filter { it.isDirectory && it.name.toLongOrNull() == null }?.forEach {
+            add(under(it, true)); add(under(it, false))
+        }
+    }
+    return others.firstOrNull { it != null && it.isDirectory } ?: configured
+}
+
 fun openRecordFile(
     context: Context,
-    filesDir: String,
-    type: String,
-    id: String,
+    folders: RecordFolders,
+    record: NibrasRecord,
     filename: String,
     onPlayMedia: (File) -> Unit,
 ) {
-    val bucket = id.toLong() / 100
-    val dir = File("$filesDir/$type/$bucket/$id")
+    val dir = recordDir(folders, record)
     // The name comes from the server's files_list column while the bytes come from Syncthing, so
     // for a non-ASCII (Arabic) name the two spellings can differ by bidi marks or Unicode
     // normalization without differing to a reader. Resolve tolerantly — see FileNames.

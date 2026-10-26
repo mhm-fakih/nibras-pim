@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -74,9 +76,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             com.knotes.nibras.NibrasApi.configure(base, s.nibrasUsername, s.nibrasPassword)
             val types = runCatching { nibras.fetchModules(base) }.getOrNull()?.takeIf { it.isNotEmpty() }
             val cats = runCatching { nibras.fetchDepartments(base) }.getOrNull()?.takeIf { it.isNotEmpty() }
-            if (types != null || cats != null) {
+            val layouts = runCatching { nibras.fetchFolderLayouts(base) }.getOrNull()?.takeIf { it.isNotEmpty() }
+            if (types != null || cats != null || layouts != null) {
                 val cur = settingsStore.value
-                settingsStore.save(cur.copy(types = types ?: cur.types, categories = cats ?: cur.categories))
+                settingsStore.save(
+                    cur.copy(
+                        types = types ?: cur.types,
+                        categories = cats ?: cur.categories,
+                        folderLayouts = layouts ?: cur.folderLayouts,
+                    ),
+                )
             }
         }
     }
@@ -151,14 +160,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         onDone: (Note?) -> Unit,
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val target = repo.update(note, text, type, priority, category)
-            val fresh = repo.listNotes()
-            _notes.value = fresh
-            _unrecognized.value = repo.listUnrecognized()
-            val updated = fresh.firstOrNull { it.file.absolutePath == target.absolutePath }
+            // One retag at a time, and against the note as it is NOW: a second tap that lands
+            // before the first has finished still carries the pre-rename note, whose file is gone.
+            val updated = retagLock.withLock {
+                val current = renamedTo[note.file.absolutePath]?.let(repo::noteAt) ?: note
+                val target = repo.update(current, text, type, priority, category)
+                if (target != null) {
+                    renamedTo[note.file.absolutePath] = target
+                    renamedTo[current.file.absolutePath] = target
+                }
+                target?.let(repo::noteAt)
+            }
+            // Hand the screen its note first: re-reading every note for the list takes a moment
+            // on a big folder, and until the screen has the new note the tap looks ignored.
             withContext(Dispatchers.Main) { onDone(updated) }
+            _notes.value = repo.listNotes()
+            _unrecognized.value = repo.listUnrecognized()
         }
     }
+
+    private val retagLock = Mutex()
+
+    /** Old path → where a retag moved that note, so a stale [Note] still finds its file. */
+    private val renamedTo = java.util.concurrent.ConcurrentHashMap<String, java.io.File>()
 
     fun delete(note: Note) {
         viewModelScope.launch(Dispatchers.IO) {

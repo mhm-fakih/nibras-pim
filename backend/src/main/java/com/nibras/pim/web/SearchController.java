@@ -48,13 +48,20 @@ public class SearchController {
      */
     @GetMapping("/all")
     public Consolidated searchAll(@RequestParam String q,
-                                  @RequestParam(defaultValue = "100") int limit) {
+                                  @RequestParam(defaultValue = "100") int limit,
+                                  @RequestParam(name = "in", required = false) List<String> in) {
+        // Scope: "title" (title / summary) and/or "body" (description / notes); none given = both.
+        boolean inTitle = in == null || in.isEmpty() || in.contains("title");
+        boolean inBody = in == null || in.isEmpty() || in.contains("body");
         int capped = Math.min(limit, 200);
-        List<SearchHit> records = search(q, capped);
+        // A ~query is the duplicate finder, which compares titles — the scope doesn't apply to it.
+        List<SearchHit> records = q != null && q.startsWith("~")
+                ? search(q, capped)
+                : search.search(q, capped, inTitle, inBody);
         List<LocalNoteDto> notes;
         String notesError = null;
         try {
-            notes = localNotes.search(q, capped);
+            notes = localNotes.search(q, capped, inTitle, inBody);
         } catch (RuntimeException e) {
             notes = List.of();
             notesError = e.getMessage();

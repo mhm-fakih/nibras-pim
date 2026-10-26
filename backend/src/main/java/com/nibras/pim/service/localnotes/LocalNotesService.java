@@ -434,6 +434,15 @@ public class LocalNotesService {
      */
     @Transactional(readOnly = true)
     public List<LocalNoteDto> search(String q, int limit) {
+        return search(q, limit, true, true);
+    }
+
+    /**
+     * As {@link #search(String, int)}, scoped like the record search: {@code inTitle} matches the
+     * note's first line, file name and tags; {@code inBody} matches the rest of its text.
+     */
+    @Transactional(readOnly = true)
+    public List<LocalNoteDto> search(String q, int limit, boolean inTitle, boolean inBody) {
         String needle = q == null ? "" : q.strip().toLowerCase(Locale.ROOT);
         if (needle.isEmpty()) {
             return List.of();
@@ -446,24 +455,30 @@ public class LocalNotesService {
             if (out.size() >= limit) {
                 break;
             }
-            if (matches(s, needle)) {
+            if (matches(s, needle, inTitle, inBody)) {
                 out.add(toDto(s, bank, depts, mods, needle));
             }
         }
         return out;
     }
 
-    private static boolean matches(Scanned s, String needle) {
-        if (s.name().filename().toLowerCase(Locale.ROOT).contains(needle)
-                || s.body().toLowerCase(Locale.ROOT).contains(needle)) {
-            return true;
-        }
-        for (String t : s.tags()) {
-            if (t.contains(needle)) {
+    private static boolean matches(Scanned s, String needle, boolean inTitle, boolean inBody) {
+        String body = s.body().strip();
+        int nl = body.indexOf('\n');
+        String first = nl < 0 ? body : body.substring(0, nl);
+        String rest = nl < 0 ? "" : body.substring(nl + 1);
+        if (inTitle) {
+            if (s.name().filename().toLowerCase(Locale.ROOT).contains(needle)
+                    || first.toLowerCase(Locale.ROOT).contains(needle)) {
                 return true;
             }
+            for (String t : s.tags()) {
+                if (t.contains(needle)) {
+                    return true;
+                }
+            }
         }
-        return false;
+        return inBody && (inTitle ? body : rest).toLowerCase(Locale.ROOT).contains(needle);
     }
 
     // ---- reading and writing one note ------------------------------------------------

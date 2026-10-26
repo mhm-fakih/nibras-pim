@@ -113,7 +113,7 @@ fun NibrasContent(
     code: String,
     baseUrl: String,
     username: String,
-    filesDir: String,
+    folders: RecordFolders,
     fulltextScale: Float,
     starAction: StarAction,
     onPlayMedia: (File) -> Unit,
@@ -226,7 +226,7 @@ fun NibrasContent(
             onToggleComplete = { vm.toggleComplete(baseUrl, record) },
             onMarkUnread = { vm.setRead(record, false) },
             onAddNote = { note -> vm.addNote(baseUrl, record, note) },
-            filesDir = filesDir,
+            folders = folders,
             textScale = fulltextScale,
             onPlayMedia = onPlayMedia,
             highlightContent = if (code == RESOURCES_CODE) {
@@ -511,13 +511,16 @@ private fun NibrasRow(
     onToggleComplete: () -> Unit,
     onMarkUnread: () -> Unit,
     onAddNote: (String) -> Unit,
-    filesDir: String,
+    folders: RecordFolders,
     textScale: Float,
     onPlayMedia: (File) -> Unit,
     highlightContent: (@Composable () -> Unit)?,
 ) {
     val context = LocalContext.current
     var menuOpen by remember { mutableStateOf(false) }
+    // The record's files as they are on THIS phone (see recordFiles), re-read whenever the card is
+    // recomposed for a different record or opened/closed — not the server's stale files_list.
+    val files = remember(record, folders, isExpanded) { recordFiles(folders, record) }
     val align = if (record.isRtl) TextAlign.Right else TextAlign.Start
     val textDir = if (record.isRtl) TextDirection.Rtl else TextDirection.Ltr
     // Body/notes below use Bidi.directional: one Arabic word must not flip an English record.
@@ -600,7 +603,7 @@ private fun NibrasRow(
                 )
             }
             // Attachment icon when the record has files.
-            if (record.files.isNotEmpty()) {
+            if (files.isNotEmpty()) {
                 Spacer(Modifier.width(4.dp))
                 Icon(
                     Icons.Filled.AttachFile,
@@ -686,10 +689,10 @@ private fun NibrasRow(
                 }
             }
 
-            if (record.files.isNotEmpty()) {
+            if (files.isNotEmpty()) {
                 Spacer(Modifier.size(6.dp))
-                Text(stringResource(R.string.server_browser_files_count, record.files.size), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                record.files.sortedBy { it.lowercase() }.forEach { fname ->
+                Text(stringResource(R.string.server_browser_files_count, files.size), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                files.forEach { fname ->
                     Spacer(Modifier.height(4.dp))
                     // Each file in its own light, rounded box (icon + name) so multi-line filenames
                     // in a long list stay visually separate and easy to scan.
@@ -700,9 +703,7 @@ private fun NibrasRow(
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
                             .clickable {
-                                // Resource files live under R/<resourceType>/…; other types under <type>/….
-                                val typePath = if (record.type == RESOURCES_CODE) "${record.type}/${record.resourceType}" else record.type
-                                openRecordFile(context, filesDir, typePath, record.id, fname, onPlayMedia)
+                                openRecordFile(context, folders, record, fname, onPlayMedia)
                             }
                             .padding(horizontal = 8.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,

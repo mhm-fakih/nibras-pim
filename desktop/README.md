@@ -212,7 +212,7 @@ Everything is reachable from the keyboard (press **F1** in the app for this list
 | `Ctrl+Shift+<digit>` | Priority: retags the selected card and every marked card, else sets the add form's priority |
 | Click a card / Arrows | Select a card · move between cards (↑↓ in a column, ←→ across) |
 | `Enter` (card selected) | Open the selected note in your editor |
-| `Ctrl+D` (card selected) | Move the selected note to the `.deleted/` folder (with confirmation) |
+| `Ctrl+D` (card selected) | Move the selected note — and every card marked with Ctrl+click / `Ctrl+M` — to the `.deleted/` folder (one confirmation) |
 | `Ctrl+M` / `Ctrl+click` | Mark/unmark a card for merge (first marked = survivor) · `Esc` clears |
 | `Ctrl+Shift+M` | Merge marked notes into the survivor; the rest move to `.merged/` |
 | `Space` (card selected) | Quick-append a comment to the note (inline field · `Enter` adds · `Esc` cancels) |

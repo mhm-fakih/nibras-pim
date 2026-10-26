@@ -82,20 +82,30 @@ public class SearchIndexService {
      * relevance score as the tiebreaker.
      */
     public List<SearchHit> search(String q, int limit) {
-        if (q == null || q.isBlank()) {
+        return search(q, limit, true, true);
+    }
+
+    /**
+     * Full-text search over the title, the body, or both. Each choice has a FULLTEXT index of its
+     * own (ft_title, ft_body, ft_search — see V13), because MATCH() has to name exactly the columns
+     * of one index.
+     */
+    public List<SearchHit> search(String q, int limit, boolean inTitle, boolean inBody) {
+        if (q == null || q.isBlank() || (!inTitle && !inBody)) {
             return List.of();
         }
+        String cols = inTitle && inBody ? "title, body" : inTitle ? "title" : "body";
         List<String> terms = terms(q);
         return jdbc.query("""
                 select module, record_id,
                        title, body,
-                       match(title, body) against (? in natural language mode) as score,
-                       (title like concat('%', ?, '%')) as title_exact
+                       match(%1$s) against (? in natural language mode) as score,
+                       (title like concat('%%', ?, '%%')) as title_exact
                 from search_doc
-                where match(title, body) against (? in natural language mode)
+                where match(%1$s) against (? in natural language mode)
                 order by title_exact desc, score desc
                 limit ?
-                """,
+                """.formatted(cols),
                 (rs, i) -> new SearchHit(rs.getString("module"), rs.getLong("record_id"),
                         rs.getString("title"), rs.getDouble("score"),
                         snippet(rs.getString("body"), terms)),

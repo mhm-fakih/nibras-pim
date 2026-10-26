@@ -3633,6 +3633,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         minimal_card = self.minimal_mode and self._minimal_card_selected
         if note is None or (self._sel is None and not minimal_card):
             return
+        if not minimal_card and any(p != note.path for p in self._merge_marks):
+            self._delete_marked(note)
+            return
         # A note that still owns files isn't deletable from here at all — see NoteRepository.delete.
         # Said as a message rather than a silent no-op, because Ctrl+D reaches this without ever
         # seeing the card button's disabled state.
@@ -3682,6 +3685,63 @@ class KnotesWindow(Gtk.ApplicationWindow):
         else:
             neighbour = None
         self._reload_keeping_scroll(neighbour.path if neighbour is not None else None)
+
+    def _delete_marked(self, note: Note) -> None:
+        """Ctrl+D with cards marked: move the selected card and every marked one to ``.deleted``,
+        after one confirmation that lists them. Notes that still own files are left alone and
+        named in the dialog — the same rule as for a single note (see NoteRepository.delete)."""
+        by_path = {n.path: n for row in self._grid for col in row for (n, _c) in col}
+        targets = [note] + [by_path[p] for p in self._merge_marks
+                            if p in by_path and p != note.path]
+        blocked = [n for n in targets if companion_has_content(n.path)]
+        doomed = [n for n in targets if n not in blocked]
+
+        def line(n: Note) -> str:
+            return f"{n.time_text()}  ·  {n.title(60, 0).strip() or '(empty)'}"
+
+        details = "\n".join(line(n) for n in doomed[:12])
+        if len(doomed) > 12:
+            details += f"\n… and {fmt_count(len(doomed) - 12)} more"
+        if blocked:
+            details += ("\n\nKept — they still have attached files (empty the folder first):\n"
+                        + "\n".join(line(n) for n in blocked[:6]))
+        if not doomed:
+            info = Gtk.MessageDialog(
+                transient_for=self, modal=True, message_type=Gtk.MessageType.INFO,
+                buttons=Gtk.ButtonsType.OK, text="None of these notes can be deleted")
+            info.format_secondary_text(details.strip())
+            info.run()
+            info.destroy()
+            return
+        dialog = Gtk.MessageDialog(
+            transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION,
+            buttons=Gtk.ButtonsType.YES_NO,
+            text=f"Move {fmt_count(len(doomed))} notes to the .deleted folder?")
+        dialog.format_secondary_text(details)
+        dialog.set_default_response(Gtk.ResponseType.YES)
+        yes_button = dialog.get_widget_for_response(Gtk.ResponseType.YES)
+        if yes_button is not None:
+            yes_button.grab_focus()
+        resp = dialog.run()
+        dialog.destroy()
+        if resp != Gtk.ResponseType.YES:
+            return
+        gone = set()
+        for n in doomed:
+            self.repo.delete(n)
+            gone.add(n.path)
+        self._merge_marks = [p for p in self._merge_marks if p not in gone]
+        self._sel_path = None
+        # Keep the view where it is: select the nearest surviving card in the selected one's column.
+        gr, gc, idx = self._sel
+        col = self._grid[gr][gc]
+        below = [n for n, _c in col[idx + 1:] if n.path not in gone]
+        above = [n for n, _c in reversed(col[:idx]) if n.path not in gone]
+        neighbour = (below or above or [None])[0]
+        if note.path not in gone:
+            neighbour = note
+        self._reload_keeping_scroll(neighbour.path if neighbour is not None else None)
+        self._flash_status(f"{fmt_count(len(gone))} notes moved to .deleted")
 
     def _delete_summary(self, note: Note) -> str:
         """A readable summary for the delete confirmation — the note's tags/time then the first few
@@ -4895,7 +4955,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
             ("Click a card / Arrows", "Select a card · move between cards (↑↓ in a column, ←→ across)"),
             ("Enter (card selected)", "Open the selected note in your editor"),
             ("Ctrl+D (card selected)",
-             "Move the selected note to the .deleted folder (with confirmation). "
+             "Move the selected note — and every marked one — to the .deleted folder (with confirmation). "
              "Refused while the note still has attached files — empty its folder first"),
             ("Ctrl+M / Ctrl+click", "Mark/unmark card for merge (first marked = survivor) · Esc clears"),
             ("Ctrl+Shift+M", "Merge marked notes into the survivor, rest → .merged folder"),

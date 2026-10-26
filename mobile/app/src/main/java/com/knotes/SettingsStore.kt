@@ -153,6 +153,8 @@ data class AppSettings(
     val defaultPriority: Int,
     /** What the star on a Nibras record row does — see [StarAction]. */
     val starAction: StarAction = StarAction.LOCAL_BOOKMARK,
+    /** Per-module repo folder layout, by module code, as last reported by the server. */
+    val folderLayouts: Map<String, FolderLayout> = emptyMap(),
 ) {
     /** The checklists folder, with the blank-means-derive rule applied. Never blank. */
     fun checklistsFolder(): String = checklistsDir.trim().ifBlank { SettingsStore.checklistsDirFor(notesDir) }
@@ -174,6 +176,34 @@ data class AppSettings(
     /** Default priority, clamped to the configured range. */
     val effectiveDefaultPriority: Int
         get() = defaultPriority.coerceIn(priorityMin, priorityMax.coerceAtLeast(priorityMin))
+}
+
+/**
+ * How a server module lays out its record folders in repository 1: an extra `<type>/` level
+ * ([byType]) and/or an `<id/100>/` level ([by100]). Mirrors the module's bucket_by_type /
+ * bucket_by_100 settings, which the phone learns from /sync/clientTaxonomy.
+ */
+data class FolderLayout(val byType: Boolean, val by100: Boolean) {
+    companion object {
+        private val FLAT = FolderLayout(byType = false, by100 = false)
+
+        /** Before the server has been asked: the server's own seed, where only Resources nest. */
+        fun defaultFor(code: String): FolderLayout =
+            if (code == "R") FolderLayout(byType = true, by100 = true) else FLAT
+
+        /** `R:tb|G:` — t = by type, b = by hundred. */
+        fun encode(map: Map<String, FolderLayout>): String =
+            map.entries.joinToString("|") { (code, l) ->
+                code + ":" + (if (l.byType) "t" else "") + (if (l.by100) "b" else "")
+            }
+
+        fun decode(raw: String?): Map<String, FolderLayout> =
+            raw.orEmpty().split("|").filter { ':' in it }.associate {
+                val i = it.indexOf(':')
+                val flags = it.substring(i + 1)
+                it.take(i).trim() to FolderLayout(byType = 't' in flags, by100 = 'b' in flags)
+            }
+    }
 }
 
 /** Lightweight SharedPreferences-backed settings exposed as a reactive [StateFlow]. */
@@ -246,6 +276,7 @@ class SettingsStore(context: Context) {
         defaultCategory = prefs.getString(K_DEF_CAT, "") ?: "",
         defaultPriority = prefs.getInt(K_DEF_PRIO, 2),
         starAction = StarAction.of(prefs.getString(K_STAR_ACTION, null)),
+        folderLayouts = FolderLayout.decode(prefs.getString(K_FOLDER_LAYOUTS, null)),
     )
 
     /**
@@ -322,12 +353,14 @@ class SettingsStore(context: Context) {
             .putString(K_DEF_CAT, settings.defaultCategory.trim())
             .putInt(K_DEF_PRIO, settings.defaultPriority)
             .putString(K_STAR_ACTION, settings.starAction.name)
+            .putString(K_FOLDER_LAYOUTS, FolderLayout.encode(settings.folderLayouts))
             .apply()
         _state.value = load()
     }
 
     companion object {
         private const val K_STAR_ACTION = "star_action"
+        private const val K_FOLDER_LAYOUTS = "folder_layouts"
         private const val K_DIR = "notes_dir"
         private const val K_AI_DIR = "ai_notes_dir"
         private const val K_FMT = "timestamp_format"
@@ -386,6 +419,24 @@ class SettingsStore(context: Context) {
         private const val K_DEF_TYPE = "default_type"
         private const val K_DEF_CAT = "default_category"
         private const val K_DEF_PRIO = "default_priority"
+
+        /**
+         * The keys a settings backup carries (see SettingsBackup) — everything [save] writes except
+         * the server password, which stays out of a plain file in shared storage, and the folder
+         * layouts, which the server re-sends on the next sync.
+         */
+        val BACKUP_KEYS: Set<String> = setOf(
+            K_STAR_ACTION, K_DIR, K_AI_DIR, K_FMT, K_PREVIEW, K_TOP_PRIORITY, K_PMIN, K_PMAX,
+            K_TYPES, K_CATEGORIES, K_NIBRAS_URL, K_NIBRAS_USER, K_NIBRAS_FILES, K_COLLECT_SRC,
+            K_COLLECT_NEW, K_COLLECT_AUTO, K_COLLECT_AUTO_HOUR, K_COLLECT_AUTO_MIN,
+            K_FULLTEXT_SCALE, K_AUDIO_ROOTS, K_GALLERY, K_VIDEOS, K_CAL_START, K_CAL_END,
+            K_CAL_ENABLED, K_PRAYER_ENABLED, K_MEDIA_ENABLED, K_GALLERY_ENABLED, K_SERVER_ENABLED,
+            K_CHECKLISTS_ENABLED, K_CHECKLISTS_DIR, K_COLLECT_ENABLED, K_FEED_DAYS, K_FEED_WORDS,
+            K_FEED_TEXT_SP, K_BOARD_TEXT_SP, K_BOARD_COLUMNS, K_REM_OFFSETS, K_REM_SOUND,
+            K_REM_DISMISS, K_REM_REPEAT, K_STATUS_NOTIF, K_SYNC_ENABLED, K_SYNC_CHECK_SEC,
+            K_SYNC_SEC, K_CHIME, K_CHIME_SOUND, K_CHIME_START, K_CHIME_END, K_APP_NAME, K_DEF_TYPE,
+            K_DEF_CAT, K_DEF_PRIO,
+        )
 
         private const val DEFAULT_REM_OFFSETS = "60,5"
 
