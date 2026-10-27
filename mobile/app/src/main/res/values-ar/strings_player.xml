@@ -70,6 +70,15 @@
     <string name="player_sleep_timer">مؤقّت النوم</string>
     <string name="player_sleep_pauses_in">يتوقف بعد %1$s</string>
     <string name="player_sleep_minutes">%1$d د</string>
+    <string name="player_sleep_pauses_in_night">مؤقت الليل: يتوقف بعد %1$s</string>
+    <string name="player_night_timer">مؤقت النوم الليلي</string>
+    <string name="player_night_timer_hint">التشغيل الذي يبدأ بين %1$s و%2$s يتوقف بعد %3$d دقيقة. إيقاف المؤقت يبقيه متوقفًا حتى نهاية الليل.</string>
+    <string name="player_night_from">من %1$s</string>
+    <string name="player_night_until">حتى %1$s</string>
+    <string name="player_night_minutes">المؤقت: %1$d د</string>
+    <string name="player_bookmark_follows_bt">اتبع البلوتوث</string>
+    <string name="player_bookmark_follows_bt_on">البلوتوث متصل: العلامة عند الإيقاف مفعّلة.</string>
+    <string name="player_bookmark_follows_bt_off">لا بلوتوث: العلامة عند الإيقاف معطّلة.</string>
 
     <!-- Player notices ("next" finding nothing) -->
     <string name="player_notice_nothing_playing">لا شيء قيد التشغيل.</string>

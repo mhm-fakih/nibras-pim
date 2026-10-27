@@ -27,6 +27,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -121,6 +122,7 @@ fun CalendarScreen(startHour: Int, endHour: Int, baseUrl: String, username: Stri
     var addFor by remember { mutableStateOf<Triple<LocalDate, LocalTime, LocalTime>?>(null) }
     // Non-null while the edit dialog is open for an existing (already-synced) event.
     var editing by remember { mutableStateOf<CalendarEvent?>(null) }
+    var batchOpen by rememberSaveable { mutableStateOf(false) }
 
     val events = fetched + pending
 
@@ -129,6 +131,9 @@ fun CalendarScreen(startHour: Int, endHour: Int, baseUrl: String, username: Stri
             TopAppBar(
                 title = { Text(if (dayCount == 1) anchor.format(DAY) else stringResource(R.string.server_calendar_date_range, anchor.format(DAY), days.last().format(DAY))) },
                 actions = {
+                    IconButton(onClick = { batchOpen = true }) {
+                        Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = stringResource(R.string.server_calendar_batch_title))
+                    }
                     IconButton(onClick = {
                         val s = LocalTime.of(startHour, 0)
                         addFor = Triple(anchor, s, endTimeFor(s, slotMin))
@@ -217,6 +222,17 @@ fun CalendarScreen(startHour: Int, endHour: Int, baseUrl: String, username: Stri
             onSave = { type, d, s, e, summary, description ->
                 vm.add(type, d, s, e, summary, description)
                 addFor = null
+            },
+        )
+    }
+
+    if (batchOpen) {
+        WeekBatchDialog(
+            initialType = "P",
+            onDismiss = { batchOpen = false },
+            onAdd = { entries, type, from, weeks ->
+                vm.addBatch(entries, type, from, weeks)
+                batchOpen = false
             },
         )
     }

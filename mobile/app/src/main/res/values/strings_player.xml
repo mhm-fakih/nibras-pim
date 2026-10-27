@@ -62,6 +62,15 @@
     <string name="player_sleep_timer">Sleep timer</string>
     <string name="player_sleep_pauses_in">pauses in %1$s</string>
     <string name="player_sleep_minutes">%1$dm</string>
+    <string name="player_sleep_pauses_in_night">night timer: pauses in %1$s</string>
+    <string name="player_night_timer">Night sleep timer</string>
+    <string name="player_night_timer_hint">Playback started between %1$s and %2$s pauses after %3$d minutes. Turning the timer off keeps it off until the night ends.</string>
+    <string name="player_night_from">From %1$s</string>
+    <string name="player_night_until">Until %1$s</string>
+    <string name="player_night_minutes">Timer: %1$d min</string>
+    <string name="player_bookmark_follows_bt">Follow Bluetooth</string>
+    <string name="player_bookmark_follows_bt_on">Bluetooth connected: bookmark on pause is on.</string>
+    <string name="player_bookmark_follows_bt_off">No Bluetooth: bookmark on pause is off.</string>
 
     <!-- Player notices ("next" finding nothing) -->
     <string name="player_notice_nothing_playing">Nothing is playing.</string>

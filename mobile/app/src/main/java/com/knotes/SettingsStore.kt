@@ -130,6 +130,8 @@ data class AppSettings(
     /** Ignored when [reminderRequireDismiss] is on. Otherwise, the reminder sound plays this many
      *  times (minimum 1) instead of just once, so it's harder to miss. */
     val reminderRepeatCount: Int,
+    /** Reminders sound on the alarm stream, so silent and vibrate modes don't mute them. */
+    val reminderIgnoreSilent: Boolean = false,
     /** Persistent ongoing notification showing today's note count (also keeps the process alive). */
     val statusNotificationEnabled: Boolean,
     /** Periodic background backend sync (health-check + pull/push), reported in the status notification. */
@@ -263,6 +265,7 @@ class SettingsStore(context: Context) {
         reminderSoundUri = prefs.getString(K_REM_SOUND, "") ?: "",
         reminderRequireDismiss = prefs.getBoolean(K_REM_DISMISS, false),
         reminderRepeatCount = prefs.getInt(K_REM_REPEAT, 4),
+        reminderIgnoreSilent = prefs.getBoolean(K_REM_IGNORE_SILENT, false),
         statusNotificationEnabled = prefs.getBoolean(K_STATUS_NOTIF, true),
         syncEnabled = prefs.getBoolean(K_SYNC_ENABLED, true),
         syncCheckIntervalSec = prefs.getInt(K_SYNC_CHECK_SEC, 30),
@@ -340,6 +343,7 @@ class SettingsStore(context: Context) {
             .putString(K_REM_SOUND, settings.reminderSoundUri.trim())
             .putBoolean(K_REM_DISMISS, settings.reminderRequireDismiss)
             .putInt(K_REM_REPEAT, settings.reminderRepeatCount.coerceAtLeast(1))
+            .putBoolean(K_REM_IGNORE_SILENT, settings.reminderIgnoreSilent)
             .putBoolean(K_STATUS_NOTIF, settings.statusNotificationEnabled)
             .putBoolean(K_SYNC_ENABLED, settings.syncEnabled)
             .putInt(K_SYNC_CHECK_SEC, settings.syncCheckIntervalSec.coerceAtLeast(10))
@@ -406,6 +410,7 @@ class SettingsStore(context: Context) {
         private const val K_REM_OFFSETS = "reminder_offsets_min"
         private const val K_REM_SOUND = "reminder_sound_uri"
         private const val K_REM_DISMISS = "reminder_require_dismiss"
+        private const val K_REM_IGNORE_SILENT = "reminder_ignore_silent"
         private const val K_REM_REPEAT = "reminder_repeat_count"
         private const val K_STATUS_NOTIF = "status_notification_enabled"
         private const val K_SYNC_ENABLED = "sync_enabled"
@@ -420,10 +425,23 @@ class SettingsStore(context: Context) {
         private const val K_DEF_CAT = "default_category"
         private const val K_DEF_PRIO = "default_priority"
 
+        /** The player's settings tab, stored in the same prefs file by PlayerController/PlaybackService. */
+        private val PLAYER_BACKUP_KEYS: Set<String> = with(com.knotes.player.PlayerController) {
+            setOf(
+                K_AUTO_BOOKMARK, K_SKIP_SECS, K_SPEED, K_GAIN_DB, K_PLAY_NEXT, K_VIDEO_DISABLED,
+                K_VIDEO_AUTO_NEXT, K_BOOKMARK_REWIND, K_BOOKMARK_DOUBLE, K_RECENTS_MAX,
+            )
+        } + with(com.knotes.player.PlaybackService) {
+            setOf(
+                PREF_BOOKMARK_FOLLOWS_BT, PREF_NIGHT_ENABLED, PREF_NIGHT_START, PREF_NIGHT_END,
+                PREF_NIGHT_MINUTES,
+            )
+        }
+
         /**
          * The keys a settings backup carries (see SettingsBackup) — everything [save] writes except
          * the server password, which stays out of a plain file in shared storage, and the folder
-         * layouts, which the server re-sends on the next sync.
+         * layouts, which the server re-sends on the next sync — plus the player's settings tab.
          */
         val BACKUP_KEYS: Set<String> = setOf(
             K_STAR_ACTION, K_DIR, K_AI_DIR, K_FMT, K_PREVIEW, K_TOP_PRIORITY, K_PMIN, K_PMAX,
@@ -433,10 +451,11 @@ class SettingsStore(context: Context) {
             K_CAL_ENABLED, K_PRAYER_ENABLED, K_MEDIA_ENABLED, K_GALLERY_ENABLED, K_SERVER_ENABLED,
             K_CHECKLISTS_ENABLED, K_CHECKLISTS_DIR, K_COLLECT_ENABLED, K_FEED_DAYS, K_FEED_WORDS,
             K_FEED_TEXT_SP, K_BOARD_TEXT_SP, K_BOARD_COLUMNS, K_REM_OFFSETS, K_REM_SOUND,
-            K_REM_DISMISS, K_REM_REPEAT, K_STATUS_NOTIF, K_SYNC_ENABLED, K_SYNC_CHECK_SEC,
+            K_REM_DISMISS, K_REM_REPEAT, K_REM_IGNORE_SILENT, K_STATUS_NOTIF, K_SYNC_ENABLED, K_SYNC_CHECK_SEC,
             K_SYNC_SEC, K_CHIME, K_CHIME_SOUND, K_CHIME_START, K_CHIME_END, K_APP_NAME, K_DEF_TYPE,
             K_DEF_CAT, K_DEF_PRIO,
-        )
+        ) + PLAYER_BACKUP_KEYS
+
 
         private const val DEFAULT_REM_OFFSETS = "60,5"
 

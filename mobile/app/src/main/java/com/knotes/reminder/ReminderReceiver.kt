@@ -126,7 +126,10 @@ class ReminderReceiver : BroadcastReceiver() {
         }
 
         runCatching { NotificationManagerCompat.from(context).notify(NOTIF_ID, builder.build()) }
-        playSound(context, soundUri, loop = requireDismiss, repeatCount = repeatCount)
+        // Read at fire time rather than baked into the alarm, so flipping the switch applies to
+        // reminders already scheduled.
+        val ignoreSilent = SettingsStore(context).value.reminderIgnoreSilent
+        playSound(context, soundUri, loop = requireDismiss, repeatCount = repeatCount, ignoreSilent = ignoreSilent)
     }
 
     private fun ensureChannels(context: Context) {
@@ -168,8 +171,13 @@ class ReminderReceiver : BroadcastReceiver() {
         }
 
         /** [repeatCount] (minimum 1) is ignored when [loop] is true — an infinite loop already
-         *  implies "as many times as it takes until Dismiss". */
-        private fun playSound(context: Context, soundUri: String, loop: Boolean, repeatCount: Int = 1) {
+         *  implies "as many times as it takes until Dismiss".
+         *
+         *  The looping alarm always uses the alarm stream. The plain reminder uses the notification
+         *  stream, which silent and vibrate modes mute — unless [ignoreSilent], which moves it to the
+         *  alarm stream too (played at the alarm volume, and still held back by Do Not Disturb if
+         *  that is set to block alarms). */
+        private fun playSound(context: Context, soundUri: String, loop: Boolean, repeatCount: Int = 1, ignoreSilent: Boolean = false) {
             stopSound()
             playsRemaining = repeatCount.coerceAtLeast(1)
             val uri: Uri = soundUri.takeIf { it.isNotBlank() }?.let(Uri::parse)
@@ -178,7 +186,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 player = MediaPlayer().apply {
                     setAudioAttributes(
                         AudioAttributes.Builder()
-                            .setUsage(if (loop) AudioAttributes.USAGE_ALARM else AudioAttributes.USAGE_NOTIFICATION)
+                            .setUsage(if (loop || ignoreSilent) AudioAttributes.USAGE_ALARM else AudioAttributes.USAGE_NOTIFICATION)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .build(),
                     )

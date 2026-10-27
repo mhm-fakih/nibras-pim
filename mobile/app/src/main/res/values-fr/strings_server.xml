@@ -112,4 +112,20 @@
         <item quantity="many">%1$s (%2$d fiches)</item>
         <item quantity="other">%1$s (%2$d fiches)</item>
     </plurals>
+    <string name="server_calendar_batch_title">Ajouter une semaine</string>
+    <string name="server_calendar_batch_help">Une entrée par ligne : [p|j] jour heure[-fin] titre. Jours : lun, lun,mer ou lun-ven (ou en anglais ou en arabe). Heures : 8, 8:30, 2:30pm. Sans fin, une entrée dure une heure.</string>
+    <string name="server_calendar_batch_from">À partir du</string>
+    <string name="server_calendar_batch_repeat">Répéter</string>
+    <string name="server_calendar_batch_once">Une fois (cette semaine)</string>
+    <string name="server_calendar_batch_weeks">Chaque semaine pendant %1$d semaines, jusqu\'au %2$s</string>
+    <string name="server_calendar_batch_fewer_weeks">Moins de semaines</string>
+    <string name="server_calendar_batch_more_weeks">Plus de semaines</string>
+    <string name="server_calendar_batch_journal_once">Les entrées de journal sont ajoutées une fois ; seuls les plans se répètent.</string>
+    <string name="server_calendar_batch_line_problem">Ligne %1$d : %2$s</string>
+    <string name="server_calendar_batch_no_day">pas de jour (lun, mar-jeu, lun,mer…)</string>
+    <string name="server_calendar_batch_no_time">pas d\'heure (8, 8:30, 2:30pm…)</string>
+    <string name="server_calendar_batch_bad_end">la fin doit venir après le début</string>
+    <string name="server_calendar_batch_no_title">pas de titre après l\'heure</string>
+    <string name="server_calendar_batch_add">Ajouter %1$d</string>
+    <string name="server_calendar_batch_saved">%1$d entrées enregistrées</string>
 </resources>

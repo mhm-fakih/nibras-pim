@@ -293,7 +293,7 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { bookmarks = Bookmarks.load(currentFile) }
     // ...and right after a pause, so an auto-bookmark added by the service shows up immediately.
     LaunchedEffect(isPlaying) {
-        if (!isPlaying && controller.autoBookmarkOnPause) {
+        if (!isPlaying && controller.bookmarkOnPauseActive) {
             delay(150)
             bookmarks = Bookmarks.load(currentFile)
         }
@@ -693,27 +693,26 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
 
                         Spacer(Modifier.height(16.dp))
                         SleepTimerRow(controller)
+                        NightTimerRows(controller)
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clickable {
-                                controller.changeAutoBookmark(!controller.autoBookmarkOnPause)
-                            },
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(
-                                checked = controller.autoBookmarkOnPause,
-                                onCheckedChange = { controller.changeAutoBookmark(it) },
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Column {
-                                Text(stringResource(R.string.player_bookmark_on_pause), style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    stringResource(R.string.player_bookmark_on_pause_hint),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFFAAAAAA),
-                                )
-                            }
-                        }
+                        // Following Bluetooth, the box shows what the connection decided and
+                        // can't be ticked by hand; the manual choice is kept for when it's off.
+                        val follows = controller.bookmarkFollowsBluetooth
+                        OptionCheckRow(
+                            checked = controller.bookmarkOnPauseActive,
+                            enabled = !follows,
+                            title = stringResource(R.string.player_bookmark_on_pause),
+                            hint = stringResource(R.string.player_bookmark_on_pause_hint),
+                        ) { controller.changeAutoBookmark(it) }
+                        OptionCheckRow(
+                            checked = follows,
+                            title = stringResource(R.string.player_bookmark_follows_bt),
+                            hint = stringResource(
+                                if (controller.bluetoothConnected) R.string.player_bookmark_follows_bt_on
+                                else R.string.player_bookmark_follows_bt_off
+                            ),
+                            indent = true,
+                        ) { controller.changeBookmarkFollowsBluetooth(it) }
                         Spacer(Modifier.height(24.dp))
                     }
                 }
@@ -819,7 +818,7 @@ private fun BigVideoLayout(
                         if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                         emphasized = true,
                         compact = true,
-                        badge = if (controller.autoBookmarkOnPause) Icons.Filled.Bookmark else null,
+                        badge = if (controller.bookmarkOnPauseActive) Icons.Filled.Bookmark else null,
                     ) { controller.togglePlay() }
                     SquareButton(Modifier.weight(1f), "-$skipPrimary", Icons.Filled.Replay10, emphasized = true, compact = true) { onSeekBy(-skipPrimary * 1000L) }
                 }
@@ -903,8 +902,22 @@ private fun NowPlayingCard(
                 Text(
                     currentFile.name,
                     style = MaterialTheme.typography.titleMedium,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                // Where it plays from, shown from the storage root down — the same name in two
+                // folders is otherwise two identical cards.
+                currentFile.parentFile?.let { folder ->
+                    Text(
+                        folder.absolutePath.removePrefix("/storage/emulated/0"),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFFAAAAAA),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 Spacer(Modifier.weight(1f))
                 // Under the name, deliberately small and red: it deletes the recording, its
                 // transcripts and its bookmarks, and it is the one control on this screen that
@@ -912,22 +925,16 @@ private fun NowPlayingCard(
                 // Wraps onto a second line when the column is narrow: as a plain Row the last
                 // button (the star) was pushed past the edge and simply not there on a phone.
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = onDelete,
-                            modifier = Modifier.size(30.dp),
-                        ) {
-                            Icon(
-                                Icons.Filled.Delete,
-                                contentDescription = stringResource(R.string.player_delete_this_file),
-                                tint = Color(0xFFE57373),
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                        Text(
-                            stringResource(R.string.player_delete),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFFE57373),
+                    // Icon only, so the four actions fit on one line; the red bin needs no word.
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(30.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = stringResource(R.string.player_delete_this_file),
+                            tint = Color(0xFFE57373),
+                            modifier = Modifier.size(18.dp),
                         )
                     }
                     // The folder in the phone's file manager, and the file itself to the share
@@ -1002,7 +1009,7 @@ private fun NowPlayingCard(
                     if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                     emphasized = true,
                     // When "bookmark on pause" is on, mark the pause button so it's clear a pause also bookmarks.
-                    badge = if (controller.autoBookmarkOnPause) Icons.Filled.Bookmark else null,
+                    badge = if (controller.bookmarkOnPauseActive) Icons.Filled.Bookmark else null,
                 ) {
                     controller.togglePlay()
                 }
@@ -1580,14 +1587,22 @@ private fun SleepTimerRow(controller: PlayerController) {
     }
     val remaining = deadline?.let { (it - now).coerceAtLeast(0L) } ?: 0L
     val active = remaining > 0
-    val selectedMinutes = if (active) chosen else 0
+    // The night timer wasn't picked from these chips, so none of them lights up for it.
+    val selectedMinutes = when {
+        !active -> 0
+        controller.sleepIsNight -> -1
+        else -> chosen
+    }
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.player_sleep_timer), style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(120.dp))
             if (active) {
                 Text(
-                    stringResource(R.string.player_sleep_pauses_in, formatTime(remaining)),
+                    stringResource(
+                        if (controller.sleepIsNight) R.string.player_sleep_pauses_in_night else R.string.player_sleep_pauses_in,
+                        formatTime(remaining),
+                    ),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -1601,6 +1616,68 @@ private fun SleepTimerRow(controller: PlayerController) {
                     label = { Text(if (m == 0) stringResource(R.string.player_off) else stringResource(R.string.player_sleep_minutes, m)) },
                 )
             }
+        }
+    }
+}
+
+/** The night sleep timer's switch and, while it's on, its hours and length. */
+@Composable
+private fun NightTimerRows(controller: PlayerController) {
+    OptionCheckRow(
+        checked = controller.nightTimerEnabled,
+        title = stringResource(R.string.player_night_timer),
+        hint = stringResource(
+            R.string.player_night_timer_hint,
+            hourLabel(controller.nightStart), hourLabel(controller.nightEnd), controller.nightMinutes,
+        ),
+    ) { controller.changeNightTimer(it) }
+    if (!controller.nightTimerEnabled) return
+    Column(modifier = Modifier.padding(start = 8.dp)) {
+        StepSlider(
+            stringResource(R.string.player_night_from, hourLabel(controller.nightStart)),
+            controller.nightStart.toFloat(), 0f, 23f, 1f,
+        ) { controller.changeNightStart(it.toInt()) }
+        StepSlider(
+            stringResource(R.string.player_night_until, hourLabel(controller.nightEnd)),
+            controller.nightEnd.toFloat(), 0f, 23f, 1f,
+        ) { controller.changeNightEnd(it.toInt()) }
+        StepSlider(
+            stringResource(R.string.player_night_minutes, controller.nightMinutes),
+            controller.nightMinutes.toFloat(),
+            PlayerController.MIN_NIGHT_MINUTES.toFloat(),
+            PlayerController.MAX_NIGHT_MINUTES.toFloat(),
+            5f,
+        ) { controller.changeNightMinutes(it.toInt()) }
+    }
+}
+
+private fun hourLabel(hour: Int) = "%02d:00".format(java.util.Locale.US, hour)
+
+/** A checkbox with a title and a grey hint under it; the whole row toggles it. */
+@Composable
+private fun OptionCheckRow(
+    checked: Boolean,
+    title: String,
+    hint: String,
+    enabled: Boolean = true,
+    indent: Boolean = false,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .padding(top = 8.dp, start = if (indent) 24.dp else 0.dp)
+            .clickable(enabled = enabled) { onChange(!checked) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = onChange, enabled = enabled)
+        Spacer(Modifier.width(4.dp))
+        Column {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (enabled) Color.Unspecified else Color(0xFF888888),
+            )
+            Text(hint, style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
         }
     }
 }

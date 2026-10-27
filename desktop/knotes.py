@@ -29,7 +29,7 @@ import cairo  # noqa: E402  (pycairo — ships with PyGObject; used to draw the 
 from gi.repository import Gtk, Gdk, GLib, Pango, Gio  # noqa: E402
 
 from config import Settings, RepoConfig, parse_tag_block, format_tag_block  # noqa: E402
-from notes import (NoteRepository, Note, is_rtl, companion_dir, companion_files,  # noqa: E402
+from notes import (NoteRepository, Note, is_rtl, reads_rtl, companion_dir, companion_files, inbox_entries,  # noqa: E402
                    companion_has_content, parse_created, QuickFile, QuickEntry,
                    QUICK_NOTES_FILE, QUICK_TASKS_FILE, markdown_spans,
                    fmt_count, split_highlights, apply_highlights, clause_bounds,
@@ -37,7 +37,7 @@ from notes import (NoteRepository, Note, is_rtl, companion_dir, companion_files,
 from backend import fetch_taxonomy, import_note  # noqa: E402
 from filters import FilterState, Taxonomy, default_filter, BY_CREATED, NS_INCLUDE, NS_ONLY, TX_INCLUDE, TX_ONLY  # noqa: E402
 import tagbank  # noqa: E402
-from sidebar import FilterSidebar  # noqa: E402
+from sidebar import FilterSidebar, set_rtl  # noqa: E402
 
 # A development copy (run-dev.sh sets KNOTES_DEV=1) registers its own application ID. GTK apps are
 # single-instance per ID, so with a shared one, launching the dev copy while the installed one is
@@ -137,6 +137,12 @@ SCROLLBAR_ALLOWANCE = 16
 # The note editor grows with its content between these heights (px), then scrolls vertically.
 EDITOR_MIN_HEIGHT = 36
 EDITOR_MAX_HEIGHT = 180
+
+# What the short add form files a note as: a plain Note, priority 2, the miscellaneous category —
+# each only if the folder has it, else the full form's current choice.
+QUICK_TYPE = "N"
+QUICK_PRIORITY = 2
+QUICK_CATEGORY = "X"
 
 class TagCompleter:
     """Hashtag autocomplete for one Gtk.TextView, offering the tag bank after a ``#``.
@@ -1710,6 +1716,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
                     line.pack_end(size, False, False, 0)
                 except OSError:
                     pass
+            # An Arabic name reads from the right: icon, name and size all flip with it.
+            if reads_rtl(name):
+                set_rtl(line)
             row.set_tooltip_text(f"{path}\nClick to open")
             row.add(line)
             self.files_list.add(row)
@@ -2039,6 +2048,13 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # Text field + send button.
         input_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
 
+        # Short ⇄ full form, the first thing on the row; see _apply_form.
+        self.form_button = Gtk.Button()
+        self.form_button.set_valign(Gtk.Align.FILL)
+        self.form_button.set_relief(Gtk.ReliefStyle.NONE)
+        self.form_button.connect("clicked", lambda b: self._toggle_form())
+        input_row.pack_start(self.form_button, False, False, 0)
+
         # Keyboard-layout indicator, left of the text field (same height): "ع" while an Arabic layout
         # is producing text, "EN" otherwise — so you can see the active layout before/while typing.
         self.layout_label = Gtk.Label(label="EN")
@@ -2098,6 +2114,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.send_button.connect("clicked", lambda b: self._send())
         input_row.pack_start(self.send_button, False, False, 0)
         bar.pack_start(input_row, False, False, 0)
+        bar.pack_start(self._build_inbox_picker(), False, False, 0)
 
         # One-line index of all #hashtags used across the notes, each with the number of notes using
         # it. Updated on every reload; hidden (no_show_all) when there are none.
@@ -2141,6 +2158,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
 
         self.type_row.set_visible(bool(self.repo_cfg.types))
         self.category_row.set_visible(bool(self.repo_cfg.categories))
+        if hasattr(self, "form_button"):
+            self._apply_form()   # another folder may lack N / P2 / X
 
     def _backend_conn(self) -> tuple[str, str, str]:
         """(url, user, password) of the ACTIVE folder's backend — each repository can bind its own
@@ -4204,11 +4223,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # and a filter bar next to a hidden board would also block _shrink_to_minimum.
         self.sidebar.set_no_show_all(minimal)
         self.sidebar.set_visible(not minimal)
-        self.chips_row.set_no_show_all(minimal)
-        self.chips_row.set_visible(not minimal)
+        self._apply_form()
         self.minimal_tags.set_visible(minimal)
         if minimal:
-            self._refresh_minimal_tags()
             if self._pre_minimal_size is None:
                 self._pre_minimal_size = self.get_size()   # remember the size to restore on exit
             self.unmaximize()
@@ -4273,30 +4290,174 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.reload_notes()
         return False  # one-shot timeout
 
+    def _toggle_form(self) -> None:
+        self.settings.short_form = not self.settings.short_form
+        self.settings.save()
+        self._apply_form()
+        self.textview.grab_focus()
+
+    def _apply_form(self) -> None:
+        """Short form: the tag chips go and a note is saved with the quick tags (_effective_tags);
+        the text field and the inbox list stay. Minimal mode hides the chips in either form."""
+        short = self.settings.short_form
+        hidden = short or self.minimal_mode
+        self.chips_row.set_no_show_all(hidden)
+        self.chips_row.set_visible(not hidden)
+        image = self.form_button.get_child()
+        if image is not None:
+            self.form_button.remove(image)
+        icon = "pan-up-symbolic" if short else "pan-down-symbolic"
+        self.form_button.add(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.BUTTON))
+        self.form_button.show_all()
+        t, p, c = self._effective_tags(short=True)
+        quick = " · ".join(x for x in (t, f"P{p}", c) if x)
+        self.form_button.set_tooltip_text(
+            "Full form: choose type, priority and category  (Ctrl+N)" if short
+            else f"Short form: no chips, saved as {quick}  (Ctrl+N)")
+        self._refresh_minimal_tags()
+
+    def _effective_tags(self, short: bool | None = None) -> tuple[str | None, int, str | None]:
+        """The tags a new note gets: the chips' choice, or in the short form the quick ones
+        (N · P2 · X), each falling back to the chips' choice when this folder lacks it."""
+        if not (self.settings.short_form if short is None else short):
+            return self.selected_type, self.priority, self.selected_category
+        return (QUICK_TYPE if QUICK_TYPE in self.type_codes else self.selected_type,
+                QUICK_PRIORITY if QUICK_PRIORITY in self.repo_cfg.priorities() else self.priority,
+                QUICK_CATEGORY if QUICK_CATEGORY in self.category_codes else self.selected_category)
+
     def _refresh_minimal_tags(self) -> None:
         """One-line summary of the selected tags for minimal mode, order: type · pN · subject.
         Rendered big/bold/coloured so the active options stand out at a glance."""
         esc = GLib.markup_escape_text
+        kind, prio, cat = self._effective_tags()
         parts = []
-        if self.selected_type:
-            parts.append(f"<span foreground='#4fc3f7'>{esc(self.selected_type)}</span>")
-        parts.append(f"<span foreground='#ffb74d'>p{self.priority}</span>")
-        if self.selected_category:
-            parts.append(f"<span foreground='#81c784'>{esc(self.selected_category)}</span>")
+        if kind:
+            parts.append(f"<span foreground='#4fc3f7'>{esc(kind)}</span>")
+        parts.append(f"<span foreground='#ffb74d'>p{prio}</span>")
+        if cat:
+            parts.append(f"<span foreground='#81c784'>{esc(cat)}</span>")
         sep = "  <span foreground='#7a7a7a'>·</span>  "
         self.minimal_tags.set_markup(
             f"<span size='large' weight='bold'>{sep.join(parts)}</span>")
+
+    # ----------------------------------------------------- inbox picker
+
+    def _build_inbox_picker(self) -> Gtk.Widget:
+        """The inbox's files and folders as checkboxes under the add field (Settings → Inbox
+        folder). Ticked ones move into the next saved note's companion folder; see _send."""
+        self.inbox_expander = Gtk.Expander()
+        self.inbox_expander.set_no_show_all(True)
+        # Ellipsized: a long inbox path as a plain expander label widened the whole window.
+        self.inbox_label = Gtk.Label(xalign=0)
+        self.inbox_label.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        self.inbox_label.show()
+        self.inbox_expander.set_label_widget(self.inbox_label)
+        self.inbox_expander.set_margin_start(6)
+        self.inbox_expander.connect("notify::expanded", lambda *_: self._refresh_inbox())
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroller.set_propagate_natural_height(True)
+        scroller.set_max_content_height(180)
+        self.inbox_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        scroller.add(self.inbox_box)
+        scroller.show_all()
+        self.inbox_expander.add(scroller)
+        self._inbox_checks: dict[str, Gtk.CheckButton] = {}
+        self._inbox_monitor = None
+        self._inbox_reload_pending = False
+        self._setup_inbox_watch()
+        self._refresh_inbox()
+        return self.inbox_expander
+
+    def _inbox_keep_out(self) -> list[str]:
+        return [path for _code, path in self.settings.repos()]
+
+    def _refresh_inbox(self) -> None:
+        """Re-list the inbox, keeping the ticks on whatever is still there."""
+        entries = inbox_entries(self.settings.inbox_dir, self._inbox_keep_out())
+        ticked = {p for p, c in self._inbox_checks.items() if c.get_active()}
+        for child in self.inbox_box.get_children():
+            self.inbox_box.remove(child)
+        self._inbox_checks = {}
+        for path in entries:
+            name = os.path.basename(path) + (os.sep if os.path.isdir(path) else "")
+            check = Gtk.CheckButton(label=name)
+            check.get_child().set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+            check.get_child().set_max_width_chars(60)
+            check.set_tooltip_text(path)
+            if reads_rtl(os.path.basename(path)):
+                set_rtl(check)
+            check.set_active(path in ticked)
+            check.connect("toggled", lambda *_: self._update_inbox_label())
+            self.inbox_box.pack_start(check, False, False, 0)
+            self._inbox_checks[path] = check
+        self.inbox_box.show_all()
+        self.inbox_expander.set_visible(bool(entries))
+        self._update_inbox_label()
+
+    def _update_inbox_label(self) -> None:
+        n = len(self._inbox_checks)
+        ticked = len(self._inbox_ticked())
+        where = os.path.expanduser(self.settings.inbox_dir or "")
+        home = os.path.expanduser("~")
+        if where == home or where.startswith(home + os.sep):
+            where = "~" + where[len(home):]
+        text = f"{n} to settle in {where}"
+        if ticked:
+            text += f" · {ticked} go into the new note"
+        self.inbox_label.set_text(text)
+
+    def _inbox_ticked(self) -> list[str]:
+        return [p for p, c in self._inbox_checks.items() if c.get_active()]
+
+    def _setup_inbox_watch(self) -> None:
+        """Follow the inbox folder, so a download landing there shows up without a refresh."""
+        if self._inbox_monitor is not None:
+            self._inbox_monitor.cancel()
+            self._inbox_monitor = None
+        folder = os.path.expanduser(self.settings.inbox_dir) if self.settings.inbox_dir else ""
+        if not folder or not os.path.isdir(folder):
+            return
+        try:
+            monitor = Gio.File.new_for_path(folder).monitor_directory(Gio.FileMonitorFlags.NONE, None)
+        except GLib.Error:
+            return
+        monitor.connect("changed", self._on_inbox_changed)
+        self._inbox_monitor = monitor
+
+    def _on_inbox_changed(self, *_args) -> None:
+        # The notes folder usually sits inside the inbox, and every note saved is an event here too;
+        # coalesce a burst into one re-list.
+        if self._inbox_reload_pending:
+            return
+        self._inbox_reload_pending = True
+
+        def run() -> bool:
+            self._inbox_reload_pending = False
+            self._refresh_inbox()
+            return False
+        GLib.timeout_add(700, run)
 
     # ----------------------------------------------------- new notes
 
     def _send(self) -> None:
         start, end = self.buffer.get_bounds()
         text = self.buffer.get_text(start, end, True).strip()
+        inbox_items = self._inbox_ticked()
+        if not text and inbox_items:
+            # Ticking files without typing anything still makes a note: their names are its text,
+            # so the placeholder says what it holds.
+            text = "\n".join(os.path.basename(p) for p in inbox_items)
         if not text:
             return
         # Always a new note; the chosen tags stay selected for the next one (sticky).
-        path = self.repo.save_new(text, self.selected_type, self.priority,
-                                  self.selected_category, self.settings.timestamp_format)
+        kind, prio, cat = self._effective_tags()
+        path = self.repo.save_new(text, kind, prio, cat, self.settings.timestamp_format)
+        if inbox_items:
+            failed = self.repo.adopt(path, inbox_items)
+            if failed:
+                self._flash_status("Could not move: " + ", ".join(os.path.basename(p) for p in failed))
+            self._refresh_inbox()
         if self.settings.auto_open_folder:
             self._reveal_folder(path)  # toolbar toggle: drop the note's files in right away
         # Saving ends board navigation, so the cursor lands back in the add field ready for the next
@@ -4769,6 +4930,9 @@ class KnotesWindow(Gtk.ApplicationWindow):
                 if self._edit_selected_by_shortcut(event):
                     return True
             elif self._select_by_shortcut(event):
+                # Picking a tag by key means wanting the chips: bring the full form back.
+                if self.settings.short_form:
+                    self._toggle_form()
                 return True
 
         # Selected-card actions.
@@ -4843,6 +5007,10 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # any keyboard layout (incl. Arabic). Ctrl+L (unlike Ctrl+M) has no Return-quirk to dodge.
         if ctrl and not shift and not alt and self._base_char(event).lower() == "l":
             self._toggle_minimal_mode()
+            return True
+        # Ctrl+N ("note form") switches the add form between short and full.
+        if ctrl and not shift and not alt and self._base_char(event).lower() == "n":
+            self._toggle_form()
             return True
         # Ctrl+B ("bar") shows/hides the filter sidebar. Layout-independent via _base_char.
         if ctrl and not shift and not alt and self._base_char(event).lower() == "b":
@@ -4937,6 +5105,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self._refresh_taxonomy()
             self._apply_defaults()
             self._populate_repo_combo()
+            self._setup_inbox_watch()      # the inbox folder may have changed
+            self._refresh_inbox()
             self._apply_app_theme()        # the dialog may have switched or reordered folders
             self._refresh_status()
             self._refresh_highlight_tag()  # a new highlight colour shows without reopening the pane
@@ -4978,6 +5148,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
             ("Ctrl+R", "Refresh from disk (pick up notes synced from another machine)"),
             ("Ctrl+T", "Toggle light / dark theme"),
             ("Ctrl+L", "Toggle minimal side-note mode (board hidden)"),
+            ("Ctrl+N", "Add form: short (no chips, saved as N · P2 · X) ⇄ full (type / priority / category)"),
             ("F12", "Focus the card area / add field (in minimal mode, select the card)"),
             ("Ctrl+,", "Settings"),
             ("F1", "This help"),
@@ -5058,6 +5229,13 @@ class SettingsDialog(Gtk.Dialog):
         self.format_entry = Gtk.Entry(text=settings.timestamp_format)
         self.format_entry.set_tooltip_text("Python strftime, e.g. %Y_%m_%d-%H%M%S")
         add("Timestamp format", self.format_entry)
+
+        self.inbox_entry = Gtk.Entry(text=settings.inbox_dir)
+        self.inbox_entry.set_placeholder_text("off")
+        self.inbox_entry.set_tooltip_text(
+            "Its files and folders are listed under the add field; the ticked ones move into the new "
+            "note's files folder when it's saved. Blank = no list.")
+        add("Inbox folder", self.inbox_entry)
 
         self.opener_entry = Gtk.Entry(text=settings.opener)
         self.opener_entry.set_placeholder_text(f"system default ({DEFAULT_OPENER})")
@@ -5274,6 +5452,7 @@ class SettingsDialog(Gtk.Dialog):
             settings.repo_colors[code] = ("" if code in self.repo_color_cleared
                                           else _rgba_hex(button.get_rgba()))
         settings.timestamp_format = self.format_entry.get_text().strip() or settings.timestamp_format
+        settings.inbox_dir = self.inbox_entry.get_text().strip()
         settings.opener = self.opener_entry.get_text().strip()
         settings.preview_chars = int(self.preview_spin.get_value())
         settings.preview_tail_chars = int(self.preview_tail_spin.get_value())

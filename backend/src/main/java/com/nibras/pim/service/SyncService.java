@@ -591,6 +591,17 @@ public class SyncService {
                 if (p.getType() == null) {
                     plannerTypeRepo.findFirstByCode("fcs").ifPresent(p::setType);
                 }
+                // The phone's weekly batch (a timetable): the entry becomes a series that repeats
+                // every week up to and including that day. Only applied when sent, so an ordinary
+                // edit or drag of an existing planner never touches its recurrence.
+                String repeatUntil = str(r.get("repeatWeeklyUntil"));
+                if (!repeatUntil.isBlank()) {
+                    p.setRecurring(true);
+                    p.setRecurrencePreset("WEEKLY");
+                    p.setRecurrenceInterval(1);
+                    p.setRecurrenceUntil(java.time.LocalDate.parse(repeatUntil).atTime(23, 59, 59));
+                    p.setRecurrenceCount(null);
+                }
                 plannerRepo.save(p);
                 ids.add(p.getId());
             }

@@ -41,6 +41,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.knotes.AppSettings
@@ -60,6 +63,18 @@ import java.io.File
  * on the phone, like an answer with nothing beside it. One card, and [readOnly] decides whether
  * the actions that write are drawn.
  */
+
+/**
+ * A card preview's direction, decided per line by Android itself: with [TextDirection.Content]
+ * the layout judges each line by its first strong letter, and [TextAlign.Start] puts it on that
+ * line's own start edge — what Bidi.directional does with a paragraph style per line.
+ *
+ * Not Bidi.directional here: a preview is cut at maxLines with an ellipsis, and when the cut falls
+ * in the middle of a wrapped line of a multi-paragraph AnnotatedString, Compose draws that whole
+ * last line blank. A short first line over a long second one came out as the title, then an empty
+ * gap where the second line should have been.
+ */
+private val PREVIEW_DIRECTION = TextStyle(textDirection = TextDirection.Content, textAlign = TextAlign.Start)
 
 @Composable
 internal fun NoteCard(
@@ -119,12 +134,10 @@ internal fun NoteCard(
             // Direction per line, from its first strong letter: a note whose text is English but
             // which mentions one Arabic word used to render entirely right-to-left.
             Text(
-                text = com.knotes.util.Bidi.directional(
-                    note.preview(settings.previewLines), fallbackRtl = note.isRtl,
-                ),
+                text = note.preview(settings.previewLines),
                 maxLines = settings.previewLines,
                 overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyLarge.merge(PREVIEW_DIRECTION),
                 modifier = Modifier.fillMaxWidth(),
             )
             // Attached files (companion .d folder) — same overview as the desktop cards: up to 5
@@ -329,8 +342,8 @@ private fun DeleteNoteDialog(note: Note, onDismiss: () -> Unit, onConfirm: () ->
                     }
                 } else {
                     Text(
-                        com.knotes.util.Bidi.directional(note.preview(4), fallbackRtl = note.isRtl),
-                        style = MaterialTheme.typography.bodyMedium,
+                        note.preview(4),
+                        style = MaterialTheme.typography.bodyMedium.merge(PREVIEW_DIRECTION),
                         maxLines = 4,
                         overflow = TextOverflow.Ellipsis,
                     )

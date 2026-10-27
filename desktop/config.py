@@ -103,6 +103,9 @@ class Settings:
     # the just-added card + the compact selected tags + the text field. Overlays view_mode, so turning
     # it off returns to whatever list/kanban view was active.
     minimal_mode: bool = False
+    # The add form's short form (toggle with Ctrl+N or the button left of the text field): no tag
+    # chips, and a note is saved as N · P2 · X — sorting it out can wait. The inbox list stays.
+    short_form: bool = False
     # Card ordering: "datetime" (newest first), "category", "type" or "priority" (highest first).
     sort_by: str = "datetime"
     # Number of rows the kanban category columns are spread across (1–3); the columns fill each row.
@@ -110,6 +113,10 @@ class Settings:
     # After saving a note, automatically open its companion files folder in the file manager
     # (the Ctrl+O action) so attachments can be dropped in right away. Toolbar-toggleable.
     auto_open_folder: bool = False
+    # The inbox folder whose files and folders the add form offers as checkboxes: the ticked ones
+    # are MOVED into the new note's companion folder when it's saved, so the inbox empties as notes
+    # are written for what's in it. Blank turns the list off.
+    inbox_dir: str = "~/new"
     # The one-line #hashtag strip under the add field. On: every tag + how many notes use it.
     # Off: a single compact "N #tag uses" count in its place (never fully hidden).
     show_tags_summary: bool = True
@@ -119,6 +126,8 @@ class Settings:
     # board. `heatmap_metric` is which date the calendar shades and a clicked day filters on
     # ("created", read from the note's file name, or "updated", the file's mtime).
     sidebar_visible: bool = True
+    # The expanded filter sidebar's width in px, dragged from its right edge.
+    sidebar_width: int = 330
     heatmap_metric: str = "created"
     # Start on today's captures: the one deliberate exception to "no filter is restored". It isn't
     # a restored selection but a fixed one (today, by `heatmap_metric`), so it can't go stale — and
@@ -246,11 +255,14 @@ class Settings:
         s.view_mode = raw.get("view_mode", s.view_mode)
         s.card_max_width = int(raw.get("card_max_width", s.card_max_width))
         s.minimal_mode = bool(raw.get("minimal_mode", s.minimal_mode))
+        s.short_form = bool(raw.get("short_form", s.short_form))
         s.sort_by = raw.get("sort_by", s.sort_by)
         s.kanban_rows = int(raw.get("kanban_rows", s.kanban_rows))
         s.auto_open_folder = bool(raw.get("auto_open_folder", s.auto_open_folder))
+        s.inbox_dir = str(raw.get("inbox_dir", s.inbox_dir)).strip()
         s.show_tags_summary = bool(raw.get("show_tags_summary", s.show_tags_summary))
         s.sidebar_visible = bool(raw.get("sidebar_visible", s.sidebar_visible))
+        s.sidebar_width = int(raw.get("sidebar_width", s.sidebar_width))
         s.heatmap_metric = raw.get("heatmap_metric", s.heatmap_metric)
         s.start_filter_today = bool(raw.get("start_filter_today", s.start_filter_today))
         s.hide_nonstandard_default = bool(raw.get("hide_nonstandard_default", s.hide_nonstandard_default))

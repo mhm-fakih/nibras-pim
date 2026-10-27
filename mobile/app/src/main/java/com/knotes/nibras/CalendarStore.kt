@@ -18,8 +18,10 @@ class CalendarStore(context: Context) {
     private val _pending = MutableStateFlow(load())
     val pending: StateFlow<List<CalendarEvent>> = _pending.asStateFlow()
 
-    fun add(event: CalendarEvent) {
-        _pending.value = _pending.value + event
+    fun add(event: CalendarEvent) = addAll(listOf(event))
+
+    fun addAll(events: List<CalendarEvent>) {
+        _pending.value = _pending.value + events
         save(_pending.value)
     }
 
@@ -67,7 +69,8 @@ class CalendarStore(context: Context) {
                     .put("end", it.end.toString())
                     .put("summary", it.summary)
                     .put("description", it.description)
-                    .put("localKey", it.localKey),
+                    .put("localKey", it.localKey)
+                    .put("repeatWeeklyUntil", it.repeatWeeklyUntil?.toString() ?: ""),
             )
         }
         prefs.edit().putString(K_PENDING, arr.toString()).apply()
@@ -91,6 +94,8 @@ class CalendarStore(context: Context) {
                         // Entries persisted before localKey existed get a fresh one; they're
                         // identified by server id anyway once synced.
                         localKey = o.optString("localKey").ifBlank { java.util.UUID.randomUUID().toString() },
+                        repeatWeeklyUntil = o.optString("repeatWeeklyUntil").takeIf { it.isNotBlank() }
+                            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
                     )
                 }.getOrNull()
             }

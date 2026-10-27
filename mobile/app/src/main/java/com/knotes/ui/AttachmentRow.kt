@@ -25,11 +25,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.knotes.player.isMediaFile
 import com.knotes.util.Bidi
@@ -53,35 +56,40 @@ import com.knotes.util.fileKind
 @Composable
 fun AttachmentRow(name: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val playable = isMediaFile(name)
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 5.dp),
-    ) {
-        Icon(
-            fileKindIcon(fileKind(name)),
-            contentDescription = null,
-            tint = if (playable) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.width(8.dp))
-        // Directional: an Arabic file name in a left-to-right card lays out backwards otherwise,
-        // and these names are long enough that the ellipsis lands at the wrong end too.
-        Text(
-            text = Bidi.directional(name),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    // The whole row takes the name's direction: an Arabic name starts at the right edge with its
+    // icon before it, as it would in an Arabic file manager, not left-packed after an LTR icon.
+    val rtl = Bidi.isRtlLine(name.substringBeforeLast('.')) ?: false
+    CompositionLocalProvider(LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(6.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 8.dp, vertical = 5.dp),
+        ) {
+            Icon(
+                fileKindIcon(fileKind(name)),
+                contentDescription = null,
+                tint = if (playable) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            // Directional: an Arabic file name in a left-to-right card lays out backwards otherwise,
+            // and these names are long enough that the ellipsis lands at the wrong end too.
+            Text(
+                text = Bidi.directional(name),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

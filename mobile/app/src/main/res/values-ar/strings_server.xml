@@ -115,4 +115,20 @@
         <item quantity="many">%1$s (%2$d بطاقة)</item>
         <item quantity="other">%1$s (%2$d بطاقة)</item>
     </plurals>
+    <string name="server_calendar_batch_title">إضافة أسبوع</string>
+    <string name="server_calendar_batch_help">مدخل واحد في كل سطر: ‎[p|j] اليوم الوقت[-النهاية] العنوان. الأيام: mon أو mon,wed أو mon-fri (أو الأسماء العربية والفرنسية). الأوقات: 8 أو 8:30 أو 2:30pm. بلا نهاية يدوم المدخل ساعة.</string>
+    <string name="server_calendar_batch_from">من</string>
+    <string name="server_calendar_batch_repeat">التكرار</string>
+    <string name="server_calendar_batch_once">مرة واحدة (هذا الأسبوع فقط)</string>
+    <string name="server_calendar_batch_weeks">أسبوعيًا لمدة %1$d أسابيع، حتى %2$s</string>
+    <string name="server_calendar_batch_fewer_weeks">أسابيع أقل</string>
+    <string name="server_calendar_batch_more_weeks">أسابيع أكثر</string>
+    <string name="server_calendar_batch_journal_once">مدخلات اليوميات تُضاف مرة واحدة؛ الخطط وحدها تتكرر.</string>
+    <string name="server_calendar_batch_line_problem">السطر %1$d: %2$s</string>
+    <string name="server_calendar_batch_no_day">لا يوم (mon، tue-thu، الاثنين…)</string>
+    <string name="server_calendar_batch_no_time">لا وقت (8، 8:30، 2:30pm…)</string>
+    <string name="server_calendar_batch_bad_end">يجب أن تأتي النهاية بعد البداية</string>
+    <string name="server_calendar_batch_no_title">لا عنوان بعد الوقت</string>
+    <string name="server_calendar_batch_add">أضف %1$d</string>
+    <string name="server_calendar_batch_saved">حُفظ %1$d من المدخلات</string>
 </resources>

@@ -59,6 +59,8 @@
     <string name="settings_chime_default">الرنين الافتراضي</string>
     <string name="settings_require_dismissal_title">يتطلب الإيقاف</string>
     <string name="settings_require_dismissal_desc">منبّه بملء الشاشة؛ يتكرر الصوت حتى تنقر «إيقاف». عند التعطيل يُشغَّل عدد التكرارات أدناه ثم يُمسح تلقائيًا.</string>
+    <string name="settings_reminder_ignore_silent_title">التذكير حتى في الوضع الصامت أو الاهتزاز</string>
+    <string name="settings_reminder_ignore_silent_desc">يُشغَّل صوت التذكير بمستوى صوت المنبّه، فلا يكتمه الوضع الصامت أو الاهتزاز.</string>
     <string name="settings_repeat_sound_label">تكرار الصوت (مرات)</string>
     <string name="settings_repeat_sound_hint">مثلًا 4 — يُشغَّل بهذا العدد بدل مرة واحدة. يُتجاهَل عند تفعيل «يتطلب الإيقاف».</string>
     <string name="settings_sync_header">المزامنة في الخلفية</string>

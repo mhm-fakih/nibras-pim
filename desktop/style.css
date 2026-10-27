@@ -774,3 +774,11 @@ headerbar > label {
 .week-entry:focus {
     outline: none;
 }
+
+/* The filter sidebar's resize edge (sidebar.py): a thin strip that lights up under the pointer. */
+.sidebar-grip {
+    background-color: @chrome_bg;
+}
+.sidebar-grip:hover {
+    background-color: alpha(@chrome_fg, 0.35);
+}

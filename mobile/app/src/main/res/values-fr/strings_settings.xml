@@ -59,6 +59,8 @@
     <string name="settings_chime_default">Carillon par défaut</string>
     <string name="settings_require_dismissal_title">Exiger l’arrêt</string>
     <string name="settings_require_dismissal_desc">Alarme plein écran ; le son tourne en boucle jusqu’à ce que vous touchiez Arrêter. Désactivé = jouer le nombre de répétitions ci-dessous, puis effacer automatiquement.</string>
+    <string name="settings_reminder_ignore_silent_title">Rappeler même en mode silencieux ou vibreur</string>
+    <string name="settings_reminder_ignore_silent_desc">Joue le son du rappel au volume de l\'alarme : les modes silencieux et vibreur ne le coupent plus.</string>
     <string name="settings_repeat_sound_label">Répéter le son (fois)</string>
     <string name="settings_repeat_sound_hint">p. ex. 4 — joue autant de fois au lieu d’une seule. Ignoré si « Exiger l’arrêt » est activé.</string>
     <string name="settings_sync_header">Synchronisation en arrière-plan</string>

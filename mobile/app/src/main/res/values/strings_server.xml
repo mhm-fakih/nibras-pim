@@ -111,4 +111,20 @@
         <item quantity="one">%1$s (%2$d card)</item>
         <item quantity="other">%1$s (%2$d cards)</item>
     </plurals>
+    <string name="server_calendar_batch_title">Add a week</string>
+    <string name="server_calendar_batch_help">One entry per line: [p|j] day time[-end] title. Days: mon, mon,wed or mon-fri (also French or Arabic names). Times: 8, 8:30, 2:30pm. Without an end an entry lasts an hour.</string>
+    <string name="server_calendar_batch_from">From</string>
+    <string name="server_calendar_batch_repeat">Repeat</string>
+    <string name="server_calendar_batch_once">Once (this week only)</string>
+    <string name="server_calendar_batch_weeks">Weekly for %1$d weeks, until %2$s</string>
+    <string name="server_calendar_batch_fewer_weeks">Fewer weeks</string>
+    <string name="server_calendar_batch_more_weeks">More weeks</string>
+    <string name="server_calendar_batch_journal_once">Journal entries are added once; only planners repeat.</string>
+    <string name="server_calendar_batch_line_problem">Line %1$d: %2$s</string>
+    <string name="server_calendar_batch_no_day">no day (mon, tue-thu, mon,wed…)</string>
+    <string name="server_calendar_batch_no_time">no time (8, 8:30, 2:30pm…)</string>
+    <string name="server_calendar_batch_bad_end">the end time must come after the start</string>
+    <string name="server_calendar_batch_no_title">no title after the time</string>
+    <string name="server_calendar_batch_add">Add %1$d</string>
+    <string name="server_calendar_batch_saved">%1$d entries saved</string>
 </resources>

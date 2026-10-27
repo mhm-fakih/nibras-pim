@@ -128,6 +128,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
     var reminderOffsets by remember { mutableStateOf(current.reminderOffsetsMin.joinToString(", ")) }
     var reminderSound by remember { mutableStateOf(current.reminderSoundUri) }
     var reminderDismiss by remember { mutableStateOf(current.reminderRequireDismiss) }
+    var reminderIgnoreSilent by remember { mutableStateOf(current.reminderIgnoreSilent) }
     var reminderRepeat by remember { mutableStateOf(current.reminderRepeatCount.toString()) }
     var statusNotif by remember { mutableStateOf(current.statusNotificationEnabled) }
     var syncEnabled by remember { mutableStateOf(current.syncEnabled) }
@@ -240,6 +241,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 reminderOffsetsMin = SettingsStore.decodeInts(reminderOffsets),
                 reminderSoundUri = reminderSound,
                 reminderRequireDismiss = reminderDismiss,
+                reminderIgnoreSilent = reminderIgnoreSilent,
                 reminderRepeatCount = reminderRepeat.toIntOrNull() ?: 4,
                 statusNotificationEnabled = statusNotif,
                 syncEnabled = syncEnabled,
@@ -831,6 +833,17 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                         )
                     }
                     Switch(checked = reminderDismiss, onCheckedChange = { reminderDismiss = it })
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_reminder_ignore_silent_title), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.settings_reminder_ignore_silent_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = reminderIgnoreSilent, onCheckedChange = { reminderIgnoreSilent = it })
                 }
                 OutlinedTextField(
                     value = reminderRepeat,

@@ -56,7 +56,7 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
     val message: StateFlow<String?> = _message.asStateFlow()
     fun consumeMessage() { _message.value = null }
 
-    private fun str(id: Int): String = getApplication<Application>().getString(id)
+    private fun str(id: Int, vararg args: Any): String = getApplication<Application>().getString(id, *args)
 
     private var base = ""
     private var username = ""
@@ -97,6 +97,39 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
             // Reflect the new event in the "Upcoming plans" widget right away: this bridges the
             // knotes_calendar store into knotes_plans (which the widget reads) and refreshes it —
             // works whether the event just synced or is still pending offline.
+            runCatching {
+                com.knotes.reminder.PlansRepository.refresh(
+                    getApplication(), com.knotes.SettingsStore(getApplication()).value)
+            }
+        }
+    }
+
+    /**
+     * Add a typed week at once (the batch dialog): every entry lands on the first matching weekday
+     * on or after [from]. With [weeks] > 1 each planner becomes a weekly series ending
+     * `from + weeks - 1 day`, one record per course and weekday rather than a row per week —
+     * journal entries don't repeat on the server, so they are added once.
+     */
+    fun addBatch(entries: List<WeekBatch.Entry>, defaultType: String, from: LocalDate, weeks: Int) {
+        if (entries.isEmpty()) return
+        val until = if (weeks > 1) from.plusWeeks(weeks.toLong()).minusDays(1) else null
+        val events = entries.map { e ->
+            val type = e.type ?: defaultType
+            CalendarEvent(
+                type, "", WeekBatch.firstDate(from, e.day), e.start, e.end, e.title.trim(),
+                repeatWeeklyUntil = until.takeIf { type == "P" },
+            )
+        }
+        store.addAll(events)
+        viewModelScope.launch {
+            val synced = runCatching { api.pushCalendar(base, username, events.map(::entryOf)) }.getOrDefault(false)
+            if (synced) {
+                events.forEach(store::remove)
+                _message.value = str(R.string.server_calendar_batch_saved, events.size)
+                if (base.isNotEmpty()) load(base, username)
+            } else {
+                _message.value = str(R.string.server_saved_sync_when_online)
+            }
             runCatching {
                 com.knotes.reminder.PlansRepository.refresh(
                     getApplication(), com.knotes.SettingsStore(getApplication()).value)
@@ -179,6 +212,7 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
         endDate = formatServerDateTime(LocalDateTime.of(event.date, event.end)),
         summary = event.summary,
         description = event.description,
+        repeatWeeklyUntil = event.repeatWeeklyUntil?.toString() ?: "",
     )
 
     override fun onCleared() {

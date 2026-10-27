@@ -267,7 +267,8 @@ class NibrasApi {
                         .put("startDate", it.startDate)
                         .put("endDate", it.endDate)
                         .put("summary", it.summary)
-                        .put("description", it.description),
+                        .put("description", it.description)
+                        .apply { if (it.repeatWeeklyUntil.isNotBlank()) put("repeatWeeklyUntil", it.repeatWeeklyUntil) },
                 )
             }
             postAuthed("${base.trimEnd('/')}$PATH_MOBILE_PUSH_CALENDAR", JSONObject().put("data", data))

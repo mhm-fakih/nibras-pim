@@ -86,6 +86,63 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
     var autoBookmarkOnPause by mutableStateOf(prefs.getBoolean(K_AUTO_BOOKMARK, false))
         private set
 
+    /**
+     * Bookmark-on-pause switches with the Bluetooth connection: on with headphones (pausing from
+     * them, away from the phone, is when a mark is wanted), off on the phone's speaker. While set,
+     * [autoBookmarkOnPause] is kept but not used. The service applies it; this only mirrors it.
+     */
+    var bookmarkFollowsBluetooth by mutableStateOf(
+        prefs.getBoolean(PlaybackService.PREF_BOOKMARK_FOLLOWS_BT, PlaybackService.DEFAULT_BOOKMARK_FOLLOWS_BT)
+    )
+        private set
+
+    /** A Bluetooth audio output is connected right now — see [BluetoothAudio]. */
+    var bluetoothConnected by mutableStateOf(false)
+        private set
+    private val bluetoothWatch = BluetoothAudio.watch(app) { bluetoothConnected = it }
+
+    /** Whether a pause would drop a bookmark at this moment, whichever way it is decided. */
+    val bookmarkOnPauseActive: Boolean
+        get() = if (bookmarkFollowsBluetooth) bluetoothConnected else autoBookmarkOnPause
+
+    fun changeBookmarkFollowsBluetooth(enabled: Boolean) {
+        bookmarkFollowsBluetooth = enabled
+        prefs.edit().putBoolean(PlaybackService.PREF_BOOKMARK_FOLLOWS_BT, enabled).apply()
+    }
+
+    // The night sleep timer: playback started between [nightStart] and [nightEnd] (whole hours)
+    // pauses after [nightMinutes]. The service starts it; these are its settings.
+    var nightTimerEnabled by mutableStateOf(
+        prefs.getBoolean(PlaybackService.PREF_NIGHT_ENABLED, PlaybackService.DEFAULT_NIGHT_ENABLED)
+    )
+        private set
+    var nightStart by mutableStateOf(prefs.getInt(PlaybackService.PREF_NIGHT_START, PlaybackService.DEFAULT_NIGHT_START))
+        private set
+    var nightEnd by mutableStateOf(prefs.getInt(PlaybackService.PREF_NIGHT_END, PlaybackService.DEFAULT_NIGHT_END))
+        private set
+    var nightMinutes by mutableStateOf(prefs.getInt(PlaybackService.PREF_NIGHT_MINUTES, PlaybackService.DEFAULT_NIGHT_MINUTES))
+        private set
+
+    fun changeNightTimer(enabled: Boolean) {
+        nightTimerEnabled = enabled
+        prefs.edit().putBoolean(PlaybackService.PREF_NIGHT_ENABLED, enabled).apply()
+    }
+
+    fun changeNightStart(hour: Int) {
+        nightStart = Math.floorMod(hour, 24)
+        prefs.edit().putInt(PlaybackService.PREF_NIGHT_START, nightStart).apply()
+    }
+
+    fun changeNightEnd(hour: Int) {
+        nightEnd = Math.floorMod(hour, 24)
+        prefs.edit().putInt(PlaybackService.PREF_NIGHT_END, nightEnd).apply()
+    }
+
+    fun changeNightMinutes(minutes: Int) {
+        nightMinutes = minutes.coerceIn(MIN_NIGHT_MINUTES, MAX_NIGHT_MINUTES)
+        prefs.edit().putInt(PlaybackService.PREF_NIGHT_MINUTES, nightMinutes).apply()
+    }
+
     /** What follows the file that just finished — see [PlayNextMode]. */
     var playNextMode by mutableStateOf(PlayNextMode.from(prefs.getString(K_PLAY_NEXT, null)))
         private set
@@ -160,6 +217,10 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
     var sleepDeadline by mutableStateOf<Long?>(null)
         private set
 
+    /** The running timer is the night one, started by the service rather than picked here. */
+    var sleepIsNight by mutableStateOf(false)
+        private set
+
     /** How many files the "recently played" tab keeps — a setting on the player's settings tab. */
     var recentsMax by mutableStateOf(
         prefs.getInt(K_RECENTS_MAX, DEFAULT_RECENTS_MAX).coerceIn(MIN_RECENTS_MAX, MAX_RECENTS_MAX)
@@ -209,7 +270,11 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
 
     init {
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
-        val future = MediaController.Builder(app, token).buildAsync()
+        val future = MediaController.Builder(app, token)
+            .setListener(object : MediaController.Listener {
+                override fun onExtrasChanged(controller: MediaController, extras: Bundle) = readSleep(extras)
+            })
+            .buildAsync()
         controllerFuture = future
         future.addListener({
             val c = runCatching { future.get() }.getOrNull() ?: return@addListener
@@ -230,6 +295,7 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
     /** Adopt whatever the service already had (e.g. after the UI was recreated mid-playback). */
     private fun syncFromController(c: MediaController) {
         isPlaying = c.isPlaying
+        readSleep(c.sessionExtras)
         c.duration.takeIf { it > 0 }?.let { duration = it }
         currentFile = c.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() }?.let(::File)
         // Re-assert our knobs/options onto the (possibly freshly created) service.
@@ -365,9 +431,16 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         prefs.edit().putInt(K_SKIP_SECS, skipPrimary).apply()
     }
 
+    /** The service's word on the sleep timer — the only source for one it started by itself. */
+    private fun readSleep(extras: Bundle) {
+        sleepDeadline = extras.getLong(PlaybackService.EXTRA_SLEEP_DEADLINE, 0L).takeIf { it > 0L }
+        sleepIsNight = sleepDeadline != null && extras.getBoolean(PlaybackService.EXTRA_SLEEP_NIGHT)
+    }
+
     /** Pause after [minutes] (0 = cancel). Kept running by the service even with the UI gone. */
     fun setSleepTimer(minutes: Int) {
         sleepDeadline = if (minutes > 0) SystemClock.elapsedRealtime() + minutes * 60_000L else null
+        sleepIsNight = false
         sendCommand(PlaybackService.CMD_SET_SLEEP, Bundle().apply {
             putLong(PlaybackService.KEY_SLEEP_MS, minutes * 60_000L)
         })
@@ -585,6 +658,7 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         saveCurrentPosition()
+        bluetoothWatch.close()
         controller?.removeListener(listener)
         controllerFuture?.let { MediaController.releaseFuture(it) }
         controller = null
@@ -593,6 +667,8 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
 
     companion object {
         const val K_AUTO_BOOKMARK = "auto_bookmark_on_pause"
+        const val MIN_NIGHT_MINUTES = 5
+        const val MAX_NIGHT_MINUTES = 90
         const val K_SKIP_SECS = "skip_primary_secs"
         const val K_SPEED = "playback_speed"
         const val K_GAIN_DB = "gain_db"

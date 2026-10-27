@@ -221,6 +221,18 @@ def is_rtl(text: str) -> bool:
     return bool(_RTL.search(text))
 
 
+def reads_rtl(text: str) -> bool:
+    """Whether ``text`` reads right-to-left: its first letter is Arabic (or Hebrew). Digits and
+    punctuation are neutral, so "2026_10 محاضرة.mp3" is RTL and "lecture محاضرة.mp3" is not —
+    the rule the phone's Bidi.isRtlLine uses, unlike is_rtl's "any Arabic at all"."""
+    for ch in text:
+        if _RTL.match(ch):
+            return True
+        if ch.isalpha():
+            return False
+    return False
+
+
 def is_note_file(name: str) -> bool:
     """True only for `.md` files whose name matches the canonical note format."""
     return bool(_NOTE_NAME.match(name))
@@ -251,6 +263,50 @@ def companion_dir(note_path: str) -> str:
     """The folder holding a note's attached files, next to the .md (may not exist yet)."""
     stem, _ext = os.path.splitext(note_path)
     return stem + COMPANION_SUFFIX
+
+
+def inbox_entries(inbox_dir: str, keep_out: list[str]) -> list[str]:
+    """The files and folders directly inside ``inbox_dir``, newest first, as absolute paths.
+
+    Dotfiles are skipped, and so is anything in ``keep_out`` or holding one of them: the notes
+    folders themselves often live in the inbox (``~/new/knotes``), and offering one of those to be
+    moved into a note would move the whole repository inside itself.
+    """
+    root = os.path.realpath(os.path.expanduser(inbox_dir)) if inbox_dir else ""
+    if not root or not os.path.isdir(root):
+        return []
+    guarded = [os.path.realpath(os.path.expanduser(p)) for p in keep_out if p]
+    out = []
+    for name in os.listdir(root):
+        if name.startswith("."):
+            continue
+        path = os.path.join(root, name)
+        real = os.path.realpath(path)
+        if any(g == real or g.startswith(real + os.sep) for g in guarded):
+            continue
+        out.append(path)
+
+    def mtime(p: str) -> float:
+        try:
+            return os.lstat(p).st_mtime
+        except OSError:
+            return 0.0
+    return sorted(out, key=mtime, reverse=True)
+
+
+def companion_entry_names(folder: str) -> list[str]:
+    """The names directly inside a companion folder, folders ending in ``/``, sorted."""
+    if not os.path.isdir(folder):
+        return []
+    return sorted((n + ("/" if os.path.isdir(os.path.join(folder, n)) else "") for n in os.listdir(folder)),
+                  key=str.lower)
+
+
+def files_list(names: list[str]) -> str:
+    """The block a merge appends under a part's text: its attached files, one per line."""
+    if not names:
+        return ""
+    return "\n\nFiles:\n" + "\n".join(f"- {n}" for n in names)
 
 
 def companion_files(note_path: str) -> list[str]:
@@ -994,38 +1050,46 @@ class NoteRepository:
         self._relocate_companion(path, target)
         return target
 
-    def _relocate_companion(self, old_note_path: str, new_note_path: str) -> None:
+    def _relocate_companion(self, old_note_path: str, new_note_path: str) -> list[str]:
         """Move a note's companion folder so it keeps following the note to a new name/location.
-        If a folder already exists at the destination, merge the files in (de-duplicating names)."""
+        If a folder already exists at the destination, merge the entries in (de-duplicating names;
+        sub-folders move too — skipping them left the old folder behind, orphaned).
+
+        Returns the moved entries' names as they are now at the destination, folders ending in
+        ``/``, sorted — what a merge lists under each absorbed note's text.
+        """
         old = companion_dir(old_note_path)
         if not os.path.isdir(old):
-            return
+            return []
         new = companion_dir(new_note_path)
         if not os.path.exists(new):
+            names = companion_entry_names(old)
             try:
                 os.rename(old, new)
-                return
+                return names
             except OSError:
                 pass
         os.makedirs(new, exist_ok=True)
+        moved = []
         for fname in os.listdir(old):
             src = os.path.join(old, fname)
-            if not os.path.isfile(src):
-                continue
+            is_dir = os.path.isdir(src)
             dst = os.path.join(new, fname)
-            stem, ext = os.path.splitext(fname)
+            stem, ext = (fname, "") if is_dir else os.path.splitext(fname)
             counter = 2
-            while os.path.exists(dst):
+            while os.path.lexists(dst):
                 dst = os.path.join(new, f"{stem}-{counter}{ext}")
                 counter += 1
             try:
                 os.rename(src, dst)
+                moved.append(os.path.basename(dst) + ("/" if is_dir else ""))
             except OSError:
                 pass
         try:
             os.rmdir(old)  # remove the now-empty source folder (ignored if not empty)
         except OSError:
             pass
+        return sorted(moved, key=str.lower)
 
     def attach(self, note: Note, src_paths: list[str]) -> int:
         """Copy files into the note's companion folder (created on demand), de-duplicating names on
@@ -1049,6 +1113,33 @@ class NoteRepository:
             except OSError:
                 pass
         return added
+
+    def adopt(self, note_path: str, src_paths: list[str]) -> list[str]:
+        """MOVE files and folders into the note's companion folder (created on demand), keeping
+        their names, de-duplicated on collision (``name-2.ext``). Unlike :meth:`attach`, which
+        copies, this empties the place they came from — it's how the inbox gets settled.
+
+        Returns the paths that could not be moved; the rest are gone from where they were.
+        """
+        dest = companion_dir(note_path)
+        os.makedirs(dest, exist_ok=True)
+        failed = []
+        for src in src_paths:
+            if not os.path.lexists(src):
+                failed.append(src)
+                continue
+            base = os.path.basename(src.rstrip(os.sep))
+            stem, ext = (base, "") if os.path.isdir(src) else os.path.splitext(base)
+            target = os.path.join(dest, base)
+            counter = 2
+            while os.path.lexists(target):
+                target = os.path.join(dest, f"{stem}-{counter}{ext}")
+                counter += 1
+            try:
+                shutil.move(src, target)
+            except OSError:
+                failed.append(src)
+        return failed
 
     # Notes are never physically erased — they're moved here, inside the repo folder, so a mistaken
     # delete is always recoverable. list_notes() only reads root-level .md files, so this subfolder's
@@ -1095,19 +1186,24 @@ class NoteRepository:
         survivor's, separated by a ``---`` line carrying the source filename (which preserves the
         tags/timestamp the absorbed note is about to lose), then move the absorbed files into the
         ``.merged`` subfolder. The survivor keeps its filename/metadata and original mtime (so it
-        stays put in the list). Returns the survivor's path, or None on failure."""
+        stays put in the list). Returns the survivor's path, or None on failure.
+
+        Each part that had attached files gets their names listed under its text: once they all
+        share one folder, that list is the only record of which file came with which note."""
         try:
-            parts = [survivor.content.rstrip()]
-            for note in others:
-                parts.append(f"---\n{os.path.basename(note.path)}\n{note.content.rstrip()}")
+            # Files first, so the lists name them as they are after any de-duplicating rename.
+            own = companion_entry_names(companion_dir(survivor.path))
+            # Fold each absorbed note's files into the survivor's companion folder, so a merged
+            # record carries all the attachments (the emptied .md then moves to merged/ on its own).
+            moved = [self._relocate_companion(note.path, survivor.path) for note in others]
+
+            parts = [survivor.content.rstrip() + files_list(own)]
+            for note, names in zip(others, moved):
+                parts.append(f"---\n{os.path.basename(note.path)}\n{note.content.rstrip()}"
+                             + files_list(names))
             with open(survivor.path, "w", encoding="utf-8") as f:
                 f.write("\n\n".join(parts) + "\n")
             os.utime(survivor.path, (survivor.mtime, survivor.mtime))  # keep its list position
-
-            # Fold each absorbed note's files into the survivor's companion folder, so a merged
-            # record carries all the attachments (the emptied .md then moves to merged/ on its own).
-            for note in others:
-                self._relocate_companion(note.path, survivor.path)
 
             merged_dir = os.path.join(os.path.dirname(survivor.path), self.MERGED_DIRNAME)
             os.makedirs(merged_dir, exist_ok=True)

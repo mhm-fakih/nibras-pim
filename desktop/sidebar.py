@@ -43,9 +43,10 @@ from gi.repository import Gtk, Gdk, GLib  # noqa: E402
 
 import filters as F  # noqa: E402
 from filters import FilterState, Taxonomy  # noqa: E402
-from notes import Note, fmt_count  # noqa: E402
+from notes import Note, fmt_count, reads_rtl  # noqa: E402
 
-PANEL_WIDTH = 250
+PANEL_WIDTH = 250          # the narrowest the panel can be dragged
+PANEL_MAX_WIDTH = 700
 RAIL_WIDTH = 26
 
 # Monday-first, matching the ISO week that date.weekday() already counts in.
@@ -57,6 +58,15 @@ CAL_CELLS = 42
 # The sidebar's sections, in the order they're stacked. The keys double as the persisted
 # "which sections are collapsed" identifiers (Settings.sidebar_sections_collapsed).
 SEC_CALENDAR = "calendar"
+
+
+def set_rtl(widget: Gtk.Widget) -> None:
+    """Lay ``widget`` and everything inside it out right-to-left. GTK3's set_direction stops at
+    the widget itself, so a button's box would keep its name on the left and count on the right."""
+    widget.set_direction(Gtk.TextDirection.RTL)
+    if isinstance(widget, Gtk.Container):
+        for child in widget.get_children():
+            set_rtl(child)
 
 
 def _first_of_month(day: date) -> date:
@@ -128,7 +138,7 @@ class FilterSidebar(Gtk.Box):
 
         self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.panel.get_style_context().add_class("sidebar-panel")
-        self.panel.set_size_request(PANEL_WIDTH, -1)
+        self.panel.set_size_request(self._clamp_width(self.settings.sidebar_width), -1)
         self.panel.set_no_show_all(True)
 
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
@@ -164,13 +174,21 @@ class FilterSidebar(Gtk.Box):
         # they now come after everything else.
         body.pack_start(self._section(SEC_CALENDAR, "Calendar", self._build_calendar()),
                         False, False, 0)
-        for dim, caption in ((F.DIM_TYPE, "Type"), (F.DIM_CATEGORY, "Category"),
-                             (F.DIM_PRIORITY, "Priority")):
+        # Two columns to save height: type over priority on the left (short codes, short lists),
+        # the categories (departments, often long Arabic names) on the right.
+        columns = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, homogeneous=True)
+        left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        columns.pack_start(left, True, True, 0)
+        columns.pack_start(right, True, True, 0)
+        for dim, caption, column in ((F.DIM_TYPE, "Type", left), (F.DIM_PRIORITY, "Priority", left),
+                                     (F.DIM_CATEGORY, "Category", right)):
             container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             container.set_no_show_all(True)
             self._lists[dim] = container
             self._rows[dim] = {}
-            body.pack_start(self._section(dim, caption, container), False, False, 0)
+            column.pack_start(self._section(dim, caption, container), False, False, 0)
+        body.pack_start(columns, False, False, 0)
         # The two clean-up queues: they answer "what needs fixing", not "what am I looking for",
         # and you visit them on purpose rather than while browsing.
         body.pack_start(
@@ -214,11 +232,56 @@ class FilterSidebar(Gtk.Box):
 
         self.pack_start(self.panel, True, True, 0)
 
+        # The panel's right edge: drag it to make the sidebar wider or narrower. Part of the panel,
+        # so it hides with it (collapsed rail, minimal mode).
+        grip = Gtk.EventBox()
+        grip.get_style_context().add_class("sidebar-grip")
+        grip.set_size_request(5, -1)
+        grip.set_tooltip_text("Drag to resize the filter sidebar")
+        grip.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.BUTTON_RELEASE_MASK
+                        | Gdk.EventMask.POINTER_MOTION_MASK)
+        grip.connect("realize", lambda w: w.get_window().set_cursor(
+            Gdk.Cursor.new_from_name(w.get_display(), "col-resize")))
+        grip.connect("button-press-event", self._on_grip_press)
+        grip.connect("motion-notify-event", self._on_grip_motion)
+        grip.connect("button-release-event", self._on_grip_release)
+        self._drag: tuple[float, int] | None = None   # (pointer x at press, width at press)
+        self.grip = grip
+        self.grip.set_no_show_all(True)
+        self.pack_start(grip, False, False, 0)
+
         # Show the children of both (no_show_all only stops the parents themselves), so flipping
         # the parent's visibility is all that collapsing/expanding has to do.
         for parent in (self.rail, self.panel):
             for child in parent.get_children():
                 child.show_all()
+
+    @staticmethod
+    def _clamp_width(width: int) -> int:
+        return max(PANEL_WIDTH, min(PANEL_MAX_WIDTH, int(width)))
+
+    def _on_grip_press(self, _grip, event) -> bool:
+        if event.button != 1:
+            return False
+        self._drag = (event.x_root, self.panel.get_allocated_width())
+        return True
+
+    def _on_grip_motion(self, _grip, event) -> bool:
+        if self._drag is None:
+            return False
+        x0, w0 = self._drag
+        self.panel.set_size_request(self._clamp_width(w0 + event.x_root - x0), -1)
+        return True
+
+    def _on_grip_release(self, _grip, event) -> bool:
+        if self._drag is None:
+            return False
+        self._drag = None
+        width = self._clamp_width(self.panel.get_size_request()[0])
+        if width != self.settings.sidebar_width:
+            self.settings.sidebar_width = width
+            self.settings.save()
+        return True
 
     def _section(self, key: str, caption: str, content: Gtk.Widget) -> Gtk.Widget:
         """A collapsible section — the same chevron + name + count header the kanban subgroups use
@@ -591,6 +654,9 @@ class FilterSidebar(Gtk.Box):
         self._rows[dim] = {}
         for key in keys:
             button, count = self._build_row(dim, key, label_of(key), tooltip_of(key))
+            # An Arabic department name reads from the right, its count at the left edge.
+            if dim == F.DIM_CATEGORY and reads_rtl(self._category_names.get(key, "") or ""):
+                set_rtl(button)
             if not self._tax.defines(dim, key):
                 button.get_style_context().add_class("filter-foreign")
             container.pack_start(button, False, False, 0)
@@ -604,6 +670,8 @@ class FilterSidebar(Gtk.Box):
         if dim == F.DIM_PRIORITY:
             return f"P{key}"
         name = (self._type_names if dim == F.DIM_TYPE else self._category_names).get(key, "")
+        if name and reads_rtl(name):
+            return f"{name} · {key}"   # the name leads, so the line's direction is the name's
         return f"{key} · {name}" if name else str(key)
 
     def _tooltip_for(self, dim: str, key) -> str:
@@ -626,6 +694,7 @@ class FilterSidebar(Gtk.Box):
 
     def set_collapsed(self, collapsed: bool) -> None:
         self.panel.set_visible(not collapsed)
+        self.grip.set_visible(not collapsed)
         self.rail.set_visible(collapsed)
         if self.settings.sidebar_visible == collapsed:
             self.settings.sidebar_visible = not collapsed

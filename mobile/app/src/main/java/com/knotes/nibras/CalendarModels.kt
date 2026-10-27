@@ -17,6 +17,8 @@ data class CalendarEntry(
     val endDate: String,
     val summary: String,
     val description: String = "",
+    /** ISO date: a new planner repeats weekly up to that day (the batch dialog's timetable). */
+    val repeatWeeklyUntil: String = "",
 )
 
 /** A calendar entry placed on the day grid. */
@@ -45,6 +47,8 @@ data class CalendarEvent(
      * whole series. See NibrasRecord.virtual.
      */
     val virtual: Boolean = false,
+    /** Only on a not-yet-synced planner from the batch dialog: make it a weekly series to this day. */
+    val repeatWeeklyUntil: LocalDate? = null,
 )
 
 private val LOCAL_PATTERNS = listOf(

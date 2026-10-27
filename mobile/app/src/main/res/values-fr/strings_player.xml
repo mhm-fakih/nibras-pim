@@ -64,6 +64,15 @@
     <string name="player_sleep_timer">Minuterie de veille</string>
     <string name="player_sleep_pauses_in">pause dans %1$s</string>
     <string name="player_sleep_minutes">%1$d min</string>
+    <string name="player_sleep_pauses_in_night">minuteur de nuit : pause dans %1$s</string>
+    <string name="player_night_timer">Minuteur de nuit</string>
+    <string name="player_night_timer_hint">Une lecture lancée entre %1$s et %2$s se met en pause après %3$d minutes. Désactiver le minuteur le laisse désactivé jusqu\'à la fin de la nuit.</string>
+    <string name="player_night_from">De %1$s</string>
+    <string name="player_night_until">Jusqu\'à %1$s</string>
+    <string name="player_night_minutes">Minuteur : %1$d min</string>
+    <string name="player_bookmark_follows_bt">Suivre le Bluetooth</string>
+    <string name="player_bookmark_follows_bt_on">Bluetooth connecté : signet à la pause activé.</string>
+    <string name="player_bookmark_follows_bt_off">Pas de Bluetooth : signet à la pause désactivé.</string>
 
     <!-- Player notices ("next" finding nothing) -->
     <string name="player_notice_nothing_playing">Aucune lecture en cours.</string>

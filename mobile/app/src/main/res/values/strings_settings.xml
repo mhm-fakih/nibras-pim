@@ -59,6 +59,8 @@
     <string name="settings_chime_default">Default chime</string>
     <string name="settings_require_dismissal_title">Require dismissal</string>
     <string name="settings_require_dismissal_desc">Full-screen alarm; the sound loops until you tap Dismiss. Off = play the repeat count below, then auto-clear.</string>
+    <string name="settings_reminder_ignore_silent_title">Remind even on silent or vibrate</string>
+    <string name="settings_reminder_ignore_silent_desc">Plays the reminder sound at alarm volume, so silent and vibrate modes don\'t mute it.</string>
     <string name="settings_repeat_sound_label">Repeat sound (times)</string>
     <string name="settings_repeat_sound_hint">e.g. 4 — plays that many times instead of just once. Ignored when \"Require dismissal\" is on.</string>
     <string name="settings_sync_header">Background sync</string>
