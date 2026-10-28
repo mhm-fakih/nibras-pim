@@ -8,13 +8,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -91,12 +92,13 @@ fun AiNotesScreen(
         searched.filter { filters.matches(it, settings) }.sortedByDescending { it.createdMillis }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    // No Scaffold here to pad for the status bar, so the title row would sit under it.
+    Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
         ) {
-            Icon(Icons.Filled.SmartToy, contentDescription = null, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.player_ai_title), style = MaterialTheme.typography.titleMedium)

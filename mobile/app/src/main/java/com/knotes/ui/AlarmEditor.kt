@@ -1,5 +1,8 @@
 package com.knotes.ui
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -23,9 +26,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.knotes.R
 import com.knotes.alarm.Alarm
@@ -44,8 +49,8 @@ import java.util.Locale
  * was typed under the other kinds — the fields are all on the one [Alarm], so going Clock → Prayer
  * → Clock does not lose the time you set.
  *
- * Sound, repeat and volume are common to every kind and stay at the bottom, in that order: what it
- * plays, how many times, how loud.
+ * Sound comes right under the name, above the kind, so it is seen without scrolling — at the bottom
+ * of the dialog it went unnoticed. Repeat and volume, common to every kind too, stay at the bottom.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -83,6 +88,24 @@ fun AlarmEditor(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+
+                Label(stringResource(R.string.prayer_alarm_sound))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (a.soundUri.isBlank()) stringResource(R.string.prayer_alarm_default_sound)
+                        else soundName(context, a.soundUri),
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { onPickSound { uri -> a = a.copy(soundUri = uri) } }) {
+                        Text(stringResource(R.string.prayer_alarm_choose))
+                    }
+                    if (a.soundUri.isNotBlank()) {
+                        TextButton(onClick = { a = a.copy(soundUri = "") }) { Text(stringResource(R.string.prayer_alarm_default)) }
+                    }
+                }
 
                 Label(stringResource(R.string.prayer_alarm_kind))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -168,22 +191,6 @@ fun AlarmEditor(
                     }
                 }
 
-                Label(stringResource(R.string.prayer_alarm_sound))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { onPickSound { uri -> a = a.copy(soundUri = uri) } }) {
-                        Text(stringResource(R.string.prayer_alarm_choose))
-                    }
-                    if (a.soundUri.isNotBlank()) {
-                        TextButton(onClick = { a = a.copy(soundUri = "") }) { Text(stringResource(R.string.prayer_alarm_default)) }
-                    }
-                }
-                Text(
-                    if (a.soundUri.isBlank()) stringResource(R.string.prayer_alarm_default_sound) else a.soundUri,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                )
-
                 Label(stringResource(R.string.prayer_alarm_repeat, a.repeatCount))
                 Slider(
                     value = a.repeatCount.toFloat(),
@@ -201,6 +208,17 @@ fun AlarmEditor(
             }
         },
     )
+}
+
+/** The picked file's own name ("adhan.mp3"), or the last part of the link when it can't be read. */
+private fun soundName(context: Context, uri: String): String {
+    val parsed = Uri.parse(uri)
+    val name = runCatching {
+        context.contentResolver.query(parsed, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }
+    }.getOrNull()
+    return name ?: parsed.lastPathSegment?.substringAfterLast('/') ?: uri
 }
 
 private fun kindLabel(k: AlarmKind): Int = when (k) {

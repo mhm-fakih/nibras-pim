@@ -8,8 +8,9 @@
     android:id="@+id/aw_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:padding="12dp">
 
     <TextView
         android:id="@+id/aw_title"
@@ -18,7 +19,8 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:text="@string/widgets_alarms_title"
-        android:textSize="12sp"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
         android:textStyle="bold" />
 
     <TextView
@@ -28,6 +30,7 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:paddingTop="4dp"
+        android:textColor="#FFFFFF"
         android:textSize="14sp" />
 
     <TextView
@@ -37,6 +40,7 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:paddingTop="2dp"
+        android:textColor="#CCCCCC"
         android:textSize="13sp" />
 
     <TextView
@@ -46,5 +50,6 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:paddingTop="2dp"
+        android:textColor="#CCCCCC"
         android:textSize="13sp" />
 </LinearLayout>

@@ -4,12 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -17,24 +17,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.StickyNote2
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.CloudQueue
-import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.filled.DriveFolderUpload
-import androidx.compose.material.icons.filled.Headset
-import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.Mosque
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.filled.Headset
+import androidx.compose.material.icons.filled.Mosque
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.filled.TravelExplore
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -47,12 +47,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import com.knotes.R
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.knotes.R
 import com.knotes.nibras.NIBRAS_TYPES
 
 /** Constant destination id for the local-notes home screen. */
@@ -192,7 +192,7 @@ fun AppRail(
             // folder of notes. Read-only, and the robot says so before the page does.
             RailCell(selected == AI_NOTES_DEST, onAiNotes) {
                 Icon(
-                    Icons.Filled.SmartToy,
+                    Icons.Filled.AutoAwesome,
                     contentDescription = stringResource(R.string.notes_rail_ai_answers),
                     tint = if (selected == AI_NOTES_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant,
