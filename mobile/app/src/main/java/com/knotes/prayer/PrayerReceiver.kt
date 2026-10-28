@@ -12,6 +12,8 @@ import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.media.ToneGenerator
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
 import android.net.Uri
 import android.os.Build
 import android.util.Log
@@ -351,6 +353,52 @@ class PrayerReceiver : BroadcastReceiver() {
         private var player: MediaPlayer? = null
 
         /**
+         * Claims the volume keys while a sound plays here.
+         *
+         * Android's volume keys never reach the alarm stream on their own: with nothing claiming
+         * them they move the ringer (or media) volume, so the athan — alarm stream, and set to full
+         * with the loudness in the player gain, see [applyAlarmLevel] — could not be turned down
+         * from the buttons at all. An active, playing session with local alarm-usage playback is
+         * the one the system hands the keys to, and it then steps the ALARM stream itself, in the
+         * system process: it works with the screen off and while Android has frozen this app.
+         * A headset or media button press on it (pause, stop) silences the athan.
+         */
+        private var volumeSession: MediaSession? = null
+
+        private fun claimVolumeKeys(context: Context) {
+            releaseVolumeKeys()
+            volumeSession = runCatching {
+                MediaSession(context.applicationContext, "athan").apply {
+                    setPlaybackToLocal(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build(),
+                    )
+                    setPlaybackState(
+                        PlaybackState.Builder()
+                            .setState(PlaybackState.STATE_PLAYING, 0, 1f)
+                            .setActions(PlaybackState.ACTION_STOP or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE)
+                            .build(),
+                    )
+                    setCallback(object : MediaSession.Callback() {
+                        override fun onStop() = stopAthan()
+                        override fun onPause() = stopAthan()
+                    })
+                    isActive = true
+                }
+            }.onFailure { Log.w(TAG, "volume keys not claimed", it) }.getOrNull()
+        }
+
+        private fun releaseVolumeKeys() {
+            volumeSession?.let { s ->
+                runCatching { s.isActive = false }
+                runCatching { s.release() }
+            }
+            volumeSession = null
+        }
+
+        /**
          * The running tone generator, and which run owns it.
          *
          * Tracked because the built-in beeps are NOT the MediaPlayer — a Stop that only tore down
@@ -368,6 +416,7 @@ class PrayerReceiver : BroadcastReceiver() {
             runCatching { player?.stop() }
             runCatching { player?.release() }
             player = null
+            releaseVolumeKeys()
             // An athan that set the alarm volume puts it back the moment it stops — ended, Stop,
             // or replaced by another sound (which sets its own level again if it needs one).
             restoreContext?.let { ctx -> runCatching { restoreAlarmLevel(ctx) } }
@@ -410,6 +459,7 @@ class PrayerReceiver : BroadcastReceiver() {
                     }
                     prepareAsync()
                 }
+                claimVolumeKeys(context)
             }
         }
 
@@ -473,6 +523,7 @@ class PrayerReceiver : BroadcastReceiver() {
                         prepareAsync()
                     }
                 }
+                claimVolumeKeys(context)
             }
         }
     }
