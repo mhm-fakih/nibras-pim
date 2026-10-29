@@ -61,10 +61,55 @@ public class SavedSearchQueryRunner {
     @PersistenceContext
     private EntityManager em;
 
+    /**
+     * Brings a saved search written for the old Grails app up to this one's HQL, so the reports
+     * carried over keep running:
+     * <ul>
+     *   <li>package-qualified entity names ({@code mcs.Book}, {@code app.IndexCard},
+     *       {@code mcs.parameters.SavedSearch}) lose the package — entities here are unqualified;</li>
+     *   <li>{@code = null} / {@code != null} become {@code is null} / {@code is not null}
+     *       (Hibernate 6 compares with a literal NULL, which is never true);</li>
+     *   <li>date arithmetic in whole days ({@code current_date() - 7}) says its unit
+     *       ({@code current_date - 7 day}), as Hibernate 6 requires;</li>
+     *   <li>the old "group the results by" suffix ({@code ... {department}) is dropped;</li>
+     *   <li>a trailing {@code max N} becomes the row cap rather than a syntax error.</li>
+     * </ul>
+     * Idempotent: an already-modern query comes back unchanged.
+     */
+    public static Modernized modernize(String query) {
+        if (query == null) {
+            return new Modernized(null, null);
+        }
+        String q = query.strip()
+                .replaceAll("\\b(?:mcs|app)(?:\\.parameters)?\\.([A-Z]\\w*)", "$1")
+                .replaceAll("(?i)(!=|<>)\\s*null\\b", "is not null")
+                .replaceAll("(?i)(?<![<>!])=\\s*null\\b", "is null")
+                .replaceAll("(?i)\\bcurrent_date(?:\\s*\\(\\s*\\))?\\s*([+-])\\s*(\\d+)\\b(?!\\s*(?:day|week|month|year|hour|minute|second))",
+                        "current_date $1 $2 day")
+                .replaceAll("\\s*\\{\\s*\\w+\\s*}?\\s*$", "");
+        Integer max = null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)\\s+max\\s+(\\d+)\\s*$").matcher(q);
+        if (m.find()) {
+            max = Integer.parseInt(m.group(1));
+            q = q.substring(0, m.start());
+        }
+        return new Modernized(q.strip(), max);
+    }
+
+    /** A {@link #modernize}d query and the row cap its {@code max N} asked for (null = none). */
+    public record Modernized(String query, Integer max) {
+    }
+
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public SelectResult select(String type, String queryText) {
+        Integer max = null;
+        if (!"sql".equals(type)) {
+            Modernized mod = modernize(queryText);
+            queryText = mod.query();
+            max = mod.max();
+        }
         Query q = "sql".equals(type) ? em.createNativeQuery(queryText) : em.createQuery(queryText);
-        q.setMaxResults(MAX_ROWS);
+        q.setMaxResults(max == null ? MAX_ROWS : Math.min(max, MAX_ROWS));
         List<?> results = q.getResultList();
         List<List<Object>> rows = new ArrayList<>(results.size());
         List<RecordRef> records = new ArrayList<>(results.size());
@@ -85,6 +130,9 @@ public class SavedSearchQueryRunner {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int mutate(String type, String queryText) {
+        if (!"sql".equals(type)) {
+            queryText = modernize(queryText).query();
+        }
         Query q = "sql".equals(type) ? em.createNativeQuery(queryText) : em.createQuery(queryText);
         return q.executeUpdate();
     }

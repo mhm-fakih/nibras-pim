@@ -64,7 +64,7 @@ export const TOGGLEABLE_FEATURES: ToolFeature[] = [
     key: 'codename',
     label: 'Release codename',
     description:
-      'The release’s nickname — “Gratitude” — beside the version number in the sidebar header and the status bar. The version itself is always shown; this hides only the name.',
+      'The release’s nickname — “Serenity” — beside the version number in the sidebar header and the status bar. The version itself is always shown; this hides only the name.',
   },
   {
     key: 'resourceExtras',

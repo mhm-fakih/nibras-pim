@@ -4,7 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Alert,
   Box,
+  Button,
+  Checkbox,
   Chip,
+  FormControlLabel,
   IconButton,
   InputAdornment,
   List,
@@ -35,11 +38,71 @@ import {
 import { SideNav } from '../components/SideNav';
 import { ENTITY_BY_KEY } from '../config/entities';
 
+/**
+ * The search form's fields. The backend still takes one query string; the form only spells its
+ * tokens out — p4 priority, ?code status, #code type, @code context, * bookmarked, a leading ~ for
+ * near-duplicates — so a search typed the old way and one filled in here are the same search.
+ */
+interface SearchForm {
+  words: string;
+  priority: string;
+  status: string;
+  type: string;
+  context: string;
+  bookmarked: boolean;
+  duplicates: boolean;
+}
+
+function parseSearch(q: string): SearchForm {
+  const f: SearchForm = { words: '', priority: '', status: '', type: '', context: '', bookmarked: false, duplicates: false };
+  let rest = q.trim();
+  if (rest.startsWith('~')) {
+    f.duplicates = true;
+    rest = rest.slice(1).trim();
+  }
+  const words: string[] = [];
+  for (const w of rest.split(/\s+/).filter(Boolean)) {
+    if (/^[pP][1-5]$/.test(w)) f.priority = w.slice(1);
+    else if (w.length > 1 && w[0] === '?') f.status = w.slice(1);
+    else if (w.length > 1 && w[0] === '#') f.type = w.slice(1);
+    else if (w.length > 1 && w[0] === '@') f.context = w.slice(1);
+    else if (w === '*') f.bookmarked = true;
+    else words.push(w);
+  }
+  f.words = words.join(' ');
+  return f;
+}
+
+function buildSearch(f: SearchForm): string {
+  const code = (prefix: string, v: string) => (v.trim() ? prefix + v.trim().replace(/\s+/g, '') : '');
+  const parts = [
+    f.words.trim(),
+    f.priority ? `p${f.priority}` : '',
+    code('?', f.status),
+    code('#', f.type),
+    code('@', f.context),
+    f.bookmarked ? '*' : '',
+  ].filter(Boolean);
+  const body = parts.join(' ');
+  return f.duplicates && body ? `~ ${body}` : body;
+}
+
 export function SearchPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const q = searchParams.get('q') ?? '';
-  const [input, setInput] = useState(q);
+  const [form, setForm] = useState<SearchForm>(() => parseSearch(q));
+  const set = <K extends keyof SearchForm>(k: K, v: SearchForm[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const run = () => {
+    const params = new URLSearchParams(searchParams);
+    const query = buildSearch(form);
+    if (query) params.set('q', query);
+    else params.delete('q');
+    setSearchParams(params);
+  };
+  const onEnter = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') run();
+  };
   // Scope: where the text is looked for. Kept in the address (?in=title,files…) so a search can be
   // bookmarked or repeated with the same scope; absent means everywhere.
   const scope = useMemo(() => {
@@ -57,7 +120,7 @@ export function SearchPage() {
   };
 
   useEffect(() => {
-    setInput(q);
+    setForm(parseSearch(q));
   }, [q]);
 
   const { data, isFetching } = useQuery({
@@ -137,33 +200,74 @@ export function SearchPage() {
           Search
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Full text plus filter tokens: <code>p4</code> priority · <code>?code</code> status ·{' '}
-          <code>#code</code> type · <code>@code</code> context · <code>*</code> bookmarked (e.g.{' '}
-          <code>p4 linux</code>). Start with <code>~</code> to find near-duplicates (e.g.{' '}
-          <code>~ IT system hand over</code>).
+          Every module&apos;s records plus the note and file folders. Fill in what you know; codes are
+          the short ones shown beside each status, type and context. Press Enter in any field to
+          search.
         </Typography>
-        <TextField
-          fullWidth
-          size="small"
-          placeholder="e.g.  p4 linux   ·   ?done report"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key !== 'Enter') return;
-            const params = new URLSearchParams(searchParams);
-            if (input.trim()) params.set('q', input.trim());
-            else params.delete('q');
-            setSearchParams(params);
-          }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon fontSize="small" />
-              </InputAdornment>
-            ),
-          }}
-          sx={{ mb: 1 }}
-        />
+        <Stack spacing={1.5} sx={{ mb: 1.5 }}>
+          <TextField
+            id="global-search"
+            autoFocus
+            fullWidth
+            size="small"
+            label="Words"
+            placeholder="e.g. linux report"
+            value={form.words}
+            onChange={(e) => set('words', e.target.value)}
+            onKeyDown={onEnter}
+            inputProps={{ dir: 'auto' }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+          />
+          <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+            <TextField
+              select
+              size="small"
+              label="Priority"
+              value={form.priority}
+              onChange={(e) => set('priority', e.target.value)}
+              sx={{ width: 120 }}
+            >
+              <MenuItem value="">
+                <em>Any</em>
+              </MenuItem>
+              {['1', '2', '3', '4', '5'].map((n) => (
+                <MenuItem key={n} value={n}>
+                  P{n}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField size="small" label="Status code" value={form.status} onChange={(e) => set('status', e.target.value)} onKeyDown={onEnter} sx={{ width: 140 }} />
+            <TextField size="small" label="Type code" value={form.type} onChange={(e) => set('type', e.target.value)} onKeyDown={onEnter} sx={{ width: 140 }} />
+            <TextField size="small" label="Context code" value={form.context} onChange={(e) => set('context', e.target.value)} onKeyDown={onEnter} sx={{ width: 140 }} />
+          </Stack>
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
+            <FormControlLabel
+              control={<Checkbox size="small" checked={form.bookmarked} onChange={(e) => set('bookmarked', e.target.checked)} />}
+              label="Bookmarked only"
+            />
+            <Tooltip title="Look for records that already say the same thing — before adding a new one">
+              <FormControlLabel
+                control={<Checkbox size="small" checked={form.duplicates} onChange={(e) => set('duplicates', e.target.checked)} />}
+                label="Near-duplicates"
+              />
+            </Tooltip>
+            <Box sx={{ flex: 1 }} />
+            {buildSearch(form) && (
+              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                {buildSearch(form)}
+              </Typography>
+            )}
+            <Button variant="contained" startIcon={<SearchIcon />} onClick={run} disabled={!buildSearch(form)}>
+              Search
+            </Button>
+          </Stack>
+        </Stack>
         <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 3 }}>
           <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
             Search in

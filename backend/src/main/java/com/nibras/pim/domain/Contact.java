@@ -1,6 +1,10 @@
 package com.nibras.pim.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -25,6 +29,14 @@ import org.hibernate.annotations.SQLRestriction;
 @Getter
 @Setter
 public class Contact extends BaseEntity {
+
+    // --- Legacy columns, mapped READ-ONLY so the saved searches carried over from the old app
+    // (which filter and sort on them) still compile. Nothing in this app writes them, and they stay
+    // out of the JSON (insertable/updatable false; @JsonIgnore). ---
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id", insertable = false, updatable = false)
+    private com.nibras.pim.domain.lookup.Department department;
 
     private String name;
     private String summary;

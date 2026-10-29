@@ -360,8 +360,11 @@ export function AppShell() {
             // Resources only: everything else has no URL to build itself from.
             onScraped={
               config.key === 'resources'
-                ? (fields, warnings, coverUrl) => {
-                    setScraped({ fields, warnings, coverUrl });
+                ? async (fields, warnings, coverUrl) => {
+                    // The admin's default resource type is otherwise only applied server-side on
+                    // save, so the form would show "None" for a type the record will get anyway.
+                    const typeId = Number(await getSetting('lookup.default.resource_type').catch(() => ''));
+                    setScraped({ fields: typeId ? { type: typeId, ...fields } : fields, warnings, coverUrl });
                     setSelectedId(null);
                     setMode('create');
                   }

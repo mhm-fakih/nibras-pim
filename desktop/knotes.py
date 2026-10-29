@@ -97,6 +97,7 @@ TAG_COLOR_TYPE = "#268bd2"  # accent
 # folder whose tag set doesn't define the code at all.
 CALENDAR_TYPES = {"J": "Journal", "P": "Planner"}
 WEEK_SLOT_MINUTES = 30     # one row per half hour, as Outlook's default
+WEEK_ENTRY_LINES = 2       # title lines per entry, as an hour-long appointment shows
 WEEK_SCROLL_HOUR = 7       # the hour a freshly opened week is scrolled to
 WEEK_GUTTER = 52           # width of the time column, px
 WEEK_TOOLTIP_LINES = 40    # an entry's hover shows its note up to this many lines
@@ -2575,7 +2576,12 @@ class KnotesWindow(Gtk.ApplicationWindow):
         box.connect("drag-data-get",
                     lambda _w, _ctx, data, _info, _t, p=note.path: data.set_text(p, -1))
         box.connect("button-press-event", self._on_week_entry_press, note)
-        label = Gtk.Label(label=f"{when:%H:%M}  {note.title(80)}", xalign=0)
+        label = Gtk.Label(label=f"{when:%H:%M}  {note.title(160)}", xalign=0)
+        # Two lines of title, as an hour-long appointment shows: a half-hour slot's one line was
+        # only the first word or two. Wrapped, then ellipsized after the second line.
+        label.set_line_wrap(True)
+        label.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+        label.set_lines(WEEK_ENTRY_LINES)
         label.set_ellipsize(3)
         label.set_max_width_chars(1)   # natural width ~0: the slot's width decides, not the title
         box.add(label)

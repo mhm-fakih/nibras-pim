@@ -4,7 +4,6 @@ import {
   Box,
   Divider,
   Drawer,
-  InputAdornment,
   Link as MuiLink,
   List,
   ListItemButton,
@@ -13,7 +12,6 @@ import {
   Menu,
   MenuItem,
   Stack,
-  TextField,
   Tooltip,
   IconButton,
   Typography,
@@ -120,7 +118,7 @@ const TOOLS: {
   perm?: Permission;
   newTab?: boolean;
 }[] = [
-  { path: '/', label: 'Today', icon: Today, group: 'views' },
+  { path: '/today', label: 'Today', icon: Today, group: 'views' },
   { path: '/calendar', label: 'Calendar', icon: CalendarMonth, group: 'views' },
   { path: '/kanban', label: 'Kanban', icon: ViewKanban, group: 'views' },
   { path: '/dashboards', label: 'Dashboards', icon: Dashboard, group: 'views' },
@@ -178,6 +176,17 @@ export function SideNav({
     else navigate(path);
   };
   const { enabled } = useModules();
+  // One page of one row per module is enough to read its total.
+  const countQueries = useQueries({
+    queries: enabled.map((m) => ({
+      queryKey: ['module-count', m.moduleKey],
+      queryFn: () => listEntities(m.moduleKey, { size: 1 }),
+      staleTime: 60_000,
+    })),
+  });
+  const moduleCounts: Record<string, number | undefined> = Object.fromEntries(
+    enabled.map((m, i) => [m.moduleKey, countQueries[i]?.data?.totalElements]),
+  );
   const { user, logout, can } = useAuth();
   const { data: appName = 'Nibras' } = useQuery({
     queryKey: ['setting', 'app.name'],
@@ -202,11 +211,10 @@ export function SideNav({
   const showModuleReports = featureEnabled(featureSettings, 'moduleReports');
   const showRss = featureEnabled(featureSettings, 'rss');
   const showCodename = featureEnabled(featureSettings, 'codename');
-  const [q, setQ] = useState('');
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('nibras.railCollapsed') === '1');
   const [width, setWidth] = useState(() => {
     const saved = Number(localStorage.getItem('nibras.railWidth'));
-    return saved >= 220 && saved <= 520 ? saved : 280;
+    return saved >= 220 && saved <= 520 ? saved : 330;
   });
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -320,28 +328,6 @@ export function SideNav({
         <Box sx={{ flex: 1 }} />
       </Stack>
 
-      {/* Global full-text search */}
-      <Box sx={{ px: 1.5, py: 0.5 }}>
-        <TextField
-          size="small"
-          fullWidth
-          id="global-search"
-          placeholder="Search everything… ( / )"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && q.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`);
-          }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon fontSize="small" />
-              </InputAdornment>
-            ),
-          }}
-        />
-      </Box>
-
       {/* The mini calendar renders inline again (two weeks by default, expandable to the full
           month) — the one-line field + popover freed space but hid the day badges that make the
           rail useful at a glance. */}
@@ -413,8 +399,22 @@ export function SideNav({
 
       <Divider />
 
-      {/* Module buttons (Outlook navigation) */}
-      <List dense disablePadding sx={{ px: 1, py: 0.25, flexShrink: 1, minHeight: 0, overflowY: 'auto' }}>
+      {/* Module buttons (Outlook navigation), two to a row so the list takes half the height. Each
+          shows its record count, the total the module's own list would page through. */}
+      <List
+        dense
+        disablePadding
+        sx={{
+          px: 1,
+          py: 0.25,
+          flexShrink: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          columnGap: 0.5,
+        }}
+      >
         {enabled.map((m) => {
           const Icon = ICONS[MODULE_ICON[m.moduleKey] ?? ENTITY_BY_KEY[m.moduleKey]?.icon ?? ''] ?? Flag;
           return (
@@ -422,14 +422,28 @@ export function SideNav({
               key={m.moduleKey}
               selected={pathname === `/${m.moduleKey}` && !search}
               onClick={() => navigate(`/${m.moduleKey}`)}
-              sx={{ py: 0.1 }}
+              title={m.code ? `${m.label} (${m.code})` : m.label}
+              sx={{ py: 0.1, px: 0.75, borderRadius: 1, minWidth: 0 }}
             >
-              <ListItemIcon sx={{ minWidth: 32, color: 'primary.main' }}>
+              <ListItemIcon sx={{ minWidth: 26, color: 'primary.main' }}>
                 <Icon fontSize="small" />
               </ListItemIcon>
-              <ListItemText primary={m.label} />
+              <ListItemText
+                primary={
+                  <>
+                    {m.label}
+                    {moduleCounts[m.moduleKey] != null && (
+                      <Box component="span" sx={{ fontSize: 11, color: 'text.secondary', ml: 0.5 }}>
+                        ({moduleCounts[m.moduleKey]!.toLocaleString()})
+                      </Box>
+                    )}
+                  </>
+                }
+                primaryTypographyProps={{ fontSize: 13, noWrap: true }}
+                sx={{ minWidth: 0, my: 0.25 }}
+              />
               {m.code && (
-                <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>
+                <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', ml: 0.5 }}>
                   {m.code}
                 </Typography>
               )}
@@ -503,15 +517,23 @@ export function SideNav({
       {user && (
         <>
           <Divider />
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 0.75 }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
+          {/* One line — name (role), search, sign out — so the rail keeps its height for the lists. */}
+          <Stack direction="row" alignItems="center" spacing={0.5} sx={{ pl: 1.5, pr: 1, py: 0.25 }}>
+            <Typography variant="body2" noWrap sx={{ flex: 1, minWidth: 0 }}>
+              <Box component="span" sx={{ fontWeight: 600 }}>
                 {user.displayName || user.username}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" noWrap>
-                {ROLE_LABEL[user.role]}
-              </Typography>
-            </Box>
+              </Box>
+              {ROLE_LABEL[user.role] && (
+                <Box component="span" sx={{ color: 'text.secondary' }}>
+                  {` (${ROLE_LABEL[user.role]})`}
+                </Box>
+              )}
+            </Typography>
+            <Tooltip title="Search everything ( / )">
+              <IconButton size="small" color={pathname === '/search' ? 'primary' : 'default'} onClick={() => navigate('/search')}>
+                <SearchIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Sign out">
               <IconButton size="small" onClick={logout}>
                 <Logout fontSize="small" />

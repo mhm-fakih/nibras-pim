@@ -71,7 +71,10 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
         setHelpOpen((o) => !o);
       } else if (e.key === '/') {
         e.preventDefault();
-        document.getElementById('global-search')?.focus();
+        // The search form's words field, or the search page itself from anywhere else.
+        const field = document.getElementById('global-search');
+        if (field) field.focus();
+        else navigate('/search');
       } else if (e.key === 'g') {
         pendingG.current = true;
         clearTimeout(gTimer.current);

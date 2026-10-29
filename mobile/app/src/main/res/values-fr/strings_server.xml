@@ -46,6 +46,8 @@
     <string name="server_calendar_slot">Créneau</string>
     <string name="server_calendar_minutes_short">%1$d min</string>
     <string name="server_calendar_week_short">S%1$d</string>
+    <string name="server_calendar_month_unfold">Afficher le mois entier</string>
+    <string name="server_calendar_month_fold">Revenir à deux semaines</string>
     <string name="server_calendar_edit_entry">Modifier l’entrée</string>
     <string name="server_calendar_new_entry">Nouvelle entrée</string>
     <string name="server_calendar_type">Type</string>

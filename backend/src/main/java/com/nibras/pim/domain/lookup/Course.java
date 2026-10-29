@@ -1,6 +1,7 @@
 package com.nibras.pim.domain.lookup;
 
 import com.nibras.pim.domain.BaseEntity;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -22,6 +23,16 @@ import org.hibernate.annotations.SQLRestriction;
 @Getter
 @Setter
 public class Course extends BaseEntity {
+
+    // --- Legacy columns, mapped READ-ONLY so the saved searches carried over from the old app
+    // (which filter and sort on them) still compile. Nothing in this app writes them, and they stay
+    // out of the JSON (insertable/updatable false; @JsonIgnore). ---
+    @JsonIgnore
+    @Column(name = "number_code", insertable = false, updatable = false)
+    private Integer numberCode;
+    @JsonIgnore
+    @Column(name = "order_number", insertable = false, updatable = false)
+    private Integer orderNumber;
 
     @Column(columnDefinition = "longtext")
     private String summary;

@@ -46,6 +46,8 @@
     <string name="server_calendar_slot">Slot</string>
     <string name="server_calendar_minutes_short">%1$dm</string>
     <string name="server_calendar_week_short">W%1$d</string>
+    <string name="server_calendar_month_unfold">Show the whole month</string>
+    <string name="server_calendar_month_fold">Back to two weeks</string>
     <string name="server_calendar_edit_entry">Edit entry</string>
     <string name="server_calendar_new_entry">New entry</string>
     <string name="server_calendar_type">Type</string>

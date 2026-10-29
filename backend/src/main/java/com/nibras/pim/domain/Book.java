@@ -4,6 +4,7 @@ import com.nibras.pim.domain.lookup.Course;
 import com.nibras.pim.domain.lookup.Department;
 import com.nibras.pim.domain.lookup.ResourceStatus;
 import com.nibras.pim.domain.lookup.ResourceType;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -26,6 +27,19 @@ import java.util.Set;
 @Getter
 @Setter
 public class Book extends BaseEntity implements SyncMutable, Taggable, HasShortSummary {
+
+    // --- Legacy columns, mapped READ-ONLY so the saved searches carried over from the old app
+    // (which filter and sort on them) still compile. Nothing in this app writes them, and they stay
+    // out of the JSON (insertable/updatable false; @JsonIgnore). ---
+    @JsonIgnore
+    @Column(name = "legacy_title", insertable = false, updatable = false)
+    private String legacyTitle;
+    @JsonIgnore
+    @Column(name = "order_number", insertable = false, updatable = false)
+    private Integer orderNumber;
+    @JsonIgnore
+    @Column(name = "resource_type", insertable = false, updatable = false)
+    private String resourceType;
 
     @Column(columnDefinition = "longtext")
     private String title;

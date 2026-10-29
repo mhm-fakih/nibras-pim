@@ -4,6 +4,7 @@ import com.nibras.pim.domain.lookup.Course;
 import com.nibras.pim.domain.lookup.Department;
 import com.nibras.pim.domain.lookup.WritingStatus;
 import com.nibras.pim.domain.lookup.WritingType;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -26,6 +27,31 @@ import java.util.Set;
 @Getter
 @Setter
 public class Writing extends BaseEntity implements SyncMutable, Taggable, HasShortSummary {
+
+    // --- Legacy columns, mapped READ-ONLY so the saved searches carried over from the old app
+    // (which filter and sort on them) still compile. Nothing in this app writes them, and they stay
+    // out of the JSON (insertable/updatable false; @JsonIgnore). ---
+    @JsonIgnore
+    @Column(name = "order_in_book", insertable = false, updatable = false)
+    private Integer orderInBook;
+    @JsonIgnore
+    @Column(name = "order_number", insertable = false, updatable = false)
+    private Integer orderNumber;
+    @JsonIgnore
+    @Column(name = "descriptionhtml", insertable = false, updatable = false, columnDefinition = "longtext")
+    private String descriptionHTML;
+    @JsonIgnore
+    @Column(name = "code", insertable = false, updatable = false)
+    private String code;
+    @JsonIgnore
+    @Column(name = "blog_id", insertable = false, updatable = false)
+    private Long blogId;
+    @JsonIgnore
+    @Column(name = "published_node_id", insertable = false, updatable = false)
+    private Integer publishedNodeId;
+    @JsonIgnore
+    @Column(name = "published_on", insertable = false, updatable = false)
+    private java.time.LocalDateTime publishedOn;
 
     @Column(nullable = false)
     private String summary;

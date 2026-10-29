@@ -29,6 +29,8 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -74,9 +76,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.knotes.nibras.CalendarEvent
 import com.knotes.nibras.CalendarViewModel
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle as JavaTextStyle
 import java.time.temporal.IsoFields
 import java.util.Locale
 
@@ -84,6 +88,7 @@ import java.util.Locale
 // at runtime is picked up on the next composition.
 private val DOW: DateTimeFormatter get() = DateTimeFormatter.ofPattern("EEE", Locale.getDefault())
 private val DAY: DateTimeFormatter get() = DateTimeFormatter.ofPattern("MMM d", Locale.getDefault())
+private val MONTH: DateTimeFormatter get() = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.getDefault())
 private val HHMM = DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())
 
 private fun LocalTime.minutesOfDay() = hour * 60 + minute
@@ -258,18 +263,63 @@ fun CalendarScreen(startHour: Int, endHour: Int, baseUrl: String, username: Stri
 private val TIME_COL = 52.dp
 
 /**
- * Two-week quick-navigation strip (previous and current ISO week). Each row is prefixed with its
- * ISO week number; a dot marks days that have events; tapping a day jumps the main view there.
+ * Quick-navigation calendar. Folded, it is the two-week strip (previous and current ISO week);
+ * unfolded, a whole month with ‹ › to page through months. Each row is prefixed with its ISO week
+ * number; a dot marks days that have events; tapping a day jumps the main view there.
  */
 @Composable
 private fun MiniCalendar(anchor: LocalDate, events: List<CalendarEvent>, onPick: (LocalDate) -> Unit) {
     val today = LocalDate.now()
-    val mondayThisWeek = today.minusDays((today.dayOfWeek.value - 1).toLong())
-    val weekStarts = listOf(mondayThisWeek.minusWeeks(1), mondayThisWeek)
     val eventDays = remember(events) { events.map { it.date }.toSet() }
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    // The month on show while unfolded; follows the main view's date until paged away from.
+    var monthEpoch by rememberSaveable(anchor.year, anchor.monthValue) {
+        mutableStateOf(anchor.withDayOfMonth(1).toEpochDay())
+    }
+    val month = LocalDate.ofEpochDay(monthEpoch)
+
+    val weekStarts = if (expanded) {
+        val first = month.minusDays((month.dayOfWeek.value - 1).toLong())
+        val last = month.plusMonths(1).minusDays(1)
+        generateSequence(first) { it.plusWeeks(1) }.takeWhile { !it.isAfter(last) }.toList()
+    } else {
+        val mondayThisWeek = today.minusDays((today.dayOfWeek.value - 1).toLong())
+        listOf(mondayThisWeek.minusWeeks(1), mondayThisWeek)
+    }
 
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp)) {
-        weekStarts.forEach { ws ->
+        if (expanded) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                IconButton(onClick = { monthEpoch = month.minusMonths(1).toEpochDay() }) {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.server_calendar_previous))
+                }
+                Text(
+                    month.format(MONTH),
+                    style = MaterialTheme.typography.titleSmall,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { monthEpoch = month.plusMonths(1).toEpochDay() }) {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.server_calendar_next))
+                }
+                IconButton(onClick = { expanded = false }) {
+                    Icon(Icons.Filled.ExpandLess, stringResource(R.string.server_calendar_month_fold))
+                }
+            }
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Spacer(Modifier.width(TIME_COL))
+                DayOfWeek.entries.forEach { dow ->
+                    Text(
+                        dow.getDisplayName(JavaTextStyle.NARROW, Locale.getDefault()),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+        weekStarts.forEachIndexed { row, ws ->
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
                     stringResource(R.string.server_calendar_week_short, ws.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)),
@@ -285,9 +335,23 @@ private fun MiniCalendar(anchor: LocalDate, events: List<CalendarEvent>, onPick:
                         selected = d == anchor,
                         isToday = d == today,
                         hasEvents = d in eventDays,
+                        outside = expanded && d.month != month.month,
                         modifier = Modifier.weight(1f),
                         onClick = { onPick(d) },
                     )
+                }
+                // Folded: the unfold button sits at the end of the last row, out of the way.
+                if (!expanded) {
+                    if (row == weekStarts.lastIndex) {
+                        IconButton(onClick = {
+                            monthEpoch = anchor.withDayOfMonth(1).toEpochDay()
+                            expanded = true
+                        }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Filled.ExpandMore, stringResource(R.string.server_calendar_month_unfold))
+                        }
+                    } else {
+                        Spacer(Modifier.width(32.dp))
+                    }
                 }
             }
         }
@@ -301,6 +365,7 @@ private fun MiniDayCell(
     isToday: Boolean,
     hasEvents: Boolean,
     modifier: Modifier,
+    outside: Boolean = false,
     onClick: () -> Unit,
 ) {
     val primary = MaterialTheme.colorScheme.primary
@@ -321,6 +386,8 @@ private fun MiniDayCell(
             color = when {
                 selected -> onPrimary
                 isToday -> primary
+                // A day of the next or previous month, filling out the month view's first/last row.
+                outside -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 else -> MaterialTheme.colorScheme.onSurface
             },
         )

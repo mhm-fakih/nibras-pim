@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Box, Button, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import NoteAdd from '@mui/icons-material/NoteAdd';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import { createEntity } from '../api/client';
+import { createEntity, EntityRecord } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { RecordCard } from './RecordCard';
 
 const COLLAPSED_KEY = 'nibras.quickNoteCollapsed';
 
@@ -31,13 +33,16 @@ export function parseQuickNote(raw: string): { summary: string; description: str
  *
  * `onSaved` fires a bottom-center Snackbar toast (owned by AppShell, the same one QuickEditDialog
  * uses) — the in-header "Added" flash alone was easy to miss when the bar is scrolled out of view
- * or the header row isn't being looked at, so the toast is the primary confirmation. */
+ * or the header row isn't being looked at, so the toast is the primary confirmation. The note just
+ * added is also shown as its card under the box, so what was saved can be checked or opened. */
 export function QuickNoteBar({ onSaved }: { onSaved?: (msg: string) => void }) {
   const { canWriteContent } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(() => localStorage.getItem(COLLAPSED_KEY) !== 'true');
   const [text, setText] = useState('');
   const [savedFlash, setSavedFlash] = useState(false);
+  const [lastSaved, setLastSaved] = useState<EntityRecord | null>(null);
+  const navigate = useNavigate();
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -55,6 +60,7 @@ export function QuickNoteBar({ onSaved }: { onSaved?: (msg: string) => void }) {
     },
     onSuccess: (saved) => {
       setText('');
+      setLastSaved(saved);
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1500);
       qc.invalidateQueries({ queryKey: ['list', 'notes'] });
@@ -123,6 +129,15 @@ export function QuickNoteBar({ onSaved }: { onSaved?: (msg: string) => void }) {
             </span>
           </Tooltip>
         </Stack>
+      )}
+      {open && lastSaved && (
+        <Box sx={{ px: 1.5, pb: 1.5 }}>
+          <RecordCard
+            module="notes"
+            record={lastSaved}
+            onClick={() => navigate(`/notes?select=${lastSaved.id}`)}
+          />
+        </Box>
       )}
     </Box>
   );

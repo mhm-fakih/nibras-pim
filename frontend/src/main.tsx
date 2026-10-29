@@ -57,7 +57,7 @@ const queryClient = new QueryClient({
  * Any UNKNOWN route lands on the first enabled module (by sortOrder) rather than a hardcoded
  * /tasks — which may be disabled. Falls back to /tasks only until modules have loaded.
  *
- * The homepage itself is no longer a redirect: `/` is the Today page.
+ * The homepage `/` goes to /kanban; the Today page is at /today.
  */
 function HomeRedirect() {
   const { enabled, isLoading } = useModules();
@@ -215,8 +215,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                             </RequireAuth>
                           }
                         />
-                        {/* The landing page: what was just created / just touched, per module. */}
-                        <Route path="/" element={<TodayPage />} />
+                        {/* The landing page is the Kanban board. Today (what was just created /
+                            just touched, per module) keeps its own address. */}
+                        <Route path="/" element={<Navigate to="/kanban" replace />} />
+                        <Route path="/today" element={<TodayPage />} />
                         <Route path="/:entity" element={<AppShell />} />
                         <Route path="*" element={<HomeRedirect />} />
                       </Routes>

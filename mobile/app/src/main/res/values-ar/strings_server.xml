@@ -46,6 +46,8 @@
     <string name="server_calendar_slot">الفترة</string>
     <string name="server_calendar_minutes_short">%1$d د</string>
     <string name="server_calendar_week_short">أ%1$d</string>
+    <string name="server_calendar_month_unfold">عرض الشهر كاملاً</string>
+    <string name="server_calendar_month_fold">العودة إلى أسبوعين</string>
     <string name="server_calendar_edit_entry">تعديل الإدخال</string>
     <string name="server_calendar_new_entry">إدخال جديد</string>
     <string name="server_calendar_type">النوع</string>
