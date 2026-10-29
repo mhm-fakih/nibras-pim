@@ -197,6 +197,7 @@
     <string name="prayer_alarm_default_sound">صوت المنبّه الافتراضي</string>
     <string name="prayer_alarm_repeat">التكرار: %1$d×</string>
     <string name="prayer_alarm_volume">مستوى الصوت: %1$d%%</string>
+    <string name="prayer_alarm_duplicate">تكرار المنبّه</string>
     <string name="prayer_alarm_days_once">الأيام — دون اختيار يعني مرة واحدة</string>
     <string name="prayer_alarm_days">الأيام</string>
     <string name="prayer_alarm_add_cd">إضافة منبّه</string>

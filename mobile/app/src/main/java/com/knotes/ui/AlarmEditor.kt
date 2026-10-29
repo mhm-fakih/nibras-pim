@@ -211,7 +211,7 @@ fun AlarmEditor(
 }
 
 /** The picked file's own name ("adhan.mp3"), or the last part of the link when it can't be read. */
-private fun soundName(context: Context, uri: String): String {
+internal fun soundName(context: Context, uri: String): String {
     val parsed = Uri.parse(uri)
     val name = runCatching {
         context.contentResolver.query(parsed, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->

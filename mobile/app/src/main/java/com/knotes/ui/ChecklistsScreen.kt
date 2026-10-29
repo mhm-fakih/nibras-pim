@@ -53,6 +53,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -535,7 +536,7 @@ private fun SectionHeader(
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
         Text(
             withCode(code, title),
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleMedium.directed(title),
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.weight(1f).then(if (editing) Modifier.clickable(onClick = onRename) else Modifier),
@@ -583,12 +584,14 @@ private fun ItemRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 code,
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 11.sp),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 11.sp).directed(text),
+                modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             )
             Text(
                 text,
-                style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+                style = (if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge).directed(text),
+                modifier = Modifier.fillMaxWidth(),
                 maxLines = if (compact) 2 else Int.MAX_VALUE,
                 overflow = TextOverflow.Ellipsis,
                 color = if (mark == Mark.DONE) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
@@ -636,7 +639,7 @@ private fun WeekGridRow(
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
         Text(
             withCode(code, text),
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.directed(text),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(end = 4.dp).then(if (editing) Modifier.clickable(onClick = onRename) else Modifier),
@@ -704,6 +707,15 @@ private fun codeStyle() = SpanStyle(
     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
     fontSize = 10.sp,
     fontWeight = FontWeight.Normal,
+)
+
+/**
+ * Arabic (or Hebrew) names read right to left and sit at the right edge; everything else reads left
+ * to right — by the name's first letter, so a leading code or time doesn't decide it.
+ */
+private fun androidx.compose.ui.text.TextStyle.directed(text: String) = copy(
+    textDirection = if (com.knotes.util.Bidi.isRtlLine(text) == true) TextDirection.Rtl else TextDirection.Ltr,
+    textAlign = TextAlign.Start,
 )
 
 @Composable

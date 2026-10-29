@@ -14,6 +14,7 @@ import {
   type ChecklistMark,
   type ChecklistWeek,
 } from '../api/client';
+import { dirOf } from '../util/rtl';
 
 /*
  * The phone's checklists for one week, as a read-only wall dashboard — opened in its own tab,
@@ -158,11 +159,15 @@ function GroupBlock({ group, week, today }: { group: ChecklistGroup; week: Check
             '&:hover [data-today]': { bgcolor: ROW_HOVER_TODAY },
           }}
         >
-          <Box sx={{ minWidth: 0, lineHeight: 1.15, overflowWrap: 'anywhere', py: '0.12em', alignSelf: 'center' }}>
-            <span style={{ color: CODE_GREY, fontSize: '0.65em', marginInlineEnd: '0.35em' }}>
+          {/* Arabic names read right to left from the cell's right edge, code first; the rest left to right. */}
+          <Box
+            dir={dirOf(item.text)}
+            sx={{ minWidth: 0, lineHeight: 1.15, overflowWrap: 'anywhere', py: '0.12em', alignSelf: 'center', textAlign: 'start' }}
+          >
+            <span dir="ltr" style={{ color: CODE_GREY, fontSize: '0.65em', marginInlineEnd: '0.35em' }}>
               {group.code}.{item.code}
             </span>
-            <span dir="auto">{item.text}</span>
+            <span>{item.text}</span>
           </Box>
           {days.map((d) => {
             const date = addDays(week.monday, d);
@@ -295,15 +300,21 @@ export function ChecklistDashboardPage() {
     refetchIntervalInBackground: true,
   });
 
-  // The week asked for, else this week if the phone has written it, else the latest before it.
+  // The weeks to step through: every week with a file, plus this week once an earlier one exists —
+  // not started yet, it shows the last week's items with no marks (the backend carries them over).
+  const weeks = useMemo(() => {
+    if (!index) return [];
+    const all = index.weeks;
+    return all.includes(index.current) || !all.some((w) => w < index.current) ? all : [...all, index.current].sort();
+  }, [index]);
+
+  // The week asked for, else this week, else (no earlier week to carry over) the latest there is.
   const weekId = useMemo(() => {
     const asked = params.get('week');
     if (asked) return asked;
     if (!index) return null;
-    if (index.weeks.includes(index.current)) return index.current;
-    const earlier = index.weeks.filter((w) => w <= index.current);
-    return earlier.at(-1) ?? index.weeks.at(-1) ?? null;
-  }, [params, index]);
+    return weeks.includes(index.current) ? index.current : weeks.at(-1) ?? null;
+  }, [params, index, weeks]);
 
   const { data: week, isLoading, isError } = useQuery({
     queryKey: ['checklist-week', weekId],
@@ -333,7 +344,6 @@ export function ChecklistDashboardPage() {
     document.title = week ? `Checklists · Week ${week.week}` : 'Checklists';
   }, [week]);
 
-  const weeks = index?.weeks ?? [];
   const at = weekId ? weeks.indexOf(weekId) : -1;
   const go = (id: string | undefined) => id && setParams({ week: id });
 
@@ -360,6 +370,11 @@ export function ChecklistDashboardPage() {
         <ChecklistIcon sx={{ color: ACCENT }} />
         <Typography sx={{ fontWeight: 700, fontSize: 20, whiteSpace: 'nowrap' }}>Week {week.week}</Typography>
         <Typography sx={{ color: 'text.secondary', fontSize: 14, whiteSpace: 'nowrap' }}>{weekRange(week)}</Typography>
+        {week.carriedFrom && (
+          <Typography sx={{ color: 'text.disabled', fontSize: 12, whiteSpace: 'nowrap' }}>
+            not started · items from {week.carriedFrom}
+          </Typography>
+        )}
         <Tooltip title="Previous week">
           <span>
             <IconButton size="small" disabled={at <= 0} onClick={() => go(weeks[at - 1])}>

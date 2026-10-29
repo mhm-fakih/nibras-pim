@@ -2126,6 +2126,8 @@ export interface ChecklistWeek {
   monday: string;
   sunday: string;
   groups: ChecklistGroup[];
+  /** Set when the week has no file yet: the earlier week whose items it shows, with no marks. */
+  carriedFrom: string | null;
 }
 
 export interface ChecklistIndex {

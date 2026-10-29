@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One line of the tasks board: up to four tasks side by side. The code shows as many cells as
+<!-- One line of the tasks board: up to four tasks side by side, as plain text on the widget card
+     (no box behind each task), like the other list widgets. The code shows as many cells as
      the columns setting asks for, and hides (keeping their width) the unused ones on a group's last
-     line so the columns stay aligned. -->
+     line so the columns stay aligned. No textAlignment: the default follows each task's own text, so an
+     Arabic task sits at the right edge (viewStart pinned it to the left, the widget's edge). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -17,11 +19,12 @@
         android:layout_marginStart="2dp"
         android:layout_marginEnd="2dp"
         android:layout_weight="1"
-        android:background="@drawable/widget_cell_bg"
         android:ellipsize="end"
         android:maxLines="3"
-        android:padding="6dp"
-        android:textAlignment="viewStart"
+        android:paddingStart="2dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="2dp"
+        android:paddingBottom="4dp"
         android:textColor="#EEEEEE" />
 
     <TextView
@@ -31,11 +34,12 @@
         android:layout_marginStart="2dp"
         android:layout_marginEnd="2dp"
         android:layout_weight="1"
-        android:background="@drawable/widget_cell_bg"
         android:ellipsize="end"
         android:maxLines="3"
-        android:padding="6dp"
-        android:textAlignment="viewStart"
+        android:paddingStart="2dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="2dp"
+        android:paddingBottom="4dp"
         android:textColor="#EEEEEE" />
 
     <TextView
@@ -45,11 +49,12 @@
         android:layout_marginStart="2dp"
         android:layout_marginEnd="2dp"
         android:layout_weight="1"
-        android:background="@drawable/widget_cell_bg"
         android:ellipsize="end"
         android:maxLines="3"
-        android:padding="6dp"
-        android:textAlignment="viewStart"
+        android:paddingStart="2dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="2dp"
+        android:paddingBottom="4dp"
         android:textColor="#EEEEEE" />
 
     <TextView
@@ -59,10 +64,11 @@
         android:layout_marginStart="2dp"
         android:layout_marginEnd="2dp"
         android:layout_weight="1"
-        android:background="@drawable/widget_cell_bg"
         android:ellipsize="end"
         android:maxLines="3"
-        android:padding="6dp"
-        android:textAlignment="viewStart"
+        android:paddingStart="2dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="2dp"
+        android:paddingBottom="4dp"
         android:textColor="#EEEEEE" />
 </LinearLayout>

@@ -64,7 +64,23 @@ public final class ChecklistWeekFile {
     public record Group(int code, String title, boolean weekly, List<Item> items) {
     }
 
-    public record Week(String id, int year, int week, LocalDate monday, LocalDate sunday, List<Group> groups) {
+    /**
+     * One week. {@code carriedFrom} is null for a week read from its own file; for a week not
+     * started yet it names the earlier week whose items it shows, with no marks.
+     */
+    public record Week(String id, int year, int week, LocalDate monday, LocalDate sunday, List<Group> groups, String carriedFrom) {
+
+        /** This week's items moved to week {@code id} with every mark cleared — as the phone starts a new week. */
+        public Week carriedTo(String id) {
+            int[] yw = parseId(id);
+            LocalDate monday = mondayOf(yw[0], yw[1]);
+            List<Group> blank = groups.stream()
+                    .map(g -> new Group(g.code(), g.title(), g.weekly(), g.items().stream()
+                            .map(i -> new Item(i.code(), i.text(), i.marks().stream().map(m -> Mark.NONE).toList()))
+                            .toList()))
+                    .toList();
+            return new Week(id, yw[0], yw[1], monday, monday.plusDays(6), blank, this.id);
+        }
 
         /** 0..1 completion of one day (0 = Monday) over the daily items; null when there are none. */
         public Double dayScore(int day) {
@@ -148,7 +164,7 @@ public final class ChecklistWeekFile {
             numbered.add(g.code() > 0 ? g : new Group(++next, g.title(), g.weekly(), g.items()));
         }
         numbered.sort(Comparator.comparingInt(Group::code));
-        return new Week(id, yw[0], yw[1], monday, monday.plusDays(6), List.copyOf(numbered));
+        return new Week(id, yw[0], yw[1], monday, monday.plusDays(6), List.copyOf(numbered), null);
     }
 
     private static final class Builder {

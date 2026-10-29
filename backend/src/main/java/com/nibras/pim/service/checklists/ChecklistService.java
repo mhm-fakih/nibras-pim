@@ -71,14 +71,21 @@ public class ChecklistService {
         return ChecklistWeekFile.idOf(LocalDate.now());
     }
 
-    /** One week; 404 when it has no file. */
+    /**
+     * One week. A week with no file yet shows the latest earlier week's items with no marks (as the
+     * phone opens a new week); 404 when there is no earlier week either.
+     */
     public Week week(String id) {
         if (ChecklistWeekFile.parseId(id) == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "not a week: " + id);
         }
         Path f = dir().resolve(id + ".md");
         if (!Files.isRegularFile(f)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "no checklist for " + id);
+            String earlier = weeks().stream().filter(w -> w.compareTo(id) < 0).reduce((a, b) -> b).orElse(null);
+            if (earlier == null) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "no checklist for " + id);
+            }
+            return week(earlier).carriedTo(id);
         }
         try {
             return ChecklistWeekFile.read(id, Files.readString(f, StandardCharsets.UTF_8));

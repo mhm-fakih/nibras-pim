@@ -189,6 +189,7 @@
     <string name="prayer_alarm_default_sound">Default alarm sound</string>
     <string name="prayer_alarm_repeat">Repeat: %1$dx</string>
     <string name="prayer_alarm_volume">Volume: %1$d%%</string>
+    <string name="prayer_alarm_duplicate">Duplicate</string>
     <string name="prayer_alarm_days_once">Days — none means once</string>
     <string name="prayer_alarm_days">Days</string>
     <string name="prayer_alarm_add_cd">Add an alarm</string>

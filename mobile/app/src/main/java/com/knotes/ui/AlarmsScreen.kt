@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
@@ -131,6 +132,10 @@ fun AlarmsScreen(
                             zone = zone,
                             onToggle = { onSave(alarm.copy(enabled = it)) },
                             onEdit = { editing = alarm },
+                            // A copy opens in the editor first, so it is changed (a new time, another
+                            // sound) before it exists; Cancel leaves no second alarm behind. A running
+                            // countdown's copy starts stopped.
+                            onDuplicate = { editing = alarm.copy(id = com.knotes.alarm.AlarmStore.newId(), dueAtMillis = null) },
                             onDelete = { confirmDelete = alarm },
                             onStartStop = {
                                 onSave(
@@ -181,10 +186,16 @@ private fun AlarmRow(
     zone: ZoneId,
     onToggle: (Boolean) -> Unit,
     onEdit: () -> Unit,
+    onDuplicate: () -> Unit,
     onDelete: () -> Unit,
     onStartStop: () -> Unit,
 ) {
     val context = LocalContext.current
+    // The file name is a content-resolver lookup: once per sound, not on every recomposition.
+    val sound = remember(alarm.soundUri) {
+        if (alarm.soundUri.isBlank()) context.getString(R.string.prayer_alarm_default_sound)
+        else soundName(context, alarm.soundUri)
+    }
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -201,6 +212,15 @@ private fun AlarmRow(
                     whenLine(context, alarm, nextAt, zone),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                // What it does when it rings: the sound file, how many times, how loud.
+                Text(
+                    "♪ $sound · " + stringResource(R.string.prayer_alarm_repeat, alarm.repeatCount) +
+                        " · " + stringResource(R.string.prayer_alarm_volume, alarm.volumePercent),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             if (alarm.kind == AlarmKind.COUNTDOWN) {
@@ -220,6 +240,11 @@ private fun AlarmRow(
         }
         Row(modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)) {
             TextButton(onClick = onEdit) { Text(stringResource(R.string.prayer_edit)) }
+            TextButton(onClick = onDuplicate) {
+                Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.size(6.dp))
+                Text(stringResource(R.string.prayer_alarm_duplicate))
+            }
         }
     }
 }
