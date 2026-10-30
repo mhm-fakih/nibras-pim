@@ -141,6 +141,7 @@
     <string name="player_video_auto_next">Lire la suite à la fin d’une vidéo</string>
     <string name="player_video_auto_next_hint">Désactivé : une vidéo terminée reste en pause au début, quel que soit « Lecture suivante ». ⏭ lit toujours la suivante.</string>
     <string name="player_open_folder">Dossier</string>
+    <string name="player_launcher_label">Lecteur</string>
     <string name="player_share">Partager</string>
     <string name="player_next_countdown">Fichier suivant dans %1$d s</string>
     <string name="player_next_stop">Arrêter</string>

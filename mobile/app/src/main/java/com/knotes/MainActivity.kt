@@ -71,6 +71,7 @@ import com.knotes.flash.FlashcardStore
 import com.knotes.prayer.PrayerSettingsStore
 import com.knotes.player.PlayerTheme
 import com.knotes.ui.AUDIOBOOKS_DEST
+import com.knotes.ui.PLAYER_DEST
 import com.knotes.ui.RecordFolders
 import com.knotes.ui.WelcomeWizard
 import com.knotes.ui.BackendSearchScreen
@@ -268,8 +269,31 @@ private fun AppRoot(
     }
 
     // A widget tap navigates straight to the requested rail destination (e.g. Tasks).
+    // The Player launcher icon: the full-screen player as soon as there is a file in it. On a cold
+    // start the last-played file only comes back once the playback service connects, which can take
+    // several seconds; nothing at all after 15 s (nothing ever played) opens the audio list instead.
+    var playerPending by remember { mutableStateOf(false) }
+    LaunchedEffect(playerPending, playerVm.currentFile) {
+        if (playerPending && playerVm.currentFile != null) {
+            showPlayer = true
+            playerPending = false
+        }
+    }
+    LaunchedEffect(playerPending) {
+        if (playerPending) {
+            kotlinx.coroutines.delay(15_000)
+            if (playerPending) {
+                playerPending = false
+                dest = AUDIOBOOKS_DEST
+            }
+        }
+    }
+
     LaunchedEffect(requestedDest) {
-        if (requestedDest != null) {
+        if (requestedDest == PLAYER_DEST) {
+            onRequestedDestConsumed()
+            playerPending = true
+        } else if (requestedDest != null) {
             dest = requestedDest
             showPlayer = false
             onRequestedDestConsumed()

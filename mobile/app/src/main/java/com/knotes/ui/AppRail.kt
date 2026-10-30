@@ -65,6 +65,8 @@ const val VIDEOS_DEST = "videos"
 const val CHECKLISTS_DEST = "checklists"
 const val CALENDAR_DEST = "calendar"
 const val PRAYER_DEST = "prayer"
+/** Not a rail page: the full-screen player, on the loaded (else last-played) file — the Player launcher icon. */
+const val PLAYER_DEST = "player"
 const val FLASHCARDS_DEST = "flashcards"
 const val HIGHLIGHTS_DEST = "highlights"
 const val COLLECT_DEST = "collect"

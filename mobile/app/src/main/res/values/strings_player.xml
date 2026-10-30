@@ -136,6 +136,7 @@
     <string name="player_video_auto_next">Play next after a video ends</string>
     <string name="player_video_auto_next_hint">Off: a finished video stays paused at its start, whatever “Play next” says. ⏭ still plays the next one.</string>
     <string name="player_open_folder">Folder</string>
+    <string name="player_launcher_label">Player</string>
     <string name="player_share">Share</string>
     <string name="player_next_countdown">Playing next file in %1$ds</string>
     <string name="player_next_stop">Stop</string>

@@ -156,6 +156,7 @@
     <string name="player_video_auto_next">تشغيل التالي بعد انتهاء الفيديو</string>
     <string name="player_video_auto_next_hint">عند الإيقاف: يبقى الفيديو المنتهي متوقفًا عند بدايته أيًّا كان إعداد «التشغيل التالي». يبقى ⏭ يشغّل التالي.</string>
     <string name="player_open_folder">المجلد</string>
+    <string name="player_launcher_label">المشغّل</string>
     <string name="player_share">مشاركة</string>
     <string name="player_next_countdown">تشغيل الملف التالي بعد %1$d ث</string>
     <string name="player_next_stop">إيقاف</string>

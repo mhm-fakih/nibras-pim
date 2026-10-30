@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-30 — 1.3.1 "Serenity"
+
+- **Mobile:** a second home-screen icon, Player, opens the player on the last track; alarms list
+  each alarm's sound file, repeat count and volume, and can be duplicated; a sound per alarm; the
+  calendar's two weeks unfold into a month; batch planner entry ("p mon 10:00 Calculus", repeated
+  weekly for a term); the player's night sleep timer and Bluetooth bookmarks; reminders in silent
+  mode; athan volume keys follow the alarm stream; checklists set Arabic items right to left; the
+  Tasks board widget drops the grey boxes and sets Arabic tasks right to left; the alarms widget
+  gets its card.
+- **Web:** saved searches carried over from the old app run again; search moves to a full form
+  page; the rail lists modules in two columns with record counts; home is the Kanban board; a
+  resource fetched from a link gets the default type; the quick note shows its card once saved;
+  the checklist dashboard shows a new week as last week's items, and Arabic items right to left.
+- **Desktop 1.7.1:** short-form entry, two-column filters, week entries on two lines.
+- **Scripts:** merge-transcripts.py gathers recorder transcripts into one note.
+
 ## 2026-10-26 — 1.3.0 "Serenity"
 
 - **Mobile:** quick add on the Local notes page (one field, saved as N · P2 · X), with the full

@@ -57,7 +57,7 @@ DEFAULT_OPENER = "start" if IS_WINDOWS else ("open" if IS_MACOS else "xdg-open")
 # file beside it. Display name and identity are allowed to differ; that's what this constant is for.
 APP_NAME = "Nibras Notes (dev)" if DEV_MODE else "Nibras Notes"
 
-VERSION = "1.7.0"
+VERSION = "1.7.1"
 
 
 def _data_dir() -> str:

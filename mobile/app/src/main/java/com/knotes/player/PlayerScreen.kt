@@ -942,7 +942,7 @@ private fun NowPlayingCard(
                     SmallAction(Icons.Filled.FolderOpen, stringResource(R.string.player_open_folder)) {
                         currentFile.parentFile?.let { com.knotes.ui.openFolder(context, it) }
                     }
-                    SmallAction(Icons.Filled.Share, stringResource(R.string.player_share)) {
+                    SmallAction(Icons.Filled.Share, stringResource(R.string.player_share), showLabel = false) {
                         com.knotes.ui.shareLocalFile(context, currentFile)
                     }
                     // A star for the whole file — it then waits on the Starred tab.
@@ -1046,15 +1046,19 @@ private fun SmallAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     tint: Color = Color(0xFF8AB4F8),
+    /** False: the icon alone, with [label] kept for TalkBack. */
+    showLabel: Boolean = true,
     onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onClick).padding(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(4.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall, color = tint)
+        Icon(icon, contentDescription = if (showLabel) null else label, tint = tint, modifier = Modifier.size(18.dp))
+        if (showLabel) {
+            Spacer(Modifier.width(4.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = tint)
+        }
     }
 }
 
