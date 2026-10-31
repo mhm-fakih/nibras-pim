@@ -1,13 +1,13 @@
 # Nibras sync
 
-knotes works entirely on its own. If you also run a **Nibras server**, connecting to it adds your tasks, plans, journal, goals, writings and resources to the phone. You can read and work on them offline, and your changes go back to the server when the connection returns. See [How sync works](../concepts/sync.md) for the bigger picture.
+Nibras Mobile works entirely on its own. If you also run a **Nibras server**, connecting to it adds your tasks, plans, journal, goals, writings and resources to the phone. You can read and work on them offline, and your changes go back to the server when the connection returns. See [How sync works](../concepts/sync.md) for the bigger picture.
 
 !!! note "Your phone notes stay files"
     The connection does **not** upload the notes on your phone. They stay files in your notes folder. To sync those with a computer, use a folder-sync tool such as Syncthing. A single note can be sent to the server on purpose with [Push to Nibras](#push-a-note-to-nibras).
 
 ## Connect
 
-You can enter the server address in the setup tour (**Connect to Nibras → Server address**), or in [Settings](settings.md) → **Nibras server**:
+You can enter the server address in the setup tour (**Connect to Nibras → Server address**), or in [Settings](settings.md) → **Server**, under **Nibras server**. The switch at the top of that tab, **Use a Nibras server**, must be on (it is by default); switched off, the app connects nowhere and the server pages leave the rail.
 
 | Field | What to enter |
 |---|---|
@@ -16,7 +16,7 @@ You can enter the server address in the setup tour (**Connect to Nibras → Serv
 | **Port** | The server's port. |
 | **Context** | The path the app is served under, if any. Leave it as **(none)** otherwise. |
 | **Username**, **Password** | Your Nibras account. Used to sign in for sync. |
-| **Files folder** | Where record attachments live on the phone, for example a `Nibras` folder kept in step by a folder-sync tool. The app opens attached files from here; it doesn't download them. |
+| **Files folder** | Where record attachments live on the phone, for example a `Nibras` folder kept in step by a folder-sync tool. The app lists and opens a record's files from here, in the same folder layout as the server; it doesn't download them. See [Open a record](server-pages.md#open-a-record). |
 
 **Full URL** under the fields shows the address being built, so you can check it. Tap **Save** at the top of Settings.
 
@@ -26,7 +26,7 @@ The phone receives the records you have **bookmarked** on the server, for each o
 
 To bring down a record you haven't bookmarked, find it with [Search server](server-pages.md#search-server) and flag it.
 
-knotes also takes its list of note **types** and **categories** from the server, when the app starts and when you tap **Refresh notes + sync now**, so the phone files notes under the same codes as the server.
+The app also takes its list of note **types** and **categories** from the server, along with how each module's record folders are laid out. It does this when the app starts and when you tap **Refresh notes + sync now** or **Refresh server pages**, so the phone files notes under the same codes as the server.
 
 ## What goes up
 
@@ -44,7 +44,7 @@ While offline you'll see messages like **Saved — will sync when online**. Ever
 
 ## Background sync
 
-In [Settings](settings.md) → **Background sync**:
+In [Settings](settings.md) → **Server** → **Background sync**:
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -54,7 +54,7 @@ In [Settings](settings.md) → **Background sync**:
 
 The current state appears on the Notes page under the title (**synced 2m ago**, **offline · last synced 1h ago**) and in the [status notification](alarms.md#the-status-notification).
 
-To sync **right now**, tap **Refresh notes + sync now** on the Notes page, or tap the title of a server widget. When a sync you started finishes, you'll see **Synced**, **Offline — can't sync**, **Sign-in failed — check the username and password in Settings**, or **Sync failed**.
+To sync **right now**, tap **Refresh notes + sync now** on the Notes page, **Refresh server pages** at the bottom of the rail's server band, or the title of a server widget. When a sync you started finishes, you'll see **Synced**, **Offline — can't sync**, **Sign-in failed — check the username and password in Settings**, or **Sync failed**.
 
 ## Push a note to Nibras
 

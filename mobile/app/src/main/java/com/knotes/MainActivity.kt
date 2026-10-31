@@ -577,7 +577,9 @@ private fun AppShell(
                                 pendingSound = null
                             }
                             AlarmsScreen(
-                                alarms = alarmList,
+                                allAlarms = alarmList,
+                                onQuickStart = { min -> com.knotes.alarm.QuickTimer.start(context, min, settings) },
+                                onQuickStop = { com.knotes.alarm.QuickTimer.stop(context) },
                                 exactAllowed = com.knotes.alarm.AlarmScheduler.canBeExact(context),
                                 prayerTimeAt = com.knotes.alarm.AlarmScheduler.prayerTimes(context),
                                 onSave = { com.knotes.alarm.AlarmStore.put(context, it) },

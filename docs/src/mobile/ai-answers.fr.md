@@ -1,12 +1,12 @@
 # Réponses IA
 
-**Réponses IA** (l'icône du robot, juste sous Notes dans le rail) est une seconde page de notes, en **lecture seule**. Elle affiche un dossier de notes distinct qui arrive sur le téléphone depuis ailleurs, généralement des réponses préparées sur votre ordinateur et transférées par un outil de synchronisation de dossiers comme Syncthing.
+**Réponses IA** (l'icône aux étincelles, juste sous Notes dans le rail) est une seconde page de notes, en **lecture seule**. Elle affiche un dossier de notes distinct qui arrive sur le téléphone depuis ailleurs, généralement des réponses préparées sur votre ordinateur et transférées par un outil de synchronisation de dossiers comme Syncthing.
 
 ## Emplacement du dossier { #where-the-folder-is }
 
 Par défaut, l'application cherche un dossier portant le nom de votre dossier de notes suivi de `-ai`. Si votre dossier de notes est `/storage/emulated/0/Notes`, le dossier des réponses IA est `/storage/emulated/0/Notes-ai`.
 
-Pour utiliser un autre dossier, définissez **Dossier des réponses IA** dans les [Paramètres](settings.md). Laissez le champ vide pour utiliser la valeur par défaut.
+Pour utiliser un autre dossier, définissez **Dossier des réponses IA** dans [Paramètres](settings.md) → **Général**. Laissez le champ vide pour utiliser la valeur par défaut.
 
 L'application ne crée jamais ce dossier elle-même. S'il n'existe pas encore, la page indique **Pas encore de dossier de réponses IA sur ce téléphone.** et affiche le chemin attendu. Si le dossier existe mais ne contient rien, elle indique **Le dossier existe mais il est vide.**
 

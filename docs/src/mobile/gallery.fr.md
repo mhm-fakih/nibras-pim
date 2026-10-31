@@ -2,7 +2,7 @@
 
 **Galerie** (l'icône des photos) est une visionneuse d'images plein écran pour un dossier d'images et ses sous-dossiers. Vous pouvez aussi annoter une image (dessiner dessus, surligner, rogner et renommer), de sorte qu'une capture d'écran puisse être annotée avant de la joindre à une note ou de l'envoyer.
 
-Le dossier est le **Dossier de la galerie** des [Paramètres](settings.md) (défini pendant la visite de configuration sous le nom **Dossier des images**). Par défaut, il s'agit du dossier `Pictures` de votre téléphone.
+Le dossier est le **Dossier de la galerie** de [Paramètres](settings.md) → **Médias** (défini pendant la visite de configuration sous le nom **Dossier des images**). Par défaut, il s'agit du dossier `Pictures` de votre téléphone. L'interrupteur **Galerie**, juste au-dessus, retire la page du rail si vous ne vous en servez pas.
 
 ## Navigation { #browsing }
 

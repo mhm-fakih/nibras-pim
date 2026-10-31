@@ -117,6 +117,13 @@ class Settings:
     # are MOVED into the new note's companion folder when it's saved, so the inbox empties as notes
     # are written for what's in it. Blank turns the list off.
     inbox_dir: str = "~/new"
+    # Paths in the inbox that the list leaves out (absolute or ~/...), e.g. folders that live there
+    # but aren't inbox items. The note folders are always left out on top of these.
+    inbox_ignore: list[str] = field(default_factory=list)
+    # Paths inside the note folders that aren't notes and aren't waiting to become one (absolute or
+    # ~/...), e.g. a script or a site folder kept next to the notes: no "needs metadata" card, and
+    # not part of the "to settle" backlog.
+    notes_ignore: list[str] = field(default_factory=list)
     # The one-line #hashtag strip under the add field. On: every tag + how many notes use it.
     # Off: a single compact "N #tag uses" count in its place (never fully hidden).
     show_tags_summary: bool = True
@@ -260,6 +267,8 @@ class Settings:
         s.kanban_rows = int(raw.get("kanban_rows", s.kanban_rows))
         s.auto_open_folder = bool(raw.get("auto_open_folder", s.auto_open_folder))
         s.inbox_dir = str(raw.get("inbox_dir", s.inbox_dir)).strip()
+        s.inbox_ignore = [str(p).strip() for p in raw.get("inbox_ignore", s.inbox_ignore) if str(p).strip()]
+        s.notes_ignore = [str(p).strip() for p in raw.get("notes_ignore", s.notes_ignore) if str(p).strip()]
         s.show_tags_summary = bool(raw.get("show_tags_summary", s.show_tags_summary))
         s.sidebar_visible = bool(raw.get("sidebar_visible", s.sidebar_visible))
         s.sidebar_width = int(raw.get("sidebar_width", s.sidebar_width))

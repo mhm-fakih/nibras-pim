@@ -1,6 +1,6 @@
 # Widgets de l'écran d'accueil
 
-knotes est fournie avec dix widgets pour l'écran d'accueil. Pour en ajouter un, appuyez longuement sur un emplacement vide de votre écran d'accueil, choisissez **Widgets**, trouvez **knotes** et faites glisser le widget voulu à sa place. La plupart peuvent être redimensionnés.
+Nibras Mobile est fournie avec onze widgets pour l'écran d'accueil. Pour en ajouter un, appuyez longuement sur un emplacement vide de votre écran d'accueil, choisissez **Widgets**, trouvez **Nibras Mobile** et faites glisser le widget voulu à sa place. La plupart peuvent être redimensionnés.
 
 | Widget (nom dans le sélecteur) | Affiche | Nécessite un serveur Nibras ? |
 |---|---|---|
@@ -8,6 +8,7 @@ knotes est fournie avec dix widgets pour l'écran d'accueil. Pour en ajouter un,
 | [Tâches du jour](#todays-tasks) | Les tâches prioritaires du jour, avec une barre d'ajout | Non |
 | [Journal du jour](#todays-journal) | Les entrées de journal du jour, avec une barre d'ajout | Non |
 | [Priorité maximale](#top-priority) | Toutes les notes à votre priorité maximale | Non |
+| [Tableau des tâches](#tasks-board) | Toutes les tâches de vos deux priorités les plus hautes, par département | Non |
 | [Indicateurs Nibras Mobile](#nibras-mobile-kpis) | Des compteurs en un coup d'œil | En partie |
 | [Plans à venir](#upcoming-plans) | Vos prochains événements planifiés | Oui |
 | [Fiches en favori](#bookmarked-records) | Les fiches que vous avez étoilées | Oui |
@@ -24,7 +25,7 @@ Un fil en lecture seule de ce que vous avez écrit récemment, les plus ancienne
 
 Les notes longues sont coupées après un certain nombre de mots, avec **Lire la suite**. **Touchez une note** pour la déplier sur place, et touchez à nouveau pour la replier. C'est la seule commande ; il n'y a ni filtres ni boutons.
 
-Configurez-le dans les [Paramètres](settings.md) → **Widget des notes récentes** :
+Configurez-le dans [Paramètres](settings.md) → **Calendrier et widgets**, sous **Widget des notes récentes** :
 
 | Réglage | Plage | Par défaut |
 |---|---|---|
@@ -46,7 +47,22 @@ Les entrées de journal du jour, toutes priorités confondues. Comme le widget d
 
 ## Priorité maximale { #top-priority }
 
-Toutes les notes de votre dossier à votre **Priorité maximale** (priorité 4, sauf si vous modifiez **Priorité maximale (widgets)** dans les Paramètres), de tout type et de toute date. S'il n'y en a aucune, il indique **Aucune note de priorité 4**. Toucher le titre le redessine. Ce sont des notes de votre téléphone : aucune synchronisation n'est nécessaire.
+Toutes les notes de votre dossier à votre **Priorité maximale** (priorité 4, sauf si vous modifiez **Priorité maximale (widgets)** dans Paramètres → **Général**), de tout type et de toute date. S'il n'y en a aucune, il indique **Aucune note de priorité 4**. Toucher le titre le redessine. Ce sont des notes de votre téléphone : aucune synchronisation n'est nécessaire.
+
+## Tableau des tâches { #tasks-board }
+
+Un widget fait pour remplir une page d'écran d'accueil : toutes les tâches (notes de type `T`) de vos deux priorités les plus hautes, quelle que soit leur date. Avec les réglages par défaut, ce sont p4 et p3, et le titre indique **Tâches p3–p4** avec le nombre à côté. Les tâches sont regroupées par priorité, puis par département (catégorie) ; celles qui n'en ont pas vont sous **Sans département**.
+
+Contrairement à **Tâches du jour**, il n'a pas de barre d'ajout et ne se vide pas la nuit : c'est le tableau permanent de ce qui compte. Chaque tâche suit son propre sens d'écriture, si bien que les tâches en arabe se lisent de droite à gauche. Touchez le titre pour le redessiner, ou une tâche pour ouvrir l'application sur **Tâches**.
+
+Configurez-le dans [Paramètres](settings.md) → **Calendrier et widgets**, sous **Widget tableau des tâches** :
+
+| Réglage | Plage | Par défaut |
+|---|---|---|
+| **Taille du texte N sp** | 10 à 24 sp | 13 sp |
+| **N colonnes** | 1 à 4 | 2 |
+
+Les deux priorités suivent **Priorité maximale (widgets)** dans [Paramètres](settings.md) → **Général**.
 
 ## Indicateurs Nibras Mobile { #nibras-mobile-kpis }
 
@@ -69,17 +85,17 @@ Vos prochains événements de l'agenda Nibras, indiqués par jour et heure (**De
 
 ## Fiches en favori { #bookmarked-records }
 
-Les Plans, Objectifs et Tâches que vous avez étoilés dans les [pages serveur](server-pages.md#bookmark-the-star) de knotes (fiches en favori sur ce téléphone), dans une liste déroulante. Touchez le titre pour synchroniser et redessiner.
+Les Plans, Objectifs et Tâches que vous avez étoilés dans les [pages serveur](server-pages.md#bookmark-the-star) de l'application (fiches en favori sur ce téléphone), dans une liste déroulante. Touchez le titre pour synchroniser et redessiner.
 
 ## Heures de prière { #prayer-times }
 
 Une large bande avec la date hégirienne, un compte à rebours jusqu'au prochain horaire et une colonne par prière que vous avez choisi d'afficher, la prochaine étant mise en évidence. Elle est en arabe et de droite à gauche, écrite assez grand pour être lue à l'autre bout d'une pièce.
 
-Le compte à rebours n'apparaît qu'à l'approche de la prochaine prière. Le seuil correspond au réglage **Compte à rebours du widget** de la page [Heures de prière](prayer.md#reminders-and-countdown) (1 heure par défaut). Touchez la date pour redessiner ; touchez ailleurs pour ouvrir la page Heures de prière.
+Le compte à rebours n'apparaît qu'à l'approche de la prochaine prière. Le seuil correspond au réglage **Compte à rebours du widget** de la page [Heures de prière](prayer.md#reminders-and-countdown) (1 heure par défaut). Une fois l'heure arrivée, la bande compte plutôt le temps écoulé depuis (**منذ 4:12**), pendant la durée du **Minuteur « منذ »** de la page Heures de prière (30 minutes par défaut). Touchez la date pour redessiner ; touchez ailleurs pour ouvrir la page Heures de prière.
 
 ## Compte à rebours des alarmes { #alarms-countdown }
 
-Le temps restant avant chacune des [alarmes](alarms.md) restantes du jour. Il se met à jour tout seul chaque minute tant qu'il est sur votre écran d'accueil. Touchez-le pour ouvrir la page Alarmes.
+Une carte intitulée **Alarmes · N aujourd’hui** qui liste chacune des [alarmes](alarms.md) restantes du jour : son heure, le temps avant qu'elle sonne et son libellé (**07:00 · dans 2 h 15 min — Réveil**). Quand il n'en reste aucune, elle indique **Plus rien aujourd’hui**. Elle se met à jour tout seul chaque minute tant qu'elle est sur votre écran d'accueil. Touchez-la pour ouvrir la page Alarmes.
 
 ## État du téléphone { #phone-status }
 

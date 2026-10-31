@@ -16,6 +16,14 @@ when you click it.
 **App name** is the name shown at the top of the sidebar and in the browser tab (default
 *Nibras*).
 
+## Session
+
+**Stay signed in for (hours)** is how long a sign-in lasts in a browser that has been closed or
+asleep (12 unless changed; from 1 hour up to a year). A page that stays open renews its sign-in by
+itself and never runs out — which is what keeps a wall screen showing the
+[weekly checklists](dashboards.md#the-weekly-checklists) signed in. Only administrators can change
+the value; it applies from the next sign-in. Press **Enter** or leave the field to save.
+
 ## Pages and features
 
 **Pages** shows or hides tool pages in the sidebar: Calendar, Kanban, Dashboards, All bookmarks,
@@ -103,6 +111,34 @@ installed it.
 — a path on the server; leave it blank for the default. The hint under the field says how many notes
 were found, or that the folder doesn't exist. **Tag bank file (fallback only)** is only needed if
 your courses don't yet carry **Note tags**.
+
+## File search
+
+What the [Search page](search.md#files) finds among files. The table lists the sources —
+**Repo 1**, **Repo 2**, **Repo 3** and **Note companion folders** — with the folder each one is and
+how many files are **Indexed**. For each source tick:
+
+- **Names** — find its files by name (every file);
+- **Contents** — also read the text of the file types listed below. Ticking **Contents** ticks
+  **Names** too.
+
+Below the table:
+
+- **Contents of these types** — the file extensions whose text is read, comma-separated (PDF,
+  Office, DjVu…). Other files are found by name only.
+- **Largest file to read (MB)** — bigger files are found by name only.
+
+Click **Save**; the index then updates itself. Folders and files whose names start with a dot are
+skipped, and links are not followed. From then on the index keeps itself up to date every
+10 minutes, reading only what changed.
+**Re-read all files** starts over from scratch. The line under the buttons says how many files are
+indexed and when the last scan ran; **Show files whose text could not be read** lists the files that
+failed, grouped by the kind of problem — scanned pages with no text layer, empty files,
+password-protected or damaged files, and so on.
+
+!!! note
+    Reading DjVu text needs the `djvutxt` program on the server; until it is installed, `.djvu`
+    files are found by name only, and the page says so.
 
 ## Export
 

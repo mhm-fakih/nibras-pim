@@ -1,12 +1,12 @@
 # AI answers
 
-**AI answers** (the robot icon, just under Notes in the rail) is a second, **read-only** notes page. It shows a separate folder of notes that arrives on the phone from elsewhere, typically answers prepared on your computer and synced over with a folder-sync tool such as Syncthing.
+**AI answers** (the sparkles icon, just under Notes in the rail) is a second, **read-only** notes page. It shows a separate folder of notes that arrives on the phone from elsewhere, typically answers prepared on your computer and synced over with a folder-sync tool such as Syncthing.
 
 ## Where the folder is
 
 By default the app looks for a folder named like your notes folder with `-ai` added. If your notes folder is `/storage/emulated/0/Notes`, the AI answers folder is `/storage/emulated/0/Notes-ai`.
 
-To use a different folder, set **AI answers directory** in [Settings](settings.md). Leave it blank to use the default.
+To use a different folder, set **AI answers directory** in [Settings](settings.md) → **General**. Leave it blank to use the default.
 
 The app never creates this folder itself. If it isn't there yet, the page says **No AI answers folder on this phone yet.** and shows the path it expected. If the folder exists but holds nothing, it says **The folder is there but empty.**
 

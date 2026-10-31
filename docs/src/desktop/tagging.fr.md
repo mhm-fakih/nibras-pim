@@ -23,7 +23,9 @@ Le formulaire d'ajout comporte trois rangées de pastilles :
 | **Prio** (priorité) | La priorité (**P1**, **P2**, …) | **Ctrl+Shift+<digit>** |
 | **Cat** (catégorie) | Le code de catégorie | **Ctrl+Shift+<letter>** |
 
-Cliquez sur une pastille, ou appuyez sur son raccourci, avant d'enregistrer. Appuyer de nouveau sur
+Cliquez sur une pastille, ou appuyez sur son raccourci, avant d'enregistrer. (Dans le
+[formulaire court](writing-notes.md#the-short-form), les pastilles sont masquées et chaque note est
+enregistrée en **N · P2 · X**.) Appuyer de nouveau sur
 un raccourci de type ou de catégorie l'efface. Survolez une pastille pour voir son nom complet et
 son raccourci. Votre choix est **persistant** — il reste sélectionné pour la note suivante.
 
@@ -51,6 +53,21 @@ une colonne en réétiquetant carte après carte.
     modification), une note réétiquetée part à la fin puisque son fichier vient de changer.
 
 Réétiqueter depuis le tableau *définit* toujours une valeur ; cela n'en efface jamais.
+
+## Réétiqueter plusieurs notes à la fois { #retag-many-notes-at-once }
+
+1. Marquez les cartes à modifier : **Ctrl+clic** sur chacune, ou sélectionnez-la et appuyez sur
+   **Ctrl+M**. Les cartes marquées sont teintées en bleu-vert, et la barre de titre indique combien
+   sont marquées.
+2. Appuyez sur **Ctrl+Shift+<letter>** ou **Ctrl+Shift+<digit>**.
+
+Le nouveau type, la nouvelle catégorie ou la nouvelle priorité est appliqué à chaque carte marquée
+**et** à la carte sélectionnée, et la barre d'état indique combien de notes ont changé. Les marques
+restent sur les notes renommées : vous pouvez donc appuyer sur un autre code pour changer une
+deuxième étiquette du même ensemble. **Esc** efface les marques.
+
+Les mêmes marques servent à [supprimer](organizing-notes.md#delete-a-note) et à
+[fusionner](organizing-notes.md#merge-notes) plusieurs notes.
 
 ## Définir vos propres codes { #define-your-own-codes }
 
@@ -84,7 +101,7 @@ vos paramètres actuels.
 
 !!! note "Codes provenant d'un serveur Nibras"
     Si le dossier est connecté à un serveur Nibras, ses types et catégories sont remplacés par les
-    codes du serveur à chaque lancement. Voir [Se connecter à un serveur Nibras](nibras-server.md).
+    codes du serveur — ses modules et ses départements favoris — à chaque synchronisation. Voir [Se connecter à un serveur Nibras](nibras-server.md).
 
 ## Étiquettes non reconnues { #tags-that-dont-match }
 

@@ -1,6 +1,6 @@
 # Lecteur audio
 
-Le **lecteur audio** est un lecteur de bureau pour les enregistrements audio et vidéo — cours, conférences, mémos
+Le **Nibras Audio Player** est un lecteur de bureau pour les enregistrements audio et vidéo — cours, conférences, mémos
 vocaux, podcasts. Son point fort est le **marque-page** : une seule touche marque l'instant que vous venez d'entendre, et
 les marques sont enregistrées dans un petit fichier texte `.tmk` à côté de l'enregistrement, dans le même format que celui
 de l'[application mobile](../mobile/index.md). Synchronisez le dossier, et les marque-pages créés sur le téléphone apparaissent
@@ -20,6 +20,7 @@ modifiables et l'édition des tags.
 ├───────────────┤                 │  transport       │  file has   │
 │ RECENTLY      │  Tag → …        │  BOOKMARKS       │  one)       │
 │ BOOKMARKED    │                 │  Speed · Vol     │             │
+│   ★ Today (n) │                 │                  │             │
 └───────────────┴─────────────────┴──────────────────┴─────────────┘
   status bar
 ```
@@ -32,6 +33,8 @@ modifiables et l'édition des tags.
 - **TRANSCRIPT** (transcription) — une transcription modifiable, lorsque le fichier en possède une. Voir
   [Sous-titres et transcriptions](subtitles-and-transcripts.md).
 - **RECENTLY BOOKMARKED** (marqués récemment) — les fichiers que vous avez marqués dernièrement ; cliquez sur l'un d'eux pour le lire.
+  Son lien **★ Today** (aujourd'hui) liste tout ce que vous avez marqué aujourd'hui. Voir
+  [Bibliothèque](library.md#bookmarked-today).
 
 ## Installation { #install }
 
@@ -76,9 +79,12 @@ cd audio-player
 
 `run.sh` vous indique quels paquets installer s'il manque quelque chose.
 
-**Entrée de menu.** Exécutez `./install.sh` une fois. Il ajoute **Audio Player** (lecteur audio) à votre menu d'applications ; lancez-le
-depuis là, puis faites un clic droit sur son icône dans le panneau et choisissez **Pin** (épingler). Relancez `install.sh` si vous déplacez
-le dossier.
+**Entrée de menu.** Exécutez `./install.sh` une fois. Il ajoute **Nibras Audio Player** à votre menu d'applications, avec l'icône du
+lecteur — une onde sonore blanche sur un disque bleu marine ; lancez-le depuis là, puis faites un clic droit sur son icône dans le
+panneau et choisissez **Pin** (épingler). Relancez `install.sh` si vous déplacez le dossier.
+
+La barre de titre affiche la version, que le lecteur partage avec le reste de la suite :
+`Nibras Audio Player v1.3.2 "Serenity"`.
 
 ## Premier lancement { #first-run }
 

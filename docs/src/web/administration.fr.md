@@ -18,7 +18,8 @@ Chaque utilisateur a un seul **rôle**. Ce qu'un rôle peut faire est un ensembl
 | **Audit log** (Journal d'audit) | Voir la page **Audit log** et l'**History** (Historique) de chaque enregistrement. |
 
 Toute personne connectée peut lire, rechercher et parcourir tous les modules ainsi que les pages de lecture (Today,
-Calendar, Kanban, Dashboards, Insights, Sprints, Reports, Bookmarks, Highlights, Flash cards, Local notes).
+Calendar, Kanban, Dashboards, Insights, Sprints, Reports, Bookmarks, Highlights, Flash cards, Local notes,
+Checklists (week)).
 
 Les quatre rôles sont configurés au départ comme suit :
 

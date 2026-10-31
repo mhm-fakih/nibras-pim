@@ -9,7 +9,7 @@ flowchart LR
         N["2026_06_10-143025~T~p2~A.md"]
         D["2026_06_10-143025~T~p2~A.d/ (attachments)"]
     end
-    Phone["knotes for Android"] <--> folder
+    Phone["Nibras Mobile"] <--> folder
     Desktop["knotes desktop"] <--> folder
     Term["knotes terminal"] <--> folder
     folder -- "import (optional)" --> Server["Nibras server + web app"]

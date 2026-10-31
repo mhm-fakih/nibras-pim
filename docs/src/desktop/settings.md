@@ -21,6 +21,19 @@ B:~/Work-notes
 With more than one folder, a picker appears next to the send button and **Ctrl+1** … **Ctrl+9**
 switch between them. See [Organizing notes](organizing-notes.md#several-note-folders).
 
+**Folder colours** — one colour button per folder: the toolbar, sidebar and status bar take that
+colour while the folder is active. The clear button next to it means no tint. Folders you haven't
+coloured get light defaults (none for the first). A folder you've just added to the list above gets
+its button the next time you open Settings.
+
+### Inbox and leave-out lists
+
+| Setting | What it does | Default |
+|---|---|---|
+| **Inbox folder** | The folder whose files and folders the add form lists as checkboxes; ticked ones move into the new note's files folder when it's saved. Blank = no list. See [The inbox](writing-notes.md#the-inbox-file-downloads-into-a-note) | `~/new` |
+| **Inbox: leave out (one path per line)** | Paths in the inbox that aren't inbox items, e.g. `~/new/old`. The note folders are always left out | empty |
+| **Note folders: leave out (one path per line)** | Files and folders inside a note folder that aren't notes, e.g. `~/knotes/site`: no **needs metadata** card, and not counted as **to settle** | empty |
+
 ### All app-wide settings
 
 | Setting | What it does | Default |
@@ -35,7 +48,8 @@ switch between them. See [Organizing notes](organizing-notes.md#several-note-fol
 | **Preview characters (tail)** | Characters shown from the end of a long note. 0 = none | 40 |
 | **Saving** → **Save on Enter (Shift+Enter for a newline)** | Plain **Enter** saves a note | off |
 | **Tags** → **List every #hashtag under the add field** | Off shows a compact total instead | on |
-| **Startup** → **Open filtered to today's notes** | Start with today selected in the calendar | on |
+| **Startup** → **Open filtered to today's and yesterday's notes** | Start with today and yesterday selected in the calendar. A folder you switch to for the first time opens the same way, and every "clear" button returns here first (a second click shows everything) | on |
+| **Startup** → **Hide non-standard items by default** | Leave the files and folders that aren't notes yet (the **to settle** backlog) out of the default view. The sidebar's **Non-standard** switch still shows them | on |
 | **Highlight colour** | Colour behind highlighted passages | yellow |
 | **Append separator** | Inserted before a quick-appended comment. `$date` = current time, `\n` = new line | `\n---$date:\n` |
 | **Append date format** | `strftime` format for `$date` | `%Y-%m-%d %H:%M` |
@@ -71,11 +85,13 @@ See [Type, priority & category](tagging.md#define-your-own-codes).
 
 These are switched so often that they live on the toolbar and are remembered automatically:
 
-- View: **Kanban**, **Simple list**, **Columns**, **Minimal**
+- View: **Kanban**, **Simple list**, **Columns**, **Week calendar**, **Minimal**
 - Sort order
+- Full or short add form (**Ctrl+N**)
 - Light / dark theme (**Ctrl+T**)
 - Side editor pane open or closed, and its width (**Ctrl+E**)
-- Filter sidebar shown or hidden, which sections are folded, and the calendar's **Created** / **Updated** switch (**Ctrl+B**)
+- Filter sidebar shown or hidden, its width, which sections are folded, and the calendar's **Created** / **Updated** switch (**Ctrl+B**)
+- Quick note and task lists shown or hidden, and their height
 - Auto-open the files folder after each save
 
 ## The config file
@@ -90,5 +106,4 @@ A few options have no control in the dialog:
 | Key | What it does | Default |
 |---|---|---|
 | `tag_bank_path` | Path to your `tag-bank.md`. Blank = next to the program. Point it into a synced folder to share the vocabulary across machines | blank |
-| `card_file_chars` | Characters of each attached file name shown on a card | 12 |
 | `editor_autosave_ms` | Pause (in milliseconds) before the side editor saves | 900 |

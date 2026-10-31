@@ -33,7 +33,8 @@ Les marque-pages apparaissent aussi sous forme de traits sur la [barre de recher
 | Supprimer un marque-page | Cliquez sur son bouton corbeille |
 
 La colonne **Bkm** de la liste de lecture indique combien de marque-pages possède chaque fichier, et les fichiers que vous marquez
-apparaissent sous **RECENTLY BOOKMARKED** (marqués récemment).
+apparaissent sous **RECENTLY BOOKMARKED** (marqués récemment) — et dans sa liste **★ Today**, qui rassemble tous les fichiers
+marqués aujourd'hui. Voir [Marqués aujourd'hui](library.md#bookmarked-today).
 
 ## Le fichier .tmk { #the-tmk-file }
 
@@ -63,5 +64,5 @@ fichier. Le téléphone écrit le même format, de sorte que les marque-pages cr
 [Marque-pages (.tmk)](../concepts/bookmarks-tmk.md).
 
 !!! tip "Les marque-pages dans vos notes"
-    Si un enregistrement se trouve dans le [dossier compagnon](../concepts/companion-folders.md) d'une note, knotes
-    desktop affiche le nombre de marque-pages comme **time marks** (repères temporels) sur la carte de la note.
+    Si un enregistrement se trouve dans le [dossier compagnon](../concepts/companion-folders.md) d'une note,
+    l'[application de notes de bureau](../desktop/index.md) affiche le nombre de marque-pages comme **time marks** (repères temporels) sur la carte de la note.

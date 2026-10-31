@@ -8,7 +8,7 @@ write** (in any language).
 
 | App | Interface |
 |-----|-----------|
-| [knotes for Android](../mobile/index.md) | **English, Arabic (عربي) or French (Français)** — your choice |
+| [Nibras Mobile](../mobile/index.md) | **English, Arabic (عربي) or French (Français)** — your choice |
 | [Web app](../web/index.md), [desktop](../desktop/index.md), [terminal](../terminal/index.md), [audio player](../audio-player/index.md) | English |
 
 On the phone, the language picker is the first page of the setup tour and the first row of

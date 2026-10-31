@@ -20,6 +20,10 @@ default type, priority and category. No network, no server, no dialog:
 - **Phone** — the quick-entry box at the bottom of the notes screen.
 - **Desktop** — the add field (or the minimal side-note mode, `Ctrl+L`).
 - **Terminal** — any line that isn't a `/command`.
+- **Capture tools** — small scripts that turn a Telegram chat, your Firefox bookmarks or an online
+  video into notes in the same folder (see
+  [the web app's capture inbox](../web/import-capture.md#from-the-capture-tools)). When the folder
+  has no default category, they file their notes under **X**, so nothing arrives without one.
 
 Captures can carry files: drop them into the note's [companion folder](companion-folders.md).
 

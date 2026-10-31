@@ -1,6 +1,6 @@
 # Audio player
 
-The **audio player** is a desktop player for audio and video recordings — lectures, talks, voice
+The **Nibras Audio Player** is a desktop player for audio and video recordings — lectures, talks, voice
 memos, podcasts. Its strength is **bookmarking**: one key marks the moment you just heard, and the
 marks are saved in a small `.tmk` text file next to the recording, in the same format the
 [mobile app](../mobile/index.md) uses. Sync the folder, and bookmarks made on the phone show up
@@ -20,6 +20,7 @@ tag editing.
 ├───────────────┤                 │  transport       │  file has   │
 │ RECENTLY      │  Tag → …        │  BOOKMARKS       │  one)       │
 │ BOOKMARKED    │                 │  Speed · Vol     │             │
+│   ★ Today (n) │                 │                  │             │
 └───────────────┴─────────────────┴──────────────────┴─────────────┘
   status bar
 ```
@@ -31,7 +32,9 @@ tag editing.
   [Playback](playback.md) and [Bookmarks](bookmarks.md).
 - **TRANSCRIPT** — an editable transcript, when the file has one. See
   [Subtitles & transcripts](subtitles-and-transcripts.md).
-- **RECENTLY BOOKMARKED** — files you bookmarked lately; click one to play it.
+- **RECENTLY BOOKMARKED** — files you bookmarked lately; click one to play it. Its **★ Today**
+  link lists everything you bookmarked today. See
+  [Library](library.md#bookmarked-today).
 
 ## Install
 
@@ -76,9 +79,12 @@ cd audio-player
 
 `run.sh` tells you which packages to install if something is missing.
 
-**Menu entry.** Run `./install.sh` once. It adds **Audio Player** to your application menu; launch
-it from there, then right-click its panel icon and choose **Pin**. Re-run `install.sh` if you move
-the folder.
+**Menu entry.** Run `./install.sh` once. It adds **Nibras Audio Player** to your application menu,
+with the player's icon — a white sound wave on a navy disc; launch it from there, then right-click
+its panel icon and choose **Pin**. Re-run `install.sh` if you move the folder.
+
+The title bar shows the version, which the player shares with the rest of the suite:
+`Nibras Audio Player v1.3.2 "Serenity"`.
 
 ## First run
 

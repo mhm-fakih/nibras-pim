@@ -1,16 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- Shared app mark, in sync with mobile/app/src/main/res: same #133155 ground and the same
-       white symbolic line-art (24-unit grid, 1.6 stroke, round caps) as ic_launcher_foreground.
-       Here the glyph is a sound wave, for the audio player. -->
-  <rect width="128" height="128" rx="26" fill="#133155"/>
-  <g transform="translate(26.8,26.8) scale(3.1)"
-     fill="none" stroke="#FFFFFF" stroke-width="1.6"
-     stroke-linecap="round" stroke-linejoin="round">
-    <path d="M2,10 V14"/>
-    <path d="M6,6 V18"/>
-    <path d="M10,3 V21"/>
-    <path d="M14,7.5 V16.5"/>
-    <path d="M18,5 V19"/>
-    <path d="M22,10 V14"/>
+  <!-- Shared app mark, flat: one navy (#133155) disc and a solid white glyph, no gradients or
+       shadows. Same family as desktop/knotes.svg and the image annotator's icon; only the glyph
+       differs. Here: a sound wave, for the audio player.
+
+       Keep this comment INSIDE <svg>: gdk-pixbuf sniffs only the first bytes of the file for the
+       "<svg" tag, so a long comment above it makes the loader reject the file outright, which
+       silently drops the window icon. -->
+  <circle cx="64" cy="64" r="60" fill="#133155"/>
+  <g fill="#FFFFFF">
+    <rect x="26.5" y="54" width="9" height="20" rx="4.5"/>
+    <rect x="39.5" y="36" width="9" height="56" rx="4.5"/>
+    <rect x="52.5" y="22" width="9" height="84" rx="4.5"/>
+    <rect x="65.5" y="43" width="9" height="42" rx="4.5"/>
+    <rect x="78.5" y="31" width="9" height="66" rx="4.5"/>
+    <rect x="91.5" y="54" width="9" height="20" rx="4.5"/>
   </g>
 </svg>

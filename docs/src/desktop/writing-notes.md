@@ -1,8 +1,9 @@
 # Writing notes
 
 The bottom of the window is the **add form**: three rows of tag chips (**Type**, **Prio**,
-**Cat**), a text field, a folder picker and a send button. Whatever you type there becomes a new
-note file.
+**Cat**), a text field, a folder picker and a send button. Left of the text field, a small arrow
+button switches between the full form and the [short form](#the-short-form). Whatever you type
+there becomes a new note file.
 
 ## Save a note
 
@@ -23,6 +24,33 @@ next note.
 
 Nothing is lost on quit: **Ctrl+Q** saves an unsent draft as a note first.
 
+## The short form
+
+When you just want the thought down and will sort it out later, press **Ctrl+N** (or click the
+arrow button left of the text field). The chip rows disappear, and every note is saved as
+**N · P2 · X** — type N, priority 2, category X — ready to be retagged later. If the folder doesn't
+define one of those codes, the note gets the chips' current choice for it instead. Hover the arrow
+button to see exactly which tags the short form will use.
+
+Press **Ctrl+N** again to bring the chips back. The app remembers which form you used last.
+
+## The inbox: file downloads into a note
+
+Downloads, screenshots and other files often land in one folder first — by default `~/new`. The
+add form lists that folder's files and folders under the text field, in a fold-out line such as
+**5 to settle in ~/new**, newest first. It updates by itself as files arrive.
+
+1. Unfold the line and tick the items that belong with the note you're writing. The line counts
+   them: **· 2 go into the new note**.
+2. Write the note (or leave the text empty) and save it.
+
+The ticked items are **moved** into the new note's [companion folder](attached-files.md), so the
+inbox empties as you write notes for what's in it. If you saved without any text, the note's text
+is the names of the items it took in.
+
+Choose the folder with **Inbox folder** in [Settings](settings.md); leave it blank to turn the list
+off. Folders that live in the inbox but aren't inbox items go in **Inbox: leave out (one path per
+line)**. Your note folders are always left out, even when they sit inside the inbox.
 ## Arabic and mixed text
 
 Each line picks its own direction, so Arabic and English can share one note and both read
@@ -69,7 +97,9 @@ Press **Ctrl+E** (or the pencil button on the toolbar) to open the **side editor
 right. It always shows the note selected on the board — click or arrow to another card to switch.
 Drag its left edge to resize it.
 
-The pane has two modes, switched with the **read** and **edit** buttons at its top:
+The pane has two modes, switched with the **read** and **edit** buttons at its top. In both,
+Markdown such as `**bold**`, `*italic*`, `` `code` ``, `# headings`, links and `#hashtags` is styled
+in place, with the marker characters dimmed rather than hidden.
 
 === "read"
 
@@ -94,6 +124,29 @@ read-only.
 
 Choose the mode the pane starts in with **Editor pane starts in**, and the highlight colour with
 **Highlight colour**, both in [Settings](settings.md).
+
+Under the note, the **Files** panel lists the note's attached files — see
+[Attached files](attached-files.md#the-files-panel).
+
+## Quick notes and quick tasks
+
+Some things don't deserve a note at all — a phone number, a thing to buy. For those, two lists sit
+under the side pane: **Quick notes** on the left and **Quick tasks**, with a checkbox per line, on
+the right.
+
+- Press **Ctrl+J** to jump into the quick-note field, or **Ctrl+K** for the quick-task field. The
+  side pane and the lists open if they were closed.
+- Type a line and press **Enter**. The field keeps the keyboard, so you can add several in a row.
+  **Esc** returns to the board.
+- Tick a task when it's done — it fades rather than being struck through, so Arabic stays
+  readable. The count in the header shows what's left. The **×** on a row removes that line.
+- The list button at the top of the side pane shows or hides both lists; drag the divider above them to
+  make them taller.
+
+The lists are two plain Markdown files at the top of the note folder, `quick-notes.md` and
+`quick-tasks.md` — a bullet list and a task list. They never appear on the board and never need
+settling, and they sync and can be edited anywhere like any other file. Edits made elsewhere show
+up by themselves. Each note folder has its own pair, so switching folders switches the lists.
 
 ## Quick-append a comment
 

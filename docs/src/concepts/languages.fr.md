@@ -8,7 +8,7 @@ Nibras est conçu pour un usage bilingue et de droite à gauche. Il y a deux que
 
 | Application | Interface |
 |-----|-----------|
-| [knotes pour Android](../mobile/index.md) | **Anglais, arabe (عربي) ou français (Français)** — au choix |
+| [Nibras Mobile](../mobile/index.md) | **Anglais, arabe (عربي) ou français (Français)** — au choix |
 | [Application web](../web/index.md), [bureau](../desktop/index.md), [terminal](../terminal/index.md), [lecteur audio](../audio-player/index.md) | Anglais |
 
 Sur le téléphone, le sélecteur de langue est la première page de la visite de configuration et la première ligne des

@@ -5,6 +5,7 @@ Open **Settings** with **Ctrl+,** or the gear button in the title bar. Click **S
 | Setting | What it does | Default |
 |---|---|---|
 | **Folder-tree root** | The folder the **FOLDERS** tree starts from. Type or paste a path (`~` is allowed), or use **Browse…**. Keep it narrow — your recordings folder, not your whole home folder | a built-in default, else your home folder |
+| **Bookmarks root** | The folder searched for `.tmk` files by the **★ Today** link (see [Bookmarked today](library.md#bookmarked-today)). Type a path or use **Browse…**; blank follows the folder-tree root | blank |
 | **Skip forward / back (seconds)** | How far the wide back/forward buttons, **←**/**→** and **Ctrl+←**/**Ctrl+→** jump | 10 |
 | **Bookmark rewind (seconds)** | How far back a new bookmark is placed (and playback rewinds) | 5 |
 | **Waveform limit (MB)** | Files larger than this get no waveform. 0 = no limit | 10 |

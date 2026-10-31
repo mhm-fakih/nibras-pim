@@ -16,7 +16,8 @@ Open the web app at the address your administrator gives you. You will see a **S
 2. Click **Sign in**.
 
 After signing in you land on the page you were trying to reach, or on **Tasks** if you came straight
-to the sign-in page.
+to the sign-in page. Opening the app's own address (with nothing after it) shows the
+[Kanban](tasks-kanban-sprints.md#kanban) board.
 
 !!! note "First sign-in"
     If your administrator has asked you to choose your own password, a **Change your password**
@@ -24,7 +25,11 @@ to the sign-in page.
     and click **Change password**. You can't use the app until this is done.
 
 To sign out, click the **Sign out** icon next to your name at the bottom of the left sidebar.
-Your session also ends on its own after some hours (12 by default); just sign in again.
+
+While a page of the app is open, it renews your sign-in by itself, so a tab left open — a checklist
+on a TV, say — stays signed in for as long as it is open. A browser that was closed or asleep stays
+signed in for the session length an administrator sets in [Settings → Session](settings.md#session)
+(12 hours unless changed); after that, just sign in again.
 
 !!! warning "Sign-in problems"
     - **Invalid username or password.** — check the spelling; usernames and passwords are
@@ -38,20 +43,25 @@ Every module (Tasks, Notes, Goals, …) uses the same Outlook-style layout:
 
 | Pane | What it holds |
 |---|---|
-| **Left sidebar** | App name and version, the global search box, a mini calendar, report shortcuts and saved searches for the current module, the module buttons, the tool pages, and your name with **Sign out**. |
+| **Left sidebar** | The logo, app name and version, a mini calendar, report shortcuts and saved searches for the current module, the module buttons (two to a row, each with its record count), the tool pages in named groups, and a last line with your name, the **Search everything** button and **Sign out**. |
 | **Middle pane (list)** | The records of the current module, with a search box, filters, paging and the **New** button. |
 | **Right pane (detail)** | The selected record — or the form when you create or edit one. A **Quick note** bar sits at its bottom. |
 
-A thin **status bar** runs along the bottom with version information, a **check for updates** link
-and a **Help** link.
+A thin **status bar** runs along the bottom with the server, database and version, a **check for
+updates** link and a **Help** link. **check for updates** compares your version with the latest
+release published on GitHub (see the [FAQ](faq.md#display)).
 
 You can rearrange the layout to suit you; each of these is remembered by your browser:
 
 - **Resize** the sidebar or the list by dragging its right edge.
-- **Collapse** the sidebar with the **‹** chevron in its header; click the thin bar that remains to
-  bring it back.
-- When the sidebar is short of room, the tool buttons shrink to icons; hover an icon to see its
-  name.
+- **Collapse** the sidebar with the small round **‹** button on the middle of its right edge
+  (**Collapse sidebar**); click the thin bar that remains to bring it back.
+- When the window is short, the module buttons scroll inside their own area so the reports and the
+  tool groups stay in view.
+
+!!! tip "A second window"
+    Click the **logo** at the top of the sidebar (**Open in a new tab**) to open the app again in a
+    new browser tab — already signed in — for working on two things side by side.
 
 !!! tip "On a phone or narrow window"
     The sidebar becomes a drawer behind a **☰** menu button in the top-left corner, and the module
@@ -62,35 +72,47 @@ You can rearrange the layout to suit you; each of these is remembered by your br
 === "Modules"
 
     The **module buttons** in the sidebar (Tasks, Journal, Planner, Resources, Notes, Goals,
-    Writings, Departments, Courses, …) open each record type. Which modules appear, in what order,
-    and with which short code (shown beside the name, e.g. `T`) is set in
+    Writings, Departments, Courses, …) open each record type. They sit two to a row, and the number
+    in brackets after each name is how many records the module holds. Which modules appear, in what
+    order, and with which short code (shown at the right of the button, e.g. `T`) is set in
     [Settings → Modules](settings.md#modules).
 
 === "Tool pages"
 
-    Below the modules are the **tool pages**: Today, Calendar, Kanban, Dashboards, Insights,
-    Sprints, Reports, All bookmarks, Flash cards, Highlights, Local notes, and — depending on your
-    permissions — Parameters, Admin, Batch entry, Import files, Import notes, Image renamer, Static
-    website, Maintenance, Audit log, Trash, Settings, Users, Roles & permissions, and **Help &
-    shortcuts**. An administrator can hide pages you don't use (see
-    [Settings → Pages](settings.md#pages-and-features)).
+    Below the modules, the **tool pages** are gathered in five groups. Click a group to open a menu
+    of its pages beside the sidebar; the group holding the page you are on is highlighted and names
+    that page.
+
+    | Group | Pages |
+    |---|---|
+    | **Views** | Today, Calendar, Kanban, Dashboards, Insights, Sprints, Reports |
+    | **Library** | All bookmarks, Flash cards, Highlights, Local notes, Checklists (week) |
+    | **Import & export** | Batch entry, Import files, Import notes, Image renamer, Static website |
+    | **Admin** | Parameters, Admin, Maintenance, Audit log, Trash, Settings, Users, Roles & permissions |
+    | **Help & shortcuts** | Opens the help page directly |
+
+    You only see the pages your permissions allow, and an administrator can hide pages you don't
+    use (see [Settings → Pages](settings.md#pages-and-features)); a group with nothing left in it
+    disappears. **Checklists (week)** opens in a new tab — see
+    [Dashboards](dashboards.md#the-weekly-checklists).
 
 === "Keyboard"
 
-    Press **?** for the shortcut overlay, **/** to jump into the global search, and **g** followed
-    by a letter to go to a module — for example **g t** for Tasks. See
+    Press **?** for the shortcut overlay, **/** to open the Search page, and **g** followed by a
+    letter to go to a module — for example **g t** for Tasks. See
     [Keyboard shortcuts](keyboard-shortcuts.md).
 
 === "Search"
 
-    Type in **Search everything…** at the top of the sidebar and press **Enter** to search every
-    module (and your local notes folder) at once. See [Search, filters & reports](search.md).
+    Click the magnifier (**Search everything**) on the last line of the sidebar, or press **/**, to
+    open the **Search** page: one form that searches every module, your local notes folder and the
+    files in the repositories at once. See [Search, filters & reports](search.md#global-search).
 
 Clicking the button of the page you are already on refreshes its data.
 
 ## The Today page
 
-The app's home page, **Today**, shows one card per main module (Tasks, Journal, Planner, Resources,
+**Today** (in the **Views** group) shows one card per main module (Tasks, Journal, Planner, Resources,
 Notes, Writings, Goals) with two short lists:
 
 - **Created** — the newest records, with the time (today) or date they were created.
@@ -101,7 +123,7 @@ Click a title to open that record in its module. The number of records per list 
 
 ## What you can do depends on your role
 
-Your role is shown under your name in the sidebar. Most people are **Data entry** (create and edit
+Your role is shown in brackets after your name at the bottom of the sidebar. Most people are **Data entry** (create and edit
 records) or **Read only** (look, search and read, but no **New**, **Edit**, **Delete** or quick
 note). Administrators can grant or withhold each capability — see
 [Accounts & permissions](administration.md). If you open a page you aren't allowed to use, you'll see

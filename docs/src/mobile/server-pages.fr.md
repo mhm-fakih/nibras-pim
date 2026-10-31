@@ -2,7 +2,9 @@
 
 La bande **Depuis le serveur** du [rail](navigation.md) regroupe les pages qui affichent les fiches de votre serveur Nibras. Connectez-vous d'abord, comme décrit dans [Synchronisation Nibras](sync.md).
 
-Chaque page affiche d'abord la copie enregistrée sur votre téléphone, puis s'actualise depuis le serveur quand c'est possible : elles fonctionnent donc toutes hors ligne. Pour les recharger toutes en une fois depuis le serveur, touchez **Actualiser les pages du serveur** (la flèche circulaire en bas de la bande).
+La bande n'apparaît que si **Utiliser un serveur Nibras** est activé dans [Paramètres](settings.md) → **Serveur** (c'est le cas par défaut). Désactivé, l'application ne se connecte nulle part et toutes les pages ci-dessous quittent le rail.
+
+Chaque page affiche d'abord la copie enregistrée sur votre téléphone, puis s'actualise depuis le serveur quand c'est possible : elles fonctionnent donc toutes hors ligne. Pour tout remettre à jour d'un coup, touchez **Actualiser les pages du serveur** (la flèche circulaire en bas de la bande). Cela lance une synchronisation complète : les fiches de tous les types, les cartes mémoire, les surlignages et les contacts, ainsi que les types, départements et dispositions de dossiers du serveur.
 
 ## Pages de fiches : T, P, J, G, N, W, R { #record-pages-t-p-j-g-n-w-r }
 
@@ -25,10 +27,13 @@ Si vous êtes hors ligne et que rien n'a encore été enregistré pour un type, 
 Touchez une ligne pour la déplier. Une seule fiche est ouverte à la fois. Une fiche ouverte affiche :
 
 - sa description complète,
-- **Fichiers (N)** : ses pièces jointes. Touchez-en une pour l'ouvrir depuis votre **Dossier des fichiers** (défini dans les Paramètres). L'audio et la vidéo sont lus dans le [lecteur](player.md) de l'application,
+- **Fichiers (N)** : ses pièces jointes. Touchez-en une pour l'ouvrir ; l'audio et la vidéo sont lus dans le [lecteur](player.md) de l'application,
 - **Notes (N)** : les notes qui lui ont été ajoutées,
 - **Ajouter une note à cette fiche…** avec un bouton **Envoyer la note**. La note est ajoutée à la fiche sur le serveur (**Note enregistrée**, ou enregistrée pour plus tard hors ligne),
 - **Marquer comme non lu**, qui remet la fiche à l'état non lu. Les fiches que vous ouvrez sont marquées comme lues sur ce téléphone uniquement.
+
+!!! note "Les fichiers viennent du dossier du téléphone"
+    Les fichiers listés sont ceux qui se trouvent réellement dans le dossier de la fiche sur ce téléphone, sous le **Dossier des fichiers** défini dans Paramètres → **Serveur** (tenu à jour avec le serveur par un outil de synchronisation de dossiers comme Syncthing). Le dossier est retrouvé selon la disposition du serveur : le code du module, puis, si ce module est configuré ainsi sur le serveur, le type de la fiche et une tranche de centaines (id ÷ 100), puis l'id de la fiche. Par exemple `T/1234` pour une tâche, ou `R/<type>/12/1234` pour une ressource. L'application lit la disposition de chaque module sur le serveur en même temps que les types et les départements. Un fichier que l'outil de synchronisation n'a pas encore amené sur le téléphone n'est pas listé, et une fiche dont le dossier est absent n'affiche aucun fichier.
 
 ### Marquer une fiche comme terminée { #mark-a-record-complete }
 
@@ -36,11 +41,11 @@ Cochez la case au début d'une ligne. Vous verrez **Marqué comme terminé**, ou
 
 ### Surligner une ressource { #highlight-a-resource }
 
-Sur une fiche **Ressources** qui possède son texte intégral, le texte s'affiche sous **Texte intégral — touchez une proposition pour la surligner**. Touchez une proposition pour la surligner (elle passe en gras), et le surlignage est envoyé au serveur. Touchez-la à nouveau pour le retirer. La taille du texte correspond au réglage **Taille du texte** dans les [Paramètres](settings.md).
+Sur une fiche **Ressources** qui possède son texte intégral, le texte s'affiche sous **Texte intégral — touchez une proposition pour la surligner**. Touchez une proposition pour la surligner (elle passe en gras), et le surlignage est envoyé au serveur. Touchez-la à nouveau pour le retirer. La taille du texte correspond au réglage **Taille du texte** dans [Paramètres](settings.md) → **Serveur**.
 
 ### Favori : l'étoile { #bookmark-the-star }
 
-L'étoile de chaque ligne fonctionne de l'une de deux manières, au choix dans les [Paramètres](settings.md) → **Bouton étoile** :
+L'étoile de chaque ligne fonctionne de l'une de deux manières, au choix dans [Paramètres](settings.md) → **Serveur** → **Bouton étoile** :
 
 | Mode | Effet de l'étoile |
 |---|---|

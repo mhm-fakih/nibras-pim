@@ -44,9 +44,10 @@ public class DepartmentService extends AbstractCrudService<Department, Departmen
 
     @Override
     protected void apply(DepartmentDto dto, Department d) {
-        d.setName(dto.name());
         d.setCode(dto.code());
-        d.setSummary(dto.summary());
+        // name and summary are the same column; the web form sends summary (its Title), a client
+        // that still sends only name must not blank it.
+        d.setSummary(dto.summary() != null ? dto.summary() : dto.name());
         d.setNotes(dto.notes());
         d.setPriority(dto.priority());
         d.setBookmarked(dto.bookmarked());

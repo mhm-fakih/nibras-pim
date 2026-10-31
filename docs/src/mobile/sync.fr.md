@@ -1,13 +1,13 @@
 # Synchronisation Nibras
 
-knotes fonctionne entièrement de manière autonome. Si vous faites aussi tourner un **serveur Nibras**, vous y connecter ajoute vos tâches, plans, journal, objectifs, écrits et ressources sur le téléphone. Vous pouvez les lire et y travailler hors ligne, et vos modifications repartent vers le serveur au retour de la connexion. Voir [Fonctionnement de la synchronisation](../concepts/sync.md) pour une vue d'ensemble.
+Nibras Mobile fonctionne entièrement de manière autonome. Si vous faites aussi tourner un **serveur Nibras**, vous y connecter ajoute vos tâches, plans, journal, objectifs, écrits et ressources sur le téléphone. Vous pouvez les lire et y travailler hors ligne, et vos modifications repartent vers le serveur au retour de la connexion. Voir [Fonctionnement de la synchronisation](../concepts/sync.md) pour une vue d'ensemble.
 
 !!! note "Les notes de votre téléphone restent des fichiers"
     La connexion n'envoie **pas** les notes de votre téléphone. Elles restent des fichiers dans votre dossier de notes. Pour les synchroniser avec un ordinateur, utilisez un outil de synchronisation de dossiers comme Syncthing. Une note donnée peut être envoyée volontairement au serveur avec [Envoyer vers Nibras](#push-a-note-to-nibras).
 
 ## Se connecter { #connect }
 
-Vous pouvez saisir l'adresse du serveur dans la visite de configuration (**Se connecter à Nibras → Adresse du serveur**), ou dans les [Paramètres](settings.md) → **Serveur Nibras** :
+Vous pouvez saisir l'adresse du serveur dans la visite de configuration (**Se connecter à Nibras → Adresse du serveur**), ou dans [Paramètres](settings.md) → **Serveur**, sous **Serveur Nibras**. L'interrupteur en haut de cet onglet, **Utiliser un serveur Nibras**, doit être activé (il l'est par défaut) ; désactivé, l'application ne se connecte nulle part et les pages serveur quittent le rail.
 
 | Champ | Quoi saisir |
 |---|---|
@@ -16,7 +16,7 @@ Vous pouvez saisir l'adresse du serveur dans la visite de configuration (**Se co
 | **Port** | Le port du serveur. |
 | **Contexte** | Le chemin sous lequel l'application est servie, le cas échéant. Sinon, laissez **(aucun)**. |
 | **Nom d’utilisateur**, **Mot de passe** | Votre compte Nibras. Utilisé pour se connecter lors de la synchronisation. |
-| **Dossier des fichiers** | L'emplacement des pièces jointes des fiches sur le téléphone, par exemple un dossier `Nibras` tenu à jour par un outil de synchronisation de dossiers. L'application ouvre les fichiers joints depuis cet emplacement ; elle ne les télécharge pas. |
+| **Dossier des fichiers** | L'emplacement des pièces jointes des fiches sur le téléphone, par exemple un dossier `Nibras` tenu à jour par un outil de synchronisation de dossiers. L'application liste et ouvre les fichiers d'une fiche depuis cet emplacement, selon la même disposition de dossiers que le serveur ; elle ne les télécharge pas. Voir [Ouvrir une fiche](server-pages.md#open-a-record). |
 
 **URL complète**, sous les champs, affiche l'adresse ainsi construite pour que vous puissiez la vérifier. Touchez **Enregistrer** en haut des Paramètres.
 
@@ -26,7 +26,7 @@ Le téléphone reçoit les fiches que vous avez **mises en favori** sur le serve
 
 Pour faire descendre une fiche que vous n'avez pas mise en favori, trouvez-la avec [Rechercher sur le serveur](server-pages.md#search-server) et marquez-la.
 
-knotes récupère aussi sa liste de **types** et de **catégories** de notes depuis le serveur, au démarrage de l'application et lorsque vous touchez **Actualiser les notes + synchroniser**, afin que le téléphone classe les notes sous les mêmes codes que le serveur.
+L'application récupère aussi sa liste de **types** et de **catégories** de notes depuis le serveur, ainsi que la disposition des dossiers de fiches de chaque module. Elle le fait au démarrage et lorsque vous touchez **Actualiser les notes + synchroniser** ou **Actualiser les pages du serveur**, afin que le téléphone classe les notes sous les mêmes codes que le serveur.
 
 ## Ce qui monte { #what-goes-up }
 
@@ -44,7 +44,7 @@ Hors ligne, vous verrez des messages comme **Enregistré — sera synchronisé u
 
 ## Synchronisation en arrière-plan { #background-sync }
 
-Dans les [Paramètres](settings.md) → **Synchronisation en arrière-plan** :
+Dans [Paramètres](settings.md) → **Serveur** → **Synchronisation en arrière-plan** :
 
 | Réglage | Par défaut | Signification |
 |---|---|---|
@@ -54,7 +54,7 @@ Dans les [Paramètres](settings.md) → **Synchronisation en arrière-plan** :
 
 L'état actuel apparaît sur la page Notes sous le titre (**synchronisé il y a 2 min**, **hors ligne · dernière synchro il y a 1 h**) et dans la [notification d'état](alarms.md#the-status-notification).
 
-Pour synchroniser **tout de suite**, touchez **Actualiser les notes + synchroniser** sur la page Notes, ou touchez le titre d'un widget serveur. Lorsqu'une synchronisation que vous avez lancée se termine, vous verrez **Synchronisé**, **Hors ligne — synchronisation impossible**, **Échec de la connexion — vérifiez le nom d’utilisateur et le mot de passe dans les paramètres** ou **Échec de la synchronisation**.
+Pour synchroniser **tout de suite**, touchez **Actualiser les notes + synchroniser** sur la page Notes, **Actualiser les pages du serveur** en bas de la bande serveur du rail, ou le titre d'un widget serveur. Lorsqu'une synchronisation que vous avez lancée se termine, vous verrez **Synchronisé**, **Hors ligne — synchronisation impossible**, **Échec de la connexion — vérifiez le nom d’utilisateur et le mot de passe dans les paramètres** ou **Échec de la synchronisation**.
 
 ## Envoyer une note vers Nibras { #push-a-note-to-nibras }
 

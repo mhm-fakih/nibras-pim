@@ -25,6 +25,7 @@ transcript. The plain-key shortcuts only work when you're **not** typing in a te
 | Keys | Action |
 |---|---|
 | **Ctrl+O** | Open a media file |
+| **Ctrl+D** | List the files you bookmarked today in the playlist |
 | **Ctrl+L** | Go to the **Go to path…** field |
 | **Ctrl+S** | Save transcript edits now (they also save by themselves) |
 | **Ctrl+Delete** | Move the playing file to the Trash (asks first) |

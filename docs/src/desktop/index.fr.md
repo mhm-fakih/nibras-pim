@@ -1,9 +1,15 @@
-# knotes desktop
+# Nibras Notes (bureau)
 
-**knotes desktop** est un petit outil de prise de notes pour Linux (et Windows), pensé d'abord pour
+**Nibras Notes** est un petit outil de prise de notes pour Linux (et Windows), pensé d'abord pour
 le clavier. Vous tapez une idée, choisissez un type, une priorité et une catégorie, appuyez sur
 **Ctrl+Enter** — et la note est enregistrée sous forme de simple fichier Markdown dans le dossier de
 votre choix. Pas de base de données, pas de compte, aucune dépendance.
+
+!!! note "Nibras Notes et knotes"
+    La fenêtre, l'entrée de menu et ce guide disent **Nibras Notes** ; les fichiers du programme
+    portent encore l'ancien nom **knotes** (`knotes.py`, le lanceur `knotes`, `.knotes.json`). Il
+    s'agit de la même application. Depuis la 1.3.2 « Serenity », elle porte le même numéro de
+    version que le reste de la suite (elle comptait auparavant 1.7.x de son côté).
 
 L'astuce réside dans le nom du fichier : les étiquettes de chaque note sont écrites dans son nom,
 par exemple
@@ -12,7 +18,7 @@ par exemple
 2026_06_10-143025~W~p3~A.md
 ```
 
-si bien que le même dossier fonctionne tel quel avec l'[application mobile knotes](../mobile/index.md),
+si bien que le même dossier fonctionne tel quel avec l'[application mobile](../mobile/index.md),
 l'[application en terminal](../terminal/index.md) et le serveur Nibras. Synchronisez le dossier
 entre vos machines avec n'importe quel outil de synchronisation de fichiers, et toutes les
 applications voient les mêmes notes.
@@ -25,22 +31,26 @@ applications voient les mêmes notes.
 ## Ce que vous pouvez faire { #what-you-can-do }
 
 - **Saisir rapidement** — un champ de texte en bas, des étiquettes persistantes, enregistrement
-  d'une seule touche. Voir [Écrire des notes](writing-notes.md).
-- **Étiqueter par type, priorité et catégorie** au clavier, et réétiqueter plusieurs notes à la
-  suite. Voir [Type, priorité et catégorie](tagging.md).
-- **Parcourir et filtrer** en vue kanban, liste ou colonnes, avec une carte thermique calendaire,
-  un nuage d'étiquettes et des compteurs en direct. Voir
+  d'une seule touche ; un formulaire court qui se passe complètement des étiquettes, des listes de
+  notes et de tâches rapides, et une boîte de réception dont vous pouvez ranger les fichiers dans
+  une nouvelle note. Voir [Écrire des notes](writing-notes.md).
+- **Étiqueter par type, priorité et catégorie** au clavier, et réétiqueter une note ou tout un
+  ensemble de notes marquées d'un coup. Voir [Type, priorité et catégorie](tagging.md).
+- **Parcourir et filtrer** en vue kanban, liste ou colonnes, avec un calendrier mensuel, un nuage
+  d'étiquettes et des compteurs en direct — et voir vos notes de journal et de planification
+  disposées dans un **calendrier de la semaine**. Voir
   [Tableau, barre latérale et filtres](board-and-filters.md).
 - **Joindre des fichiers** à une note dans son propre dossier compagnon. Voir
   [Fichiers joints](attached-files.md).
 - **Fusionner, supprimer et régulariser** les notes et les fichiers isolés en toute sécurité. Voir
   [Organiser les notes](organizing-notes.md).
-- **Rester synchronisé avec les codes de module et de département** d'un serveur Nibras. Voir
+- **Rester synchronisé avec les codes de module et de département** d'un serveur Nibras, et y
+  importer les notes abouties sous forme d'enregistrements. Voir
   [Se connecter à un serveur Nibras](nibras-server.md).
 
 ## Installation { #install }
 
-knotes desktop est un programme Python 3 qui utilise GTK 3. Il n'y a rien à compiler — il vous faut
+Nibras Notes est un programme Python 3 qui utilise GTK 3. Il n'y a rien à compiler — il vous faut
 seulement Python et les liaisons GTK (PyGObject).
 
 === "Debian / Ubuntu / Mint"
@@ -89,12 +99,16 @@ Placez ensuite le dossier `desktop/` là où vous rangez habituellement vos prog
     ```
 
     `run.sh` vérifie que GTK est disponible et vous indique quoi installer si ce n'est pas le cas.
-    Vous pouvez aussi le lancer directement avec `python3 knotes.py`.
+    Il lance ensuite l'application détachée du terminal — fermer le terminal ne ferme pas
+    l'application — et ajoute tout ce qu'elle affiche à `desktop.log`, à côté du programme. Si
+    l'application ne s'affiche pas (par exemple au démarrage de la session), regardez-y d'abord.
+    Vous pouvez aussi la lancer directement avec `python3 knotes.py`.
 
     **Entrée de menu et épinglage au panneau.** Exécutez `./install.sh` une fois. Il ajoute
-    **knotes** au menu des applications ; lancez-le depuis ce menu, puis faites un clic droit sur
-    son icône dans le panneau et choisissez **Pin** (Épingler). Relancez `install.sh` si vous
-    déplacez le dossier.
+    **Nibras Notes** au menu des applications, avec l'icône de l'application — une note blanche
+    sur un disque bleu marine ; lancez-la depuis ce menu, puis faites un clic droit sur son icône
+    dans le panneau et choisissez **Pin** (Épingler). Relancez `install.sh` si vous déplacez le
+    dossier.
 
 === "Windows"
 
@@ -116,12 +130,16 @@ Placez ensuite le dossier `desktop/` là où vous rangez habituellement vos prog
 3. **Observez le résultat.** Une carte apparaît sur le tableau, et un fichier nommé par exemple
    `2026_06_10-143025~N~p2~F.md` apparaît dans votre dossier.
 
-!!! note "Le tableau s'ouvre sur aujourd'hui"
-    Par défaut, l'application démarre filtrée sur les notes **du jour** ; une nouvelle journée
-    affiche donc **No notes entered today** (Aucune note saisie aujourd'hui). Cliquez sur
-    **Clear all filters** (Effacer tous les filtres) en bas de la barre latérale pour tout voir,
-    ou désactivez **Open filtered to today's notes** (Ouvrir filtré sur les notes du jour) dans
-    les [Paramètres](settings.md).
+La barre de titre affiche la version et le nombre de notes du dossier, par exemple
+`Nibras Notes v1.3.2.b57 · 412 notes`.
+
+!!! note "Le tableau s'ouvre sur aujourd'hui et hier"
+    Par défaut, l'application démarre filtrée sur les notes **d'aujourd'hui et d'hier** ; une
+    matinée calme affiche donc **No notes entered today or yesterday** (Aucune note saisie
+    aujourd'hui ni hier). Cliquez deux fois sur **Clear all filters** (Effacer tous les filtres)
+    en bas de la barre latérale pour tout voir (le premier clic revient à cette vue de lancement),
+    ou désactivez **Open filtered to today's and yesterday's notes** (Ouvrir filtré sur les notes
+    d'aujourd'hui et d'hier) dans les [Paramètres](settings.md).
 
 Appuyez sur **F1** à tout moment pour afficher la liste des
 [raccourcis clavier](keyboard-shortcuts.md).
@@ -133,9 +151,12 @@ Appuyez sur **F1** à tout moment pour afficher la liste des
 | Vos notes | De simples fichiers `.md` dans chaque dossier de notes |
 | Fichiers joints | Un dossier `<note name>.d/` à côté de chaque note — voir [Fichiers joints](attached-files.md) |
 | Notes supprimées et fusionnées | Dossiers cachés `.deleted/` et `.merged/` dans le dossier de notes |
+| Notes importées dans un serveur Nibras | Un dossier `imported/` dans le dossier de notes |
+| Notes rapides et tâches rapides | `quick-notes.md` et `quick-tasks.md` à la racine du dossier de notes |
 | Options d'étiquettes par dossier | Un fichier caché `.knotes.json` dans chaque dossier de notes |
 | Paramètres de l'application | `config.json` à côté du programme |
 | Vocabulaire de hashtags | `tag-bank.md` à côté du programme (ou un chemin de votre choix) |
+| Ce que l'application a affiché | `desktop.log` à côté du programme (Linux, lancée avec `run.sh`) |
 
 ## Différences sous Windows { #windows-differences }
 

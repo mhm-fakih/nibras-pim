@@ -90,8 +90,11 @@ public class InfoController {
                         "GitHub returned HTTP " + res.statusCode() + ".");
             }
             JsonNode root = mapper.readTree(res.body());
-            String tag = root.path("tag_name").asText("");
-            String latest = tag.startsWith("v") ? tag.substring(1) : tag;
+            String latest = releaseVersion(root.path("tag_name").asText(""), root.path("name").asText(""));
+            if (latest == null) {
+                return new UpdateInfo(true, current, null, false, root.path("html_url").asText(repoUrl()),
+                        "The latest release has no version number in its tag or name.");
+            }
             String htmlUrl = root.path("html_url").asText(repoUrl());
             boolean newer = isNewer(latest, current);
             return new UpdateInfo(true, current, latest, newer, htmlUrl, null);
@@ -120,6 +123,23 @@ public class InfoController {
 
     private String repoUrl() {
         return repo == null || repo.isBlank() ? null : "https://github.com/" + repo.trim();
+    }
+
+    private static final java.util.regex.Pattern VERSION = java.util.regex.Pattern.compile("(?<![\\d.])(\\d+\\.\\d+(?:\\.\\d+)?)");
+
+    /**
+     * The version a release is for. Releases are tagged by date ({@code release-2026-10-30}) and
+     * named with the version ({@code Nibras PIM 1.3.1 — 2026-10-30}), so the tag is used only when it
+     * is itself a version ({@code v1.3.1}), else the first dotted number in the name. A date tag must
+     * never be read as a version: "2026" would always look newer than the running build.
+     */
+    static String releaseVersion(String tag, String name) {
+        for (String s : new String[] {tag, name}) {
+            if (s == null) continue;
+            java.util.regex.Matcher m = VERSION.matcher(s);
+            if (m.find()) return m.group(1);
+        }
+        return null;
     }
 
     /** Dotted-version compare: returns true when {@code latest} is strictly greater than {@code current}. */

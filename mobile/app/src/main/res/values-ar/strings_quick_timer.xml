@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="qt_title">مؤقّت سريع</string>
+    <string name="qt_min_unit">دقيقة</string>
+    <string name="qt_ends_at">ينتهي عند %1$s</string>
+    <string name="qt_start_cd">ابدأ المؤقّت السريع</string>
+    <string name="qt_stop_cd">أوقف المؤقّت السريع</string>
+    <string name="qt_settings_header">المؤقّت السريع</string>
+    <string name="qt_settings_desc">العدّ التنازلي أعلى صفحة المنبّهات يشغّل هذا الصوت عند انتهائه.</string>
+    <string name="qt_settings_choose_sound">اختر ملف الصوت</string>
+    <string name="qt_settings_default_sound">صوت المنبّه الافتراضي</string>
+    <string name="qt_settings_volume">مستوى الصوت %1$d%%</string>
+    <string name="qt_settings_repeat">يُشغَّل %1$d مرّات</string>
+</resources>

@@ -13,8 +13,10 @@
     administrateur.
 
 ??? question "J'ai été déconnecté tout seul."
-    Les sessions expirent au bout d'un certain nombre d'heures (12 par défaut). Reconnectez-vous ;
-    vous reviendrez sur la page où vous étiez.
+    Une page ouverte renouvelle sa connexion, mais un navigateur fermé ou en veille au-delà de la
+    durée de session (12 heures, sauf si un administrateur l'a modifiée dans
+    [Settings → Session](settings.md#session)) doit se reconnecter. Vous reviendrez sur la page où
+    vous étiez.
 
 ??? question "Une boîte *Change your password* (changer votre mot de passe) ne disparaît pas."
     Votre administrateur exige un nouveau mot de passe avant que vous puissiez continuer.
@@ -31,9 +33,9 @@
 
 ??? question "Un module ou une page d'outil manque dans la barre latérale."
     Il est peut-être désactivé dans [Settings → Modules](settings.md#modules) ou
-    [Settings → Pages](settings.md#pages-and-features), ou masqué par vos permissions. Si la barre
-    latérale manque de place, les pages d'outils sont affichées sous forme d'icônes — survolez-les
-    pour voir leur nom.
+    [Settings → Pages](settings.md#pages-and-features), ou masqué par vos permissions. Les pages
+    d'outils se trouvent dans les groupes de la barre latérale — cliquez sur **Views**, **Library**,
+    **Import & export** ou **Admin** pour voir leurs pages.
 
 ??? question "J'ai supprimé un enregistrement par erreur."
     Ouvrez **Trash** (Corbeille) et cliquez sur l'icône de restauration à côté de l'enregistrement.
@@ -41,13 +43,13 @@
 
 ## Recherche { #search }
 
-??? question "La recherche globale ne trouve absolument rien."
+??? question "La page Search ne trouve absolument rien."
     Si la page Search avertit que **the search index is empty** (l'index de recherche est vide), un
     administrateur doit cliquer une fois sur **Rebuild search index** (Reconstruire l'index de
     recherche) sur la page [Admin](administration.md#admin-page).
 
 ??? question "Rechercher un mot commençant par *d* ou *c* donne un comportement étrange."
-    Dans la recherche globale, `dX` et `cX` sont interprétés comme des filtres de département et de
+    Sur la page Search, `dX` et `cX` sont interprétés comme des filtres de département et de
     cours lorsqu'un département ou un cours portant ce code existe. Ajoutez un autre mot, ou
     cherchez plutôt dans la liste du module.
 
@@ -106,4 +108,8 @@
 
 ??? question "Existe-t-il une version plus récente ?"
     Cliquez sur **check for updates** (rechercher des mises à jour) dans la barre d'état, ou sur
-    **Check for updates** sur la page **Help & shortcuts** (Aide et raccourcis).
+    **Check for updates** sur la page **Help & shortcuts** (Aide et raccourcis). Le serveur compare
+    votre version à la dernière version publiée sur GitHub (github.com/mhm-fakih/nibras-pim) ; il
+    lui faut donc un accès à Internet. Le lien affiche ensuite **up to date** (à jour) ou **update
+    available: v…** (mise à jour disponible). **updates: not configured** (mises à jour non
+    configurées) signifie que votre administrateur a désactivé la vérification.

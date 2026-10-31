@@ -18,7 +18,8 @@ Every user has one **role**. What a role may do is a set of **capabilities**:
 | **Audit log** | See the **Audit log** page and each record's **History**. |
 
 Anyone signed in can read, search and browse every module and the reading pages (Today, Calendar,
-Kanban, Dashboards, Insights, Sprints, Reports, Bookmarks, Highlights, Flash cards, Local notes).
+Kanban, Dashboards, Insights, Sprints, Reports, Bookmarks, Highlights, Flash cards, Local notes,
+Checklists (week)).
 
 The four roles start out like this:
 

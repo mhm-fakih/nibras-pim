@@ -43,6 +43,36 @@ Il actualise ses données toutes les deux ou trois minutes et se recharge entiè
     qui peut atteindre le serveur et connaît le lien peut voir le contenu de ce tableau de bord**. N'y placez que
     des zones que vous acceptez de montrer ainsi, et ne diffusez pas largement son lien.
 
+## Les listes de contrôle de la semaine { #the-weekly-checklists }
+
+**Checklists (week)** (Listes de contrôle de la semaine ; barre latérale → **Library**) affiche les listes de contrôle
+quotidiennes et hebdomadaires que vous tenez sur le téléphone, une semaine à la fois, sous forme de page murale en
+lecture seule. Elle s'ouvre dans un nouvel onglet, sans rien autour, et fait tenir toute la semaine à l'écran — le
+texte rapetisse plutôt que la page ne défile. Le téléphone enregistre chaque semaine dans un fichier du dossier
+`checklists` de votre dossier de notes ; dès que votre outil de synchronisation de fichiers l'a copié sur le serveur,
+la page l'affiche.
+
+- Chaque groupe d'éléments forme un bloc avec son propre score. Les groupes quotidiens ont une colonne par jour ; les
+  groupes hebdomadaires n'ont qu'une colonne **Week** (Semaine).
+- Une marque vaut ✓ pour fait, ◐ pour fait en partie, ou une case vide. Les jours à venir sont estompés, la colonne
+  d'aujourd'hui est ombrée, et la ligne sous la souris est surlignée pour que vous puissiez la suivre d'un bout à
+  l'autre.
+- L'en-tête affiche le numéro et les dates de la semaine, la part des éléments quotidiens faits chaque jour, et les
+  flèches **Previous week** / **Next week** (Semaine précédente / suivante).
+- Une semaine pas encore commencée sur le téléphone affiche les éléments de la semaine précédente, sans marques, et
+  l'en-tête indique **not started · items from …** (pas commencée · éléments de …).
+- Les éléments en arabe s'affichent de droite à gauche.
+
+La page s'entretient toute seule : lorsque la modification faite sur le téléphone arrive sur le serveur, elle relit la
+semaine en une quinzaine de secondes, et elle se recharge entièrement toutes les quelques minutes (4 sauf
+modification). Cliquez sur le petit bouton de rechargement de l'en-tête pour choisir un autre intervalle, ou **Never
+reload** (Ne jamais recharger) ; le choix est enregistré pour tous les écrans. Ajouter `?reload=N` à l'adresse de la
+page fixe l'intervalle (en minutes) pour cet écran seulement.
+
+!!! note
+    Contrairement au lien **View** d'un tableau de bord, cette page demande une connexion. Connectez-vous une fois sur
+    le navigateur de l'écran : une page ouverte renouvelle d'elle-même sa connexion, elle reste donc connectée.
+
 ## Analyses { #insights }
 
 **Insights** (Analyses) vous aide à garder le rythme dans la relecture de votre travail récent. Choisissez une

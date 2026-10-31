@@ -22,7 +22,8 @@ The add form has three chip rows:
 | **Prio** | The priority (**P1**, **P2**, …) | **Ctrl+Shift+<digit>** |
 | **Cat** | The category code | **Ctrl+Shift+<letter>** |
 
-Click a chip, or press its shortcut, before saving. Pressing a type or category shortcut again
+Click a chip, or press its shortcut, before saving. (In the [short form](writing-notes.md#the-short-form)
+the chips are hidden and every note is saved as **N · P2 · X**.) Pressing a type or category shortcut again
 clears it. Hover a chip to see its full name and shortcut. Your choice is **sticky** — it stays
 selected for the next note.
 
@@ -47,6 +48,19 @@ column retagging card after card.
     default **Last updated** sort, a retagged note moves to the end because its file just changed.
 
 Retagging from the board always *sets* a value; it never clears one.
+
+## Retag many notes at once
+
+1. Mark the cards you want to change: **Ctrl+click** each one, or select it and press **Ctrl+M**.
+   Marked cards are tinted teal, and the title bar says how many are marked.
+2. Press **Ctrl+Shift+<letter>** or **Ctrl+Shift+<digit>**.
+
+The new type, category or priority is set on every marked card **and** on the selected one, and the
+status bar says how many notes changed. The marks stay on the renamed notes, so you can press
+another code to change a second tag on the same set. **Esc** clears the marks.
+
+The same marks are used to [delete](organizing-notes.md#delete-a-note) and
+[merge](organizing-notes.md#merge-notes) several notes.
 
 ## Define your own codes
 
@@ -78,7 +92,7 @@ folder. The first time a folder is used, it's seeded from your current settings.
 
 !!! note "Codes from a Nibras server"
     If the folder is connected to a Nibras server, its types and categories are replaced by the
-    server's codes on each launch. See [Connecting to a Nibras server](nibras-server.md).
+    server's codes — its modules and its bookmarked departments — each time the app syncs. See [Connecting to a Nibras server](nibras-server.md).
 
 ## Tags that don't match
 

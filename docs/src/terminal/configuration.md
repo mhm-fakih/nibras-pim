@@ -1,7 +1,7 @@
 # Configuration
 
 All settings live in `config.json` **next to the program**. It's created on the first run —
-copied from knotes desktop's settings when available — and the app writes back to it when you
+copied from the desktop app's settings when available — and the app writes back to it when you
 switch folders or themes. Edit it with any text editor while the app is closed.
 
 ## Example
@@ -37,7 +37,7 @@ Folder codes should be single letters — that's what a note line can address
 (see [Writing notes](writing-notes.md)).
 
 !!! tip "One folder, several apps"
-    Point a folder's `path` at the same folder knotes desktop or your phone uses. They all read and
+    Point a folder's `path` at the same folder the desktop app or your phone uses. They all read and
     write the same file names, so notes show up everywhere. See
     [Sync](../concepts/sync.md).
 

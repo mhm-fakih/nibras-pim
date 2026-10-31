@@ -4,7 +4,7 @@ There are four ways to find records, from quickest to most powerful:
 
 1. The **list filters** of the module you are in.
 2. The **report shortcuts** and **saved searches** in the sidebar.
-3. The **global search**, across every module.
+3. The **Search** page, across every module, your local notes and the files on the server.
 4. The **Reports** page, for column-picked tables you can print.
 
 ## Filtering a module's list
@@ -13,15 +13,21 @@ At the top of every module list:
 
 | Control | What it does |
 |---|---|
-| **Search …** box | Finds records whose text contains what you type. While a search is active, each row shows *where* it matched (e.g. **Description:** …) with the term in bold. |
+| **Search …** box | Finds records whose text contains what you type. Records whose title starts with it come first, then those whose title contains it, then the rest. While a search is active, each row shows *where* it matched (e.g. **Description:** …) with the term in bold. |
+| **Active only** (Tasks, Goals) | On by default: shows only records whose status is marked active, and those with no status. The **Status** menu then offers only the active statuses. Untick it to see finished work too. |
 | **Status**, **Type** | Show one status or type (modules that have them). **Any** clears it. |
+| **Context** (Tasks) | Show the tasks of one context. |
 | **Priority** | Show one priority, **P0**–**P5**. |
 | ☆ (**Bookmarked only**) | Show only bookmarked records. |
 | **On day** | Show records belonging to one date. Journals and plans use their own date; other modules use the creation date. |
-| **Per page** | 10, 25, 50, 100 or 200 rows — remembered by your browser. |
+
+When you open the **Status**, **Type**, **Context** or **Priority** menu, each option shows how many
+records it would give, counted under the other filters you have set; the figure beside **Any** is
+the total. An option showing 0 would empty the list.
 
 Active report and day filters appear as chips under the filters; click a chip's × to remove it.
-The total number of matching records is shown at the bottom, next to the pager.
+The number of matching records (**n items**) is shown at the bottom, next to the pager, with the
+**Per page** choice beside it — 10, 25, 50, 100 or 200 rows, remembered by your browser.
 
 ## Report shortcuts in the sidebar
 
@@ -55,7 +61,9 @@ run it. Click the gear (**Manage saved searches**) to add, edit or delete them:
 3. Choose a **Query type**:
     - **Search form** — a set of list filters, written as parameters, e.g.
       `bookmarked=true&highPriority=true`. Running it simply filters the list.
-    - **HQL** — a query over the app's records, e.g. `from Task where bookmarked = true`.
+    - **HQL** — a query over the app's records, e.g. `from Task where bookmarked = true`. Saved
+      searches written for the older Nibras app keep working: their queries are adjusted to the
+      current records when they run.
     - **SQL (native)** — a raw database query.
 4. Click **Preview** to try it, then **Save**.
 
@@ -69,12 +77,58 @@ to go back to the list. Other results (counts, columns) open in a table dialog.
 
 ## Global search
 
-Type in **Search everything…** at the top of the sidebar (or press **/**), then **Enter**. The
-**Search** page shows matches from every module, grouped by module, with the matching words
-highlighted. Matches from your [local notes folder](import-capture.md#local-notes) appear under
-**Local notes**. Click a result to open it.
+The **Search** page looks through every module at once, plus your
+[local notes folder](import-capture.md#local-notes) and the files kept on the server. Open it with
+the magnifier (**Search everything**) on the last line of the sidebar, or press **/** from anywhere.
 
-You can mix free text with **filter tokens**:
+Fill in what you know and press **Enter** in any field, or click **Search**:
+
+| Field | Meaning |
+|---|---|
+| **Words** | The text to look for. |
+| **Priority** | One priority, **P1**–**P5**, or **Any**. |
+| **Status code**, **Type code**, **Context code** | The short code of a status, type or context — the one shown beside its name, e.g. `done`, `art`, `home`. |
+| **Bookmarked only** | Only bookmarked records. |
+| **Near-duplicates** | Look for records that already say the same thing — see the tip below. |
+
+Beside the **Search** button the page shows the search as one line of text (for example
+`linux p4 ?done *`). The same line goes into the page's address, so a search can be bookmarked in
+the browser or repeated.
+
+Under the form, **Search in** chooses where the text is looked for. **All** is the default; click
+one or more of the others to narrow it:
+
+| Chip | Looks in |
+|---|---|
+| **Title / summary** | Records' titles and summaries; a local note's first line, file name and tags. |
+| **Description / notes** | Records' descriptions, notes and other text; the rest of a local note. |
+| **File names** | Names of files and folders in the repositories and in notes' companion folders. |
+| **File contents** | Text read from those files (PDF, documents, text…). |
+
+Results are grouped by module, with the matching words highlighted; matches from your notes
+folder appear under **Local notes**, and files under **Files**. Click a result to open it.
+
+### Files
+
+The **Files** group lists matching files with their source, folder and size (**name match** when
+only the name matched), and a snippet of the text around the match.
+
+- Narrow the list with the source chips (**Repo 1**, **Repo 2**, **Repo 3**, **Note files**) and the
+  **Type** menu (**PDF**, **Documents**, **Spreadsheets**, **Slides**, **Text**, **Audio**,
+  **Video**, **Images**).
+- The chip at the right of a file names the record (or note) it belongs to — click it to open that
+  record.
+- The two icons **Open the file** and **Open its folder** open them on the computer running the
+  server.
+
+Which folders are searched, and for which file types the contents are read, is set in
+[Settings → File search](settings.md#file-search). Only the free words are looked for in files; the
+codes and filters apply to records.
+
+### Filter tokens
+
+The **Words** box also accepts **filter tokens**, mixed with free text — the form's other fields
+simply write some of them for you:
 
 | Token | Meaning | Example |
 |---|---|---|
@@ -92,12 +146,13 @@ You can mix free text with **filter tokens**:
 with those letters still search as text.
 
 !!! tip "Check for duplicates before adding"
-    Start a search with `~` to find **near-duplicates** instead of exact matches, e.g.
-    `~ hand over the old laptop`. Each result shows a similarity percentage — useful before you
-    create a record that may already exist.
+    Tick **Near-duplicates** (or start the words with `~`) to find records that are *similar* rather
+    than exact matches, e.g. `~ hand over the old laptop`. Each result shows a similarity percentage
+    — useful before you create a record that may already exist. Notes and files are left out of a
+    near-duplicate search.
 
 !!! note "No results at all?"
-    If global search finds nothing and shows a warning that **the search index is empty**, an
+    If the Search page finds nothing and shows a warning that **the search index is empty**, an
     administrator needs to click **Rebuild search index** on the [Admin](administration.md#admin-page)
     page once.
 

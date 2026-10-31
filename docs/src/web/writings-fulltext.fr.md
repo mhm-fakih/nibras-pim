@@ -44,7 +44,8 @@ Pour les ressources, l'extraction comprend le **Full text** (Texte intégral) et
 Inutile d'ouvrir chaque fiche pour rapatrier les modifications. **Import files → Pending sync —
 edited record files** (Importer des fichiers → Synchronisation en attente — fichiers de fiches
 modifiés) liste chaque fiche dont le fichier d'extraction diffère de la base de données, avec les
-différences affichées champ par champ.
+différences affichées champ par champ. Seules les lignes modifiées sont montrées, chacune avec une
+ligne de texte inchangé autour pour que vous retrouviez l'endroit dans le fichier.
 
 - **Sync** (Synchroniser) applique une fiche.
 - **Sync all** (Tout synchroniser) applique toutes les fiches listées.
@@ -57,8 +58,10 @@ Quand tout correspond, vous verrez **Nothing to sync — all exported files matc
 
 Sur le même panneau, **Bookmarked TOC** (Table des matières des favoris) extrait **toutes les fiches
 en favori** — tâches, plans, objectifs, journaux, notes, écrits et ressources — et reconstruit un
-fichier d'index général, `TOC.md`, à la racine du dépôt 1. Il est organisé par département → cours →
-fiche, prêt à être ouvert comme projet dans une application d'écriture Markdown. Les modifications
+fichier d'index général, `TOC.md`, à la racine du dépôt 1. L'index couvre toutes les fiches extraites, pas
+seulement celles en favori, et il est disposé comme le manuscrit des notes locales : module → département →
+fiche, par priorité puis par ancienneté. Il est prêt à être ouvert comme projet dans une application
+d'écriture Markdown. Les modifications
 que vous apportez aux fichiers extraits reviennent via **Pending sync**.
 
 !!! note "Rien n'est écrasé"

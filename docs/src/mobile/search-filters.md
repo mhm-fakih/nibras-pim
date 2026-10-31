@@ -73,7 +73,7 @@ For files in the folder whose names don't follow the note scheme, such as a file
 
 ### Bad taxonomy
 
-For notes whose name is well-formed but uses a type, priority or category that isn't defined in your [Settings](settings.md) (for example a code you have since removed).
+For notes whose name is well-formed but uses a type, priority or category that isn't defined in **Settings → General** → **Types** / **Categories** (for example a code you have since removed).
 
 | Option | Shows |
 |---|---|

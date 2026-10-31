@@ -12,7 +12,7 @@ ignore key combinations with **Ctrl**, **Alt** or **⌘**.
 | Keys | Action |
 |---|---|
 | **?** | Show / hide the shortcuts overlay |
-| **/** | Jump to the **Search everything…** box |
+| **/** | Open the **Search** page (or, on it, jump to the **Words** box) |
 | **g** then a letter | Go to a page (see below) |
 | **Esc** | Close a dialog or form, or deselect the current record |
 

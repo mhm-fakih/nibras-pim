@@ -22,8 +22,11 @@ Modules is the current, authoritative list.
 | `/api/writings` | `writing`    | summary       |
 
 ## Prerequisites
-- Java 21, Node 18+ (tested on Node 22), MySQL with the `db_nibras` database and a `<db-user>/<db-password>`
-  account. Gradle is provided via the wrapper.
+- Java 21, Node 18+ (tested on Node 22), MySQL 8 with the `db_nibras` database and an account of
+  your own. Gradle is provided via the wrapper.
+- DB credentials stay out of the repo: put them in a private `~/.my.cnf` (`[client]` `user=` /
+  `password=`, mode 600). The `mysql` CLI, the scripts and Gradle `bootRun`/`test` read it; a WAR run
+  elsewhere takes `DB_USERNAME` / `DB_PASSWORD` from its environment.
 
 ## Quick start (after a reboot)
 ```bash
@@ -36,15 +39,15 @@ First-time setup (DB + deps) is below.
 ## 1. Create the working-copy database
 Development runs against a copy so the live data is untouched:
 ```bash
-./db/clone-dev-db.sh                                   # creates db_nibras_dev
-mysql -u<db-user> -p<db-password> db_nibras_dev < db/extra-schema.sql   # adds change_log + app_module
+./db/clone-dev-db.sh                                   # creates db_nibras_dev (credentials from ~/.my.cnf)
 ```
-`extra-schema.sql` only **adds** new tables (`change_log` audit trail, `app_module`
-settings) — it never alters the legacy schema. It is idempotent (safe to re-run).
-To point at the live database instead, edit `spring.datasource.url` in
-`backend/src/main/resources/application.yml` (and apply `extra-schema.sql` there too).
+The app's own tables and columns are added by **Flyway** migrations
+(`backend/src/main/resources/db/migration`, V1–V13) the first time the backend starts against a
+database — back it up first. They only **add** (tables, nullable columns, indexes); the legacy
+schema is never altered destructively. To point at another database, set `SPRING_DATASOURCE_URL`
+or edit `spring.datasource.url` in `backend/src/main/resources/application.yml`.
 
-## 2. Run the backend (port 8081, localhost only)
+## 2. Run the backend (port 8081)
 ```bash
 cd backend
 ./gradlew bootRun
@@ -70,8 +73,8 @@ Open http://localhost:5173 — it proxies `/api` and `/feeds` to the backend.
 ## Single-artifact build (backend + UI in one WAR)
 ```bash
 cd backend
-./gradlew clean bootWar           # also runs the frontend build and embeds it
-java -jar build/libs/nibras-pim-1.2.0.war
+./gradlew clean bootWar --rerun-tasks   # also runs the frontend build and embeds it
+java -jar build/libs/nibras-pim-1.3.2.war
 ```
 Everything (UI, `/api`, `/feeds`, Swagger) is then served from http://127.0.0.1:8081 on one port.
 Full instructions for a fresh Linux machine — incl. systemd and reverse-proxy — are in
@@ -130,30 +133,31 @@ nowhere to display the popup.
 
 ### Change the database name / credentials
 The connection lives in `backend/src/main/resources/application.yml` under
-`spring.datasource` (defaults: db `db_nibras_dev`, user `<db-user>`, password `<db-password>`):
+`spring.datasource`; no password is stored there:
 ```yaml
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/db_nibras_dev?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC
-    username: <db-user>
-    password: <db-password>
+    url: jdbc:mysql://localhost:3306/db_nibras2_s?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Africa/Cairo
+    username: ${DB_USERNAME:user1}
+    password: ${DB_PASSWORD:}
 ```
-Edit `db_nibras_dev` → `db_nibras` to use the live database. For servers, prefer overriding
-at runtime (no rebuild) with environment variables:
+Keep `serverTimezone=Africa/Cairo`: the legacy columns hold naive local times. For servers,
+override at runtime (no rebuild) with environment variables — in a systemd unit, from an
+`EnvironmentFile=` readable only by the service user:
 ```bash
-export SPRING_DATASOURCE_URL='jdbc:mysql://localhost:3306/db_nibras?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC'
-export SPRING_DATASOURCE_USERNAME=<db-user>
-export SPRING_DATASOURCE_PASSWORD=<db-password>
+export SPRING_DATASOURCE_URL='jdbc:mysql://localhost:3306/db_nibras?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Africa/Cairo'
+export DB_USERNAME=<db-user>
+export DB_PASSWORD=<db-password>
 ```
 
 ### Expose on the network (beyond localhost)
-The app binds to `server.address: 127.0.0.1` (localhost only) by default. To make it reachable
-from other machines, override the bind address and (optionally) port at runtime:
+The app binds to `server.address: 0.0.0.0` by default, so the LAN (and the phone) can reach it.
+To keep it on this machine only, or move the port, override at runtime:
 ```bash
 # WAR:
-java -jar build/libs/nibras-pim-1.2.0.war --server.address=0.0.0.0 --server.port=8081
+java -jar build/libs/nibras-pim-1.3.2.war --server.address=127.0.0.1 --server.port=8081
 # or via env vars (bootRun or WAR):
-SERVER_ADDRESS=0.0.0.0 SERVER_PORT=8081 java -jar build/libs/nibras-pim-1.2.0.war
+SERVER_ADDRESS=127.0.0.1 SERVER_PORT=8081 java -jar build/libs/nibras-pim-1.3.2.war
 ```
 JWT auth + role-based permissions gate every `/api` and `/sync` call (`ADMIN`, `DATA_ENTRY`,
 `PARAMETERS_DATA_ENTRY`, `READ_ONLY` — see `SecurityConfig`/`PermissionService`). For LAN/production
@@ -167,6 +171,7 @@ nginx, and a Caddy-based HTTPS setup.
 - `GET    /api/{entity}/{id}`
 - `POST   /api/{entity}` · `PUT /api/{entity}/{id}` · `DELETE /api/{entity}/{id}` (soft delete)
 - `GET    /api/{entity}/lookups` — status/type/tag options for forms
+- `GET    /api/{entity}/facets` — how many records each filter option gives, under the same filters
 - `GET    /api/calendar?from=&to=[&entity=]` — per-day creation counts (mini-calendar badges)
 - `GET    /feeds/{entity}.xml` — RSS 2.0 feed of the latest items
 
@@ -207,17 +212,19 @@ nginx, and a Caddy-based HTTPS setup.
 - **Search from the phone** (`GET /sync/mobileSearch`, `POST /sync/mobilePushBookmark`): the mobile
   app can search the server directly — including records it has never synced — and flag any result.
   The exports carry bookmarked records only, so flagging *is* "send this to my phone".
-- **Attachments** (`GET/POST/DELETE /api/attachments/{module}/{id}`, `/file?path=`): per-record
-  files under `<base>/<module>/<id>` — list/upload/download/delete from the detail pane. Base dir is
-  `nibras.attachments.base-dir` (default `<repo>/attachments`, override `NIBRAS_ATTACHMENTS_DIR`).
+- **Attachments** (`/api/attachments/{module}/{id}` — `/files`, `/file?path=`, `/cover`): a
+  record's files live in its folder in the record **repositories** (repo 1–3, paths in Settings,
+  repo 1 defaulting to `~/rps1`), laid out per module as `<repo>/<CODE>/[<type>/][<id÷100>/]<id>/` —
+  list/upload/download/delete from the detail pane. There is no separate attachment store.
 - **Import notes** (`/import` · `GET /api/import/notes`, `POST` with `{filename}`): one-click import
   of plain-text knotes whose filename encodes metadata —
   `YYYY_MM_DD-HHMMSS~TYPE~pN~DEPT.md` (e.g. `2026_06_15-214006~N~p3~Z.md`). The **type code**
   selects the target module via its Settings code (N→note, T→task, …), priority/department/creation
   date come from the filename (department resolves to the legacy `department` lookup by its letter),
   the first suitable line becomes the title and the body the description. Imported files move to
-  `imported/`. Folder: `nibras.import.notes-dir` (default `/my-home/knotes`, override
-  `NIBRAS_KNOTES_DIR`). Every entity now also exposes its **Department** field for view/edit.
+  `imported/`. Folder: `nibras.import.notes-dir` (default `$HOME/new/knotes`, override
+  `NIBRAS_KNOTES_DIR`; Settings → Local notes overrides both). Notes written by `capture/`
+  (Telegram, Firefox bookmarks, yt-dlp) arrive here the same way. Every entity now also exposes its **Department** field for view/edit.
   **'R' notes need a resource type before import** (it places the type-bucketed repo folder,
   `R/<type>/…`): the page offers a session-wide default select plus per-note override chips, and
   the request carries `resourceTypeId`.
@@ -240,7 +247,7 @@ nginx, and a Caddy-based HTTPS setup.
   `timer-status.sh` prints `🟢 <task, 20 chars>` / `🔴` / `🔴 offline` for a status bar
   (creds in `~/.config/nibras/timer-probe.conf`, JWT cached).
 - **Version status-bar probe** (`/api/info`): the root-level `version-status.sh` prints
-  `v1.2.0 "Maitham"` / `offline` — same config file and cached JWT as `timer-status.sh`.
+  `v1.3.2 "Serenity"` / `offline` — same config file and cached JWT as `timer-status.sh`.
 - **Journal nudge (true desktop notification, no browser tab needed)**: the root-level
   `journal-nudge.sh`, run every 15 minutes by `systemd/journal-nudge.timer`
   (`systemd/install-journal-nudge.sh` installs it as a `systemctl --user` timer), checks — during
@@ -283,7 +290,8 @@ nginx, and a Caddy-based HTTPS setup.
   journals, goals, tasks, resources, notes, writings).
 - **Departments & Courses as modules** (`/api/departments`, `/api/courses`): the legacy `department`
   and `course` tables are now first-class modules (own list/detail/edit, bookmark, folders/covers,
-  search, reports — codes D, C). Each **course belongs to a department**; every record is
+  search, reports — codes D, C). A department has a **Title** only (its name and summary are one
+  legacy column). Each **course belongs to a department**; every record is
   categorized by both **department** and **course** (`department_id`, `course_id`). On a record's
   form the course is a searchable picker that **auto-fills the department** from the chosen course.
   The batch command resolves them by code: `c<code>` = course, `d<code>` = department
@@ -338,8 +346,17 @@ nginx, and a Caddy-based HTTPS setup.
   repeat/kept are uncapped. A gallery, not a list: one passage at a time, shrunk to fit rather than
   scrolled, justified, direction from the passage itself.
 - **Status bar** (`GET /api/info`): a thin bar under the list/detail panes showing server IP
-  (prefers the LAN `192.*` address), port and DB name. **Collapsible left rail**: a chevron
-  collapses it to a thick bar (state remembered).
+  (prefers the LAN `192.*` address), port, DB name and version, with a **check for updates** link
+  (`GET /api/info/updates`) that compares the running version with the latest GitHub release of
+  `nibras.repo` (default this repository; `NIBRAS_REPO`, blank turns it off). Releases are tagged
+  by date and named with the version, so the version is read from the release name.
+  **Collapsible left rail**: a chevron collapses it to a thick bar (state remembered).
+- **Sessions that don't run out on an open page**: the web app renews its token
+  (`POST /api/auth/refresh`) every 30 minutes and when the tab is shown again, so a dashboard left
+  on a TV stays signed in; the session length is an admin setting (Settings → Session,
+  `GET/PUT /api/auth/session`, 1 hour to 1 year).
+- **Filter counts**: every list filter menu (status, type, context, priority) shows how many records
+  each option gives (`GET /api/{entity}/facets`); Tasks also filter by context.
 - **Responsive / mobile**: on small screens the left rail becomes a hamburger **drawer** and the
   3-pane view shows the **list or the detail** (with a "Back to list"), one at a time.
 - **Image renamer** (`/images` · `GET /api/images?dir=`, `/file`, `DELETE`, `POST /restore`,
@@ -359,9 +376,10 @@ nginx, and a Caddy-based HTTPS setup.
   redeploy. Reads are open to any authenticated user; writes and admin tools are gated per capability.
 - **RTL/Arabic** content is handled with `dir="auto"` throughout the UI.
 
-## Mobile app (knotes)
+## Mobile app (Nibras Mobile)
 
-`mobile/` is a Kotlin/Compose Android client (`com.knotes`) over the same API. Two things about it
+`mobile/` is a Kotlin/Compose Android client, **Nibras Mobile** (package `com.knotes`), over the
+same API. Two things about it
 are worth knowing before reading the code:
 
 - **The left rail is split into two bands, and only one is open at a time**: what works **on this
@@ -379,6 +397,12 @@ are worth knowing before reading the code:
 Prayer times are computed on the device (`prayer/PrayerTimes.kt` — declination, equation of time,
 hour-angle solving) with a tabular Hijri calendar and a per-user offset, so nothing about that page
 needs a network.
+
+Alarms arm **one** exact system alarm for the soonest entry and re-arm after every fire, edit,
+reboot and app update (`alarm/AlarmScheduler.kt`); the sound plays from a foreground service
+(`AlarmSoundService`) so the process lives until it has played. The Alarms page's quick timer is an
+ordinary countdown alarm under a reserved id (`QuickTimer.kt`). The theme is a fixed palette (navy
+by default, any colour in Settings → General — `ui/Theme.kt`), not the wallpaper's colours.
 
 ## Media sidecars
 
@@ -423,10 +447,11 @@ dist/           built artefacts, in a subfolder per type: war/ apk/ zip/ sql/ ap
 DEPLOY.md       fresh-machine deployment guide         (WAR, systemd, nginx, DB + network config)
 ```
 
-The six components share one version and codename — see the top of `backend/build.gradle`,
-`frontend/package.json`, `mobile/app/build.gradle.kts` and the `VERSION` constants in the three
-Python apps. `file-watch/`, `scr-annotator/` and `window-tracker/` are separate small tools, each
-its own git repo, carrying the same tag in a plain `VERSION` file.
+All components share one version and codename (1.3.2 "Serenity") — see the top of
+`backend/build.gradle`, `frontend/package.json`, `mobile/app/build.gradle.kts`, the `VERSION`
+constants in the three Python apps and `capture/VERSION`. `file-watch/` and `scr-annotator/` are
+separate small tools, each developed in its own git repo, carrying their tag in a plain `VERSION`
+file.
 
 ## Small tools
 
@@ -450,7 +475,7 @@ Four standalone helpers ship alongside the app. None needs the backend; each has
   has one. Never deletes; `preview` changes nothing, `apply` confirms byte for byte. Put the
   machine's folders in `dedup/dedup.conf` (gitignored) or edit the CONFIG block.
 
-## Install the Android app (knotes)
+## Install the Android app (Nibras Mobile)
 
 **From an F-Droid client** (F-Droid, Droid-ify, Neo Store…) — updates arrive like any other app.
 Add this repository under *Settings → Repositories*, or open the link on the phone:
@@ -461,7 +486,7 @@ https://mhm-fakih.github.io/nibras-fdroid/repo?fingerprint=4E6533C6F4783BD04CF7A
 
 **With [Obtainium](https://obtainium.imranr.dev)** — installs and updates straight from this
 project's GitHub releases:
-[add knotes to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/mhm-fakih/nibras-pim).
+[add Nibras Mobile to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/mhm-fakih/nibras-pim).
 Each release carries a `-release.apk` and a `-debug.apk`; pick the **release** one (or set
 *Filter APKs by regular expression* to `-release\.apk$` in the app's Obtainium settings).
 
@@ -481,5 +506,5 @@ desktop app, the WAR) or run a modified version as a service other people use, y
 them the complete source of your version under the same license.
 
 The repository bundles no third-party media. The mobile app ships no sounds of its own: with no
-file chosen, the athan uses the phone's default alarm sound and the quarter-hour chime its
-default notification sound. All images are the project's own artwork.
+file chosen, the athan and alarms use the phone's default alarm sound and the chime its default
+notification sound. All images are the project's own artwork.

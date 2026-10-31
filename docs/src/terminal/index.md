@@ -1,8 +1,8 @@
-# knotes terminal
+# Nibras terminal
 
-**knotes terminal** is a note taker that runs in your terminal. It looks like a chat: a log of what
+**Nibras terminal** is a note taker that runs in your terminal. It looks like a chat: a log of what
 happened on top, a one-line command bar at the bottom. Type a note and press **Enter** — it's saved
-as a plain-text file, using the same file names as [knotes desktop](../desktop/index.md) and the
+as a plain-text file, using the same file names as [Nibras Notes on the desktop](../desktop/index.md) and the
 [mobile app](../mobile/index.md), so all of them can share one folder.
 
 It can also talk to a Nibras server: log in, list your most recent tasks, goals or journals, and
@@ -26,8 +26,9 @@ You need Python 3. The app uses a few Python packages (Textual for the interface
 server, plus two optional helpers for Arabic); `run.sh` installs them into a private environment
 for you.
 
-The terminal app reuses the note-storage code of knotes desktop, so keep the `terminal/` folder
-next to the `desktop/` folder.
+The terminal app reuses the note-storage code of the desktop app, so keep the `terminal/` folder
+next to the `desktop/` folder. Both carry the suite's version number — the title bar reads
+**Nibras terminal** with `v1.3.2 "Serenity"`.
 
 === "Linux / macOS"
 
@@ -58,14 +59,16 @@ next to the `desktop/` folder.
 
 ## First run
 
-On first start the app creates `config.json` next to the program. If knotes desktop is installed
+On first start the app creates `config.json` next to the program. If the desktop app is installed
 alongside, its note folders and default tags are copied in, so you start where the desktop left
 off. Otherwise you get one folder, **A**, at `~/knotes`.
 
 The screen shows:
 
-- **Dashboard** (top) — your note folders: code, path, server and number of notes. **★** marks the
-  current folder.
+- **Dashboard** (top) — the app's name and version, then your note folders: code, path, server
+  and number of notes. **★** marks the current folder. Only real notes are counted — loose files
+  that still need tags, the quick lists and the housekeeping folders are not — so the number
+  matches the one in the desktop app's title bar.
 - **Log** (middle) — saved notes, command output and messages.
 - **Command bar** (bottom) — where you type.
 - **Status bar** (under it) — the current server with a dot that is **green** when it's reachable

@@ -20,7 +20,7 @@ import { ENTITY_BY_KEY } from '../config/entities';
 import { lookupStyle } from '../components/statusStyle';
 import { RelatedRecordsPanel } from '../components/RelatedRecordsPanel';
 import { FulltextPanel } from '../components/FulltextPanel';
-import { FieldView, OpenFolderButtons } from '../components/DetailPane';
+import { FieldLabel, FieldView, OpenFolderButtons } from '../components/DetailPane';
 import { AuthImage } from '../components/AuthImage';
 import { isRtlText } from '../util/rtl';
 import { useAuth } from '../hooks/useAuth';
@@ -254,9 +254,7 @@ export function RecordReadPage() {
         {config.fields.filter((f) => featureOn(f.feature)).map((f) =>
           highlighting && fields && f.name === fields.source ? (
             <Box key={f.name}>
-              <Typography variant="overline" color="text.secondary">
-                {f.label}
-              </Typography>
+              <FieldLabel>{f.label}</FieldLabel>
               <HighlightableText
                 source={String(record[f.name] ?? '')}
                 mode={mode}

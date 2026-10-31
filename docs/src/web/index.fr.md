@@ -19,7 +19,8 @@ Ouvrez l'application web à l'adresse que vous a donnée votre administrateur. U
 2. Cliquez sur **Sign in**.
 
 Une fois connecté, vous arrivez sur la page que vous tentiez d'atteindre, ou sur **Tasks**
-(Tâches) si vous êtes venu directement sur la page de connexion.
+(Tâches) si vous êtes venu directement sur la page de connexion. L'adresse de l'application seule
+(sans rien après) ouvre le tableau [Kanban](tasks-kanban-sprints.md#kanban).
 
 !!! note "Première connexion"
     Si votre administrateur vous a demandé de choisir votre propre mot de passe, une boîte de
@@ -29,8 +30,13 @@ Une fois connecté, vous arrivez sur la page que vous tentiez d'atteindre, ou su
     utiliser l'application tant que ce n'est pas fait.
 
 Pour vous déconnecter, cliquez sur l'icône **Sign out** (Se déconnecter) à côté de votre nom, en bas
-de la barre latérale gauche. Votre session se termine aussi d'elle-même au bout de quelques heures
-(12 par défaut) ; il suffit de vous reconnecter.
+de la barre latérale gauche.
+
+Tant qu'une page de l'application est ouverte, elle renouvelle d'elle-même votre connexion : un
+onglet laissé ouvert — une liste de contrôle sur une télévision, par exemple — reste connecté aussi
+longtemps qu'il est ouvert. Un navigateur fermé ou en veille reste connecté pendant la durée de
+session qu'un administrateur fixe dans [Settings → Session](settings.md#session) (12 heures sauf
+modification) ; au-delà, il suffit de vous reconnecter.
 
 !!! warning "Problèmes de connexion"
     - **Invalid username or password.** (Nom d'utilisateur ou mot de passe invalide.) — vérifiez
@@ -45,21 +51,29 @@ Chaque module (Tâches, Notes, Objectifs, …) utilise la même disposition de t
 
 | Volet | Ce qu'il contient |
 |---|---|
-| **Barre latérale gauche** | Le nom et la version de l'application, la zone de recherche globale, un mini-calendrier, des raccourcis vers les rapports et les recherches enregistrées du module courant, les boutons des modules, les pages d'outils, ainsi que votre nom avec **Sign out**. |
+| **Barre latérale gauche** | Le logo, le nom et la version de l'application, un mini-calendrier, des raccourcis vers les rapports et les recherches enregistrées du module courant, les boutons des modules (deux par ligne, chacun avec son nombre d'enregistrements), les pages d'outils réunies en groupes nommés, et une dernière ligne avec votre nom, le bouton **Search everything** (Tout rechercher) et **Sign out**. |
 | **Volet central (liste)** | Les enregistrements du module courant, avec une zone de recherche, des filtres, la pagination et le bouton **New** (Nouveau). |
 | **Volet droit (détail)** | L'enregistrement sélectionné — ou le formulaire lorsque vous en créez ou en modifiez un. Une barre **Quick note** (Note rapide) se trouve en bas. |
 
-Une fine **barre d'état** court en bas de l'écran, avec les informations de version, un lien
-**check for updates** (rechercher des mises à jour) et un lien **Help** (Aide).
+Une fine **barre d'état** court en bas de l'écran, avec le serveur, la base de données et la
+version, un lien **check for updates** (rechercher des mises à jour) et un lien **Help** (Aide).
+**check for updates** compare votre version à la dernière version publiée sur GitHub (voir la
+[FAQ](faq.md#display)).
 
 Vous pouvez réorganiser la disposition à votre convenance ; chacun de ces réglages est mémorisé par
 votre navigateur :
 
 - **Redimensionnez** la barre latérale ou la liste en faisant glisser son bord droit.
-- **Repliez** la barre latérale avec le chevron **‹** de son en-tête ; cliquez sur la fine barre
-  restante pour la faire réapparaître.
-- Lorsque la barre latérale manque de place, les boutons d'outils se réduisent à des icônes ;
-  survolez une icône pour voir son nom.
+- **Repliez** la barre latérale avec le petit bouton rond **‹** au milieu de son bord droit
+  (**Collapse sidebar**, Replier la barre latérale) ; cliquez sur la fine barre restante pour la
+  faire réapparaître.
+- Lorsque la fenêtre est basse, les boutons des modules défilent dans leur propre zone, de sorte que
+  les rapports et les groupes d'outils restent visibles.
+
+!!! tip "Une deuxième fenêtre"
+    Cliquez sur le **logo** en haut de la barre latérale (**Open in a new tab**, Ouvrir dans un
+    nouvel onglet) pour rouvrir l'application dans un nouvel onglet — déjà connecté — et travailler
+    sur deux choses côte à côte.
 
 !!! tip "Sur un téléphone ou une fenêtre étroite"
     La barre latérale devient un tiroir derrière un bouton de menu **☰** dans le coin supérieur
@@ -71,36 +85,49 @@ votre navigateur :
 === "Modules"
 
     Les **boutons de module** de la barre latérale (Tasks, Journal, Planner, Resources, Notes,
-    Goals, Writings, Departments, Courses, …) ouvrent chaque type d'enregistrement. Les modules
-    affichés, leur ordre et leur code court (affiché à côté du nom, p. ex. `T`) se règlent dans
+    Goals, Writings, Departments, Courses, …) ouvrent chaque type d'enregistrement. Ils sont
+    disposés deux par ligne, et le nombre entre parenthèses après chaque nom indique combien
+    d'enregistrements contient le module. Les modules affichés, leur ordre et leur code court
+    (affiché à droite du bouton, p. ex. `T`) se règlent dans
     [Settings → Modules](settings.md#modules).
 
 === "Pages d'outils"
 
-    Sous les modules se trouvent les **pages d'outils** : Today, Calendar, Kanban, Dashboards,
-    Insights, Sprints, Reports, All bookmarks, Flash cards, Highlights, Local notes et — selon vos
-    permissions — Parameters, Admin, Batch entry, Import files, Import notes, Image renamer, Static
-    website, Maintenance, Audit log, Trash, Settings, Users, Roles & permissions, et **Help &
-    shortcuts** (Aide et raccourcis). Un administrateur peut masquer les pages que vous n'utilisez
-    pas (voir [Settings → Pages](settings.md#pages-and-features)).
+    Sous les modules, les **pages d'outils** sont réunies en cinq groupes. Cliquez sur un groupe
+    pour ouvrir le menu de ses pages à côté de la barre latérale ; le groupe qui contient la page
+    où vous êtes est mis en évidence et indique le nom de cette page.
+
+    | Groupe | Pages |
+    |---|---|
+    | **Views** (Vues) | Today, Calendar, Kanban, Dashboards, Insights, Sprints, Reports |
+    | **Library** (Bibliothèque) | All bookmarks, Flash cards, Highlights, Local notes, Checklists (week) |
+    | **Import & export** (Import et export) | Batch entry, Import files, Import notes, Image renamer, Static website |
+    | **Admin** (Administration) | Parameters, Admin, Maintenance, Audit log, Trash, Settings, Users, Roles & permissions |
+    | **Help & shortcuts** (Aide et raccourcis) | Ouvre directement la page d'aide |
+
+    Vous ne voyez que les pages que vos permissions autorisent, et un administrateur peut masquer
+    celles que vous n'utilisez pas (voir [Settings → Pages](settings.md#pages-and-features)) ; un
+    groupe resté vide disparaît. **Checklists (week)** (Listes de contrôle de la semaine) s'ouvre
+    dans un nouvel onglet — voir [Tableaux de bord](dashboards.md#the-weekly-checklists).
 
 === "Clavier"
 
-    Appuyez sur **?** pour afficher l'aide des raccourcis, sur **/** pour aller dans la recherche
-    globale, et sur **g** suivi d'une lettre pour aller à un module — par exemple **g t** pour
+    Appuyez sur **?** pour afficher l'aide des raccourcis, sur **/** pour ouvrir la page de
+    recherche, et sur **g** suivi d'une lettre pour aller à un module — par exemple **g t** pour
     Tasks. Voir [Raccourcis clavier](keyboard-shortcuts.md).
 
 === "Recherche"
 
-    Tapez dans **Search everything…** (Tout rechercher…) en haut de la barre latérale et appuyez
-    sur **Enter** pour chercher dans tous les modules (et dans votre dossier de notes locales) à la
-    fois. Voir [Recherche, filtres et rapports](search.md).
+    Cliquez sur la loupe (**Search everything**, Tout rechercher) de la dernière ligne de la barre
+    latérale, ou appuyez sur **/**, pour ouvrir la page **Search** (Recherche) : un seul formulaire
+    qui cherche à la fois dans tous les modules, dans votre dossier de notes locales et dans les
+    fichiers des dépôts. Voir [Recherche, filtres et rapports](search.md#global-search).
 
 Cliquer sur le bouton de la page où vous vous trouvez déjà actualise ses données.
 
 ## La page Today { #the-today-page }
 
-La page d'accueil de l'application, **Today** (Aujourd'hui), affiche une carte par module principal
+**Today** (Aujourd'hui), dans le groupe **Views**, affiche une carte par module principal
 (Tasks, Journal, Planner, Resources, Notes, Writings, Goals) avec deux courtes listes :
 
 - **Created** (Créés) — les enregistrements les plus récents, avec l'heure (aujourd'hui) ou la date
@@ -113,7 +140,7 @@ records per column** — Page Today : enregistrements par colonne).
 
 ## Ce que vous pouvez faire dépend de votre rôle { #what-you-can-do-depends-on-your-role }
 
-Votre rôle est affiché sous votre nom dans la barre latérale. La plupart des personnes sont
+Votre rôle est affiché entre parenthèses après votre nom, en bas de la barre latérale. La plupart des personnes sont
 **Data entry** (Saisie : créer et modifier des enregistrements) ou **Read only** (Lecture seule :
 consulter, rechercher et lire, mais sans **New**, **Edit** (Modifier), **Delete** (Supprimer) ni
 note rapide). Les administrateurs peuvent accorder ou retirer chaque capacité — voir

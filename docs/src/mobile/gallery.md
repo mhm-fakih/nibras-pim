@@ -2,7 +2,7 @@
 
 **Gallery** (the photos icon) is a full-screen picture viewer for one folder of images and its subfolders. You can also mark up a picture (draw on it, highlight, crop and rename) so that a screenshot can be annotated before you attach it to a note or send it on.
 
-The folder is the **Gallery folder** in [Settings](settings.md) (set during the setup tour as **Pictures folder**). By default it is your phone's `Pictures` folder.
+The folder is the **Gallery folder** in [Settings](settings.md) → **Media** (set during the setup tour as **Pictures folder**). By default it is your phone's `Pictures` folder. The **Gallery** switch just above it takes the page out of the rail if you don't use it.
 
 ## Browsing
 

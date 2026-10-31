@@ -2,7 +2,9 @@
 
 The **From the server** band of the [rail](navigation.md) holds the pages that show records from your Nibras server. Connect first, as described in [Nibras sync](sync.md).
 
-Every page here shows the copy saved on your phone first and refreshes from the server when it can, so they all work offline. To reload all of them from the server at once, tap **Refresh server pages** (the circular arrow at the bottom of the band).
+The band is there only while **Use a Nibras server** is on in [Settings](settings.md) → **Server** (it is by default). Switched off, the app connects nowhere and every page below leaves the rail.
+
+Every page here shows the copy saved on your phone first and refreshes from the server when it can, so they all work offline. To bring everything up to date at once, tap **Refresh server pages** (the circular arrow at the bottom of the band). It runs a full sync: the records of every type, flash cards, highlights and contacts, and the server's types, departments and folder layouts.
 
 ## Record pages: T, P, J, G, N, W, R
 
@@ -25,10 +27,13 @@ If you're offline and nothing has been saved for a type yet, the page says **Off
 Tap a row to expand it. Only one record is open at a time. An open record shows:
 
 - its full description,
-- **Files (N)**: its attachments. Tap one to open it from your **Files folder** (set in Settings). Audio and video play in the app's [player](player.md),
+- **Files (N)**: its attachments. Tap one to open it; audio and video play in the app's [player](player.md),
 - **Notes (N)**: notes added to it,
 - **Add a note to this record…** with a **Send note** button. The note is added to the record on the server (**Note saved**, or saved for later when offline),
 - **Mark unread**, which puts the record back to unread. Records you open are marked as read on this phone only.
+
+!!! note "Files come from the phone's own folder"
+    The files listed are the ones actually in the record's folder on this phone, under the **Files folder** set in Settings → **Server** (kept in step with the server by a folder-sync tool such as Syncthing). The folder is found the way the server lays it out: the module's code, then, if that module is set up that way on the server, the record's type and a hundreds bucket (id ÷ 100), then the record's id. For example `T/1234` for a task, or `R/<type>/12/1234` for a resource. The app reads each module's layout from the server along with the types and departments. A file the folder-sync tool hasn't brought to the phone yet isn't listed, and a record whose folder isn't there shows no files.
 
 ### Mark a record complete
 
@@ -36,11 +41,11 @@ Tick the checkbox at the start of a row. You'll see **Marked complete**, or **Sa
 
 ### Highlight a resource
 
-On a **Resources** record that has its full text, the text is shown under **Full text — tap a clause to highlight**. Tap a clause to highlight it (it turns bold), and the highlight is sent to the server. Tap it again to remove it. The text size is the **Font size** setting in [Settings](settings.md).
+On a **Resources** record that has its full text, the text is shown under **Full text — tap a clause to highlight**. Tap a clause to highlight it (it turns bold), and the highlight is sent to the server. Tap it again to remove it. The text size is the **Font size** setting in [Settings](settings.md) → **Server**.
 
 ### Bookmark: the star
 
-The star on each row works in one of two ways, chosen in [Settings](settings.md) → **Star button**:
+The star on each row works in one of two ways, chosen in [Settings](settings.md) → **Server** → **Star button**:
 
 | Mode | What the star does |
 |---|---|

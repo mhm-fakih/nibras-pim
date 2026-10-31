@@ -1,6 +1,6 @@
 # Home-screen widgets
 
-knotes comes with ten home-screen widgets. To add one, long-press an empty spot on your home screen, choose **Widgets**, find **knotes**, and drag the widget you want into place. Most can be resized.
+Nibras Mobile comes with eleven home-screen widgets. To add one, long-press an empty spot on your home screen, choose **Widgets**, find **Nibras Mobile**, and drag the widget you want into place. Most can be resized.
 
 | Widget (name in the picker) | Shows | Needs a Nibras server? |
 |---|---|---|
@@ -8,6 +8,7 @@ knotes comes with ten home-screen widgets. To add one, long-press an empty spot 
 | [Today's tasks](#todays-tasks) | Today's top-priority tasks, with an add bar | No |
 | [Today's journal](#todays-journal) | Today's journal entries, with an add bar | No |
 | [Top priority](#top-priority) | Every note at your top priority | No |
+| [Tasks board](#tasks-board) | Every task at your two top priorities, by department | No |
 | [Nibras Mobile KPIs](#nibras-mobile-kpis) | Counts at a glance | Partly |
 | [Upcoming plans](#upcoming-plans) | Your next planned events | Yes |
 | [Bookmarked records](#bookmarked-records) | Records you starred | Yes |
@@ -24,7 +25,7 @@ A read-only feed of what you've written lately, oldest at the top and newest at 
 
 Long notes are cut off after a set number of words with **Read more**. **Tap a note** to unfold it in place, and tap again to fold it. That's the only control; there are no filters or buttons.
 
-Set it up in [Settings](settings.md) → **Recent notes widget**:
+Set it up in [Settings](settings.md) → **Calendar & widgets**, under **Recent notes widget**:
 
 | Setting | Range | Default |
 |---|---|---|
@@ -46,7 +47,22 @@ Today's journal entries, at every priority. Like the tasks widget it starts fres
 
 ## Top priority
 
-Every note in your folder at your **Top priority** (priority 4 unless you change **Top priority (widgets)** in Settings), of any type and any date. If there are none it says **No priority-4 notes**. Tapping the title redraws it. These are notes on your phone, so no sync is needed.
+Every note in your folder at your **Top priority** (priority 4 unless you change **Top priority (widgets)** in Settings → **General**), of any type and any date. If there are none it says **No priority-4 notes**. Tapping the title redraws it. These are notes on your phone, so no sync is needed.
+
+## Tasks board
+
+A widget meant to fill a home-screen page: every task (a note of type `T`) at your top two priorities, whenever it was written. With the default settings that is p4 and p3, and the title reads **Tasks p3–p4** with the count beside it. Tasks are grouped by priority, then by department (category); tasks with none go under **No department**.
+
+Unlike **Today's tasks**, it has no add bar and doesn't empty overnight: it's the standing picture of what matters. Each task is set in its own text direction, so Arabic tasks read right to left. Tap the title to redraw it, or a task to open the app on **Tasks**.
+
+Set it up in [Settings](settings.md) → **Calendar & widgets**, under **Tasks board widget**:
+
+| Setting | Range | Default |
+|---|---|---|
+| **Text size N sp** | 10–24 sp | 13 sp |
+| **N columns** | 1–4 | 2 |
+
+The two priorities follow **Top priority (widgets)** in [Settings](settings.md) → **General**.
 
 ## Nibras Mobile KPIs
 
@@ -69,17 +85,17 @@ Your next events from the Nibras planner, labelled by day and time (**Tom 09:00*
 
 ## Bookmarked records
 
-The Plans, Goals and Tasks you've starred in knotes's [server pages](server-pages.md#bookmark-the-star) (records bookmarked on this phone), in a scrollable list. Tap the title to sync and redraw.
+The Plans, Goals and Tasks you've starred in the app's [server pages](server-pages.md#bookmark-the-star) (records bookmarked on this phone), in a scrollable list. Tap the title to sync and redraw.
 
 ## Prayer times
 
 A wide strip with the Islamic date, a countdown to the next time, and one column per prayer you've chosen to show, with the next one highlighted. It's in Arabic and right-to-left, written large enough to read across a room.
 
-The countdown appears only once the next prayer is close. How close is the **Widget countdown** setting on the [Prayer times](prayer.md#reminders-and-countdown) page (1 hour by default). Tap the date to redraw; tap elsewhere to open the Prayer times page.
+The countdown appears only once the next prayer is close. How close is the **Widget countdown** setting on the [Prayer times](prayer.md#reminders-and-countdown) page (1 hour by default). Once a time arrives, the strip counts up from it instead (**منذ 4:12**) for as long as the **Elapsed timer** on the Prayer times page says (30 minutes by default). Tap the date to redraw; tap elsewhere to open the Prayer times page.
 
 ## Alarms countdown
 
-How long until each of today's remaining [alarms](alarms.md). It updates itself every minute while it's on your home screen. Tap it to open the Alarms page.
+A card titled **Alarms · N today** listing each of today's remaining [alarms](alarms.md): its time, how long until it rings, and its label (**07:00 · in 2h 15m — Wake up**). When nothing is left it says **Nothing left today**. It updates itself every minute while it's on your home screen. Tap it to open the Alarms page.
 
 ## Phone status
 

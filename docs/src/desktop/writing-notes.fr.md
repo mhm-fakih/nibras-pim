@@ -2,7 +2,9 @@
 
 Le bas de la fenêtre est occupé par le **formulaire d'ajout** : trois rangées de pastilles
 d'étiquettes (**Type**, **Prio** — priorité, **Cat** — catégorie), un champ de texte, un sélecteur
-de dossier et un bouton d'envoi. Tout ce que vous y tapez devient un nouveau fichier de note.
+de dossier et un bouton d'envoi. À gauche du champ de texte, un petit bouton flèche bascule entre
+le formulaire complet et le [formulaire court](#the-short-form). Tout ce que vous y tapez devient un
+nouveau fichier de note.
 
 ## Enregistrer une note { #save-a-note }
 
@@ -24,6 +26,40 @@ aperçu de ses mots. Votre choix d'étiquettes reste sélectionné pour la note 
 
 Rien n'est perdu en quittant : **Ctrl+Q** enregistre d'abord un brouillon non envoyé sous forme de
 note.
+
+## Le formulaire court { #the-short-form }
+
+Quand vous voulez simplement noter l'idée et la ranger plus tard, appuyez sur **Ctrl+N** (ou cliquez
+sur le bouton flèche à gauche du champ de texte). Les rangées de pastilles disparaissent, et chaque
+note est enregistrée en **N · P2 · X** — type N, priorité 2, catégorie X — prête à être réétiquetée
+plus tard. Si le dossier ne définit pas l'un de ces codes, la note reçoit à la place le choix actuel
+des pastilles. Survolez le bouton flèche pour voir exactement quelles étiquettes le formulaire court
+utilisera.
+
+Appuyez à nouveau sur **Ctrl+N** pour faire revenir les pastilles. L'application retient le
+formulaire que vous avez utilisé en dernier.
+
+## La boîte de réception : ranger les téléchargements dans une note { #the-inbox-file-downloads-into-a-note }
+
+Les téléchargements, captures d'écran et autres fichiers atterrissent souvent d'abord dans un même
+dossier — par défaut `~/new`. Le formulaire d'ajout liste les fichiers et dossiers de ce dossier
+sous le champ de texte, dans une ligne dépliable telle que **5 to settle in ~/new** (5 à
+régulariser dans ~/new), les plus récents en premier. Elle se met à jour d'elle-même à mesure que
+des fichiers arrivent.
+
+1. Dépliez la ligne et cochez les éléments qui vont avec la note que vous écrivez. La ligne les
+   compte : **· 2 go into the new note** (2 iront dans la nouvelle note).
+2. Écrivez la note (ou laissez le texte vide) et enregistrez-la.
+
+Les éléments cochés sont **déplacés** dans le [dossier compagnon](attached-files.md) de la nouvelle
+note : la boîte de réception se vide à mesure que vous écrivez des notes pour ce qu'elle contient.
+Si vous avez enregistré sans texte, le texte de la note est le nom des éléments qu'elle a reçus.
+
+Choisissez le dossier avec **Inbox folder** (dossier de réception) dans les
+[Paramètres](settings.md) ; laissez-le vide pour désactiver la liste. Les dossiers qui se trouvent
+dans la boîte de réception sans en être des éléments vont dans **Inbox: leave out (one path per
+line)** (réception : exclure, un chemin par ligne). Vos dossiers de notes sont toujours exclus,
+même lorsqu'ils se trouvent dans la boîte de réception.
 
 ## Texte arabe et mixte { #arabic-and-mixed-text }
 
@@ -77,7 +113,9 @@ utilisez les flèches pour passer à une autre carte. Faites glisser son bord ga
 redimensionner.
 
 Le panneau a deux modes, que l'on bascule avec les boutons **read** (lecture) et **edit** (édition)
-en haut du panneau :
+en haut du panneau. Dans les deux, le Markdown tel que `**bold**`, `*italic*`, `` `code` ``,
+`# headings`, les liens et les `#hashtags` est mis en forme sur place, les caractères de balisage
+étant estompés plutôt que masqués.
 
 === "read (lecture)"
 
@@ -107,6 +145,30 @@ d'ajout. Les fichiers isolés qui ne sont pas encore de vraies notes (voir
 Choisissez le mode de démarrage du panneau avec **Editor pane starts in** (le panneau d'édition
 démarre en), et la couleur de surlignage avec **Highlight colour** (couleur de surlignage), tous
 deux dans les [Paramètres](settings.md).
+
+Sous la note, le panneau **Files** (fichiers) liste les fichiers joints de la note — voir
+[Fichiers joints](attached-files.md#the-files-panel).
+
+## Notes rapides et tâches rapides { #quick-notes-and-quick-tasks }
+
+Certaines choses ne méritent pas une note du tout — un numéro de téléphone, un article à acheter.
+Pour celles-là, deux listes se trouvent sous le panneau latéral : **Quick notes** (notes rapides) à
+gauche et **Quick tasks** (tâches rapides), avec une case à cocher par ligne, à droite.
+
+- Appuyez sur **Ctrl+J** pour aller dans le champ des notes rapides, ou sur **Ctrl+K** pour celui
+  des tâches rapides. Le panneau latéral et les listes s'ouvrent s'ils étaient fermés.
+- Tapez une ligne et appuyez sur **Enter**. Le champ garde le clavier, vous pouvez donc en ajouter
+  plusieurs à la suite. **Esc** revient au tableau.
+- Cochez une tâche quand elle est faite — elle s'estompe au lieu d'être barrée, pour que l'arabe
+  reste lisible. Le compteur de l'en-tête indique ce qui reste. Le **×** d'une ligne la supprime.
+- Le bouton liste en haut du panneau latéral affiche ou masque les deux listes ; faites glisser le
+  séparateur au-dessus d'elles pour les agrandir.
+
+Les listes sont deux simples fichiers Markdown à la racine du dossier de notes, `quick-notes.md` et
+`quick-tasks.md` — une liste à puces et une liste de tâches. Elles n'apparaissent jamais sur le
+tableau, n'ont jamais besoin d'être régularisées, et se synchronisent et se modifient partout comme
+n'importe quel fichier. Les modifications faites ailleurs apparaissent d'elles-mêmes. Chaque dossier
+de notes a sa propre paire, si bien que changer de dossier change aussi les listes.
 
 ## Ajouter rapidement un commentaire { #quick-append-a-comment }
 

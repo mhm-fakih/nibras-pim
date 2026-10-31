@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="qt_title">Minuteur rapide</string>
+    <string name="qt_min_unit">min</string>
+    <string name="qt_ends_at">Fin à %1$s</string>
+    <string name="qt_start_cd">Démarrer le minuteur rapide</string>
+    <string name="qt_stop_cd">Arrêter le minuteur rapide</string>
+    <string name="qt_settings_header">Minuteur rapide</string>
+    <string name="qt_settings_desc">Le compte à rebours en haut de la page Alarmes joue ce son à la fin.</string>
+    <string name="qt_settings_choose_sound">Choisir un fichier son</string>
+    <string name="qt_settings_default_sound">Son d’alarme par défaut</string>
+    <string name="qt_settings_volume">Volume %1$d%%</string>
+    <string name="qt_settings_repeat">Joué %1$d×</string>
+</resources>

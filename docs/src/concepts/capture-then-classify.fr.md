@@ -20,6 +20,10 @@ type, priorité et catégorie par défaut. Pas de réseau, pas de serveur, pas d
 - **Téléphone** — le champ de saisie rapide en bas de l'écran des notes.
 - **Bureau** — le champ d'ajout (ou le mode note latérale minimal, `Ctrl+L`).
 - **Terminal** — toute ligne qui n'est pas une `/command`.
+- **Outils de capture** — de petits scripts qui transforment une discussion Telegram, vos favoris Firefox ou une
+  vidéo en ligne en notes dans ce même dossier (voir
+  [la boîte de réception de l'application web](../web/import-capture.md#from-the-capture-tools)). Lorsque le dossier
+  n'a pas de catégorie par défaut, ils classent leurs notes sous **X**, si bien que rien n'arrive sans catégorie.
 
 Les captures peuvent porter des fichiers : déposez-les dans le [dossier compagnon](companion-folders.md) de la note.
 

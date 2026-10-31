@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -359,9 +359,7 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
                 the previous field as though it belonged to it. */}
             {(f.name === 'description' || f.name === 'notes') && canWriteContent &&
               (record[f.name] === null || record[f.name] === undefined || record[f.name] === '') && (
-                <Typography variant="overline" color="text.secondary" sx={{ display: 'block' }}>
-                  {f.label}
-                </Typography>
+                <FieldLabel>{f.label}</FieldLabel>
               )}
             {(f.name === 'description' || f.name === 'notes') && canWriteContent && (
               <AppendToDescriptionBar
@@ -912,6 +910,19 @@ function CoverImage({ module, id }: { module: string; id: number }) {
   );
 }
 
+/** A field's name above its value in the detail pane and read page. Full-contrast, bold and
+ * near body size: the grey 12px overline it replaced was hard to read. */
+export function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <Typography
+      component="div"
+      sx={{ fontSize: '0.875rem', fontWeight: 700, color: 'text.primary', letterSpacing: '0.02em', mb: 0.5 }}
+    >
+      {children}
+    </Typography>
+  );
+}
+
 export function FieldView({
   label,
   type,
@@ -964,9 +975,7 @@ export function FieldView({
 
   return (
     <Box>
-      <Typography variant="overline" color="text.secondary">
-        {label}
-      </Typography>
+      <FieldLabel>{label}</FieldLabel>
       {body}
     </Box>
   );

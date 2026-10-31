@@ -5,12 +5,13 @@ things down quickly — offline, as plain-text notes — and the web app is wher
 proper records. See [Capture then classify](../concepts/capture-then-classify.md) for the idea
 behind it.
 
-There are three ways in:
+There are four ways in:
 
 | Source | How it arrives | Where you handle it |
 |---|---|---|
 | **Phone app** — a note you *push* | Directly as a record in its module, already bookmarked | The module itself (look under **★ Bookmarked** or **Recently created**) |
 | **Desktop app / notes folder** | As Markdown files in the notes folder the server reads | **Local notes** and **Import notes** |
+| **Capture tools** — Telegram, Firefox bookmarks, online videos | As notes written into the same notes folder | **Local notes** and **Import notes** |
 | **Any files** | Dropped into a folder on the server, named as a command | **Import files** |
 
 ## From the phone
@@ -19,6 +20,23 @@ When you push a note from the phone app, it is created on the server as a record
 type says (task, journal, plan, note, goal, writing or resource), with its priority and department,
 and **bookmarked**. Nothing needs importing — open the module and review it. If the phone was
 offline, it sends its queue when the connection returns. See [Sync](../concepts/sync.md).
+
+## From the capture tools
+
+Three small command-line tools bring material from outside into the notes folder, as ordinary
+notes ready for **Import notes**:
+
+| Tool | What it writes |
+|---|---|
+| **Telegram** | One **N** note per run, *Telegram ‹chat› export*, with the messages' photos, videos and files in its companion folder. |
+| **Firefox bookmarks** | One **R** note per run, *Firefox bookmarks export*, the bookmarks grouped by the date they were added. |
+| **Media** (via yt-dlp) | One **R** note per run: a line of your own, then each video's title, length, site and address, with the video, an MP3 and the subtitles in the companion folder. |
+
+Their priority and department come from the notes folder's own defaults; when the folder sets no
+department, the notes get department **X**, so they are never left without one. Give them their
+real department while classifying, or at import. Remember that **R** notes need a resource type —
+see the tip under [Import notes](#import-notes). The tools themselves are set up on the computer
+that runs them; see the `capture/` folder of the Nibras source.
 
 ## Local notes
 
@@ -40,6 +58,11 @@ Importing from here explains what will happen — a record is created (under the
 it has one), any companion files are copied into the record's folder, and the note is moved into the
 `imported/` subfolder so it disappears from the list. Afterwards, **Open the record** takes you to
 it.
+
+!!! note "Nightly tidy"
+    Every night the server tidies the notes folder: a note left empty for more than a day is moved
+    to the `.deleted` folder (the desktop app's trash) unless its companion folder holds files, and
+    empty companion folders are removed.
 
 !!! note "How subjects are recognised"
     A note's `#A.subject` tag is matched against the **Note tags** field of your **Courses** (the
@@ -108,12 +131,15 @@ name**, works like this:
    [batch command](batch-commands.md) — for example `t ?done Final report.pdf`.
 2. Enter the **Drop folder** (remembered for next time) and choose the **Default module** for names
    that don't start with a module code.
-3. Click **Scan / preview**. Each item shows what it will create, where it will go, or why it can't
-   be imported.
+3. Click **Scan / preview**. Each item shows what it will create (**Create ‹module›: “title”**),
+   what will happen to it, and the folder it will go to — or why it can't be imported. The folder
+   is the module's real layout in repository 1, by type and by hundreds of IDs as set in
+   [Settings → Modules](settings.md#modules).
 4. Click **Import** on one item, or **Import all**.
 
 A **file** is moved into the new record's repository-1 folder and renamed to its title; a **folder**
-becomes the record's folder.
+becomes the record's folder. Imported items stay on the page with a ✓ line naming the new record and
+where its files went, until you scan again.
 
 ## Image renamer
 

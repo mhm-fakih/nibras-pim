@@ -5,7 +5,7 @@ rapidement à un jour, et la page complète **Calendar** (Calendrier), pour plan
 
 ## Le mini-calendrier { #the-mini-calendar }
 
-Dans toute vue de module, la barre latérale affiche un calendrier compact sous la zone de recherche.
+Dans toute vue de module, la barre latérale affiche un calendrier compact sous le nom de l'application.
 
 - Par défaut, il affiche **Last 2 weeks** (2 dernières semaines : la semaine dernière et celle-ci,
   en commençant le lundi). Cliquez sur la flèche de dépliage pour voir **the full month** (le mois
@@ -34,7 +34,8 @@ horaire.
 - **‹** et **›** reculent ou avancent d'une semaine (ou d'un jour) ; **Today** (Aujourd'hui) y revient.
 - L'en-tête affiche la plage de dates et le numéro de **semaine ISO**.
 - Le calendrier mensuel à droite permet d'aller à n'importe quelle date.
-- Une ligne rouge indique l'heure actuelle.
+- Une ligne rouge indique l'heure actuelle. Lorsque l'heure est en dehors des heures affichées, la
+  ligne attend, en pointillés et accompagnée de l'heure, sur le bord supérieur ou inférieur.
 
 ### Ajuster l'affichage { #adjusting-the-view }
 

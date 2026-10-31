@@ -1,7 +1,7 @@
 # Configuration
 
 Tous les réglages se trouvent dans `config.json`, **à côté du programme**. Il est créé au premier lancement —
-copié depuis les réglages de knotes desktop s'ils existent — et l'application y réécrit lorsque vous changez de
+copié depuis les réglages de l'application de bureau s'ils existent — et l'application y réécrit lorsque vous changez de
 dossier ou de thème. Modifiez-le avec n'importe quel éditeur de texte pendant que l'application est fermée.
 
 ## Exemple { #example }
@@ -37,7 +37,7 @@ Les codes de dossier doivent être d'une seule lettre — c'est ce qu'une ligne 
 (voir [Écrire des notes](writing-notes.md)).
 
 !!! tip "Un dossier, plusieurs applications"
-    Faites pointer le `path` d'un dossier vers le même dossier que celui de knotes desktop ou de votre téléphone.
+    Faites pointer le `path` d'un dossier vers le même dossier que celui de l'application de bureau ou de votre téléphone.
     Toutes lisent et écrivent les mêmes noms de fichiers, de sorte que les notes apparaissent partout. Voir
     [Synchronisation](../concepts/sync.md).
 

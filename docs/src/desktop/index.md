@@ -1,8 +1,14 @@
-# knotes desktop
+# Nibras Notes (desktop)
 
-**knotes desktop** is a small, keyboard-first note taker for Linux (and Windows). You type a
+**Nibras Notes** is a small, keyboard-first note taker for Linux (and Windows). You type a
 thought, pick a type, priority and category, press **Ctrl+Enter** — and it is saved as a plain
 Markdown file in a folder you choose. No database, no account, no lock-in.
+
+!!! note "Nibras Notes and knotes"
+    The window, the menu entry and this guide say **Nibras Notes**; the program's files still use
+    the older name **knotes** (`knotes.py`, the `knotes` launcher, `.knotes.json`). They are the
+    same app. Since 1.3.2 "Serenity" it carries the same version number as the rest of the suite
+    (it counted 1.7.x on its own before).
 
 The trick is in the file name: every note's tags are written into its name, like
 
@@ -10,7 +16,7 @@ The trick is in the file name: every note's tags are written into its name, like
 2026_06_10-143025~W~p3~A.md
 ```
 
-so the same folder works unchanged with the [knotes mobile app](../mobile/index.md), the
+so the same folder works unchanged with the [mobile app](../mobile/index.md), the
 [terminal app](../terminal/index.md) and the Nibras server. Sync the folder between machines with
 any file-sync tool and every app sees the same notes.
 
@@ -21,21 +27,23 @@ any file-sync tool and every app sees the same notes.
 
 ## What you can do
 
-- **Capture fast** — a text field at the bottom, sticky tags, save with one key.
-  See [Writing notes](writing-notes.md).
-- **Tag with type, priority and category** from the keyboard, and retag many notes in a row.
-  See [Type, priority & category](tagging.md).
-- **Browse and filter** in a kanban, list or column view, with a calendar heat map, tag cloud and
-  live counts. See [Board, sidebar & filters](board-and-filters.md).
+- **Capture fast** — a text field at the bottom, sticky tags, save with one key; a short form
+  that skips the tags altogether, quick note and task lists, and an inbox whose files you can
+  file into a new note. See [Writing notes](writing-notes.md).
+- **Tag with type, priority and category** from the keyboard, and retag one note or a whole set of
+  marked ones at once. See [Type, priority & category](tagging.md).
+- **Browse and filter** in a kanban, list or column view, with a month calendar, tag cloud and
+  live counts — and see your journal and planner notes laid out in a **week calendar**. See
+  [Board, sidebar & filters](board-and-filters.md).
 - **Attach files** to a note in its own companion folder. See [Attached files](attached-files.md).
 - **Merge, delete and settle** notes and loose files safely. See
   [Organizing notes](organizing-notes.md).
-- **Stay in step with a Nibras server's** module and department codes. See
-  [Connecting to a Nibras server](nibras-server.md).
+- **Stay in step with a Nibras server's** module and department codes, and import finished notes
+  into it as records. See [Connecting to a Nibras server](nibras-server.md).
 
 ## Install
 
-knotes desktop is a Python 3 program that uses GTK 3. There is nothing to compile — you only need
+Nibras Notes is a Python 3 program that uses GTK 3. There is nothing to compile — you only need
 Python and the GTK bindings (PyGObject).
 
 === "Debian / Ubuntu / Mint"
@@ -82,12 +90,15 @@ Then put the `desktop/` folder wherever you like to keep programs.
     ./run.sh
     ```
 
-    `run.sh` checks that GTK is available and tells you what to install if it isn't. You can also
-    start it directly with `python3 knotes.py`.
+    `run.sh` checks that GTK is available and tells you what to install if it isn't. It then
+    starts the app detached from the terminal — closing the terminal doesn't close the app — and
+    appends everything the app prints to `desktop.log` next to the program. If the app ever fails
+    to appear (for example when started at login), look there first. You can also start it
+    directly with `python3 knotes.py`.
 
-    **Menu entry and panel pin.** Run `./install.sh` once. It adds **knotes** to your application
-    menu; launch it from there, then right-click its panel icon and choose **Pin**. Re-run
-    `install.sh` if you move the folder.
+    **Menu entry and panel pin.** Run `./install.sh` once. It adds **Nibras Notes** to your
+    application menu, with the app's icon — a white note on a navy disc; launch it from there, then
+    right-click its panel icon and choose **Pin**. Re-run `install.sh` if you move the folder.
 
 === "Windows"
 
@@ -106,10 +117,14 @@ Then put the `desktop/` folder wherever you like to keep programs.
 3. **Look at the result.** A card appears on the board, and a file named like
    `2026_06_10-143025~N~p2~F.md` appears in your folder.
 
-!!! note "The board opens on today"
-    By default the app starts filtered to **today's** notes, so a fresh day shows
-    **No notes entered today**. Click **Clear all filters** at the foot of the sidebar to see
-    everything, or turn off **Open filtered to today's notes** in [Settings](settings.md).
+The title bar shows the version and how many notes the folder holds, e.g.
+`Nibras Notes v1.3.2.b57 · 412 notes`.
+
+!!! note "The board opens on today and yesterday"
+    By default the app starts filtered to **today's and yesterday's** notes, so a quiet morning
+    shows **No notes entered today or yesterday**. Click **Clear all filters** at the foot of the
+    sidebar twice to see everything (the first click returns to this launch view), or turn off
+    **Open filtered to today's and yesterday's notes** in [Settings](settings.md).
 
 Press **F1** at any time for the list of [keyboard shortcuts](keyboard-shortcuts.md).
 
@@ -120,9 +135,12 @@ Press **F1** at any time for the list of [keyboard shortcuts](keyboard-shortcuts
 | Your notes | Plain `.md` files in each note folder |
 | Attached files | A `<note name>.d/` folder next to each note — see [Attached files](attached-files.md) |
 | Deleted and merged notes | Hidden `.deleted/` and `.merged/` folders inside the note folder |
+| Notes imported into a Nibras server | An `imported/` folder inside the note folder |
+| Quick notes and quick tasks | `quick-notes.md` and `quick-tasks.md` at the top of the note folder |
 | Per-folder tag options | A hidden `.knotes.json` inside each note folder |
 | App settings | `config.json` next to the program |
 | Hashtag vocabulary | `tag-bank.md` next to the program (or a path you choose) |
+| What the app printed | `desktop.log` next to the program (Linux, when started with `run.sh`) |
 
 ## Windows differences
 

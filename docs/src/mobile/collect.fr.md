@@ -8,8 +8,9 @@ Ouvrez cette page depuis le rail (l'icône de dossier avec flèche, la dernière
 
 1. À l'ouverture de la page, elle parcourt vos dossiers sources (**Analyse des dossiers source…**) et liste ce qu'elle a trouvé, chaque fichier avec son nouveau nom.
 2. Le bandeau indique où iront les fichiers : **Ils seront déplacés dans un nouveau sous-dossier horodaté de … et renommés avec l’horodatage standard.**
-3. Touchez **Collecter N fichiers**. Les fichiers sont déplacés et le résultat s'affiche (**N fichiers sur N déplacés**).
-4. Touchez **Analyser encore** (ou la flèche **Analyser à nouveau** en haut) pour relancer l'analyse.
+3. Touchez **Collecter N fichiers**. Une fenêtre demande **Qu'est-ce que cet ensemble ?** : saisissez si vous le souhaitez quelques lignes décrivant les fichiers. Elles deviennent le titre et le début de la note. Touchez **Collecter**.
+4. Les fichiers sont déplacés et le résultat s'affiche (**N fichiers sur N déplacés**).
+5. Touchez **Analyser encore** (ou la flèche **Analyser à nouveau** en haut) pour relancer l'analyse.
 
 !!! warning "Les fichiers sont déplacés, pas copiés"
     Les fichiers collectés sont retirés de leurs dossiers d'origine. Ils se trouvent désormais dans la collection.
@@ -19,13 +20,14 @@ Ouvrez cette page depuis le rail (l'icône de dossier avec flèche, la dernière
 Chaque collection est une [note avec pièces jointes](notes.md#attachments) ordinaire :
 
 ```
-2026_06_11-095700~W~p2~P.md        the note: "Collected 3 files" and a list
+2026_06_11-095700~W~p2~P.md        the note: your description, "Collected 3 files" and a list
 2026_06_11-095700~W~p2~P.d/        the files
     2024_01_15-123045_Screenshot_Chrome.png
     2026_06_11-095700_notes.pdf
     …
 ```
 
+- La note commence par la description saisie, s'il y en a une : elle est ainsi titrée d'après le contenu des fichiers. Sans description, son titre est **Collected N files**.
 - La note utilise vos **type, priorité et catégorie** par défaut pour les nouvelles notes, comme une note rapide. Vous pouvez la réétiqueter comme n'importe quelle autre note.
 - Chaque fichier est renommé de sorte qu'un **horodatage ouvre son nom**. Si le nom d'origine contient une date et une heure reconnaissables (c'est le cas de la plupart des noms produits par l'appareil photo, les captures d'écran et les enregistreurs), cette heure est utilisée. Sinon, c'est la date de dernière modification du fichier qui est utilisée, et la liste l'indique par **date de modif.**
 
@@ -36,15 +38,15 @@ Par exemple, `Screenshot_2024-01-15-12-30-45_Chrome.png` devient `2024_01_15-123
 
 ## Choisir les dossiers { #choosing-the-folders }
 
-Dans les [Paramètres](settings.md), sous **Collecte de fichiers** :
+Dans [Paramètres](settings.md) → **Collecte de fichiers** :
 
 - **Dossiers sources** : les dossiers à parcourir. Par défaut, ce sont les emplacements habituels des captures d'écran, des photos de l'appareil photo, des images, des téléchargements et des enregistrements. Ajoutez les vôtres avec **Ajouter un dossier**. Décochez un dossier pour l'ignorer tout en le gardant dans la liste.
 - **Dossier de destination (New)** : l'endroit où les collections sont écrites.
 
 ## Collecter automatiquement chaque jour { #collect-automatically-every-day }
 
-Activez **Collecter automatiquement chaque jour** et choisissez une heure (**À 15:00** par défaut). La même collecte s'exécute alors toute seule chaque jour. Vous recevez une notification (**N fichiers collectés**) uniquement lorsque quelque chose a réellement été collecté.
+Activez **Collecter automatiquement chaque jour** et choisissez une heure (**À 15:00** par défaut). La même collecte s'exécute alors toute seule chaque jour, sans demander de description. Vous recevez une notification (**N fichiers collectés**) uniquement lorsque quelque chose a réellement été collecté.
 
 ## Désactiver la fonction { #switching-the-feature-off }
 
-L'interrupteur **Collecte de fichiers** dans les Paramètres retire la page Collecte du rail et arrête l'exécution quotidienne, quel que soit le réglage automatique.
+L'interrupteur **Collecte de fichiers**, en haut de [Paramètres](settings.md) → **Collecte de fichiers**, retire la page Collecte du rail et arrête l'exécution quotidienne, quel que soit le réglage automatique.

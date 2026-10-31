@@ -61,6 +61,21 @@ themselves when the folder is loaded.
 Under the folder tree, **RECENTLY BOOKMARKED** lists the files you added bookmarks to most recently
 (newest first). Click one to play it.
 
+### Bookmarked today
+
+The **★ Today (n)** link in the **RECENTLY BOOKMARKED** header (or **Ctrl+D**) fills the playlist
+with every file you bookmarked **today**, newest bookmark first. The header over the playlist then
+reads **Bookmarked today · n file(s)**.
+
+- It looks at the `.tmk` files themselves, so bookmarks that arrived from the phone through your
+  sync tool count too — not just the ones made in this session.
+- It searches the **Bookmarks root** set in [Settings](settings.md) — by default the folder-tree
+  root — including every subfolder.
+- The count refreshes every minute, and starts again from zero at midnight.
+- The folder tree and the **Go to path…** field stay where they were; load a folder to go back to
+  browsing. On a day with no bookmarks yet, the player says **★ Nothing bookmarked today yet** and
+  leaves the playlist alone.
+
 ## Supported formats
 
 `.mp3` `.m4a` `.m4b` `.aac` `.ogg` `.oga` `.opus` `.flac` `.wav` `.wma` `.mka` `.webm` `.mp4`

@@ -140,13 +140,25 @@ data class AppSettings(
     val syncCheckIntervalSec: Int,
     /** How often to run a full sync (pull all types + drain outbox) while online, in seconds. */
     val syncIntervalSec: Int,
-    /** Quarter-hour chime at :00/:15/:30/:45 within the window below. */
+    /** Chime every [chimeIntervalMin] minutes within the window below. */
     val chimeEnabled: Boolean,
     /** Sound played by the chime (blank = system default notification sound). */
     val chimeSoundUri: String,
     /** Chime active window, hours 0..24 (no chime outside [start, end]). */
     val chimeStartHour: Int,
     val chimeEndHour: Int,
+    /** Minutes between chimes, one of [SettingsStore.CHIME_INTERVALS], counted from the start hour. */
+    val chimeIntervalMin: Int = 15,
+    /**
+     * The quick timer at the top of the alarms page: what it plays when it reaches zero. Kept here,
+     * not on the timer, so starting one is a single gesture with nothing to choose.
+     * Blank = the system's default alarm sound.
+     */
+    val quickTimerSoundUri: String = "",
+    /** 0-100 of the alarm stream, as an alarm's own volume. */
+    val quickTimerVolume: Int = 80,
+    /** How many times the sound plays through. */
+    val quickTimerRepeat: Int = 2,
     /** App display name shown in the home title. */
     val appName: String,
     /** New-note defaults (blank type/category = "first configured"); pre-selected and sticky. */
@@ -274,6 +286,10 @@ class SettingsStore(context: Context) {
         chimeSoundUri = prefs.getString(K_CHIME_SOUND, "") ?: "",
         chimeStartHour = prefs.getInt(K_CHIME_START, 8),
         chimeEndHour = prefs.getInt(K_CHIME_END, 22),
+        chimeIntervalMin = prefs.getInt(K_CHIME_INTERVAL, 15).takeIf { it in CHIME_INTERVALS } ?: 15,
+        quickTimerSoundUri = prefs.getString(K_QT_SOUND, "") ?: "",
+        quickTimerVolume = prefs.getInt(K_QT_VOLUME, 80).coerceIn(0, 100),
+        quickTimerRepeat = prefs.getInt(K_QT_REPEAT, 2).coerceIn(1, 20),
         // Blank (or the old default "knotes") means the app's own name in the UI language.
         appName = prefs.getString(K_APP_NAME, null)?.takeUnless { it == OLD_DEFAULT_APP_NAME }.orEmpty(),
         defaultType = prefs.getString(K_DEF_TYPE, "") ?: "",
@@ -353,6 +369,10 @@ class SettingsStore(context: Context) {
             .putString(K_CHIME_SOUND, settings.chimeSoundUri.trim())
             .putInt(K_CHIME_START, settings.chimeStartHour.coerceIn(0, 23))
             .putInt(K_CHIME_END, settings.chimeEndHour.coerceIn(settings.chimeStartHour + 1, 24))
+            .putInt(K_CHIME_INTERVAL, settings.chimeIntervalMin.takeIf { it in CHIME_INTERVALS } ?: 15)
+            .putString(K_QT_SOUND, settings.quickTimerSoundUri.trim())
+            .putInt(K_QT_VOLUME, settings.quickTimerVolume.coerceIn(0, 100))
+            .putInt(K_QT_REPEAT, settings.quickTimerRepeat.coerceIn(1, 20))
             .putString(K_APP_NAME, settings.appName.trim())
             .putString(K_DEF_TYPE, settings.defaultType.trim())
             .putString(K_DEF_CAT, settings.defaultCategory.trim())
@@ -421,6 +441,13 @@ class SettingsStore(context: Context) {
         private const val K_CHIME_SOUND = "chime_sound_uri"
         private const val K_CHIME_START = "chime_start_hour"
         private const val K_CHIME_END = "chime_end_hour"
+        private const val K_CHIME_INTERVAL = "chime_interval_min"
+        private const val K_QT_SOUND = "quick_timer_sound_uri"
+        private const val K_QT_VOLUME = "quick_timer_volume"
+        private const val K_QT_REPEAT = "quick_timer_repeat"
+
+        /** The chime intervals offered in Settings, in minutes. */
+        val CHIME_INTERVALS = listOf(15, 30, 60, 120)
         private const val K_APP_NAME = "app_name"
         private const val K_DEF_TYPE = "default_type"
         private const val K_DEF_CAT = "default_category"
@@ -453,8 +480,8 @@ class SettingsStore(context: Context) {
             K_CHECKLISTS_ENABLED, K_CHECKLISTS_DIR, K_COLLECT_ENABLED, K_FEED_DAYS, K_FEED_WORDS,
             K_FEED_TEXT_SP, K_BOARD_TEXT_SP, K_BOARD_COLUMNS, K_REM_OFFSETS, K_REM_SOUND,
             K_REM_DISMISS, K_REM_REPEAT, K_REM_IGNORE_SILENT, K_STATUS_NOTIF, K_SYNC_ENABLED, K_SYNC_CHECK_SEC,
-            K_SYNC_SEC, K_CHIME, K_CHIME_SOUND, K_CHIME_START, K_CHIME_END, K_APP_NAME, K_DEF_TYPE,
-            K_DEF_CAT, K_DEF_PRIO,
+            K_SYNC_SEC, K_CHIME, K_CHIME_SOUND, K_CHIME_START, K_CHIME_END, K_CHIME_INTERVAL, K_APP_NAME,
+            K_QT_SOUND, K_QT_VOLUME, K_QT_REPEAT, com.knotes.ui.ThemeColor.KEY, K_DEF_TYPE, K_DEF_CAT, K_DEF_PRIO,
         ) + PLAYER_BACKUP_KEYS
 
 

@@ -1,6 +1,7 @@
 package com.knotes.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -65,7 +66,8 @@ import java.time.format.TextStyle as JavaTextStyle
 import java.util.Locale
 
 /**
- * The alarms page: a clock alarm, a countdown and a prayer-relative alarm in one list.
+ * The alarms page: the quick timer on top (see [QuickTimerCard]), then a clock alarm, a countdown
+ * and a prayer-relative alarm in one list.
  *
  * They share a list because they share everything that happens when one fires — the sound, how many
  * times it plays, how loud. Only *when* differs, and that is one field on the form.
@@ -77,13 +79,19 @@ import java.util.Locale
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AlarmsScreen(
-    alarms: List<Alarm>,
+    allAlarms: List<Alarm>,
     exactAllowed: Boolean,
     prayerTimeAt: (LocalDate, Prayer) -> Long?,
     onSave: (Alarm) -> Unit,
     onDelete: (String) -> Unit,
     onPickSound: ((String) -> Unit) -> Unit,
+    onQuickStart: (Int) -> Unit = {},
+    onQuickStop: () -> Unit = {},
 ) {
+    // The quick timer is stored as an alarm (see QuickTimer) but drawn as the dial on top, not as a
+    // row in the list.
+    val quick = com.knotes.alarm.QuickTimer.of(allAlarms)
+    val alarms = allAlarms.filterNot { it.id == com.knotes.alarm.QuickTimer.ID }
     var editing by remember { mutableStateOf<Alarm?>(null) }
     var confirmDelete by remember { mutableStateOf<Alarm?>(null) }
     val zone = ZoneId.systemDefault()
@@ -97,6 +105,9 @@ fun AlarmsScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Box(modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp)) {
+                QuickTimerCard(quick = quick, onStart = onQuickStart, onStop = onQuickStop)
+            }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),

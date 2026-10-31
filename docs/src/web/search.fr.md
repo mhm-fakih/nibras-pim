@@ -4,7 +4,7 @@ Il existe quatre façons de trouver des enregistrements, de la plus rapide à la
 
 1. Les **filtres de liste** du module dans lequel vous vous trouvez.
 2. Les **raccourcis de rapports** et les **recherches enregistrées** dans la barre latérale.
-3. La **recherche globale**, sur tous les modules.
+3. La page **Search** (Recherche), sur tous les modules, vos notes locales et les fichiers du serveur.
 4. La page **Reports** (Rapports), pour des tableaux aux colonnes choisies que vous pouvez imprimer.
 
 ## Filtrer la liste d'un module { #filtering-a-modules-list }
@@ -13,15 +13,21 @@ En haut de chaque liste de module :
 
 | Contrôle | Ce qu'il fait |
 |---|---|
-| Zone **Search …** (Rechercher) | Trouve les enregistrements dont le texte contient ce que vous tapez. Pendant qu'une recherche est active, chaque ligne montre *où* elle a trouvé une correspondance (par ex. **Description:** …) avec le terme en gras. |
+| Zone **Search …** (Rechercher) | Trouve les enregistrements dont le texte contient ce que vous tapez. Ceux dont le titre commence par ce texte viennent en premier, puis ceux dont le titre le contient, puis les autres. Pendant qu'une recherche est active, chaque ligne montre *où* elle a trouvé une correspondance (par ex. **Description:** …) avec le terme en gras. |
+| **Active only** (Actifs uniquement — Tasks, Goals) | Coché par défaut : n'affiche que les enregistrements dont le statut est marqué actif, et ceux sans statut. Le menu **Status** ne propose alors que les statuts actifs. Décochez-le pour voir aussi le travail terminé. |
 | **Status**, **Type** (Statut, Type) | Afficher un seul statut ou type (pour les modules qui en ont). **Any** (Tous) efface le filtre. |
+| **Context** (Contexte — Tasks) | Afficher les tâches d'un seul contexte. |
 | **Priority** (Priorité) | Afficher une seule priorité, **P0**–**P5**. |
 | ☆ (**Bookmarked only** — Favoris uniquement) | N'afficher que les enregistrements en favori. |
 | **On day** (Ce jour-là) | Afficher les enregistrements appartenant à une date. Les journaux et les plans utilisent leur propre date ; les autres modules utilisent la date de création. |
-| **Per page** (Par page) | 10, 25, 50, 100 ou 200 lignes — mémorisé par votre navigateur. |
+
+Quand vous ouvrez le menu **Status**, **Type**, **Context** ou **Priority**, chaque option indique combien
+d'enregistrements elle donnerait, compte tenu des autres filtres définis ; le nombre à côté de **Any** est le total. Une
+option qui affiche 0 viderait la liste.
 
 Les filtres de rapport et de jour actifs apparaissent sous forme de pastilles sous les filtres ; cliquez sur le × d'une
-pastille pour la retirer. Le nombre total d'enregistrements correspondants est affiché en bas, à côté de la pagination.
+pastille pour la retirer. Le nombre d'enregistrements correspondants (**n items**) est affiché en bas, à côté de la
+pagination, avec à côté le choix **Per page** (Par page) — 10, 25, 50, 100 ou 200 lignes, mémorisé par votre navigateur.
 
 ## Raccourcis de rapports dans la barre latérale { #report-shortcuts-in-the-sidebar }
 
@@ -57,6 +63,8 @@ enregistrées) pour en ajouter, en modifier ou en supprimer :
     - **Search form** (Formulaire de recherche) — un ensemble de filtres de liste, écrits sous forme de paramètres,
       par ex. `bookmarked=true&highPriority=true`. L'exécuter filtre simplement la liste.
     - **HQL** — une requête sur les enregistrements de l'application, par ex. `from Task where bookmarked = true`.
+      Les recherches enregistrées écrites pour l'ancienne application Nibras continuent de fonctionner : leurs
+      requêtes sont adaptées aux enregistrements actuels au moment de l'exécution.
     - **SQL (native)** (SQL natif) — une requête brute sur la base de données.
 4. Cliquez sur **Preview** (Aperçu) pour l'essayer, puis sur **Save** (Enregistrer).
 
@@ -71,12 +79,60 @@ dans une boîte de dialogue en tableau.
 
 ## Recherche globale { #global-search }
 
-Tapez dans **Search everything…** (Tout rechercher) en haut de la barre latérale (ou appuyez sur **/**), puis
-**Enter**. La page **Search** (Recherche) affiche les correspondances de tous les modules, regroupées par module, avec
-les mots correspondants surlignés. Les correspondances de votre [dossier de notes locales](import-capture.md#local-notes)
-apparaissent sous **Local notes** (Notes locales). Cliquez sur un résultat pour l'ouvrir.
+La page **Search** (Recherche) parcourt tous les modules à la fois, ainsi que votre
+[dossier de notes locales](import-capture.md#local-notes) et les fichiers conservés sur le serveur. Ouvrez-la avec la
+loupe (**Search everything**, Tout rechercher) de la dernière ligne de la barre latérale, ou appuyez sur **/** depuis
+n'importe où.
 
-Vous pouvez mélanger du texte libre et des **jetons de filtre** :
+Remplissez ce que vous savez et appuyez sur **Enter** dans n'importe quel champ, ou cliquez sur **Search** :
+
+| Champ | Signification |
+|---|---|
+| **Words** (Mots) | Le texte à chercher. |
+| **Priority** (Priorité) | Une priorité, **P1**–**P5**, ou **Any** (Toutes). |
+| **Status code**, **Type code**, **Context code** (Code de statut, de type, de contexte) | Le code court d'un statut, d'un type ou d'un contexte — celui affiché à côté de son nom, par ex. `done`, `art`, `home`. |
+| **Bookmarked only** (Favoris uniquement) | Uniquement les enregistrements en favori. |
+| **Near-duplicates** (Quasi-doublons) | Chercher des enregistrements qui disent déjà la même chose — voir l'astuce ci-dessous. |
+
+À côté du bouton **Search**, la page affiche la recherche sous forme d'une ligne de texte (par exemple
+`linux p4 ?done *`). Cette même ligne passe dans l'adresse de la page : une recherche peut donc être mise en favori dans
+le navigateur ou relancée.
+
+Sous le formulaire, **Search in** (Chercher dans) choisit où le texte est cherché. **All** (Tout) est la valeur par
+défaut ; cliquez sur une ou plusieurs des autres pastilles pour restreindre :
+
+| Pastille | Cherche dans |
+|---|---|
+| **Title / summary** (Titre / résumé) | Les titres et résumés des enregistrements ; la première ligne, le nom de fichier et les étiquettes d'une note locale. |
+| **Description / notes** | Les descriptions, notes et autres textes des enregistrements ; le reste d'une note locale. |
+| **File names** (Noms de fichiers) | Les noms des fichiers et dossiers des dépôts et des dossiers compagnons des notes. |
+| **File contents** (Contenu des fichiers) | Le texte lu dans ces fichiers (PDF, documents, texte…). |
+
+Les résultats sont regroupés par module, avec les mots correspondants surlignés ; les correspondances de votre dossier de
+notes apparaissent sous **Local notes** (Notes locales), et les fichiers sous **Files** (Fichiers). Cliquez sur un
+résultat pour l'ouvrir.
+
+### Fichiers { #files }
+
+Le groupe **Files** liste les fichiers correspondants avec leur source, leur dossier et leur taille (**name match**
+lorsque seul le nom correspond), ainsi qu'un extrait du texte autour de la correspondance.
+
+- Restreignez la liste avec les pastilles de source (**Repo 1**, **Repo 2**, **Repo 3**, **Note files** — fichiers des
+  notes) et le menu **Type** (**PDF**, **Documents**, **Spreadsheets** — tableurs, **Slides** — présentations,
+  **Text**, **Audio**, **Video**, **Images**).
+- La pastille à droite d'un fichier nomme l'enregistrement (ou la note) auquel il appartient — cliquez dessus pour
+  ouvrir cet enregistrement.
+- Les deux icônes **Open the file** (Ouvrir le fichier) et **Open its folder** (Ouvrir son dossier) les ouvrent sur
+  l'ordinateur qui fait tourner le serveur.
+
+Les dossiers parcourus, et les types de fichiers dont le contenu est lu, se règlent dans
+[Settings → File search](settings.md#file-search). Seuls les mots libres sont cherchés dans les fichiers ; les codes et
+les filtres s'appliquent aux enregistrements.
+
+### Jetons de filtre { #filter-tokens }
+
+La zone **Words** accepte aussi des **jetons de filtre**, mélangés au texte libre — les autres champs du formulaire en
+écrivent simplement certains pour vous :
 
 | Jeton | Signification | Exemple |
 |---|---|---|
@@ -94,12 +150,13 @@ Vous pouvez mélanger du texte libre et des **jetons de filtre** :
 lettres sont donc toujours recherchés comme du texte.
 
 !!! tip "Vérifiez les doublons avant d'ajouter"
-    Commencez une recherche par `~` pour trouver des **quasi-doublons** au lieu de correspondances exactes, par ex.
-    `~ hand over the old laptop`. Chaque résultat affiche un pourcentage de similarité — utile avant de créer un
-    enregistrement qui existe peut-être déjà.
+    Cochez **Near-duplicates** (ou commencez les mots par `~`) pour trouver des enregistrements *semblables* plutôt que
+    des correspondances exactes, par ex. `~ hand over the old laptop`. Chaque résultat affiche un pourcentage de
+    similarité — utile avant de créer un enregistrement qui existe peut-être déjà. Les notes et les fichiers sont
+    exclus d'une recherche de quasi-doublons.
 
 !!! note "Aucun résultat du tout ?"
-    Si la recherche globale ne trouve rien et affiche un avertissement indiquant que **the search index is empty**
+    Si la page Search ne trouve rien et affiche un avertissement indiquant que **the search index is empty**
     (l'index de recherche est vide), un administrateur doit cliquer une fois sur **Rebuild search index** (Reconstruire
     l'index de recherche) sur la page [Admin](administration.md#admin-page).
 

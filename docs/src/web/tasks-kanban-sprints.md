@@ -20,6 +20,10 @@ Besides the common fields, a task has:
 | **Repeats** | See [Repeating tasks](records.md#repeating-tasks-and-plans). |
 | **People** | The contacts the task is with (when Contacts is enabled). |
 
+The Tasks list opens with **Active only** ticked, so finished tasks stay out of the way, and it has
+a **Context** filter besides **Status** and **Priority** — see
+[Filtering a module's list](search.md#filtering-a-modules-list).
+
 ### Completing a task
 
 Click the **✓** circle in the detail pane (**Click to mark complete**). This stamps the completion
@@ -56,8 +60,8 @@ current one first.
 
 ## Kanban
 
-**Kanban** (sidebar, or **g k**) shows **bookmarked goals and their tasks**, one column per
-**department**.
+**Kanban** (sidebar → **Views**, or **g k**) shows **bookmarked goals and their tasks**, one column
+per **department**. It is also the app's home page: opening the app's address lands here.
 
 - Each column lists its **Goals**, with each goal's open tasks nested under the goal card.
 - **Tasks — no goal** lists tasks in that department that aren't attached to a shown goal.

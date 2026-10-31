@@ -12,12 +12,14 @@
 - **1 j** / **3 j** affichent un jour ou trois jours côte à côte.
 - Les **Plans** sont dessinés en vert et les entrées **Journal** en bleu clair. Les occurrences futures d'un plan récurrent sont dessinées plus pâles.
 - Une fine ligne en travers de la colonne d'aujourd'hui marque l'heure actuelle.
-- Les heures affichées vont de l'**Heure de début du calendrier** à l'**Heure de fin du calendrier** définies dans les [Paramètres](settings.md) (de 5 à 22 par défaut). Toute la plage tient à l'écran sans défilement.
+- Les heures affichées vont de l'**Heure de début du calendrier** à l'**Heure de fin du calendrier** définies dans [Paramètres](settings.md) → **Calendrier et widgets** (de 5 à 22 par défaut). Toute la plage tient à l'écran sans défilement.
 - **Créneau** (15 min / 30 min / 60 min), sous la grille, définit la taille d'un créneau horaire, c'est-à-dire le pas sur lequel s'alignent les nouvelles entrées et les glissements.
 
 ### Mini-calendrier { #mini-calendar }
 
-Lorsque **Mini-calendrier** est activé dans les Paramètres (c'est le cas par défaut), une bande en haut affiche la semaine dernière et la semaine en cours, chaque ligne commençant par son numéro de semaine (**S41**). Un point marque les jours qui ont des entrées. Touchez un jour pour y aller.
+Lorsque **Mini-calendrier** est activé dans Paramètres → **Calendrier et widgets** (c'est le cas par défaut), une bande en haut affiche la semaine dernière et la semaine en cours, chaque ligne commençant par son numéro de semaine (**S41**). Un point marque les jours qui ont des entrées. Touchez un jour pour y aller.
+
+Pour voir plus loin, touchez la petite flèche au bout de la deuxième ligne (**Afficher le mois entier**). La bande se déplie en un mois complet, avec des flèches pour passer au mois précédent ou suivant ; les jours hors du mois sont plus pâles. Touchez la flèche au bout de la ligne du titre du mois (**Revenir à deux semaines**) pour la replier.
 
 ## Ajouter une entrée { #add-an-entry }
 
@@ -38,6 +40,29 @@ Dans le formulaire :
 | **Description** | Détails facultatifs. |
 
 Touchez **Enregistrer**. Vous verrez **Enregistré dans le calendrier**, ou **Enregistré — sera synchronisé une fois en ligne** si vous êtes hors ligne.
+
+## Ajouter une semaine d'un coup { #add-a-week-at-once }
+
+Pour un emploi du temps, saisir les entrées une à une est long. Touchez l'icône liste avec un plus dans la barre du haut (**Ajouter une semaine**) et tapez une entrée par ligne :
+
+```
+p lun 10:00 Analyse
+p lun,mer 8:00-9:30 Physique
+p mar-jeu 14 TP
+j ven 2:30pm Réunion de groupe
+```
+
+- **`p` ou `j`** en début de ligne en fait un plan ou une entrée de journal. Sans eux, la ligne prend le **Type** choisi sous la zone de texte.
+- **Jours** : un jour (`lun`), une liste (`lun,mer`) ou une plage (`lun-ven`). Les noms de jours français, anglais et arabes fonctionnent tous.
+- **Heures** : `8`, `8:30` ou `2:30pm`, éventuellement avec une fin (`8:00-9:30`). Sans fin, une entrée dure une heure.
+- Tout ce qui suit l'heure est le titre.
+
+Sous la zone, chaque ligne montre ce qu'elle va donner (type, date, heures, titre), ou ce qui ne va pas, par exemple **Ligne 2 : pas d'heure (8, 8:30, 2:30pm…)**.
+
+- **À partir du** est le premier jour à partir duquel les lignes sont placées : chaque jour de la semaine tombe sur sa première date à partir de celui-ci. Touchez la date pour la changer.
+- **Répéter** : **Une fois (cette semaine)**, ou utilisez **+** pour répéter **Chaque semaine pendant N semaines, jusqu'au …** (jusqu'à 52), afin de saisir une seule fois l'emploi du temps d'un semestre. Seuls les plans se répètent : **Les entrées de journal sont ajoutées une fois ; seuls les plans se répètent.**
+
+Touchez **Ajouter N** pour tout enregistrer. Comme les entrées simples, elles sont d'abord enregistrées sur le téléphone puis envoyées dès que le serveur est joignable.
 
 ## Modifier une entrée { #change-an-entry }
 

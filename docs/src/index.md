@@ -18,8 +18,8 @@ into structured records (tasks, journal entries, goals, writings, resources…).
 
 | App | Runs on | What it is for |
 |-----|---------|----------------|
-| [knotes for Android](mobile/index.md) | Phone | Quick capture, the media player with bookmarks, widgets, reminders, and an offline view of your server records. |
-| [Nibras web app](web/index.md) | Browser + server | The full record system: tasks, journals, goals, writings, resources, reports — plus importing notes from the folder. |
+| [Nibras Mobile](mobile/index.md) | Android phone | Quick capture, the media player with bookmarks, widgets, reminders, and an offline view of your server records. |
+| [Nibras web app](web/index.md) | Browser + server | The full record system: tasks, journals, goals, writings, resources, a Kanban board, search across records and files, reports — plus importing notes from the folder. |
 | [knotes desktop](desktop/index.md) | Linux / Windows (GTK) | A keyboard-driven board for capturing, triaging, merging and attaching files to notes. |
 | [knotes terminal](terminal/index.md) | Any terminal | One-line note entry and quick server reports, without leaving the shell. |
 | [Audio player](audio-player/index.md) | Linux (GTK) | A desktop audio & video player whose bookmarks are shared with the phone. |
@@ -37,7 +37,7 @@ into structured records (tasks, journal entries, goals, writings, resources…).
 
     ---
 
-    Install [knotes for Android](mobile/index.md) or [knotes desktop](desktop/index.md), point it at
+    Install [Nibras Mobile](mobile/index.md) or [knotes desktop](desktop/index.md), point it at
     a folder, and start typing. No account, no server.
 
 -   **Several devices?**

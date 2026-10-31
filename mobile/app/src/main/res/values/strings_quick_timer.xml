@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="qt_title">Quick timer</string>
+    <string name="qt_min_unit">min</string>
+    <string name="qt_ends_at">Ends at %1$s</string>
+    <string name="qt_start_cd">Start the quick timer</string>
+    <string name="qt_stop_cd">Stop the quick timer</string>
+    <string name="qt_settings_header">Quick timer</string>
+    <string name="qt_settings_desc">The countdown at the top of the Alarms page plays this when it ends.</string>
+    <string name="qt_settings_choose_sound">Choose sound file</string>
+    <string name="qt_settings_default_sound">Default alarm sound</string>
+    <string name="qt_settings_volume">Volume %1$d%%</string>
+    <string name="qt_settings_repeat">Plays %1$d×</string>
+</resources>

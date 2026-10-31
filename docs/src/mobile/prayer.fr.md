@@ -1,11 +1,11 @@
 # Heures de prière et adhan
 
-**Heures de prière** (l'icône de la mosquée, la première de **Sur ce téléphone**) affiche les heures de prière du jour et la date hégirienne, et peut appeler l'adhan, vous prévenir à l'avance et mettre votre téléphone en silence pendant la prière. Tout est calculé sur le téléphone : cela fonctionne donc hors ligne, et rien concernant votre position ne quitte l'appareil.
+**Heures de prière** (l'icône de la mosquée, la première de **Sur ce téléphone**) affiche les heures de prière du jour et la date hégirienne, et peut appeler l'adhan, vous prévenir à l'avance et mettre votre téléphone en silence (ou en vibreur) pendant la prière. Tout est calculé sur le téléphone : cela fonctionne donc hors ligne, et rien concernant votre position ne quitte l'appareil.
 
 ## La page { #the-page }
 
 - **La date hégirienne**, puis la date du jour et le nom de votre lieu.
-- **La suivante** : la prochaine prière, son heure et un compte à rebours en direct (**dans 1 h 12 min**, puis **dans 4 min 30 s** à l'approche).
+- **La suivante** : la prochaine prière, son heure et un compte à rebours en direct (**dans 1 h 12 min**, puis **dans 4 min 30 s** à l'approche). Pendant un moment après l'arrivée d'un horaire, ce cadre affiche plutôt cette prière et compte à partir d'elle (**منذ 4:12**, « depuis 4:12 »), avec la suivante en dessous. Cette durée est le réglage **Minuteur « منذ »** sous **Adhan**.
 - **Les horaires** : Fajr, Chourouq (lever du soleil), Dhohr, Asr, Maghrib et Icha, chacun avec son nom arabe. Le prochain est mis en évidence, et une icône de haut-parleur (**Adhan activé**) signale les horaires où l'adhan sera appelé. Si vous avez décalé un horaire, l'ajustement est affiché à côté.
 
 Sous les horaires se trouve une rangée de cinq puces. Chacune ouvre un panneau de réglages en dessous ; touchez-la à nouveau pour le fermer. **Chaque modification prend effet immédiatement ; il n'y a pas de bouton Enregistrer.**
@@ -14,8 +14,8 @@ Sous les horaires se trouve une rangée de cinq puces. Chacune ouvre un panneau 
 |---|---|
 | **Horaires** | Les horaires à afficher, et les ajustements de chacun |
 | **Méthode** | Le début de l'Asr, la méthode de calcul, votre position, les règles pour le Grand Nord |
-| **Adhan** | Interrupteur général, son et volumes de l'adhan, rappels, compte à rebours du widget, bips avant le Chourouq |
-| **Silence** | La mise en silence du téléphone aux heures de prière |
+| **Adhan** | Interrupteur général, son et volumes de l'adhan, compte à rebours du widget et minuteur « منذ », rappels, bips avant le Chourouq |
+| **Silence** | **Après l’adhan** : mettre le téléphone en silence, ou en vibreur, aux heures de prière |
 | **Hégire** | L'ajustement de la date hégirienne |
 
 ## D'abord : définir votre position { #first-set-your-location }
@@ -51,21 +51,22 @@ Les horaires dépendent de l'endroit où vous êtes. Ouvrez **Méthode → Votre
 ### Interrupteurs { #switches }
 
 - **Alertes activées** : l'interrupteur général. Désactivé, la page affiche toujours les horaires, mais rien ne sonne et aucune alarme n'est programmée. La page avertit alors : **Les alertes sont désactivées — les horaires restent affichés, mais rien ne sonnera.**
-- **Horaires de prière dans l’appli** : désactivé, il retire toute la page du rail et ne programme rien. Pour la faire revenir, utilisez l'interrupteur **Les heures de prière sont masquées** dans les [Paramètres](settings.md).
+- **Horaires de prière dans l’appli** : désactivé, il retire toute la page du rail et ne programme rien. Le même interrupteur se trouve en haut de l'onglet **Heures de prière** des [Paramètres](settings.md#prayer-times) : c'est par là que la page revient.
 
 ### L'adhan { #the-athan }
 
 - **Appeler l’adhan à** : choisissez les prières qui ont droit à l'adhan (Dhohr et Maghrib par défaut). Le Chourouq est le lever du soleil, pas une prière : il ne figure donc jamais dans cette liste.
-- **Le son** : sans fichier choisi, l'adhan joue le **son d'alarme par défaut du téléphone**. Pour entendre un véritable adhan, touchez **Choisir un fichier d’adhan** et sélectionnez le fichier audio de l'enregistrement voulu. **Effacer** revient au son d'alarme par défaut. **Écouter** le joue tout de suite ; **Arrêter** l'arrête.
+- **Le son** : sans fichier choisi, l'adhan joue le **son d'alarme par défaut du téléphone**. Pour entendre un véritable adhan, touchez **Choisir un fichier d’adhan** et sélectionnez le fichier audio de l'enregistrement voulu. **Effacer** revient au son d'alarme par défaut. **Écouter** le joue tout de suite au volume d'alarme actuel du téléphone ; **Arrêter** l'arrête.
 - L'adhan est joué sur le canal sonore des **alarmes** : il reste donc audible lorsque le téléphone est mis en silence pour la prière.
-- **Volume pour chacune** : un volume distinct par prière (80 % par défaut). Il peut rendre un adhan plus doux que le volume d'alarme du téléphone, jamais plus fort ; 0 le coupe. Les boutons **Écouter :** permettent de tester chacun.
+- **Volume pour chacune** : un volume distinct par prière (80 % par défaut). Pendant l'adhan, le volume d'alarme du téléphone est réglé à ce niveau, puis remis comme avant : 25 % sonne donc pareil quel que soit le volume d'alarme laissé. 0 coupe celui-ci. Les boutons **Écouter :** jouent l'adhan de chaque prière exactement au volume qu'il utilisera.
 
-Lorsque l'adhan est joué, une notification apparaît avec un bouton **Arrêter**.
+Lorsque l'adhan est joué, une notification apparaît avec un bouton **Arrêter**. Pendant la lecture, les touches de volume du téléphone montent ou baissent l'adhan (et les bips du Chourouq), même écran éteint, et une pression pause ou arrêt sur un casque l'arrête.
 
 ### Rappels et compte à rebours { #reminders-and-countdown }
 
 - **Me rappeler avant chaque horaire** : une notification discrète peu avant chaque horaire que vous avez choisi d'afficher (**10 min avant** par défaut, réglable de 1 à 60 minutes). Activé par défaut.
 - **Compte à rebours du widget** : le [widget de prière](widgets.md#prayer-times) n'affiche son compte à rebours qu'une fois le prochain horaire aussi proche (1 heure par défaut, de 15 minutes jusqu'à **toujours affiché**).
+- **Minuteur « منذ » : N min** : une fois l'horaire arrivé, la page et le widget comptent à partir de lui (**منذ 4:12**) pendant cette durée, au lieu de sauter tout de suite à l'horaire suivant, des heures plus loin (30 minutes par défaut, jusqu'à 120 ; **Minuteur « منذ » : désactivé** à 0).
 
 ### Bips avant le Chourouq { #beeps-before-shurooq }
 
@@ -75,13 +76,21 @@ Le lever du soleil met fin au temps du Fajr : il peut donc avoir son propre comp
 
 ## Silence { #silence }
 
-**Mettre le téléphone en silence → Passer en silence à ces horaires** met la sonnerie en silencieux à l'heure de la prière et la remet ensuite exactement comme elle était.
+La puce **Silence** ouvre **Après l’adhan**, avec trois choix :
 
-- **Pendant N min** : la durée du silence (15 par défaut, de 5 à 60).
+| Choix | Ce qui se passe à l'heure de la prière |
+|---|---|
+| **Rien** (par défaut) | Rien ; la sonnerie n'est pas touchée. |
+| **Silence** | La sonnerie passe en silencieux. |
+| **Vibreur** | La sonnerie passe en vibreur. |
+
+Dans les deux cas, elle est ensuite remise exactement comme avant. Avec **Silence** ou **Vibreur**, deux réglages de plus apparaissent :
+
+- **Pendant N min** : combien de temps rester ainsi (15 par défaut, de 5 à 60).
 - **À ces horaires** : les prières concernées (Dhohr et Maghrib par défaut). Ce choix est indépendant de l'adhan : vouloir le calme pendant la prière et vouloir entendre l'appel sont deux choix différents.
 
 !!! note "Accès « Ne pas déranger »"
-    Android ne permet à une application de modifier la sonnerie que si vous lui accordez l'accès « Ne pas déranger ». S'il manque, le panneau l'indique. Touchez **Autoriser l’accès** et activez knotes dans la liste.
+    Android ne permet à une application de modifier la sonnerie que si vous lui accordez l'accès « Ne pas déranger ». S'il manque, le panneau l'indique. Touchez **Autoriser l’accès** et activez Nibras Mobile dans la liste.
 
 ## Hégire { #hijri }
 

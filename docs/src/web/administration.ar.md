@@ -18,7 +18,8 @@
 | **Audit log** (سجل التدقيق) | عرض صفحة **Audit log** وقسم **History** (السجل التاريخي) لكل سجل. |
 
 يستطيع أي مستخدم مسجّل الدخول قراءة كل الوحدات والبحث فيها وتصفحها، وكذلك صفحات القراءة (Today وCalendar
-وKanban وDashboards وInsights وSprints وReports وBookmarks وHighlights وFlash cards وLocal notes).
+وKanban وDashboards وInsights وSprints وReports وBookmarks وHighlights وFlash cards وLocal notes
+وChecklists (week)).
 
 تبدأ الأدوار الأربعة على النحو التالي:
 

@@ -13,39 +13,50 @@ Tout ce que vous écrivez se trouve dans des fichiers ordinaires, dans des dossi
 | Surlignages dans les notes | Dans le fichier de la note lui-même (`==…==`) |
 | Signets des médias | Un fichier `.tmk` à côté de chaque fichier audio ou vidéo |
 | Images annotées | L'image elle-même ; les originaux dans un dossier caché `.scr-backup` à côté |
+| Listes de contrôle | Un fichier Markdown par semaine, dans le **Dossier des listes** |
 
-Pour les sauvegarder, copiez les dossiers sur un ordinateur ou tenez-les à jour avec un outil de synchronisation de dossiers comme Syncthing. Désinstaller knotes ne les supprime pas.
+Pour les sauvegarder, copiez les dossiers sur un ordinateur ou tenez-les à jour avec un outil de synchronisation de dossiers comme Syncthing. Désinstaller l'application ne les supprime pas.
+
+### Vos réglages, dans un seul fichier { #your-settings-in-one-file }
+
+**Paramètres → Général → Sauvegarde** enregistre tous les réglages du téléphone dans un fichier JSON, ou en recharge un, pour une réinstallation ou un deuxième téléphone :
+
+- **Exporter les réglages** demande où enregistrer le fichier (`knotes-settings-<date>.json` par défaut). Ce qui est à l'écran est d'abord enregistré, si bien que le fichier contient ce que vous voyez.
+- **Importer les réglages** charge un tel fichier et redémarre l'application.
+
+Le fichier contient les réglages de tous les onglets, ceux des heures de prière, la langue et les réglages du lecteur. Le mot de passe du serveur n'en fait pas partie : saisissez-le à nouveau après un import.
 
 ### Ce qui est stocké dans l'application { #what-lives-inside-the-app }
 
 Certaines choses sont stockées par l'application plutôt que dans vos dossiers :
 
-- vos réglages, y compris les chemins des dossiers, les types et catégories, et les informations du serveur,
+- vos réglages, y compris les chemins des dossiers, les types et catégories, et les informations du serveur (ils peuvent être exportés, voir ci-dessus),
 - les alarmes et les réglages des heures de prière,
 - les réglages du lecteur et la dernière position dans chaque fichier multimédia,
 - l'état propre au téléphone pour les fiches du serveur : lu/non lu et la sélection privée par étoile,
 - la copie enregistrée des fiches du serveur, et les modifications encore en attente d'envoi.
 
-Tout cela est perdu si vous désinstallez l'application ou effacez ses données. Avant l'une ou l'autre de ces opérations, laissez les modifications en attente se synchroniser avec le serveur et notez vos réglages. Tout ce qui se trouve sur le serveur est téléchargé à nouveau lorsque vous vous reconnectez.
+Tout cela est perdu si vous désinstallez l'application ou effacez ses données. Avant l'une ou l'autre de ces opérations, laissez les modifications en attente se synchroniser avec le serveur, exportez vos réglages et notez vos alarmes, que le fichier de réglages ne contient pas. Tout ce qui se trouve sur le serveur est téléchargé à nouveau lorsque vous vous reconnectez.
 
 ## Dépannage { #troubleshooting }
 
 ### La page Notes est vide { #the-notes-page-is-empty }
 
 - La liste démarre sur **aujourd'hui**. Si vous n'avez rien écrit aujourd'hui, elle est vide. Ouvrez la barre **Filtres** et touchez **Tout effacer**.
-- Vérifiez **Paramètres → Dossier des notes**. Un chemin qui semble correct mais n'existe pas (une faute de frappe, `notes` au lieu de `Notes`, une carte mémoire non insérée) donne une application vide, sans message d'erreur. La visite de configuration (**Paramètres → Afficher la visite de configuration**) indique si chaque dossier existe et ce qu'il contient.
+- Vérifiez **Paramètres → Général → Dossier des notes**. Un chemin qui semble correct mais n'existe pas (une faute de frappe, `notes` au lieu de `Notes`, une carte mémoire non insérée) donne une application vide, sans message d'erreur. La visite de configuration (**Paramètres → Général → Afficher la visite de configuration**) indique si chaque dossier existe et ce qu'il contient.
 - Assurez-vous que l'accès aux fichiers est toujours accordé (voir ci-dessous).
 
 ### « Impossible d’écrire la note. Vérifiez que l’accès aux fichiers est toujours accordé. » { #could-not-write-the-note-check-that-file-access-is-still-granted }
 
-knotes a besoin de l'**Accès à tous les fichiers**. Ouvrez les paramètres Android → Applications → knotes → Autorisations (ou **Accès spécial des applications → Accès à tous les fichiers**) et activez-le. S'il est désactivé au démarrage de l'application, celle-ci affiche à nouveau **Autoriser l’accès aux fichiers**.
+L'application a besoin de l'**Accès à tous les fichiers**. Ouvrez les paramètres Android → Applications → Nibras Mobile → Autorisations (ou **Accès spécial des applications → Accès à tous les fichiers**) et activez-le. S'il est désactivé au démarrage de l'application, celle-ci affiche à nouveau **Autoriser l’accès aux fichiers**.
 
 ### Les alarmes, les rappels ou le carillon arrivent en retard, ou pas du tout { #alarms-reminders-or-the-chime-come-late-or-not-at-all }
 
-- Si la page Alarmes indique **Les alarmes exactes ne sont pas autorisées pour cette appli**, autorisez **Alarmes et rappels** pour knotes dans les paramètres Android.
-- Autorisez les notifications pour knotes. Sans elles, Android masque les rappels, le carillon et la notification de l'adhan.
-- Laissez **Notification permanente** activée (Paramètres → **État et carillon**). Elle maintient l'application active pour que les alarmes se déclenchent à l'heure.
-- Certains téléphones arrêtent les applications en arrière-plan pour économiser la batterie. Si les alarmes arrivent toujours en retard, excluez knotes de l'optimisation de la batterie dans les paramètres Android.
+- Si la page Alarmes indique **Les alarmes exactes ne sont pas autorisées pour cette appli**, autorisez **Alarmes et rappels** pour Nibras Mobile dans les paramètres Android.
+- Autorisez les notifications pour Nibras Mobile. Sans elles, Android masque les rappels, le carillon et la notification de l'adhan.
+- Laissez **Notification permanente** activée (**Paramètres → Alertes**). Elle maintient l'application active pour que les alarmes se déclenchent à l'heure.
+- Certains téléphones arrêtent les applications en arrière-plan pour économiser la batterie. Si les alarmes arrivent toujours en retard, excluez Nibras Mobile de l'optimisation de la batterie dans les paramètres Android.
+- Après un redémarrage du téléphone ou une mise à jour de l'application, les alarmes sont reprogrammées automatiquement.
 
 ### L'adhan n'a pas retenti { #the-athan-didnt-sound }
 
@@ -70,8 +81,9 @@ La note a des fichiers dans son dossier de pièces jointes. Ouvrez-le avec **Ouv
 
 ### Les pages serveur sont vides ou pas à jour { #server-pages-are-empty-or-out-of-date }
 
+- Vérifiez que **Utiliser un serveur Nibras** est activé dans **Paramètres → Serveur**. Désactivé, les pages serveur ne figurent pas du tout dans le rail.
 - Vérifiez l'état de la connexion en haut d'une page de fiches (**En ligne** / **Hors ligne**).
-- **Échec de la connexion — vérifiez le nom d’utilisateur et le mot de passe dans les paramètres** : corrigez-les dans **Paramètres → Serveur Nibras**.
+- **Échec de la connexion — vérifiez le nom d’utilisateur et le mot de passe dans les paramètres** : corrigez-les dans **Paramètres → Serveur**.
 - Seules les fiches **en favori** arrivent sur le téléphone. Pour en obtenir une autre, utilisez [Rechercher sur le serveur](server-pages.md#search-server) et marquez-la.
 - Touchez **Actualiser les pages du serveur** en bas du rail pour tout recharger.
 
@@ -86,7 +98,7 @@ La note a des fichiers dans son dossier de pièces jointes. Ouvrez-le avec **Ouv
 
 ### La page Réponses IA indique que le dossier est absent { #the-ai-answers-page-says-the-folder-is-missing }
 
-Le dossier n'est pas encore arrivé sur le téléphone, ou il se trouve ailleurs. Vérifiez votre outil de synchronisation de dossiers, ou faites pointer **Paramètres → Dossier des réponses IA** vers son emplacement réel.
+Le dossier n'est pas encore arrivé sur le téléphone, ou il se trouve ailleurs. Vérifiez votre outil de synchronisation de dossiers, ou faites pointer **Paramètres → Général → Dossier des réponses IA** vers son emplacement réel.
 
 ### « Plus rien ici » dans le lecteur { #nothing-left-here-in-the-player }
 
@@ -94,7 +106,7 @@ Le dossier n'est pas encore arrivé sur le téléphone, ou il se trouve ailleurs
 
 ## FAQ { #faq }
 
-**knotes a-t-elle besoin d'une connexion Internet ?**
+**Nibras Mobile a-t-elle besoin d'une connexion Internet ?**
 Non. Les notes, le lecteur, la galerie, la collecte, les heures de prière, les alarmes et les widgets fonctionnent tous hors ligne. Seules les pages serveur et la synchronisation ont besoin de votre serveur Nibras, et elles affichent la dernière copie synchronisée lorsqu'il est injoignable.
 
 **Puis-je utiliser un dossier de notes que j'ai déjà ?**
@@ -113,4 +125,7 @@ C'est voulu. Les heures, les noms de fichiers et les fichiers de signets sont pa
 Une note, une image ou un enregistrement supprimé est un fichier supprimé. Si vous synchronisez vos dossiers avec un ordinateur, votre outil de synchronisation conserve peut-être d'anciennes versions. Consultez ses réglages.
 
 **Puis-je désactiver les fonctions que je n'utilise pas ?**
-**Heures de prière** (sur sa propre page, sous **Adhan**) et **Collecte de fichiers** (dans les Paramètres) peuvent être désactivées, et elles disparaissent alors du rail. Les pages serveur restent simplement vides si aucun serveur n'est configuré.
+Oui. Chaque partie facultative a un interrupteur en haut de son onglet dans les Paramètres : **Utiliser un serveur Nibras** (Serveur), **Heures de prière**, **Pages du lecteur multimédia** et **Galerie** (Médias), **Collecte de fichiers** et **Listes de contrôle**. Une partie désactivée disparaît du rail et ne fait rien en arrière-plan. Les fichiers joints aux notes restent lisibles même lorsque les pages multimédias sont désactivées.
+
+**L'application s'appelait knotes. Qu'est-ce qui a changé ?**
+Seulement le nom. Elle s'appelle désormais **Nibras Mobile** (**نبراس محمول** en arabe). Vos notes, vos dossiers et vos réglages sont les mêmes, et les fichiers de notes gardent leurs noms.

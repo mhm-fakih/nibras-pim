@@ -11,8 +11,9 @@ import com.knotes.SettingsStore
 import java.util.Calendar
 
 /**
- * Fires on each quarter-hour: plays the chime once if the current time is inside the configured
- * [start, end] window, then re-arms the next quarter. Also nudges the status notification so its
+ * Fires on each quarter-hour: plays the chime once if the tick falls on the configured interval
+ * (every 15/30/60/120 minutes, counted from the start hour) inside the [start, end] window, then
+ * re-arms the next quarter. Also nudges the status notification so its
  * "today's notes" count stays fresh. Works with the app closed (manifest-registered).
  */
 class ChimeReceiver : BroadcastReceiver() {
@@ -22,7 +23,11 @@ class ChimeReceiver : BroadcastReceiver() {
         val settings = SettingsStore(context).value
         if (!settings.chimeEnabled) return
 
-        if (inWindow(settings.chimeStartHour, settings.chimeEndHour)) {
+        val c = Calendar.getInstance()
+        intent.getLongExtra(ChimeScheduler.EXTRA_AT, 0L).takeIf { it > 0 }?.let { c.timeInMillis = it }
+        // Snap to the nearest quarter, for an alarm armed before EXTRA_AT existed.
+        val minuteOfDay = ((c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE) + 7) / 15 * 15) % (24 * 60)
+        if (shouldChime(minuteOfDay, settings.chimeStartHour, settings.chimeEndHour, settings.chimeIntervalMin)) {
             play(context, settings.chimeSoundUri)
         }
         // Keep the chain going and refresh the status notification's count.
@@ -30,11 +35,6 @@ class ChimeReceiver : BroadcastReceiver() {
         StatusService.refresh(context)
     }
 
-    private fun inWindow(startHour: Int, endHour: Int): Boolean {
-        val c = Calendar.getInstance()
-        val minuteOfDay = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
-        return minuteOfDay in (startHour * 60)..(endHour * 60)
-    }
 
     // Play through a Ringtone (not MediaPlayer): as a NOTIFICATION-usage ringtone it follows the
     // device's notification-volume slider, so the chime is as loud as the user's other notifications
@@ -59,6 +59,13 @@ class ChimeReceiver : BroadcastReceiver() {
 
     companion object {
         private var ringtone: Ringtone? = null
+
+        /** Whether the tick at [minuteOfDay] is inside [startHour, endHour] and on the interval from the start. */
+        fun shouldChime(minuteOfDay: Int, startHour: Int, endHour: Int, intervalMin: Int): Boolean {
+            val start = startHour * 60
+            if (minuteOfDay !in start..(endHour * 60)) return false
+            return (minuteOfDay - start) % intervalMin.coerceAtLeast(15) == 0
+        }
 
         private fun stop() {
             runCatching { ringtone?.stop() }

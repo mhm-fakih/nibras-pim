@@ -12,7 +12,7 @@ sortir. Ils ignorent aussi les combinaisons avec **Ctrl**, **Alt** ou **⌘**.
 | Touches | Action |
 |---|---|
 | **?** | Afficher / masquer la fenêtre des raccourcis |
-| **/** | Aller au champ **Search everything…** (Tout rechercher…) |
+| **/** | Ouvrir la page **Search** (Recherche) — ou, sur cette page, aller au champ **Words** (Mots) |
 | **g** puis une lettre | Aller à une page (voir ci-dessous) |
 | **Esc** | Fermer une boîte de dialogue ou un formulaire, ou désélectionner la fiche courante |
 

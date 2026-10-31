@@ -1,13 +1,13 @@
 # Écrire et modifier des notes
 
-La page **Notes** est l'écran d'accueil de l'application. Elle liste les notes de votre dossier de notes et propose, en bas, une zone pour écrire la suivante.
+La page **Notes** est l'écran d'accueil de l'application. Elle liste les notes de votre dossier de notes et propose, en bas, une zone d'une ligne pour écrire la suivante.
 
 !!! tip "Pourquoi la liste est-elle presque vide ?"
     La liste s'ouvre en affichant **uniquement les notes du jour**. Le téléphone sert surtout à capturer : « ce que j'ai écrit aujourd'hui » est donc la vue par défaut. L'en-tête **Filtres** au-dessus de la liste indique le filtre actif. Touchez-le et utilisez **Tout effacer**, ou choisissez d'autres jours dans le calendrier, pour en voir davantage. Voir [Retrouver des notes](search-filters.md).
 
 ## La barre du haut { #the-top-bar }
 
-- Le nom et la version de l'application, et en dessous **N notes · M aujourd’hui** : le nombre de notes dans le dossier, et combien ont été écrites aujourd'hui.
+- Le nom de l'application avec sa version et son nom de version, et en dessous **N notes · M aujourd’hui** : le nombre de notes dans le dossier, et combien ont été écrites aujourd'hui.
 - Lorsque la synchronisation en arrière-plan est activée, une troisième ligne indique l'état de la synchronisation, par exemple **synchronisé il y a 5 min** ou **hors ligne · dernière synchro hier**.
 - **Trier les notes** (l'icône à lignes) choisit l'ordre et le regroupement. Voir [Retrouver des notes](search-filters.md).
 - **Rechercher** (la loupe) ouvre une zone de recherche.
@@ -16,20 +16,30 @@ Si vous êtes connecté à un serveur Nibras et que des plans approchent, un pan
 
 ## Écrire une note { #write-a-note }
 
-1. En bas de l'écran, touchez **Nouvelle note — touchez pour développer** si le formulaire est replié.
-2. Saisissez votre texte dans **Écrivez une note rapide…**.
-3. Vérifiez les trois rangées de puces au-dessus de la zone :
+### Ajout rapide { #quick-add }
+
+La barre en bas de la liste est le moyen le plus rapide :
+
+1. Saisissez votre texte dans **Note rapide — enregistrée N · P2 · X**. La zone s'agrandit de quelques lignes au fil de la saisie.
+2. Touchez la flèche d'envoi (**Enregistrer la note**).
+
+La note est enregistrée immédiatement sous forme de nouveau fichier, toujours avec le type `N`, la priorité 2 et la catégorie `X`. Il n'y a rien à choisir : notez maintenant, et donnez-lui ses vraies étiquettes plus tard, depuis la carte ou la lecture (voir [Capturer, puis classer](../concepts/capture-then-classify.md)).
+
+### Le formulaire complet : Ajouter une note { #the-full-form-add-note }
+
+Pour choisir les étiquettes en écrivant, touchez le bouton à gauche de la barre d'ajout rapide (**Formulaire complet : type, priorité, département**). La page **Ajouter une note** s'ouvre, et ce que vous aviez déjà tapé dans la barre rapide vous suit.
+
+1. Saisissez votre texte dans **Écrivez une note rapide…**.
+2. Vérifiez les trois rangées de puces au-dessus de la zone :
     - **Type** : le genre de note (par exemple Travail, Idées, À faire).
     - **Prio** : la priorité, un nombre (de 1 à 5 par défaut).
     - **Cat.** : la catégorie.
-4. Touchez la flèche d'envoi (**Enregistrer la note**).
+3. Touchez la flèche d'envoi (**Enregistrer la note**). Vous revenez à la liste.
 
-La note est enregistrée immédiatement sous forme de nouveau fichier. Les puces conservent leurs valeurs pour la note suivante, car celle-ci est généralement du même genre. Une note a toujours un type et une catégorie : toucher une puce la sélectionne, mais ne la désélectionne jamais.
-
-Le type, la priorité et la catégorie par défaut des nouvelles notes se définissent dans les [Paramètres](settings.md). Touchez la flèche de l'en-tête **Nouvelle note** pour replier le formulaire pendant que vous lisez. L'application se souvient s'il est replié.
+Les puces conservent leurs valeurs pour la note suivante, car celle-ci est généralement du même genre. Une note a toujours un type et une catégorie : toucher une puce la sélectionne, mais ne la désélectionne jamais. Les valeurs de départ du formulaire sont celles définies dans **Paramètres → Général**. Retour quitte la page sans enregistrer.
 
 !!! note "Les brouillons sont en sécurité"
-    Ce que vous tapez est conservé comme brouillon au fil de la saisie. Si vous fermez l'application, la balayez ou si le téléphone redémarre, le texte est de retour dans la zone la fois suivante.
+    Ce que vous tapez sur la page **Ajouter une note** est conservé comme brouillon. Si vous quittez la page, fermez l'application, la balayez ou si le téléphone redémarre, le texte est de retour dans le formulaire la fois suivante.
 
 ### Comment la note est nommée { #how-the-note-is-named }
 
@@ -59,7 +69,7 @@ Touchez une carte pour la **lire**.
 |---|---|
 | **Envoyer vers Nibras** | Crée cette note comme fiche sur votre serveur Nibras. Affiche **En attente — sera synchronisée** pendant l'attente, puis **Renvoyer vers Nibras** une fois envoyée. Voir [Synchronisation Nibras](sync.md#push-a-note-to-nibras). |
 | **Ouvrir le dossier des fichiers (N)** | Ouvre le dossier des pièces jointes de la note dans un gestionnaire de fichiers. N'apparaît que s'il y a des pièces jointes. |
-| **Modifier dans l’éditeur ci-dessous** | Charge la note dans la zone du bas (l'en-tête indique **Modification de la note**), pour modifier son texte et ses étiquettes sans quitter la liste. Touchez **Annuler** pour arrêter la modification. |
+| **Modifier dans l’éditeur ci-dessous** | Ouvre la note dans le formulaire complet (la page s'intitule **Modification de la note**), pour modifier son texte et ses trois étiquettes à la fois. **Enregistrer la note** enregistre les changements ; **Annuler** ou Retour laisse la note telle quelle. |
 | **Supprimer** | Supprime la note, après confirmation. |
 
 ## Lire et modifier une note { #read-and-edit-a-note }
@@ -77,7 +87,7 @@ Toucher une carte l'ouvre en plein écran. Deux puces en haut permettent de basc
 
 **Étiquettes en bas**
 
-Dans les deux modes, les puces **Type**, **Prio** et **Cat.** restent épinglées sous le texte. En changer une renomme le fichier de la note en conséquence. La note conserve son heure d'origine.
+Dans les deux modes, les puces **Type**, **Prio** et **Cat.** restent épinglées sous le texte. En changer une renomme le fichier de la note en conséquence, ainsi que son dossier de pièces jointes (voir plus bas). La note conserve son heure d'origine. Vous pouvez parcourir plusieurs priorités rapidement : la note est renommée, jamais copiée. Si un dossier portant le nouveau nom existe déjà, les pièces jointes y sont fusionnées, et un fichier dont le nom y est déjà pris reçoit un numéro en plus.
 
 ## Pièces jointes { #attachments }
 
@@ -113,5 +123,5 @@ Tout autre élément de votre dossier de notes apparaît quand même dans la lis
 
 En bas à droite de la liste :
 
-- **Actualiser les notes + synchroniser** (la flèche circulaire) relit le dossier, actualise les listes de types et de catégories depuis le serveur et lance immédiatement une synchronisation complète.
+- **Actualiser les notes + synchroniser** (la flèche circulaire) relit le dossier, actualise les listes de types et de catégories depuis le serveur et lance immédiatement une synchronisation complète (si un serveur est configuré).
 - Sur les longues listes, **Aller en haut** et **Aller en bas** apparaissent également. Lorsque la liste est groupée, un bouton permet de **Réduire tous les groupes** / **Développer tous les groupes**.

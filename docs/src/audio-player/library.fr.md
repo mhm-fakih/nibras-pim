@@ -61,6 +61,21 @@ eux-mêmes au chargement du dossier.
 Sous l'arborescence des dossiers, **RECENTLY BOOKMARKED** (marqués récemment) liste les fichiers auxquels vous avez ajouté des marque-pages le plus récemment
 (les plus récents en premier). Cliquez sur l'un d'eux pour le lire.
 
+### Marqués aujourd'hui { #bookmarked-today }
+
+Le lien **★ Today (n)** (aujourd'hui) dans l'en-tête **RECENTLY BOOKMARKED** (ou **Ctrl+D**) remplit la liste de lecture avec tous
+les fichiers que vous avez marqués **aujourd'hui**, le marque-page le plus récent en premier. L'en-tête au-dessus de la liste de
+lecture indique alors **Bookmarked today · n file(s)** (marqués aujourd'hui · n fichier(s)).
+
+- Il examine les fichiers `.tmk` eux-mêmes : les marque-pages arrivés du téléphone par votre outil de synchronisation comptent
+  aussi — pas seulement ceux créés pendant cette session.
+- Il cherche dans la **Bookmarks root** (racine des marque-pages) définie dans les [paramètres](settings.md) — par défaut la
+  racine de l'arborescence —, sous-dossiers compris.
+- Le compteur se rafraîchit chaque minute et repart de zéro à minuit.
+- L'arborescence des dossiers et le champ **Go to path…** (aller au chemin) restent où ils étaient ; chargez un dossier pour
+  reprendre la navigation. Un jour sans marque-page, le lecteur affiche **★ Nothing bookmarked today yet** (rien de marqué
+  aujourd'hui pour l'instant) et laisse la liste de lecture telle quelle.
+
 ## Formats pris en charge { #supported-formats }
 
 `.mp3` `.m4a` `.m4b` `.aac` `.ogg` `.oga` `.opus` `.flac` `.wav` `.wma` `.mka` `.webm` `.mp4`

@@ -16,7 +16,7 @@ one you know them all.
 | **Goals** | Outcomes you work towards | Summary, Description, Code, Status, Type, % complete, Start, End, Completed, **Show habit heatmap on dashboards** |
 | **Writings** | Longer pieces you write | Summary, Body, Short description, Slug, Source, Status, Type, Born on |
 | **Contacts** | People | Name, Code, Job title, Telephones, Email, Address, About |
-| **Departments** | Top-level areas of life or work | Name, Code, Summary |
+| **Departments** | Top-level areas of life or work | Title, Code, Notes |
 | **Courses** | Subjects inside a department | Title, Code, Department, **Note tags** |
 | **Excerpts** | Passages from a book | Summary, Book, Chapter(s), Chapter #, Title, Content |
 
@@ -33,8 +33,8 @@ Your administrator decides which modules are switched on (and their labels and o
 
 ## Browsing a module
 
-Click a module in the sidebar. The middle pane lists its records, newest first, 25 to a page. Each
-row shows a ★ if bookmarked, the title, the creation date, and chips for code, status, type, the
+Click a module in the sidebar (the number beside its name is how many records it holds). The middle
+pane lists its records, newest first, 25 to a page. Each row shows a ★ if bookmarked, the title, the creation date, and chips for code, status, type, the
 linked resource and up to three tags. A cover thumbnail appears when the record has a cover image.
 
 Use the search box and filters at the top of the list to narrow it down — see
@@ -51,12 +51,13 @@ The new record opens in the detail pane with a **✓ Saved** card above it.
 !!! tip "Faster ways in"
     - The **Quick note** bar at the bottom of the detail pane creates a note in one step: type, then
       **Ctrl+Enter** or **Add**. If the first line is short it becomes the title and the rest the
-      content. Click the bar's header to fold it away.
+      content. Once saved, the new note appears as a card under the box — click it to open the note.
+      Click the bar's header to fold it away.
     - [Batch entry](batch-commands.md#batch-entry) creates many records from one line each.
     - On **Resources**, the link icon beside **New** (**New resource from a URL**) lets you paste a
       web address and click **Fetch**: the server reads the page and opens a pre-filled form —
-      title, author, publisher, description, year and the article text. Check the fields, then
-      **Save**; the page's main image is saved as the cover. The panel stays open so you can fetch
+      title, author, publisher, description, year and the article text, with **Type** preset to the
+      default resource type. Check the fields, then **Save**; the page's main image is saved as the cover. The panel stays open so you can fetch
       several links in a row.
 
 ## The detail pane
@@ -83,9 +84,11 @@ Further down you'll find:
 - **Tags** — click **+ add tag…** to attach an existing tag or type a new one; click a tag's × to
   remove it.
 - **People** — on tasks (when Contacts is enabled): **+ add person…**.
-- **The fields**, rendered as formatted text. Checklists (`- [ ] item`) can be ticked right here.
+- **The fields**, each under its label in bold, rendered as formatted text. Checklists
+  (`- [ ] item`) can be ticked right here.
 - **Append to Description… / Append to Notes…** — a box under those fields that adds text to the end
-  without opening the form. Press **Ctrl+Enter** to add.
+  without opening the form. Press **Ctrl+Enter** to add. When the field is still empty, its heading
+  is shown above the box all the same, so you can see which field you are adding to.
 - **Related** — linked records in other modules (a goal's tasks, a task's time-tracking journals, a
   resource's notes…). Click one to open it.
 - **Edit full text in your editor** — see [Writings & checkout files](writings-fulltext.md).

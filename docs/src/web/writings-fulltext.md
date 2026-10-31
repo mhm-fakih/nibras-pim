@@ -37,7 +37,8 @@ title or summary, description and notes.
 
 You don't have to open each record to bring edits back. **Import files → Pending sync — edited
 record files** lists every record whose checkout file differs from the database, with the
-differences shown field by field.
+differences shown field by field. Only the changed lines are shown, each with a line of unchanged
+text around it so you can find the place in the file.
 
 - **Sync** applies one record.
 - **Sync all** applies every listed record.
@@ -49,8 +50,10 @@ When everything matches you'll see **Nothing to sync — all exported files matc
 
 On the same panel, **Bookmarked TOC** checks out **every bookmarked record** — tasks, planners,
 goals, journals, notes, writings and resources — and rebuilds a master index file, `TOC.md`, at the
-top of repository 1. It is organised department → course → record, ready to open as a project in a
-Markdown writing app. Edits you make to the checked-out files come back through **Pending sync**.
+top of repository 1. The index covers every checked-out record, not only the bookmarked ones, and is
+laid out like the local-notes manuscript: module → department → record, by priority and then age.
+It is ready to open as a project in a Markdown writing app. Edits you make to the checked-out files
+come back through **Pending sync**.
 
 !!! note "Nothing is overwritten"
     If a checkout file already exists with *different* content (perhaps unsynced edits), it is never

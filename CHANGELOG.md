@@ -1,7 +1,18 @@
 # Changelog
 
-## 2026-10-31 — 1.3.2 "Serenity"
+## 2026-11-01 — 1.3.2 "Serenity"
 
+- **Mobile:** a quick timer on top of the Alarms page — a 60-minute dial and one button, its sound,
+  volume and repeat set once in Settings → Alerts; the chime plays every 15 min, 30 min, 1 h or
+  2 h; the theme no longer follows the wallpaper colours (a One UI update turned it violet): navy by
+  default, and Settings → General picks another colour, the phone's palette, or any hex colour.
+- **Web:** field labels in the detail pane and read page are bold and full contrast; departments
+  have a title only (the duplicate Name field is gone); the favicon has PNG fallbacks; the status
+  bar's update check reads this repository's releases.
+- **Desktop:** versioned with the rest of the suite (1.3.2, was 1.7.1); the inbox and the notes
+  folder each have a "leave out" list in Settings; the header counts real notes only, like the
+  terminal; search also finds a note by the name of any file or folder in its companion folder;
+  flat navy icons for the notes app, the audio player and the image annotator.
 - **Web:** an open page renews its sign-in, so a checklist left on a TV stays signed in; the session
   length is a setting (Settings → Session, admins); every list filter menu (status, type, context,
   priority) shows how many records each option gives; Tasks get a Context filter; the logo opens

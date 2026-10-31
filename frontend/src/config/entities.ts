@@ -286,9 +286,9 @@ ENTITIES.push(
     hasStatus: false,
     hasType: false,
     fields: [
-      { name: 'name', label: 'Name', type: 'text' },
+      // A department's name IS its summary (one column, see Department.java), so one Title field.
+      { name: 'summary', label: 'Title', type: 'text' },
       { name: 'code', label: 'Code', type: 'text' },
-      { name: 'summary', label: 'Summary', type: 'text' },
       { name: 'notes', label: 'Notes', type: 'textarea' },
       { name: 'priority', label: 'Priority', type: 'number' },
       { name: 'bookmarked', label: 'Bookmarked', type: 'switch' },

@@ -33,7 +33,8 @@ Bookmarks also appear as ticks on the [waveform seek bar](playback.md#the-wavefo
 | Delete a bookmark | Click its trash button |
 
 The **Bkm** column in the playlist shows how many bookmarks each file has, and files you bookmark
-appear under **RECENTLY BOOKMARKED**.
+appear under **RECENTLY BOOKMARKED** — and in its **★ Today** list, which gathers every file
+bookmarked today. See [Bookmarked today](library.md#bookmarked-today).
 
 ## The .tmk file
 
@@ -63,5 +64,6 @@ file. The phone writes the same format, so bookmarks made on either side appear 
 [Bookmarks (.tmk)](../concepts/bookmarks-tmk.md).
 
 !!! tip "Bookmarks in your notes"
-    If a recording sits in a note's [companion folder](../concepts/companion-folders.md), knotes
-    desktop shows the number of bookmarks as **time marks** on the note's card.
+    If a recording sits in a note's [companion folder](../concepts/companion-folders.md), the
+    [desktop notes app](../desktop/index.md) shows the number of bookmarks as **time marks** on the
+    note's card.

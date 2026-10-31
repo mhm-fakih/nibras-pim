@@ -1,9 +1,10 @@
 # Se connecter à un serveur Nibras
 
-knotes desktop fonctionne entièrement hors ligne. Le connecter à un serveur Nibras est facultatif,
-et cela ne sert qu'à une chose : garder vos codes de **type** et de **catégorie** alignés sur ceux du
+Nibras Notes fonctionne entièrement hors ligne. Le connecter à un serveur Nibras est facultatif,
+et cela sert à deux choses : garder vos codes de **type** et de **catégorie** alignés sur ceux du
 serveur, afin que les notes que vous saisissez maintenant puissent être importées plus tard au bon
-endroit.
+endroit — et [importer une note](#import-a-note-into-the-server) dans le serveur sous forme
+d'enregistrement quand vous le demandez.
 
 | Sur le poste de travail | Provient, côté serveur, des |
 |---|---|
@@ -13,10 +14,11 @@ endroit.
 C'est le flux « saisir maintenant, classer plus tard » — voir
 [Saisir, puis classer](../concepts/capture-then-classify.md) et [Synchronisation](../concepts/sync.md).
 
-!!! note "L'application de bureau n'envoie pas les notes"
-    La connexion ne fait que *lire* des codes. Vos notes restent des fichiers dans votre dossier ;
-    leur entrée dans le serveur passe par l'import du serveur, le préfixe `+` de
-    l'[application en terminal](../terminal/index.md), ou l'[application mobile](../mobile/index.md).
+!!! note "Rien n'est envoyé de lui-même"
+    La synchronisation ne fait que *lire* des codes. Vos notes restent des fichiers dans votre
+    dossier jusqu'à ce que vous en importiez une vous-même — d'ici, par la page d'import du serveur,
+    le préfixe `+` de l'[application en terminal](../terminal/index.md), ou
+    l'[application mobile](../mobile/index.md).
 
 ## Configuration { #set-it-up }
 
@@ -48,6 +50,30 @@ cache et restent donc disponibles hors ligne.
     serveur à chaque synchronisation. Les modifications que vous apportez à ces listes dans les
     paramètres seront écrasées à la synchronisation suivante. Laissez l'URL vide si vous préférez
     gérer les codes à la main.
+
+## Importer une note dans le serveur { #import-a-note-into-the-server }
+
+Quand une note est prête à devenir un enregistrement sur le serveur :
+
+1. Sélectionnez sa carte.
+2. Appuyez sur **Ctrl+I**, ou cliquez sur le bouton d'import (la flèche) dans la ligne d'actions de
+   la carte.
+3. Confirmez **Import this note into the backend as a …?** (importer cette note dans le backend en
+   tant que … ?) — la boîte de dialogue nomme le type d'enregistrement (tiré du code de type de la
+   note), affiche le titre de la note et l'adresse du serveur.
+
+Le serveur crée l'enregistrement, et le fichier de la note est déplacé dans l'archive `imported/` du
+dossier : la carte quitte donc le tableau. La barre d'état le confirme avec **Imported →**, le module
+et le numéro du nouvel enregistrement. Ses fichiers joints sont copiés vers l'enregistrement comme
+pièces jointes.
+
+- Un fichier isolé qui a encore besoin de métadonnées (**needs metadata**) ne peut pas être
+  importé — le serveur choisit le type d'enregistrement d'après le code de type du nom de fichier ;
+  réétiquetez-le d'abord.
+- Sans URL de serveur, l'application affiche **No backend configured** (aucun backend configuré).
+  Si l'import échoue, une boîte de dialogue donne la raison indiquée par le serveur.
+- Le serveur lit le fichier directement dans le dossier ; il doit donc pouvoir voir ce même
+  dossier — en pratique, un serveur qui tourne sur la même machine.
 
 ## Un serveur différent par dossier { #a-different-server-per-folder }
 

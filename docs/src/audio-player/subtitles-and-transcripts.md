@@ -24,6 +24,11 @@ hide subtitles.
     With subtitles on, a bookmark you add without typing a label is labelled with the line being
     spoken. See [Bookmarks](bookmarks.md#with-a-label).
 
+!!! tip "Downloaded videos"
+    A video fetched with Nibras's capture tool (`capture/run.sh media URL`) arrives in its
+    note's companion folder as an `.mp4`, an `.mp3` and its `.srt` subtitles side by side, so
+    subtitles — and subtitle-labelled bookmarks — work on it as is.
+
 ## Transcripts
 
 A transcript is a plain UTF-8 text file ending in `.ai.txt` — for example the output of a speech-to-

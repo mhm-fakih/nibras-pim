@@ -20,6 +20,10 @@ En plus des champs communs, une tâche possède :
 | **Repeats** (Répétition) | Voir [Tâches répétitives](records.md#repeating-tasks-and-plans). |
 | **People** (Personnes) | Les contacts concernés par la tâche (lorsque Contacts est activé). |
 
+La liste Tasks s'ouvre avec **Active only** (Actives uniquement) coché, pour que les tâches terminées ne
+gênent pas, et elle propose un filtre **Context** (Contexte) en plus de **Status** et **Priority** — voir
+[Filtrer la liste d'un module](search.md#filtering-a-modules-list).
+
 ### Terminer une tâche { #completing-a-task }
 
 Cliquez sur le cercle **✓** dans le volet de détail (**Click to mark complete** — Cliquer pour
@@ -61,8 +65,9 @@ sur une autre tâche arrête et enregistre d'abord celui en cours.
 
 ## Kanban { #kanban }
 
-**Kanban** (barre latérale, ou **g k**) affiche les **objectifs en favori et leurs tâches**, avec
-une colonne par **département**.
+**Kanban** (barre latérale → **Views**, ou **g k**) affiche les **objectifs en favori et leurs
+tâches**, avec une colonne par **département**. C'est aussi la page d'accueil de l'application :
+l'adresse de l'application y mène directement.
 
 - Chaque colonne liste ses **Goals** (Objectifs), les tâches ouvertes de chaque objectif étant
   imbriquées sous la carte de l'objectif.

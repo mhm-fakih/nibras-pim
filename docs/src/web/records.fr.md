@@ -16,7 +16,7 @@ même formulaire : dès que vous en connaissez un, vous les connaissez tous.
 | **Goals** (Objectifs) | Les résultats que vous visez | Summary, Description, Code, Status, Type, % complete, Start, End, Completed, **Show habit heatmap on dashboards** |
 | **Writings** (Écrits) | Les textes plus longs que vous rédigez | Summary, Body, Short description, Slug, Source, Status, Type, Born on |
 | **Contacts** (Contacts) | Les personnes | Name, Code, Job title, Telephones, Email, Address, About |
-| **Departments** (Départements) | Les grands domaines de la vie ou du travail | Name, Code, Summary |
+| **Departments** (Départements) | Les grands domaines de la vie ou du travail | Title, Code, Notes |
 | **Courses** (Cours) | Les sujets à l'intérieur d'un département | Title, Code, Department, **Note tags** |
 | **Excerpts** (Extraits) | Des passages d'un livre | Summary, Book, Chapter(s), Chapter #, Title, Content |
 
@@ -34,7 +34,8 @@ Votre administrateur décide quels modules sont activés (ainsi que leurs libell
 
 ## Parcourir un module { #browsing-a-module }
 
-Cliquez sur un module dans la barre latérale. Le volet central liste ses enregistrements, du plus récent au plus ancien,
+Cliquez sur un module dans la barre latérale (le nombre à côté de son nom indique combien
+d'enregistrements il contient). Le volet central liste ses enregistrements, du plus récent au plus ancien,
 25 par page. Chaque ligne affiche un ★ s'il est en favori, le titre, la date de création, et des pastilles pour le code,
 le statut, le type, la ressource liée et jusqu'à trois étiquettes. Une vignette de couverture apparaît lorsque
 l'enregistrement possède une image de couverture.
@@ -53,12 +54,13 @@ Le nouvel enregistrement s'ouvre dans le volet de détail, surmonté d'une carte
 !!! tip "Des accès plus rapides"
     - La barre **Quick note** (Note rapide) en bas du volet de détail crée une note en une seule étape : tapez, puis
       **Ctrl+Enter** ou **Add** (Ajouter). Si la première ligne est courte, elle devient le titre et le reste le
-      contenu. Cliquez sur l'en-tête de la barre pour la replier.
+      contenu. Une fois enregistrée, la nouvelle note apparaît sous forme de carte sous la zone —
+      cliquez dessus pour ouvrir la note. Cliquez sur l'en-tête de la barre pour la replier.
     - La [saisie par lot](batch-commands.md#batch-entry) crée de nombreux enregistrements, un par ligne.
     - Sur **Resources**, l'icône de lien à côté de **New** (**New resource from a URL** — Nouvelle ressource depuis
       une URL) vous permet de coller une adresse web et de cliquer sur **Fetch** (Récupérer) : le serveur lit la page
-      et ouvre un formulaire pré-rempli — titre, auteur, éditeur, description, année et texte de l'article. Vérifiez
-      les champs, puis **Save** ; l'image principale de la page est enregistrée comme couverture. Le panneau reste
+      et ouvre un formulaire pré-rempli — titre, auteur, éditeur, description, année et texte de l'article, avec
+      **Type** déjà réglé sur le type de ressource par défaut. Vérifiez les champs, puis **Save** ; l'image principale de la page est enregistrée comme couverture. Le panneau reste
       ouvert pour que vous puissiez récupérer plusieurs liens à la suite.
 
 ## Le volet de détail { #the-detail-pane }
@@ -85,10 +87,12 @@ Plus bas, vous trouverez :
 - **Tags** (Étiquettes) — cliquez sur **+ add tag…** (ajouter une étiquette) pour associer une étiquette existante ou en
   taper une nouvelle ; cliquez sur le × d'une étiquette pour la retirer.
 - **People** (Personnes) — sur les tâches (lorsque Contacts est activé) : **+ add person…** (ajouter une personne).
-- **Les champs**, rendus en texte mis en forme. Les listes de cases à cocher (`- [ ] item`) peuvent être cochées
+- **Les champs**, chacun sous son libellé en gras, rendus en texte mis en forme. Les listes de cases à cocher (`- [ ] item`) peuvent être cochées
   directement ici.
 - **Append to Description… / Append to Notes…** (Ajouter à la description / aux notes) — une zone sous ces champs qui
-  ajoute du texte à la fin sans ouvrir le formulaire. Appuyez sur **Ctrl+Enter** pour ajouter.
+  ajoute du texte à la fin sans ouvrir le formulaire. Appuyez sur **Ctrl+Enter** pour ajouter. Lorsque le champ
+  est encore vide, son titre s'affiche quand même au-dessus de la zone, pour que vous voyiez à quel champ vous
+  ajoutez du texte.
 - **Related** (Liés) — les enregistrements liés dans d'autres modules (les tâches d'un objectif, les journaux de suivi
   du temps d'une tâche, les notes d'une ressource…). Cliquez sur l'un d'eux pour l'ouvrir.
 - **Edit full text in your editor** (Modifier le texte intégral dans votre éditeur) — voir

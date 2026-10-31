@@ -11,8 +11,10 @@
     minute; if it persists, tell your administrator.
 
 ??? question "I was signed out by myself."
-    Sessions expire after a number of hours (12 by default). Sign in again; you'll return to the page
-    you were on.
+    An open page renews its sign-in, but a browser that was closed or asleep for longer than the
+    session length (12 hours unless an administrator changed it in
+    [Settings → Session](settings.md#session)) has to sign in again. You'll return to the page you
+    were on.
 
 ??? question "A *Change your password* box won't go away."
     Your administrator requires a new password before you continue. Fill in all three fields and
@@ -29,20 +31,21 @@
 
 ??? question "A module or tool page is missing from the sidebar."
     It may be switched off in [Settings → Modules](settings.md#modules) or
-    [Settings → Pages](settings.md#pages-and-features), or hidden by your permissions. If the
-    sidebar is short of space, tool pages are shown as icons — hover to see their names.
+    [Settings → Pages](settings.md#pages-and-features), or hidden by your permissions. Tool pages
+    are inside the sidebar's groups — click **Views**, **Library**, **Import & export** or **Admin**
+    to see their pages.
 
 ??? question "I deleted a record by mistake."
     Open **Trash** and click the restore icon next to it. Merged records are there too.
 
 ## Search
 
-??? question "Global search finds nothing at all."
+??? question "The Search page finds nothing at all."
     If the Search page warns that **the search index is empty**, an administrator needs to click
     **Rebuild search index** once on the [Admin](administration.md#admin-page) page.
 
 ??? question "Searching for a word starting with *d* or *c* behaves oddly."
-    In global search, `dX` and `cX` are read as department and course filters when a department or
+    On the Search page, `dX` and `cX` are read as department and course filters when a department or
     course with that code exists. Add another word, or search inside the module's list instead.
 
 ??? question "How do I see everything I did on a particular day?"
@@ -96,4 +99,7 @@
 
 ??? question "Is there a newer version?"
     Click **check for updates** in the status bar, or **Check for updates** on the **Help & shortcuts**
-    page.
+    page. The server compares your version with the latest release published on GitHub
+    (github.com/mhm-fakih/nibras-pim), so it needs internet access; the link then reads **up to
+    date** or **update available: v…**. **updates: not configured** means your administrator has
+    turned the check off.

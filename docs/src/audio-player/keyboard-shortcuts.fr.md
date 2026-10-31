@@ -25,6 +25,7 @@ transcription. Les raccourcis à touche simple ne fonctionnent que lorsque vous 
 | Touches | Action |
 |---|---|
 | **Ctrl+O** | Ouvrir un fichier multimédia |
+| **Ctrl+D** | Lister dans la liste de lecture les fichiers marqués aujourd'hui |
 | **Ctrl+L** | Aller au champ **Go to path…** (aller au chemin) |
 | **Ctrl+S** | Enregistrer immédiatement les modifications de la transcription (elles s'enregistrent aussi d'elles-mêmes) |
 | **Ctrl+Delete** | Placer le fichier en cours de lecture dans la corbeille (avec confirmation) |

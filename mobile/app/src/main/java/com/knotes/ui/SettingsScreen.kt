@@ -139,6 +139,10 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
     var chimeSound by remember { mutableStateOf(current.chimeSoundUri) }
     var chimeStart by remember { mutableStateOf(current.chimeStartHour.toString()) }
     var chimeEnd by remember { mutableStateOf(current.chimeEndHour.toString()) }
+    var chimeInterval by remember { mutableStateOf(current.chimeIntervalMin) }
+    var qtSound by remember { mutableStateOf(current.quickTimerSoundUri) }
+    var qtVolume by remember { mutableStateOf(current.quickTimerVolume) }
+    var qtRepeat by remember { mutableStateOf(current.quickTimerRepeat) }
     var appName by remember { mutableStateOf(current.appName) }
     var defType by remember { mutableStateOf(current.defaultType) }
     var defCategory by remember { mutableStateOf(current.defaultCategory) }
@@ -167,6 +171,20 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 )
             }
             chimeSound = uri.toString()
+        }
+    }
+    // The quick timer's sound: any audio file, with a persistable grant like the chime's, so the
+    // alarm service can still open it after a reboot.
+    val qtPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            qtSound = uri.toString()
         }
     }
     // Every folder-path setting below shares this one picker: whichever field's "choose folder"
@@ -251,6 +269,10 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 chimeSoundUri = chimeSound,
                 chimeStartHour = chimeStart.toIntOrNull() ?: 8,
                 chimeEndHour = chimeEnd.toIntOrNull() ?: 22,
+                chimeIntervalMin = chimeInterval,
+                quickTimerSoundUri = qtSound,
+                quickTimerVolume = qtVolume,
+                quickTimerRepeat = qtRepeat,
                 appName = appName,
                 defaultType = defType,
                 defaultCategory = defCategory,
@@ -344,6 +366,9 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 SettingsTab.GENERAL -> {
                 // First, so it can be found whatever language the screen is currently in.
                 LanguagePicker()
+                HorizontalDivider()
+                ThemeColorPicker()
+                HorizontalDivider()
                 OutlinedTextField(
                     value = appName,
                     onValueChange = { appName = it },
@@ -877,6 +902,21 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                         chimeEnabled,
                     ) { chimeEnabled = it }
                     if (chimeEnabled) {
+                    Text(stringResource(R.string.settings_chime_interval))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SettingsStore.CHIME_INTERVALS.forEach { min ->
+                            FilterChip(
+                                selected = chimeInterval == min,
+                                onClick = { chimeInterval = min },
+                                label = {
+                                    Text(
+                                        if (min < 60) stringResource(R.string.settings_chime_every_min, min)
+                                        else stringResource(R.string.settings_chime_every_hour, min / 60)
+                                    )
+                                },
+                            )
+                        }
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         OutlinedButton(onClick = {
                             chimePicker.launch(arrayOf("audio/*"))
@@ -908,6 +948,35 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                         )
                     }
 
+                    }
+
+                    HorizontalDivider()
+                    Text(stringResource(R.string.qt_settings_header), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        stringResource(R.string.qt_settings_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(onClick = { qtPicker.launch(arrayOf("audio/*")) }) {
+                            Text(stringResource(R.string.qt_settings_choose_sound))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            if (qtSound.isBlank()) stringResource(R.string.qt_settings_default_sound) else fileLabel(qtSound),
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (qtSound.isNotBlank()) {
+                            TextButton(onClick = { qtSound = "" }) { Text(stringResource(R.string.qt_settings_default_sound)) }
+                        }
+                    }
+                    StepSlider(stringResource(R.string.qt_settings_volume, qtVolume), qtVolume.toFloat(), 0f, 100f, 5f) {
+                        qtVolume = it.toInt().coerceIn(0, 100)
+                    }
+                    StepSlider(stringResource(R.string.qt_settings_repeat, qtRepeat), qtRepeat.toFloat(), 1f, 10f, 1f) {
+                        qtRepeat = it.toInt().coerceIn(1, 10)
                     }
                 }
 

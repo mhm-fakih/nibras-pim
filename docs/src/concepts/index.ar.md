@@ -9,7 +9,7 @@ flowchart LR
         N["2026_06_10-143025~T~p2~A.md"]
         D["2026_06_10-143025~T~p2~A.d/ (المرفقات)"]
     end
-    Phone["knotes لأندرويد"] <--> folder
+    Phone["نبراس محمول"] <--> folder
     Desktop["knotes لسطح المكتب"] <--> folder
     Term["knotes للطرفية"] <--> folder
     folder -- "استيراد (اختياري)" --> Server["خادم نبراس + تطبيق الويب"]

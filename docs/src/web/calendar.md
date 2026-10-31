@@ -5,7 +5,7 @@ the full **Calendar** page, for planning your week.
 
 ## The mini calendar
 
-In any module view, the sidebar shows a compact calendar under the search box.
+In any module view, the sidebar shows a compact calendar under the app name.
 
 - By default it shows **Last 2 weeks** (last week and this week, Monday first). Click the expand
   arrow to see **the full month** with ISO week numbers; your choice is remembered.
@@ -32,7 +32,8 @@ Open **Calendar** from the sidebar (or press **g c**). It shows a week (or a day
 - **‹** and **›** step back or forward a week (or a day); **Today** jumps back.
 - The heading shows the date range and the **ISO week** number.
 - The month calendar on the right jumps to any date.
-- A red line marks the current time.
+- A red line marks the current time. When the time is outside the hours shown, the line waits,
+  dashed and labelled with the time, at the top or bottom edge.
 
 ### Adjusting the view
 

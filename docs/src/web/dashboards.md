@@ -43,6 +43,34 @@ so it can run unattended for days.
     knows the link can see that dashboard's content**. Only put regions on a dashboard that you are
     comfortable showing that way, and don't share its link widely.
 
+## The weekly checklists
+
+**Checklists (week)** (sidebar → **Library**) shows the daily and weekly checklists you keep on the
+phone, one week at a time, as a read-only wall page. It opens in a new tab with nothing around it,
+and fits the whole week onto the screen — the text gets smaller rather than the page scrolling.
+The phone saves each week as a file in the `checklists` folder inside your notes folder; once your
+file-sync tool has copied it to the server, the page shows it.
+
+- Each group of items is a block with its own score. Daily groups have a column per day; weekly
+  groups have a single **Week** column.
+- A mark is ✓ for done, ◐ for partly done, or an empty box. Days still to come are faded, today's
+  column is shaded, and the row under the mouse is highlighted so you can follow it across.
+- The header shows the week number and dates, the share of daily items done on each day, and the
+  arrows **Previous week** / **Next week**.
+- A week not started yet on the phone shows last week's items with no marks, and the header says
+  **not started · items from …**.
+- Items in Arabic are set right to left.
+
+The page looks after itself: when the phone's edit reaches the server it re-reads the week within
+about 15 seconds, and it reloads entirely every few minutes (4 unless changed). Click the small
+reload button in the header to choose another interval, or **Never reload**; the choice is saved
+for every screen. Adding `?reload=N` to the page's address sets the interval (in minutes) for that
+one screen only.
+
+!!! note
+    Unlike a dashboard's **View** link, this page needs a sign-in. Sign in once on the screen's
+    browser: an open page renews its sign-in by itself, so it stays signed in.
+
 ## Insights
 
 **Insights** helps you keep on top of reviewing recent work. Choose a **period** (from *Last week*

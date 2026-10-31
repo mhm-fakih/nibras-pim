@@ -1,13 +1,13 @@
 # Writing and editing notes
 
-The **Notes** page is the app's home screen. It lists the notes in your notes folder and has a box at the bottom for writing the next one.
+The **Notes** page is the app's home screen. It lists the notes in your notes folder and has a one-line box at the bottom for writing the next one.
 
 !!! tip "Why is the list nearly empty?"
     The list opens showing **today's notes only**. The phone is mostly for capturing, so "what I wrote today" is the default view. The **Filters** header above the list shows the active filter. Tap it and use **Clear all**, or pick other days on the calendar, to see more. See [Finding notes](search-filters.md).
 
 ## The top bar
 
-- The app name and version, and under them **N notes · M today**: notes in the folder, and how many were written today.
+- The app name with its version and release name, and under them **N notes · M today**: notes in the folder, and how many were written today.
 - When background sync is on, a third line shows the sync state, for example **synced 5m ago** or **offline · last synced yesterday**.
 - **Sort notes** (the lines icon) chooses the order and grouping. See [Finding notes](search-filters.md).
 - **Search** (magnifier) opens a search box.
@@ -16,20 +16,30 @@ If you are connected to a Nibras server and have plans coming up, a collapsible 
 
 ## Write a note
 
-1. At the bottom of the screen, tap **New note — tap to expand** if the form is folded away.
-2. Type in **Write a quick note…**.
-3. Check the three rows of chips above the box:
+### Quick add
+
+The bar at the bottom of the list is the fastest way in:
+
+1. Type in **Quick note — saved as N · P2 · X**. The box grows to a few lines as you type.
+2. Tap the send arrow (**Save note**).
+
+The note is saved straight away as a new file, always with type `N`, priority 2 and category `X`. There is nothing to choose: get it down now and give it its proper tags later, from the card or the reader (see [Capture, then classify](../concepts/capture-then-classify.md)).
+
+### The full form: Add note
+
+To choose the tags as you write, tap the button at the left of the quick-add bar (**Full form: type, priority, department**). The **Add note** page opens, and anything you had typed in the quick bar comes with you.
+
+1. Type in **Write a quick note…**.
+2. Check the three rows of chips above the box:
     - **Type**: what kind of note it is (for example Work, Ideas, Todo).
     - **Prio**: priority, a number (1–5 by default).
     - **Cat**: the category.
-4. Tap the send arrow (**Save note**).
+3. Tap the send arrow (**Save note**). You are back on the list.
 
-The note is saved straight away as a new file. The chips keep their values for the next note, because the next note is usually the same kind. A note always has a type and a category: tapping a chip switches to it but never clears it.
-
-The default type, priority and category for new notes are set in [Settings](settings.md). Tap the arrow on the **New note** header to fold the form away while you read. The app remembers whether it is folded.
+The chips keep their values for the next note, because the next note is usually the same kind. A note always has a type and a category: tapping a chip switches to it but never clears it. The values the form starts with are the defaults set in **Settings → General**. Back leaves the page without saving.
 
 !!! note "Drafts are safe"
-    What you type is kept as a draft while you type. If you close the app, swipe it away or the phone restarts, the text is back in the box next time.
+    What you type on the **Add note** page is kept as a draft. If you leave the page, close the app, swipe it away or the phone restarts, the text is back in the form next time.
 
 ### How the note is named
 
@@ -59,7 +69,7 @@ Tap a card to **read** it.
 |---|---|
 | **Push to Nibras** | Creates this note as a record on your Nibras server. Shows **Queued — will sync** while waiting, and **Push again to Nibras** once sent. See [Nibras sync](sync.md#push-a-note-to-nibras). |
 | **Open files folder (N)** | Opens the note's attachment folder in a file manager. Only shown when there are attachments. |
-| **Edit in the composer below** | Loads the note into the box at the bottom (the header says **Editing note**), so you can change its text and tags without leaving the list. Tap **Cancel** to stop editing. |
+| **Edit in the composer below** | Opens the note in the full form (the page is titled **Editing note**), so you can change its text and all three tags at once. **Save note** saves the changes; **Cancel** or Back leaves the note as it was. |
 | **Delete** | Deletes the note, after asking. |
 
 ## Read and edit a note
@@ -77,7 +87,7 @@ Tapping a card opens it full-screen. Two chips at the top switch between **Read*
 
 **Tags at the bottom**
 
-In both modes, the **Type**, **Prio** and **Cat** chips stay pinned under the text. Changing one renames the note's file to match. The note keeps its original time.
+In both modes, the **Type**, **Prio** and **Cat** chips stay pinned under the text. Changing one renames the note's file to match, and its attachments folder (see below) is renamed with it. The note keeps its original time. You can tap through several priorities quickly; the note is renamed, never copied. If a folder with the new name already exists, the attachments are merged into it, and a file whose name is already taken there gets a number added to its name.
 
 ## Attachments
 
@@ -113,5 +123,5 @@ Anything else in your notes folder still appears in the list:
 
 At the bottom right of the list:
 
-- **Refresh notes + sync now** (circular arrow) re-reads the folder, refreshes the type and category lists from the server, and runs a full sync straight away.
+- **Refresh notes + sync now** (circular arrow) re-reads the folder, refreshes the type and category lists from the server, and runs a full sync straight away (when a server is set up).
 - On long lists, **Go to top** and **Go to bottom** appear as well. When the list is grouped, there is a button to **Collapse all groups** / **Expand all groups**.

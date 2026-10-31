@@ -24,6 +24,11 @@ masquer les sous-titres.
     Avec les sous-titres activés, un marque-page ajouté sans saisir d'étiquette reçoit comme étiquette la ligne en
     cours. Voir [Marque-pages](bookmarks.md#with-a-label).
 
+!!! tip "Vidéos téléchargées"
+    Une vidéo récupérée avec l'outil de capture de Nibras (`capture/run.sh media URL`) arrive dans le dossier compagnon de sa
+    note sous la forme d'un `.mp4`, d'un `.mp3` et de ses sous-titres `.srt` côte à côte : les sous-titres — et les marque-pages
+    étiquetés par les sous-titres — fonctionnent donc tels quels.
+
 ## Transcriptions { #transcripts }
 
 Une transcription est un fichier texte brut UTF-8 se terminant par `.ai.txt` — par exemple la sortie d'un outil de

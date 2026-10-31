@@ -29,7 +29,7 @@ import cairo  # noqa: E402  (pycairo — ships with PyGObject; used to draw the 
 from gi.repository import Gtk, Gdk, GLib, Pango, Gio  # noqa: E402
 
 from config import Settings, RepoConfig, parse_tag_block, format_tag_block  # noqa: E402
-from notes import (NoteRepository, Note, is_rtl, reads_rtl, companion_dir, companion_files, inbox_entries,  # noqa: E402
+from notes import (NoteRepository, Note, is_rtl, reads_rtl, companion_dir, companion_files, companion_search_names, inbox_entries,  # noqa: E402
                    companion_has_content, parse_created, QuickFile, QuickEntry,
                    QUICK_NOTES_FILE, QUICK_TASKS_FILE, markdown_spans,
                    fmt_count, split_highlights, apply_highlights, clause_bounds,
@@ -57,7 +57,7 @@ DEFAULT_OPENER = "start" if IS_WINDOWS else ("open" if IS_MACOS else "xdg-open")
 # file beside it. Display name and identity are allowed to differ; that's what this constant is for.
 APP_NAME = "Nibras Notes (dev)" if DEV_MODE else "Nibras Notes"
 
-VERSION = "1.7.1"
+VERSION = "1.3.2"
 
 
 def _data_dir() -> str:
@@ -2265,7 +2265,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # Root-level notes plus non-conforming files/folders shown as "needs metadata" placeholders
         # (merge-sorted by mtime, not concatenated, so the "just added" card below still picks the
         # actual newest item regardless of which list it came from).
-        unrecognized = self.repo.list_unrecognized()
+        ignored = {os.path.realpath(os.path.expanduser(p)) for p in self.settings.notes_ignore}
+        unrecognized = [n for n in self.repo.list_unrecognized() if os.path.realpath(n.path) not in ignored]
         self._unrecognized_paths = {n.path for n in unrecognized}
         self._refresh_note_files()   # files may have been added or removed outside the app
         all_notes = sorted(self.repo.list_notes() + unrecognized, key=lambda n: n.mtime)
@@ -2277,9 +2278,12 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.sidebar.refresh(searched)
         notes = [n for n in searched if self.filters.matches(n, self.tax)]
         # Folder note count next to the app name (no subtitle, so the header bar stays one line tall).
+        # Real notes only, the same number the terminal shows; the placeholders are the backlog below.
         narrowed = bool(query) or self.filters.active()
-        count = (f"{fmt_count(len(notes))} / {fmt_count(len(all_notes))} notes" if narrowed
-                 else f"{fmt_count(len(all_notes))} notes")
+        total = len(all_notes) - len(unrecognized)
+        shown = sum(1 for n in notes if n.path not in self._unrecognized_paths)
+        count = (f"{fmt_count(shown)} / {fmt_count(total)} notes" if narrowed
+                 else f"{fmt_count(total)} notes")
         # The backlog, right after the total: how many items are sitting there un-settled. It's a
         # work count, not a note count — every one is a file or folder waiting to be tagged — so it
         # counts the WHOLE folder regardless of the filters, and disappears at zero rather than
@@ -2836,7 +2840,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
                                                        days={datetime.now().date()}):
             text = "No notes entered today"
         elif query:
-            text = f"No note's text or file name contains “{query}”"
+            text = f"No note's text, file name or attached file name contains “{query}”"
         else:
             text = "No notes match the filters"
         self._grid = []   # nothing to walk with the arrow keys; a stale grid would point at dead cards
@@ -3064,13 +3068,17 @@ class KnotesWindow(Gtk.ApplicationWindow):
 
         The extension is part of what's matched, so a pasted "…~I.md" still lands. A query that came
         off the copy-PATH button instead is reduced to its last component first: matching the folder
-        part would match every note in the folder, which is the opposite of a search."""
+        part would match every note in the folder, which is the opposite of a search.
+
+        Last, the names of the files and folders in the note's companion folder (any depth), so a
+        note is found by the name of a PDF or recording attached to it."""
         name = os.path.basename(note.path.rstrip(os.sep + "/")).lower()
         wanted = query.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
         return (query in note.content.lower()
                 or (note.type or "").lower().find(query) >= 0
                 or (note.category or "").lower().find(query) >= 0
-                or (bool(wanted) and wanted in name))
+                or (bool(wanted) and wanted in name)
+                or (bool(wanted) and any(wanted in n for n in companion_search_names(note.path))))
 
     def _build_column(self, cat_code: str, name: str, notes: list[Note],
                       col_cards: list[tuple[Note, Gtk.Widget]]) -> Gtk.Widget:
@@ -4376,7 +4384,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         return self.inbox_expander
 
     def _inbox_keep_out(self) -> list[str]:
-        return [path for _code, path in self.settings.repos()]
+        return [path for _code, path in self.settings.repos()] + list(self.settings.inbox_ignore)
 
     def _refresh_inbox(self) -> None:
         """Re-list the inbox, keeping the ticks on whatever is still there."""
@@ -5243,6 +5251,18 @@ class SettingsDialog(Gtk.Dialog):
             "note's files folder when it's saved. Blank = no list.")
         add("Inbox folder", self.inbox_entry)
 
+        self.inbox_ignore_view = self._tag_textview("\n".join(settings.inbox_ignore))
+        self.inbox_ignore_view.set_tooltip_text(
+            "One path per line (e.g. ~/new/old). These stay out of the inbox list; the note folders "
+            "always do.")
+        add("Inbox: leave out (one path per line)", self._wrap_scroller(self.inbox_ignore_view))
+
+        self.notes_ignore_view = self._tag_textview("\n".join(settings.notes_ignore))
+        self.notes_ignore_view.set_tooltip_text(
+            "One path per line (e.g. ~/knotes/site). Files and folders in a note folder that aren't "
+            "notes: no \"needs metadata\" card and not counted as to settle.")
+        add("Note folders: leave out (one path per line)", self._wrap_scroller(self.notes_ignore_view))
+
         self.opener_entry = Gtk.Entry(text=settings.opener)
         self.opener_entry.set_placeholder_text(f"system default ({DEFAULT_OPENER})")
         self.opener_entry.set_tooltip_text("Command used to open a note on click, e.g. xed. Blank = system default.")
@@ -5459,6 +5479,10 @@ class SettingsDialog(Gtk.Dialog):
                                           else _rgba_hex(button.get_rgba()))
         settings.timestamp_format = self.format_entry.get_text().strip() or settings.timestamp_format
         settings.inbox_dir = self.inbox_entry.get_text().strip()
+        settings.inbox_ignore = [ln.strip() for ln in self._buffer_text(self.inbox_ignore_view).splitlines()
+                                 if ln.strip()]
+        settings.notes_ignore = [ln.strip() for ln in self._buffer_text(self.notes_ignore_view).splitlines()
+                                 if ln.strip()]
         settings.opener = self.opener_entry.get_text().strip()
         settings.preview_chars = int(self.preview_spin.get_value())
         settings.preview_tail_chars = int(self.preview_tail_spin.get_value())

@@ -18,8 +18,8 @@ en enregistrements structurés (tâches, entrées de journal, objectifs, écrits
 
 | Application | Fonctionne sur | À quoi elle sert |
 |-----|---------|----------------|
-| [knotes pour Android](mobile/index.md) | Téléphone | Capture rapide, le lecteur multimédia avec signets, les widgets, les rappels et une vue hors ligne de vos enregistrements du serveur. |
-| [Application web Nibras](web/index.md) | Navigateur + serveur | Le système d'enregistrements complet : tâches, journaux, objectifs, écrits, ressources, rapports — plus l'importation des notes depuis le dossier. |
+| [Nibras Mobile](mobile/index.md) | Téléphone Android | Capture rapide, le lecteur multimédia avec signets, les widgets, les rappels et une vue hors ligne de vos enregistrements du serveur. |
+| [Application web Nibras](web/index.md) | Navigateur + serveur | Le système d'enregistrements complet : tâches, journaux, objectifs, écrits, ressources, un tableau Kanban, la recherche dans les enregistrements et les fichiers, des rapports — plus l'importation des notes depuis le dossier. |
 | [knotes pour le bureau](desktop/index.md) | Linux / Windows (GTK) | Un tableau piloté au clavier pour capturer, trier, fusionner des notes et y joindre des fichiers. |
 | [knotes pour le terminal](terminal/index.md) | N'importe quel terminal | Saisie de notes en une ligne et rapports rapides du serveur, sans quitter le shell. |
 | [Lecteur audio](audio-player/index.md) | Linux (GTK) | Un lecteur audio et vidéo de bureau dont les signets sont partagés avec le téléphone. |
@@ -37,7 +37,7 @@ en enregistrements structurés (tâches, entrées de journal, objectifs, écrits
 
     ---
 
-    Installez [knotes pour Android](mobile/index.md) ou [knotes pour le bureau](desktop/index.md), indiquez-lui
+    Installez [Nibras Mobile](mobile/index.md) ou [knotes pour le bureau](desktop/index.md), indiquez-lui
     un dossier et commencez à écrire. Pas de compte, pas de serveur.
 
 -   **Plusieurs appareils ?**

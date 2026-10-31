@@ -89,8 +89,11 @@
     <string name="settings_prayer_hidden_desc">Switched off on the prayer page, which also took it out of the left rail. Turn it back on here.</string>
     <string name="settings_file_collection_title">File collection</string>
     <string name="settings_file_collection_toggle_desc">The collector page and its daily run. Off removes both, whatever the automatic-collection setting below says.</string>
-    <string name="settings_chime_title">15-minute chime</string>
-    <string name="settings_chime_desc">Plays a sound at :00, :15, :30 and :45 within the window below.</string>
+    <string name="settings_chime_title">Chime</string>
+    <string name="settings_chime_desc">Plays a sound at the interval you pick, counted from the start hour, within the window below.</string>
+    <string name="settings_chime_interval">Chime every</string>
+    <string name="settings_chime_every_min">%1$d min</string>
+    <string name="settings_chime_every_hour">%1$d h</string>
     <string name="settings_choose_chime_file">Choose chime file</string>
     <string name="settings_chime_file_hint">Pick any audio file from your phone (e.g. an mp3). Blank uses the default notification sound.</string>
     <string name="settings_chime_start_hour">Chime start hour</string>
@@ -216,4 +219,8 @@
     <string name="settings_backup_exported">Exported %1$d settings</string>
     <string name="settings_backup_imported">Imported %1$d settings — restarting</string>
     <string name="settings_backup_failed">Settings backup failed: %1$s</string>
+    <string name="settings_theme_color">Theme colour</string>
+    <string name="settings_theme_phone">The phone\'s wallpaper colours</string>
+    <string name="settings_theme_hex">Other colour (hex)</string>
+    <string name="settings_theme_hint">Tap a colour to apply it. The wallpaper button follows the phone\'s own palette.</string>
 </resources>

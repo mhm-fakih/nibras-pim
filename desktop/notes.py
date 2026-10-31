@@ -294,6 +294,19 @@ def inbox_entries(inbox_dir: str, keep_out: list[str]) -> list[str]:
     return sorted(out, key=mtime, reverse=True)
 
 
+def companion_search_names(note_path: str) -> list[str]:
+    """Every file and folder name inside a note's companion folder, at any depth, lowercased — what
+    the search box matches against besides the note itself. Empty when there is no folder."""
+    d = companion_dir(note_path)
+    if not os.path.isdir(d):
+        return []
+    names = []
+    for _root, dirs, files in os.walk(d):
+        names.extend(n.lower() for n in dirs)
+        names.extend(n.lower() for n in files)
+    return names
+
+
 def companion_entry_names(folder: str) -> list[str]:
     """The names directly inside a companion folder, folders ending in ``/``, sorted."""
     if not os.path.isdir(folder):

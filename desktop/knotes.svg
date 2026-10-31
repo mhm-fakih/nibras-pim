@@ -1,22 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- Shared app mark, in sync with mobile/app/src/main/res and with
-       the sibling audio-player's audio-player.svg: same #133155 ground and the same white
-       symbolic line-art (24-unit grid, 1.6 stroke, round caps) as ic_launcher_foreground, on the
-       same 128 box with the same rx and the same translate/scale. Only the glyph differs per app —
-       a sound wave there, a note here: a page with a turned corner, a bold title line and two body
-       lines, the shape a card shows.
+  <!-- Shared app mark, flat: one navy (#133155) disc and a solid white glyph, details cut back in
+       the same navy, no gradients or shadows. Same family as audio-player.svg and the image
+       annotator's icon; only the glyph differs. Here: a note page with a turned corner, a bold
+       title line and two body lines, the shape a card shows.
 
        Keep this comment INSIDE <svg>: gdk-pixbuf sniffs only the first bytes of the file for the
        "<svg" tag, so a long comment above it makes the loader reject the file outright, which
        silently drops the window icon. -->
-  <rect width="128" height="128" rx="26" fill="#133155"/>
-  <g transform="translate(26.8,26.8) scale(3.1)"
-     fill="none" stroke="#FFFFFF" stroke-width="1.6"
-     stroke-linecap="round" stroke-linejoin="round">
-    <path d="M6.6,2.9 H14.1 L19.1,7.9 V20.1 a1.8,1.8 0 0 1 -1.8,1.8 H6.6 a1.8,1.8 0 0 1 -1.8,-1.8 V4.7 a1.8,1.8 0 0 1 1.8,-1.8 Z"/>
-    <path d="M14.1,2.9 V7.9 H19.1"/>
-    <path d="M8.4,12.2 H14.4" stroke-width="2.6"/>
-    <path d="M8.3,16.0 H15.7"/>
-    <path d="M8.3,18.9 H13.1"/>
+  <circle cx="64" cy="64" r="60" fill="#133155"/>
+  <g transform="rotate(-8 64 64)">
+    <path d="M45,30 H74 L90,46 V92 a5,5 0 0 1 -5,5 H45 a5,5 0 0 1 -5,-5 V35 a5,5 0 0 1 5,-5 Z" fill="#FFFFFF"/>
+    <path d="M74,30 V41 a5,5 0 0 0 5,5 H90" fill="none" stroke="#133155" stroke-width="3" stroke-linejoin="round"/>
+    <rect x="48" y="56" width="28" height="8" rx="4" fill="#133155"/>
+    <rect x="48" y="70" width="34" height="5.5" rx="2.75" fill="#133155"/>
+    <rect x="48" y="81" width="23" height="5.5" rx="2.75" fill="#133155"/>
   </g>
 </svg>

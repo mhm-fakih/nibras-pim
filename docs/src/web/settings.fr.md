@@ -17,6 +17,14 @@ champ ; les sections dotées d'un bouton **Save** (Enregistrer) sont enregistré
 **App name** (Nom de l'application) est le nom affiché en haut de la barre latérale et dans l'onglet du navigateur
 (par défaut *Nibras*).
 
+## Session { #session }
+
+**Stay signed in for (hours)** (Rester connecté pendant, en heures) est la durée d'une connexion dans un navigateur
+qui a été fermé ou mis en veille (12 sauf modification ; de 1 heure à un an). Une page qui reste ouverte renouvelle
+d'elle-même sa connexion et n'expire jamais — c'est ce qui garde connecté un écran mural affichant les
+[listes de contrôle de la semaine](dashboards.md#the-weekly-checklists). Seuls les administrateurs peuvent modifier la
+valeur ; elle s'applique à partir de la connexion suivante. Appuyez sur **Enter** ou quittez le champ pour enregistrer.
+
 ## Pages et fonctionnalités { #pages-and-features }
 
 **Pages** affiche ou masque les pages d'outils dans la barre latérale : Calendar, Kanban, Dashboards, All bookmarks,
@@ -111,6 +119,35 @@ la personne qui l'a installé.
 L'indication sous le champ précise combien de notes ont été trouvées, ou que le dossier n'existe pas.
 **Tag bank file (fallback only)** (Fichier de banque d'étiquettes, solution de repli uniquement) n'est nécessaire que si
 vos cours ne portent pas encore de **Note tags**.
+
+## Recherche de fichiers { #file-search }
+
+Ce que la [page Search](search.md#files) trouve parmi les fichiers. Le tableau liste les sources — **Repo 1**,
+**Repo 2**, **Repo 3** et **Note companion folders** (dossiers compagnons des notes) — avec le dossier de chacune et le
+nombre de fichiers **Indexed** (indexés). Pour chaque source, cochez :
+
+- **Names** (Noms) — trouver ses fichiers par leur nom (tous les fichiers) ;
+- **Contents** (Contenu) — lire aussi le texte des types de fichiers indiqués plus bas. Cocher **Contents** coche
+  aussi **Names**.
+
+Sous le tableau :
+
+- **Contents of these types** (Contenu de ces types) — les extensions de fichiers dont le texte est lu, séparées par
+  des virgules (PDF, Office, DjVu…). Les autres fichiers ne sont trouvés que par leur nom.
+- **Largest file to read (MB)** (Plus gros fichier à lire, en Mo) — les fichiers plus gros ne sont trouvés que par
+  leur nom.
+
+Cliquez sur **Save** ; l'index se met alors à jour de lui-même. Les dossiers et fichiers dont le nom commence par un
+point sont ignorés, et les liens ne sont pas suivis. Ensuite, l'index se tient à jour toutes les 10 minutes, en ne
+relisant que ce qui a changé. **Re-read all files** (Relire tous les fichiers) repart de zéro. La ligne sous les
+boutons indique combien de fichiers sont indexés et quand a eu lieu la dernière analyse ; **Show files whose text could
+not be read** (Afficher les fichiers dont le texte n'a pas pu être lu) liste les fichiers en échec, regroupés par type
+de problème — pages numérisées sans couche de texte, fichiers vides, fichiers protégés par mot de passe ou
+endommagés, etc.
+
+!!! note
+    La lecture du texte DjVu nécessite le programme `djvutxt` sur le serveur ; tant qu'il n'est pas installé, les
+    fichiers `.djvu` ne sont trouvés que par leur nom, et la page l'indique.
 
 ## Export { #export }
 

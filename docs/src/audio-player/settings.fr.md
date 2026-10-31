@@ -5,6 +5,7 @@ Ouvrez **Settings** (paramètres) avec **Ctrl+,** ou le bouton engrenage de la b
 | Paramètre | Ce qu'il fait | Par défaut |
 |---|---|---|
 | **Folder-tree root** (racine de l'arborescence) | Le dossier dont part l'arborescence **FOLDERS** (dossiers). Saisissez ou collez un chemin (`~` est accepté), ou utilisez **Browse…** (parcourir). Restez ciblé — votre dossier d'enregistrements, pas tout votre dossier personnel | une valeur intégrée, sinon votre dossier personnel |
+| **Bookmarks root** (racine des marque-pages) | Le dossier où le lien **★ Today** cherche les fichiers `.tmk` (voir [Marqués aujourd'hui](library.md#bookmarked-today)). Saisissez un chemin ou utilisez **Browse…** ; vide = la racine de l'arborescence | vide |
 | **Skip forward / back (seconds)** (saut avant / arrière, en secondes) | De combien sautent les larges boutons retour/avance, **←**/**→** et **Ctrl+←**/**Ctrl+→** | 10 |
 | **Bookmark rewind (seconds)** (recul du marque-page, en secondes) | De combien en arrière un nouveau marque-page est placé (et la lecture reculée) | 5 |
 | **Waveform limit (MB)** (limite de forme d'onde, en Mo) | Les fichiers plus gros que cette taille n'ont pas de forme d'onde. 0 = pas de limite | 10 |

@@ -1,9 +1,9 @@
-# knotes terminal
+# Nibras terminal
 
-**knotes terminal** est une application de prise de notes qui fonctionne dans votre terminal. Elle ressemble à une
+**Nibras terminal** est une application de prise de notes qui fonctionne dans votre terminal. Elle ressemble à une
 messagerie : un journal de ce qui s'est passé en haut, une barre de commande d'une ligne en bas. Tapez une note et
 appuyez sur **Enter** — elle est enregistrée sous forme de fichier texte brut, avec les mêmes noms de fichiers que
-[knotes desktop](../desktop/index.md) et l'[application mobile](../mobile/index.md), si bien que toutes peuvent
+[Nibras Notes sur le bureau](../desktop/index.md) et l'[application mobile](../mobile/index.md), si bien que toutes peuvent
 partager un même dossier.
 
 Elle peut aussi communiquer avec un serveur Nibras : vous connecter, lister vos tâches, objectifs ou journaux les plus
@@ -26,8 +26,9 @@ récents, et envoyer une note directement au serveur sous forme d'enregistrement
 Il vous faut Python 3. L'application utilise quelques paquets Python (Textual pour l'interface, httpx pour le
 serveur, plus deux aides facultatives pour l'arabe) ; `run.sh` les installe pour vous dans un environnement privé.
 
-L'application terminal réutilise le code de stockage des notes de knotes desktop : gardez donc le dossier `terminal/`
-à côté du dossier `desktop/`.
+L'application terminal réutilise le code de stockage des notes de l'application de bureau : gardez donc le dossier
+`terminal/` à côté du dossier `desktop/`. Toutes deux portent le numéro de version de la suite — la barre de titre
+affiche **Nibras terminal** avec `v1.3.2 "Serenity"`.
 
 === "Linux / macOS"
 
@@ -58,14 +59,16 @@ L'application terminal réutilise le code de stockage des notes de knotes deskto
 
 ## Premier lancement { #first-run }
 
-Au premier démarrage, l'application crée `config.json` à côté du programme. Si knotes desktop est installé à côté,
+Au premier démarrage, l'application crée `config.json` à côté du programme. Si l'application de bureau est installée à côté,
 ses dossiers de notes et ses étiquettes par défaut sont recopiés, et vous reprenez là où l'application de bureau
 s'était arrêtée. Sinon, vous obtenez un seul dossier, **A**, dans `~/knotes`.
 
 L'écran affiche :
 
-- **Dashboard** (tableau de bord, en haut) — vos dossiers de notes : code, chemin, serveur et nombre de notes. **★**
-  marque le dossier courant.
+- **Dashboard** (tableau de bord, en haut) — le nom et la version de l'application, puis vos dossiers de notes :
+  code, chemin, serveur et nombre de notes. **★** marque le dossier courant. Seules les vraies notes sont comptées —
+  ni les fichiers isolés qui attendent encore des étiquettes, ni les listes rapides, ni les dossiers de gestion
+  interne —, si bien que le nombre correspond à celui de la barre de titre de l'application de bureau.
 - **Log** (journal, au milieu) — les notes enregistrées, la sortie des commandes et les messages.
 - **Command bar** (barre de commande, en bas) — là où vous tapez.
 - **Status bar** (barre d'état, en dessous) — le serveur courant avec un point **vert** quand il est joignable et

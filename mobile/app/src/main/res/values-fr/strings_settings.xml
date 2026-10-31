@@ -91,8 +91,11 @@
     <string name="settings_prayer_hidden_desc">Désactivées depuis la page des prières, ce qui les a aussi retirées de la barre latérale. Réactivez-les ici.</string>
     <string name="settings_file_collection_title">Collecte de fichiers</string>
     <string name="settings_file_collection_toggle_desc">La page de collecte et son exécution quotidienne. Désactivé retire les deux, quel que soit le réglage de collecte automatique ci-dessous.</string>
-    <string name="settings_chime_title">Carillon toutes les 15 minutes</string>
-    <string name="settings_chime_desc">Joue un son à :00, :15, :30 et :45 dans la plage ci-dessous.</string>
+    <string name="settings_chime_title">Carillon</string>
+    <string name="settings_chime_desc">Joue un son à l’intervalle choisi, compté depuis l’heure de début, dans la plage ci-dessous.</string>
+    <string name="settings_chime_interval">Carillon toutes les</string>
+    <string name="settings_chime_every_min">%1$d min</string>
+    <string name="settings_chime_every_hour">%1$d h</string>
     <string name="settings_choose_chime_file">Choisir le fichier du carillon</string>
     <string name="settings_chime_file_hint">Choisissez n’importe quel fichier audio du téléphone (p. ex. un mp3). Vide = son de notification par défaut.</string>
     <string name="settings_chime_start_hour">Heure de début du carillon</string>
@@ -221,4 +224,8 @@
     <string name="settings_backup_exported">%1$d réglages exportés</string>
     <string name="settings_backup_imported">%1$d réglages importés — redémarrage</string>
     <string name="settings_backup_failed">Échec de la sauvegarde des réglages : %1$s</string>
+    <string name="settings_theme_color">Couleur du thème</string>
+    <string name="settings_theme_phone">Couleurs du fond d\'écran</string>
+    <string name="settings_theme_hex">Autre couleur (hex)</string>
+    <string name="settings_theme_hint">Touchez une couleur pour l\'appliquer. Le bouton fond d\'écran suit la palette du téléphone.</string>
 </resources>

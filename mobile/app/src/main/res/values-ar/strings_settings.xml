@@ -97,8 +97,11 @@
     <string name="settings_prayer_hidden_desc">أُوقفت من صفحة الصلاة، فأُزيلت أيضًا من الشريط الجانبي. أعد تفعيلها من هنا.</string>
     <string name="settings_file_collection_title">تجميع الملفات</string>
     <string name="settings_file_collection_toggle_desc">صفحة التجميع وتشغيلها اليومي. التعطيل يزيلهما معًا مهما كان إعداد التجميع التلقائي أدناه.</string>
-    <string name="settings_chime_title">رنين كل 15 دقيقة</string>
-    <string name="settings_chime_desc">يُصدر صوتًا عند ‎:00 و‎:15 و‎:30 و‎:45 ضمن الفترة أدناه.</string>
+    <string name="settings_chime_title">الرنين</string>
+    <string name="settings_chime_desc">يُصدر صوتًا كل فترة تختارها، تُحسب من ساعة البداية، ضمن الفترة أدناه.</string>
+    <string name="settings_chime_interval">الرنين كل</string>
+    <string name="settings_chime_every_min">%1$d دقيقة</string>
+    <string name="settings_chime_every_hour">%1$d ساعة</string>
     <string name="settings_choose_chime_file">اختيار ملف الرنين</string>
     <string name="settings_chime_file_hint">اختر أي ملف صوتي من هاتفك (مثل mp3). إن تُرك فارغًا يُستخدم صوت الإشعار الافتراضي.</string>
     <string name="settings_chime_start_hour">ساعة بداية الرنين</string>
@@ -236,4 +239,8 @@
     <string name="settings_backup_exported">صُدِّر %1$d إعدادًا</string>
     <string name="settings_backup_imported">استُورد %1$d إعدادًا — إعادة التشغيل</string>
     <string name="settings_backup_failed">فشل نسخ الإعدادات: %1$s</string>
+    <string name="settings_theme_color">لون السمة</string>
+    <string name="settings_theme_phone">ألوان خلفية الهاتف</string>
+    <string name="settings_theme_hex">لون آخر (hex)</string>
+    <string name="settings_theme_hint">المس لونًا لتطبيقه. زر الخلفية يتبع ألوان الهاتف نفسه.</string>
 </resources>

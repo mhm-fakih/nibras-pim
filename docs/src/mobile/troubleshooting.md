@@ -13,39 +13,50 @@ Everything you write lives in ordinary files in folders you chose:
 | Highlights in notes | Inside the note file itself (`==…==`) |
 | Media bookmarks | A `.tmk` file next to each audio or video file |
 | Marked-up pictures | The picture itself; originals in a hidden `.scr-backup` folder next to it |
+| Checklists | One Markdown file per week, in the **Checklists folder** |
 
-To back these up, copy the folders to a computer or keep them in step with a folder-sync tool such as Syncthing. Uninstalling knotes does not delete them.
+To back these up, copy the folders to a computer or keep them in step with a folder-sync tool such as Syncthing. Uninstalling the app does not delete them.
+
+### Your settings, in one file
+
+**Settings → General → Backup** saves every setting on the phone to one JSON file, or loads one back, for a reinstall or a second phone:
+
+- **Export settings** asks where to save the file (`knotes-settings-<date>.json` by default). What is on screen is saved first, so the file holds what you see.
+- **Import settings** loads such a file and restarts the app.
+
+The file holds the settings of every tab, the prayer-time settings, the language and the player settings. The server password is left out, so type it again after an import.
 
 ### What lives inside the app
 
 Some things are stored by the app rather than in your folders:
 
-- your settings, including folder paths, types and categories, and server details,
+- your settings, including folder paths, types and categories, and server details (these can be exported, see above),
 - alarms, and prayer-time settings,
 - player settings and the last position in each media file,
 - phone-only state for server records: read/unread and the private star shortlist,
 - the saved copy of server records, and changes still waiting to be sent.
 
-These are lost if you uninstall the app or clear its data. Before doing either, let any waiting changes sync to the server, and note down your settings. Everything on the server is re-downloaded when you connect again.
+These are lost if you uninstall the app or clear its data. Before doing either, let any waiting changes sync to the server, export your settings, and note down your alarms, which the settings file doesn't carry. Everything on the server is re-downloaded when you connect again.
 
 ## Troubleshooting
 
 ### The Notes page is empty
 
 - The list starts on **today**. If you haven't written anything today, it's empty. Open the **Filters** bar and tap **Clear all**.
-- Check **Settings → Notes directory**. A path that looks right but doesn't exist (a typo, `notes` instead of `Notes`, a memory card that isn't inserted) gives an empty app with no error. The setup tour (**Settings → Show the setup tour**) shows whether each folder exists and what's in it.
+- Check **Settings → General → Notes directory**. A path that looks right but doesn't exist (a typo, `notes` instead of `Notes`, a memory card that isn't inserted) gives an empty app with no error. The setup tour (**Settings → General → Show the setup tour**) shows whether each folder exists and what's in it.
 - Make sure file access is still granted (see below).
 
 ### "Could not write the note. Check that file access is still granted."
 
-knotes needs **All files access**. Open Android's settings → Apps → knotes → Permissions (or **Special app access → All files access**) and switch it on. If it's off when the app starts, the app shows **Grant file access** again.
+The app needs **All files access**. Open Android's settings → Apps → Nibras Mobile → Permissions (or **Special app access → All files access**) and switch it on. If it's off when the app starts, the app shows **Grant file access** again.
 
 ### Alarms, reminders or the chime come late, or not at all
 
-- If the Alarms page says **Exact alarms are not permitted for this app**, allow **Alarms & reminders** for knotes in Android's settings.
-- Allow notifications for knotes. Without them Android hides reminders, the chime and the athan notification.
-- Keep **Persistent notification** on (Settings → **Status & chime**). It keeps the app running so alarms fire on time.
-- Some phones stop background apps to save battery. If alarms still come late, exclude knotes from battery optimisation in Android's settings.
+- If the Alarms page says **Exact alarms are not permitted for this app**, allow **Alarms & reminders** for Nibras Mobile in Android's settings.
+- Allow notifications for Nibras Mobile. Without them Android hides reminders, the chime and the athan notification.
+- Keep **Persistent notification** on (**Settings → Alerts**). It keeps the app running so alarms fire on time.
+- Some phones stop background apps to save battery. If alarms still come late, exclude Nibras Mobile from battery optimisation in Android's settings.
+- After the phone restarts or the app is updated, alarms are set again automatically.
 
 ### The athan didn't sound
 
@@ -70,8 +81,9 @@ The note has files in its attachment folder. Open it with **Open files folder**,
 
 ### Server pages are empty or out of date
 
+- Check that **Use a Nibras server** is on in **Settings → Server**. Off, the server pages are not in the rail at all.
 - Check the connection state at the top of a record page (**Online** / **Offline**).
-- **Sign-in failed — check the username and password in Settings**: fix them in **Settings → Nibras server**.
+- **Sign-in failed — check the username and password in Settings**: fix them in **Settings → Server**.
 - Only **bookmarked** records come to the phone. To get another one, use [Search server](server-pages.md#search-server) and flag it.
 - Tap **Refresh server pages** at the bottom of the rail to reload everything.
 
@@ -86,7 +98,7 @@ The note has files in its attachment folder. Open it with **Open files folder**,
 
 ### The AI answers page says the folder is missing
 
-The folder hasn't arrived on the phone yet, or it's somewhere else. Check your folder-sync tool, or set **Settings → AI answers directory** to where it actually is.
+The folder hasn't arrived on the phone yet, or it's somewhere else. Check your folder-sync tool, or set **Settings → General → AI answers directory** to where it actually is.
 
 ### "Nothing left here" in the player
 
@@ -94,7 +106,7 @@ The folder hasn't arrived on the phone yet, or it's somewhere else. Check your f
 
 ## FAQ
 
-**Does knotes need an internet connection?**
+**Does Nibras Mobile need an internet connection?**
 No. Notes, the player, gallery, collection, prayer times, alarms and widgets all work offline. Only the server pages and sync need your Nibras server, and they show the last synced copy when it can't be reached.
 
 **Can I use a notes folder I already have?**
@@ -113,4 +125,7 @@ On purpose. Times, file names and bookmark files are shared with other tools, an
 A deleted note, picture or recording is a deleted file. If you sync your folders to a computer, your sync tool may keep old versions. Check its settings.
 
 **Can I switch off features I don't use?**
-**Prayer times** (on its own page, under **Athan**) and **File collection** (in Settings) can be switched off, and they leave the rail. Server pages simply stay empty if no server is set up.
+Yes. Each optional part has a switch at the top of its tab in Settings: **Use a Nibras server** (Server), **Prayer times**, **Media player pages** and **Gallery** (Media), **File collection** and **Checklists**. A switched-off part leaves the rail and runs nothing in the background. Files attached to notes still play with the media pages off.
+
+**The app used to be called knotes. Did anything change?**
+Only the name. It is now **Nibras Mobile** (**نبراس محمول** in Arabic). Your notes, folders and settings are the same, and the note files keep their names.

@@ -18,6 +18,15 @@ restaurer, ressortez le fichier de ce dossier.
     Une note qui a encore des [fichiers joints](attached-files.md) ne peut pas être supprimée.
     Videz d'abord son dossier compagnon.
 
+### Supprimer plusieurs notes { #delete-several-notes }
+
+Marquez d'abord les cartes — **Ctrl+clic** sur chacune, ou sélectionnez-la et appuyez sur
+**Ctrl+M** — puis sélectionnez l'une d'elles et appuyez sur **Ctrl+D**. Une seule confirmation liste
+toutes les notes qui vont partir, par exemple **Move 5 notes to the .deleted folder?** (déplacer
+5 notes dans le dossier .deleted ?). Les notes qui ont encore des fichiers joints sont conservées,
+et la boîte de dialogue les nomme sous **Kept — they still have attached files** (conservées — elles
+ont encore des fichiers joints).
+
 ## Fusionner des notes { #merge-notes }
 
 La fusion réunit plusieurs notes en une seule — utile quand une idée a été saisie en plusieurs
@@ -27,13 +36,16 @@ morceaux.
    **Ctrl+clic** dessus). La première carte marquée est celle qui est conservée ; elle garde son
    nom de fichier et ses étiquettes.
 2. Marquez les autres notes de la même façon, dans l'ordre où vous voulez qu'elles soient ajoutées.
-   La barre de titre indique combien sont marquées.
+   La barre de titre indique combien sont marquées, par exemple
+   `⛓ 3 marked — Ctrl+Shift+M to merge, Esc to clear`.
 3. Appuyez sur **Ctrl+Shift+M** et confirmez.
 
 Le texte de chaque note absorbée est ajouté à la note conservée sous une ligne `---` qui indique le
 fichier d'origine, de sorte que ses anciennes étiquettes et son horodatage ne sont pas perdus. Les
 notes absorbées sont déplacées dans un dossier caché `.merged/`, et leurs fichiers joints dans le
-dossier compagnon de la note conservée.
+dossier compagnon de la note conservée. Comme tous les fichiers partagent alors un même dossier,
+chaque partie qui avait des fichiers reçoit sous son texte une liste **Files:** de leurs noms —
+la trace de quel fichier accompagnait quelle note.
 
 **Esc** efface les marques sans fusionner.
 
@@ -61,6 +73,12 @@ fichier) ; ils se placent donc à leur véritable position dans le temps.
     Dans la barre latérale, réglez **Non-standard** (Non standard) sur **Only** (Uniquement). Voir
     [Tableau, barre latérale et filtres](board-and-filters.md#clean-up-queues).
 
+Ce qui vit dans le dossier de notes sans jamais devoir devenir une note — un script, le dossier d'un
+site web — peut être exclu une fois pour toutes : ajoutez son chemin à **Note folders: leave out
+(one path per line)** (dossiers de notes : exclure, un chemin par ligne) dans les
+[Paramètres](settings.md). Il n'a alors plus de carte **needs metadata** et n'est plus compté dans
+**to settle**.
+
 ## Plusieurs dossiers de notes { #several-note-folders }
 
 Vous pouvez tenir des dossiers séparés — par exemple personnel et travail — et passer de l'un à
@@ -79,8 +97,15 @@ l'autre.
 
 Un sélecteur de dossier apparaît alors à côté du bouton d'envoi. Changez de dossier avec lui, ou
 avec **Ctrl+1** … **Ctrl+9** pour les neuf premiers dossiers. Chaque dossier garde ses
-[propres options d'étiquettes](tagging.md#define-your-own-codes) et peut même communiquer avec son
-[propre serveur Nibras](nibras-server.md).
+[propres options d'étiquettes](tagging.md#define-your-own-codes), ses propres
+[listes rapides](writing-notes.md#quick-notes-and-quick-tasks), ses filtres de barre latérale pour
+la session, et peut même communiquer avec son [propre serveur Nibras](nibras-server.md).
+
+Pour que vous sachiez toujours dans quel dossier vous êtes, chacun teinte la barre d'outils, la
+barre latérale et la barre d'état de sa propre couleur. Choisissez les couleurs sous **Folder
+colours** (couleurs des dossiers) dans les [Paramètres](settings.md) ; le bouton d'effacement à côté
+d'une couleur signifie aucune teinte. Les dossiers sans couleur reçoivent des teintes claires par
+défaut — aucune pour le premier, puis bleu clair, vert, lavande et sable.
 
 ## Fichiers et dossiers ignorés par knotes { #files-and-folders-knotes-ignores }
 
@@ -89,6 +114,10 @@ Ceux-ci n'apparaissent jamais sur le tableau :
 - Les fichiers et dossiers cachés (noms commençant par `.`), dont `.deleted`, `.merged`,
   `.imported` et `.knotes.json`.
 - Les dossiers de gestion interne nommés `deleted`, `merged`, `imported`, `trash` ou `trashed`,
-  quelle que soit la casse.
+  quelle que soit la casse, ainsi que `checklists` — où l'[application mobile](../mobile/index.md)
+  range ses listes de contrôle hebdomadaires.
 - Les dossiers compagnons `.d/` qui appartiennent à une note.
-- `notes.sqlite` (et ses fichiers `-wal`, `-shm`, `-journal`) ainsi que `claude.md`.
+- `notes.sqlite` (et ses fichiers `-wal`, `-shm`, `-journal`), `claude.md`, et les
+  [listes rapides](writing-notes.md#quick-notes-and-quick-tasks) `quick-notes.md` et
+  `quick-tasks.md`.
+- Tout ce qui figure dans **Note folders: leave out (one path per line)** dans les paramètres.

@@ -24,6 +24,20 @@ Avec plus d'un dossier, un sélecteur apparaît à côté du bouton d'envoi, et 
 permettent de passer de l'un à l'autre. Voir
 [Organiser les notes](organizing-notes.md#several-note-folders).
 
+**Folder colours** (couleurs des dossiers) — un bouton de couleur par dossier : la barre d'outils,
+la barre latérale et la barre d'état prennent cette couleur tant que le dossier est actif. Le
+bouton d'effacement à côté signifie aucune teinte. Les dossiers que vous n'avez pas colorés
+reçoivent des teintes claires par défaut (aucune pour le premier). Un dossier que vous venez
+d'ajouter à la liste ci-dessus reçoit son bouton à la prochaine ouverture des paramètres.
+
+### Réception et listes d'exclusion { #inbox-and-leave-out-lists }
+
+| Paramètre | Ce qu'il fait | Par défaut |
+|---|---|---|
+| **Inbox folder** (dossier de réception) | Le dossier dont le formulaire d'ajout liste les fichiers et dossiers sous forme de cases à cocher ; les éléments cochés sont déplacés dans le dossier de fichiers de la nouvelle note à son enregistrement. Vide = pas de liste. Voir [La boîte de réception](writing-notes.md#the-inbox-file-downloads-into-a-note) | `~/new` |
+| **Inbox: leave out (one path per line)** (réception : exclure, un chemin par ligne) | Chemins de la boîte de réception qui n'en sont pas des éléments, par exemple `~/new/old`. Les dossiers de notes sont toujours exclus | vide |
+| **Note folders: leave out (one path per line)** (dossiers de notes : exclure, un chemin par ligne) | Fichiers et dossiers d'un dossier de notes qui ne sont pas des notes, par exemple `~/knotes/site` : pas de carte **needs metadata**, et pas comptés dans **to settle** | vide |
+
 ### Tous les paramètres globaux { #all-app-wide-settings }
 
 | Paramètre | Ce qu'il fait | Par défaut |
@@ -38,7 +52,8 @@ permettent de passer de l'un à l'autre. Voir
 | **Preview characters (tail)** (caractères d'aperçu, fin) | Caractères affichés depuis la fin d'une note longue. 0 = aucun | 40 |
 | **Saving** → **Save on Enter (Shift+Enter for a newline)** (enregistrement → enregistrer avec Entrée, Shift+Entrée pour un saut de ligne) | Un simple **Enter** enregistre la note | désactivé |
 | **Tags** → **List every #hashtag under the add field** (étiquettes → lister chaque #hashtag sous le champ d'ajout) | Désactivé, un total compact s'affiche à la place | activé |
-| **Startup** → **Open filtered to today's notes** (démarrage → ouvrir filtré sur les notes du jour) | Démarrer avec aujourd'hui sélectionné dans le calendrier | activé |
+| **Startup** → **Open filtered to today's and yesterday's notes** (démarrage → ouvrir filtré sur les notes d'aujourd'hui et d'hier) | Démarrer avec aujourd'hui et hier sélectionnés dans le calendrier. Un dossier que vous ouvrez pour la première fois s'ouvre de la même façon, et chaque bouton « clear » revient d'abord ici (un second clic affiche tout) | activé |
+| **Startup** → **Hide non-standard items by default** (démarrage → masquer les éléments non standard par défaut) | Exclure de la vue par défaut les fichiers et dossiers qui ne sont pas encore des notes (le retard **to settle**). Le commutateur **Non-standard** de la barre latérale les affiche toujours | activé |
 | **Highlight colour** (couleur de surlignage) | Couleur derrière les passages surlignés | jaune |
 | **Append separator** (séparateur d'ajout) | Inséré avant un commentaire ajouté rapidement. `$date` = heure actuelle, `\n` = nouvelle ligne | `\n---$date:\n` |
 | **Append date format** (format de date d'ajout) | Format `strftime` pour `$date` | `%Y-%m-%d %H:%M` |
@@ -76,12 +91,15 @@ Voir [Type, priorité et catégorie](tagging.md#define-your-own-codes).
 Ils changent si souvent qu'ils se trouvent dans la barre d'outils et sont mémorisés
 automatiquement :
 
-- Vue : **Kanban**, **Simple list** (liste simple), **Columns** (colonnes), **Minimal**
+- Vue : **Kanban**, **Simple list** (liste simple), **Columns** (colonnes), **Week calendar**
+  (calendrier de la semaine), **Minimal**
 - Ordre de tri
+- Formulaire d'ajout complet ou court (**Ctrl+N**)
 - Thème clair / sombre (**Ctrl+T**)
 - Panneau d'édition latéral ouvert ou fermé, et sa largeur (**Ctrl+E**)
-- Barre latérale de filtres affichée ou masquée, sections repliées, et commutateur **Created** /
-  **Updated** (créé / modifié) du calendrier (**Ctrl+B**)
+- Barre latérale de filtres affichée ou masquée, sa largeur, sections repliées, et commutateur
+  **Created** / **Updated** (créé / modifié) du calendrier (**Ctrl+B**)
+- Listes de notes et de tâches rapides affichées ou masquées, et leur hauteur
 - Ouverture automatique du dossier de fichiers après chaque enregistrement
 
 ## Le fichier de configuration { #the-config-file }
@@ -97,5 +115,4 @@ Quelques options n'ont pas de contrôle dans la boîte de dialogue :
 | Clé | Ce qu'elle fait | Par défaut |
 |---|---|---|
 | `tag_bank_path` | Chemin vers votre `tag-bank.md`. Vide = à côté du programme. Faites-le pointer vers un dossier synchronisé pour partager le vocabulaire entre machines | vide |
-| `card_file_chars` | Nombre de caractères de chaque nom de fichier joint affichés sur une carte | 12 |
 | `editor_autosave_ms` | Pause (en millisecondes) avant que l'éditeur latéral n'enregistre | 900 |

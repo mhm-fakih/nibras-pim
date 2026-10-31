@@ -60,8 +60,9 @@ spring:
       max-request-size: 100MB
 
 nibras:
-  # GitHub repo "owner/name" for the "check for updates" link (empty = not configured yet).
-  repo: ${NIBRAS_REPO:}
+  # GitHub repo "owner/name" whose releases the status bar checks for updates (NIBRAS_REPO overrides;
+  # set it to blank to turn the check off).
+  repo: ${NIBRAS_REPO:mhm-fakih/nibras-pim}
   rss:
     # Number of most-recent items per feed.
     max-items: 50

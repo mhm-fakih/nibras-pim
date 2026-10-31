@@ -73,7 +73,7 @@ Pour les fichiers du dossier dont le nom ne suit pas le schéma des notes, comme
 
 ### Classement invalide { #bad-taxonomy }
 
-Pour les notes dont le nom est bien formé mais qui utilisent un type, une priorité ou une catégorie non définis dans vos [Paramètres](settings.md) (par exemple un code que vous avez supprimé depuis).
+Pour les notes dont le nom est bien formé mais qui utilisent un type, une priorité ou une catégorie non définis dans **Paramètres → Général** → **Types** / **Catégories** (par exemple un code que vous avez supprimé depuis).
 
 | Option | Affiche |
 |---|---|

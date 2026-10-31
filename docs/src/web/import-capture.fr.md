@@ -6,12 +6,13 @@ texte brut — et c'est dans l'application web que ces captures deviennent de v�
 enregistrements. Voir [Capturer puis classer](../concepts/capture-then-classify.md) pour l'idée
 qui sous-tend ce fonctionnement.
 
-Il existe trois voies d'entrée :
+Il existe quatre voies d'entrée :
 
 | Source | Comment elle arrive | Où vous la traitez |
 |---|---|---|
 | **Application mobile** — une note que vous *envoyez* | Directement sous forme d'enregistrement dans son module, déjà mis en favori | Dans le module lui-même (regardez sous **★ Bookmarked** (★ Favoris) ou **Recently created** (Créés récemment)) |
 | **Application de bureau / dossier de notes** | Sous forme de fichiers Markdown dans le dossier de notes lu par le serveur | **Local notes** (Notes locales) et **Import notes** (Importer des notes) |
+| **Outils de capture** — Telegram, favoris Firefox, vidéos en ligne | Sous forme de notes écrites dans ce même dossier de notes | **Local notes** et **Import notes** |
 | **N'importe quels fichiers** | Déposés dans un dossier du serveur, nommés comme une commande | **Import files** (Importer des fichiers) |
 
 ## Depuis le téléphone { #from-the-phone }
@@ -21,6 +22,23 @@ enregistrement dans le module indiqué par son type (tâche, journal, plan, note
 ressource), avec sa priorité et son département, et **mise en favori**. Rien n'est à importer :
 ouvrez le module et passez-la en revue. Si le téléphone était hors ligne, il envoie sa file
 d'attente au retour de la connexion. Voir [Synchronisation](../concepts/sync.md).
+
+## Depuis les outils de capture { #from-the-capture-tools }
+
+Trois petits outils en ligne de commande font entrer des contenus extérieurs dans le dossier de notes, sous forme de
+notes ordinaires prêtes pour **Import notes** :
+
+| Outil | Ce qu'il écrit |
+|---|---|
+| **Telegram** | Une note **N** par exécution, *Telegram ‹chat› export*, avec les photos, vidéos et fichiers des messages dans son dossier compagnon. |
+| **Favoris Firefox** | Une note **R** par exécution, *Firefox bookmarks export*, les favoris regroupés par date d'ajout. |
+| **Média** (via yt-dlp) | Une note **R** par exécution : une ligne de votre main, puis pour chaque vidéo son titre, sa durée, son site et son adresse, avec la vidéo, un MP3 et les sous-titres dans le dossier compagnon. |
+
+Leur priorité et leur département viennent des valeurs par défaut du dossier de notes ; lorsque le dossier ne définit
+aucun département, les notes reçoivent le département **X**, si bien qu'elles n'arrivent jamais sans département.
+Donnez-leur leur vrai département au moment du classement ou de l'import. N'oubliez pas que les notes **R** ont besoin
+d'un type de ressource — voir l'astuce sous [Importer des notes](#import-notes). Les outils eux-mêmes s'installent sur
+l'ordinateur qui les exécute ; voir le dossier `capture/` des sources de Nibras.
 
 ## Notes locales { #local-notes }
 
@@ -46,6 +64,11 @@ L'import depuis cette page vous explique ce qui va se passer : un enregistrement
 cours de la note, s'il y en a un), les éventuels fichiers associés sont copiés dans le dossier de
 l'enregistrement, et la note est déplacée dans le sous-dossier `imported/` pour disparaître de la
 liste. Ensuite, **Open the record** (Ouvrir l'enregistrement) vous y conduit.
+
+!!! note "Rangement nocturne"
+    Chaque nuit, le serveur range le dossier de notes : une note restée vide depuis plus d'un jour est déplacée dans le
+    dossier `.deleted` (la corbeille de l'application de bureau), sauf si son dossier compagnon contient des fichiers,
+    et les dossiers compagnons vides sont supprimés.
 
 !!! note "Comment les sujets sont reconnus"
     Le tag `#A.subject` d'une note est comparé au champ **Note tags** (Tags de note) de vos
@@ -123,12 +146,16 @@ fonctionne ainsi :
    comme une [commande par lot](batch-commands.md) — par exemple `t ?done Final report.pdf`.
 2. Saisissez le **Drop folder** (Dossier de dépôt, mémorisé pour la prochaine fois) et choisissez le
    **Default module** (Module par défaut) pour les noms qui ne commencent pas par un code de module.
-3. Cliquez sur **Scan / preview** (Analyser / aperçu). Chaque élément indique ce qu'il va créer, où
-   il ira, ou pourquoi il ne peut pas être importé.
+3. Cliquez sur **Scan / preview** (Analyser / aperçu). Chaque élément indique ce qu'il va créer
+   (**Create ‹module›: “titre”**), ce qu'il va lui arriver et le dossier où il ira — ou pourquoi il ne
+   peut pas être importé. Ce dossier suit la disposition réelle du module dans le dépôt 1, par type et
+   par centaines d'identifiants, comme réglé dans [Settings → Modules](settings.md#modules).
 4. Cliquez sur **Import** pour un seul élément, ou sur **Import all** (Tout importer).
 
 Un **fichier** est déplacé dans le dossier repository-1 du nouvel enregistrement et renommé selon
-son titre ; un **dossier** devient le dossier de l'enregistrement.
+son titre ; un **dossier** devient le dossier de l'enregistrement. Les éléments importés restent sur
+la page, avec une ligne ✓ indiquant le nouvel enregistrement et l'endroit où sont allés ses fichiers,
+jusqu'à la prochaine analyse.
 
 ## Renommeur d'images { #image-renamer }
 

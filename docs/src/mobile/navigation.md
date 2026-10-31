@@ -11,9 +11,11 @@ The rail is split into two tinted bands:
 | **On this phone** | a phone | Pages that work entirely on your phone, with or without a network. |
 | **From the server** | a cloud | Pages that show records from your Nibras server. Offline, they show what was last synced. |
 
-Only one band is open at a time, so the one you are using fits on screen. Tap the heading of the closed band (it has a small arrow under it) to open it. When you open a page from elsewhere, such as a widget or a notification, the rail opens the band that page belongs to.
+Only one band is open at a time, so the one you are using fits on screen. Tap the heading of the closed band (it has a small arrow under it) to open it. Tap the heading of the open band to fold it away, for example to bring the server band into view on a short phone. When you open a page from elsewhere, such as a widget or a notification, the rail opens the band that page belongs to.
 
 **Settings** sits at the bottom, outside both bands, and is always visible.
+
+If the rail is still taller than the screen, a small down arrow (**More below**) sits at its foot. Tap it to scroll to the end of the rail.
 
 ## On this phone
 
@@ -24,13 +26,15 @@ From top to bottom:
 | Mosque | **Prayer times** | [Prayer times and athan](prayer.md) |
 | Alarm clock | **Alarms** | [Alarms, reminders and the chime](alarms.md) |
 | Note | **Notes**: your notes, the home screen | [Writing and editing notes](notes.md) |
-| Robot | **AI answers**: a read-only second notes folder | [AI answers](ai-answers.md) |
+| Sparkles | **AI answers**: a read-only second notes folder | [AI answers](ai-answers.md) |
 | Calendar | **Calendar** | [Calendar](calendar.md) |
+| Checklist | **Checklists**: daily and weekly checklists | [Checklists](checklists.md) |
 | Photos | **Gallery** | [Gallery](gallery.md) |
-| Headset | **Media**: your audio and video library | [Media player](player.md) |
+| Headset | **Media**: your audio library | [Media player](player.md) |
+| Film strip | **Videos** | [Videos](player.md#videos) |
 | Folder with arrow | **Collect files** | [Collect files](collect.md) |
 
-**Prayer times** and **Collect files** can be switched off. A switched-off page leaves the rail.
+Several of these can be switched off, each with the switch at the top of its tab in [Settings](settings.md): **Prayer times**, **Checklists**, **Gallery**, **Media player pages** (Media and Videos together) and **File collection**. A switched-off page leaves the rail. If you were on it, the app goes back to Notes.
 
 ## From the server
 
@@ -41,9 +45,11 @@ From top to bottom:
 | Quotation mark | **Highlights** |
 | People | **Contacts** |
 | Globe with magnifier | **Search server** |
-| Circular arrow | **Refresh server pages**. Reloads every server page from the server. It does not open a page. |
+| Circular arrow | **Refresh server pages**. Reconnects, refreshes the types and categories from the server, and reloads every server page. It does not open a page. |
 
 All of these are covered in [Server pages](server-pages.md).
+
+With **Use a Nibras server** switched off (**Settings → Server**), the whole band leaves the rail and **On this phone** stays open.
 
 ## The Back button
 
@@ -54,3 +60,5 @@ Each page remembers its own state while you are elsewhere: scroll position, the 
 ## The mini player
 
 Once something has been played, a slim bar appears at the bottom of every page. Tap the bar to open the full [player](player.md); tap its play/pause button to toggle playback without leaving the page you are on.
+
+The **Player** icon on your home screen goes straight to the full player with the track you last played, without passing through the Media page.
