@@ -101,6 +101,7 @@
     <string name="notes_rail_search_server">Rechercher sur le serveur</string>
     <string name="notes_rail_refresh_server_pages">Actualiser les pages du serveur</string>
     <string name="notes_rail_settings">Paramètres</string>
+    <string name="notes_rail_more_below">Plus bas</string>
     <string name="notes_slider_decrease">Diminuer : %1$s</string>
     <string name="notes_slider_increase">Augmenter : %1$s</string>
     <string name="notes_quick_write_failed">Impossible d’écrire la note. Vérifiez que l’accès aux fichiers est toujours accordé.</string>

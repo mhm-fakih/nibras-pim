@@ -306,7 +306,20 @@ export function SideNav({
       }}
     >
       <Stack direction="row" alignItems="center" spacing={0.75} sx={{ pl: 1.5, pr: 0.5, pt: 1 }}>
-        <CalendarNotebookIcon sx={{ fontSize: 32, color: 'primary.main' }} />
+        {/* The logo opens the home page in a new tab: a quick second window on the app for work
+            alongside this one. The sign-in is shared, so it opens already signed in. */}
+        <Tooltip title="Open in a new tab">
+          <Box
+            component="a"
+            href="/"
+            target="_blank"
+            rel="noopener"
+            aria-label="Open the app in a new tab"
+            sx={{ display: 'flex', borderRadius: 1, '&:hover': { bgcolor: 'action.hover' } }}
+          >
+            <CalendarNotebookIcon sx={{ fontSize: 32, color: 'primary.main' }} />
+          </Box>
+        </Tooltip>
         <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
           {appName}
         </Typography>

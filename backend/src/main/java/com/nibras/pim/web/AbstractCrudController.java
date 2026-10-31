@@ -41,6 +41,12 @@ public abstract class AbstractCrudController<E extends com.nibras.pim.domain.Bas
         return PageResponse.of(service.list(filters, pageable));
     }
 
+    /** Per-option counts for the list's filter menus, under the same filters as the list. */
+    @GetMapping("/facets")
+    public Map<String, Map<String, Long>> facets(FilterParams filters) {
+        return service.facetCounts(filters);
+    }
+
     @GetMapping("/lookups")
     public Map<String, List<LookupDto>> lookups() {
         return service.lookups();

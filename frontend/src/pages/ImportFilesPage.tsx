@@ -19,6 +19,8 @@ import SyncIcon from '@mui/icons-material/Sync';
 import { Divider } from '@mui/material';
 import {
   ImportFilesResult,
+  ImportFileItem,
+  ImportPlanItem,
   PendingSync,
   applyFulltext,
   exportBookmarkedToc,
@@ -42,6 +44,11 @@ export function ImportFilesPage() {
   const [module, setModule] = useState('tasks');
   const [scanned, setScanned] = useState(false);
   const [result, setResult] = useState<ImportFilesResult | null>(null);
+  // Every import's outcome since the last scan, by entry name, and the preview card of each entry
+  // that was imported. The preview reloads after an import, and an imported entry has left the drop
+  // folder — without these its card vanished a moment after the Import click.
+  const [outcomes, setOutcomes] = useState<Record<string, ImportFileItem>>({});
+  const [imported, setImported] = useState<ImportPlanItem[]>([]);
 
   const preview = useQuery({
     queryKey: ['import-files', dir, module],
@@ -58,13 +65,27 @@ export function ImportFilesPage() {
     mutationFn: (only?: string) => importFiles(dir, module, only),
     onSuccess: (res) => {
       setResult(res);
+      setOutcomes((o) => ({ ...o, ...Object.fromEntries(res.items.map((r) => [r.name, r])) }));
+      const gone = new Set(res.items.filter((r) => !r.error).map((r) => r.name));
+      setImported((prev) => [
+        ...prev,
+        ...(preview.data?.items ?? []).filter(
+          (i) => gone.has(i.name) && !prev.some((p) => p.name === i.name),
+        ),
+      ]);
       qc.invalidateQueries({ queryKey: ['import-files'] });
       qc.invalidateQueries({ queryKey: ['list'] });
       preview.refetch();
     },
   });
 
-  const items = preview.data?.items ?? [];
+  const pending = preview.data?.items ?? [];
+  // Still-to-import entries first, then the ones already imported, which stay until the next scan.
+  const items = [...pending, ...imported.filter((i) => !pending.some((p) => p.name === i.name))];
+  const clearDone = () => {
+    setOutcomes({});
+    setImported([]);
+  };
 
   return (
     <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
@@ -97,6 +118,7 @@ export function ImportFilesPage() {
               if (e.key === 'Enter') {
                 setScanned(true);
                 setResult(null);
+                clearDone();
                 preview.refetch();
               }
             }}
@@ -125,6 +147,7 @@ export function ImportFilesPage() {
             onClick={() => {
               setScanned(true);
               setResult(null);
+              clearDone();
               preview.refetch();
             }}
           >
@@ -147,10 +170,10 @@ export function ImportFilesPage() {
             <Button
               variant="contained"
               startIcon={run.isPending ? <CircularProgress size={16} color="inherit" /> : <DriveFileMoveIcon />}
-              disabled={run.isPending || items.every((i) => i.error)}
+              disabled={run.isPending || pending.every((i) => i.error)}
               onClick={() => run.mutate(undefined)}
             >
-              Import all ({items.filter((i) => !i.error).length})
+              Import all ({pending.filter((i) => !i.error).length})
             </Button>
             {result && (
               <Alert severity={result.imported > 0 ? 'success' : 'warning'} sx={{ py: 0 }}>
@@ -162,7 +185,7 @@ export function ImportFilesPage() {
 
         <Stack spacing={1.5}>
           {items.map((it) => {
-            const res = result?.items.find((r) => r.name === it.name);
+            const res = outcomes[it.name];
             return (
               <Card key={it.name} variant="outlined">
                 <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>

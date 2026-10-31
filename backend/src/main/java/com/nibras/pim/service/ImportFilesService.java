@@ -84,8 +84,8 @@ public class ImportFilesService {
                 out.add(new PlanItem(name, dir2, plan.module(), plan.title(), null, null, plan.error()));
                 continue;
             }
-            String code = moduleCode(plan.module());
-            Path slot = repos.repoRoot(1).resolve(code).resolve("<id>");
+            // The module's real layout (type and id÷100 buckets), not a flat <code>/<id>.
+            Path slot = Paths.get(repos.folderTemplate(1, plan.module(), plan.typeCode()));
             if (dir2) {
                 out.add(new PlanItem(name, true, plan.module(), plan.title(),
                         "Move folder → record id folder", slot.toString(), null));
@@ -175,12 +175,6 @@ public class ImportFilesService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-    }
-
-    private String moduleCode(String moduleKey) {
-        return modules.findByModuleKey(moduleKey)
-                .map(m -> m.getCode() != null && !m.getCode().isBlank() ? m.getCode() : moduleKey)
-                .orElse(moduleKey);
     }
 
     private static String stripExt(String name) {

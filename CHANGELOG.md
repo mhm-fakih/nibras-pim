@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-10-31 — 1.3.2 "Serenity"
+
+- **Web:** an open page renews its sign-in, so a checklist left on a TV stays signed in; the session
+  length is a setting (Settings → Session, admins); every list filter menu (status, type, context,
+  priority) shows how many records each option gives; Tasks get a Context filter; the logo opens
+  the app in a new tab; Import files previews the real target folder (type and id÷100 buckets),
+  keeps imported cards on screen, and shows only the changed lines of an edited checkout file; an
+  empty description or notes field keeps its heading above the append box.
+- **Mobile:** renamed Nibras Mobile (نبراس محمول in Arabic); alarms ring again after an app update
+  and play from a foreground service; the quietest alarm volume is the lowest step −5 dB; files
+  opened from a file manager play; notifications are right to left in the Arabic UI; a clearer
+  alarm card; the left rail's phone heading folds its section, and an arrow shows when the rail
+  runs past the screen.
+- **Capture:** Telegram and Firefox notes get department X when the notes folder sets none.
+- **Security:** the database password is out of the repo — the app, scripts and tests read it from
+  `DB_PASSWORD` or the private `~/.my.cnf`.
+- **Tests:** they add the task statuses and journal type they need instead of relying on the test
+  database.
+
 ## 2026-10-30 — 1.3.1 "Serenity"
 
 - **Mobile:** a second home-screen icon, Player, opens the player on the last track; alarms list

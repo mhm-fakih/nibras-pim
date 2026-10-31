@@ -33,7 +33,9 @@ public record FilterParams(
         Boolean recentCreated,
         Boolean recentUpdated,
         // Tasks' Active / Not active filter (work_status.marked_as_active); null = both.
-        Boolean activeStatus) {
+        Boolean activeStatus,
+        // Tasks' GTD context (@desk, @car…), the work_location lookup.
+        Long contextId) {
 
     /**
      * Just a free-text query, every other filter unset. Spelling out 20-odd nulls at a call site is
@@ -41,6 +43,6 @@ public record FilterParams(
      */
     public static FilterParams forQuery(String q) {
         return new FilterParams(q, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 }

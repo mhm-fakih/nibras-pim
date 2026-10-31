@@ -101,6 +101,7 @@
     <string name="notes_rail_search_server">البحث في الخادم</string>
     <string name="notes_rail_refresh_server_pages">تحديث صفحات الخادم</string>
     <string name="notes_rail_settings">الإعدادات</string>
+    <string name="notes_rail_more_below">المزيد في الأسفل</string>
     <string name="notes_slider_decrease">إنقاص %1$s</string>
     <string name="notes_slider_increase">زيادة %1$s</string>
     <string name="notes_quick_write_failed">تعذّرت كتابة الملاحظة. تحقّق من أن إذن الوصول إلى الملفات لا يزال ممنوحًا.</string>

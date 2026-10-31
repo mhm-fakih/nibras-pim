@@ -76,7 +76,11 @@ public class BatchEntryService {
     }
 
     /** Read-only parse of a command line for preview (no record created). */
-    public record Plan(String module, String title, String error) {
+    /** {@code typeCode}: the type the record would be created with (from the line's own type code), or null. */
+    public record Plan(String module, String title, String error, String typeCode) {
+        Plan(String module, String title, String error) {
+            this(module, title, error, null);
+        }
     }
 
     public EntryResult add(EntryRequest req) {
@@ -226,7 +230,17 @@ public class BatchEntryService {
             if (parsed.text().isBlank()) {
                 return new Plan(module, null, "No title text.");
             }
-            return new Plan(module, parsed.text(), null);
+            // The type the line assigns, read off a throwaway entity the way create() would set it,
+            // so a preview can show the record's real folder (types bucket some modules' folders).
+            // In a transaction because the assignment sets a lazy reference, read here for its code.
+            String typeCode = tx.execute(status -> {
+                BeanWrapper bw = new BeanWrapperImpl(newInstance(cls));
+                parsed.assignments().forEach(op -> op.applyTo(bw, em));
+                return bw.isReadableProperty("type")
+                        && bw.getPropertyValue("type") instanceof com.nibras.pim.domain.lookup.LookupEntity t
+                        ? t.getCode() : null;
+            });
+            return new Plan(module, parsed.text(), null, typeCode);
         } catch (ResponseStatusException e) {
             return new Plan(module, null, e.getReason());
         }

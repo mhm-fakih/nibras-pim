@@ -101,6 +101,7 @@
     <string name="notes_rail_search_server">Search server</string>
     <string name="notes_rail_refresh_server_pages">Refresh server pages</string>
     <string name="notes_rail_settings">Settings</string>
+    <string name="notes_rail_more_below">More below</string>
     <string name="notes_slider_decrease">Decrease %1$s</string>
     <string name="notes_slider_increase">Increase %1$s</string>
     <string name="notes_quick_write_failed">Could not write the note. Check that file access is still granted.</string>

@@ -32,6 +32,7 @@ import {
   coverUrl,
   getLookups,
   listEntities,
+  getFacets,
   matchContext,
   EntityRecord,
   FieldMatch,
@@ -112,6 +113,7 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
   const [statusId, setStatusId] = useState<number | ''>('');
   const [activeOnly, setActiveOnly] = useState(Boolean(config.activeOnly));
   const [typeId, setTypeId] = useState<number | ''>('');
+  const [contextId, setContextId] = useState<number | ''>('');
   const [priority, setPriority] = useState<number | ''>('');
   const [pageSize, setPageSize] = useState<number>(storedPageSize);
   const [bookmarked, setBookmarked] = useState(false);
@@ -156,7 +158,7 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
 
   useEffect(() => {
     setPage(0);
-  }, [config.key, q, statusId, activeOnly, typeId, priority, bookmarked, pageSize, reportKey]);
+  }, [config.key, q, statusId, activeOnly, typeId, contextId, priority, bookmarked, pageSize, reportKey]);
 
   // Clear selection/feedback when switching entities or report.
   useEffect(() => {
@@ -175,25 +177,32 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
   const statusOptions =
     activeOnly && hasActiveFlag ? lookups?.statuses?.filter((s) => s.active) : lookups?.statuses;
 
+  const filterParams: ListParams = {
+    q: q || undefined,
+    onDay,
+    statusId: statusId === '' ? undefined : statusId,
+    activeStatus: activeOnly && hasActiveFlag ? true : undefined,
+    typeId: typeId === '' ? undefined : typeId,
+    contextId: contextId === '' ? undefined : contextId,
+    priority: priority === '' ? undefined : priority,
+    bookmarked: bookmarked || undefined,
+    ...reportParams,
+  };
+
   const { data, isFetching, isError, error, refetch } = useQuery({
     queryKey: [
       'list',
       config.key,
-      { q, onDay, statusId, activeOnly: activeOnly && hasActiveFlag, typeId, priority, bookmarked, page, pageSize, reportKey },
+      { ...filterParams, page, pageSize },
     ],
-    queryFn: () =>
-      listEntities(config.key, {
-        q: q || undefined,
-        onDay,
-        statusId: statusId === '' ? undefined : statusId,
-        activeStatus: activeOnly && hasActiveFlag ? true : undefined,
-        typeId: typeId === '' ? undefined : typeId,
-        priority: priority === '' ? undefined : priority,
-        bookmarked: bookmarked || undefined,
-        page,
-        size: pageSize,
-        ...reportParams,
-      }),
+    queryFn: () => listEntities(config.key, { ...filterParams, page, size: pageSize }),
+    placeholderData: keepPreviousData,
+  });
+
+  // How many records each menu option would show, under the same filters as the list.
+  const { data: facets } = useQuery({
+    queryKey: ['facets', config.key, filterParams],
+    queryFn: () => getFacets(config.key, filterParams),
     placeholderData: keepPreviousData,
   });
 
@@ -320,15 +329,37 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
             </Tooltip>
           )}
           {config.hasStatus && (
-            <FilterSelect label="Status" value={statusId} options={statusOptions} onChange={setStatusId} />
+            <FilterSelect
+              label="Status"
+              value={statusId}
+              options={statusOptions}
+              counts={facets?.statuses}
+              onChange={setStatusId}
+            />
           )}
           {config.hasType && (
-            <FilterSelect label="Type" value={typeId} options={lookups?.types} onChange={setTypeId} />
+            <FilterSelect
+              label="Type"
+              value={typeId}
+              options={lookups?.types}
+              counts={facets?.types}
+              onChange={setTypeId}
+            />
+          )}
+          {lookups?.contexts && (
+            <FilterSelect
+              label="Context"
+              value={contextId}
+              options={lookups.contexts}
+              counts={facets?.contexts}
+              onChange={setContextId}
+            />
           )}
           <FilterSelect
             label="Priority"
             value={priority}
             options={PRIORITY_OPTIONS}
+            counts={facets?.priorities}
             onChange={setPriority}
           />
           <Tooltip title="Bookmarked only">
@@ -717,13 +748,23 @@ function FilterSelect({
   label,
   value,
   options,
+  counts,
   onChange,
 }: {
   label: string;
   value: number | '';
   options?: Lookup[];
+  /** Records per option id under the other filters; omitted while they load. */
+  counts?: Record<string, number>;
   onChange: (v: number | '') => void;
 }) {
+  const total = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : undefined;
+  const count = (n?: number) =>
+    counts && (
+      <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 'auto', pl: 2, minWidth: 40, textAlign: 'right' }}>
+        {(n ?? 0).toLocaleString()}
+      </Typography>
+    );
   return (
     <TextField
       select
@@ -731,14 +772,25 @@ function FilterSelect({
       label={label}
       value={value}
       onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
+      // The field shows the option's name only; its count belongs to the open menu.
+      SelectProps={{ renderValue: (v) => options?.find((o) => o.id === v)?.name ?? '' }}
       sx={{ minWidth: 130 }}
     >
-      <MenuItem value="">
+      <MenuItem value="" sx={{ display: 'flex' }}>
         <em>Any</em>
+        {count(total)}
       </MenuItem>
       {(options ?? []).map((o) => (
-        <MenuItem key={o.id} value={o.id}>
-          {o.name}
+        <MenuItem key={o.id} value={o.id} sx={{ display: 'flex' }}>
+          {/* Arabic names right-aligned against their count, English ones left. */}
+          <Box
+            component="span"
+            dir={dirOf(o.name)}
+            sx={{ flex: 1, textAlign: dirOf(o.name) === 'rtl' ? 'right' : 'left' }}
+          >
+            {o.name}
+          </Box>
+          {count(counts?.[String(o.id)])}
         </MenuItem>
       ))}
     </TextField>

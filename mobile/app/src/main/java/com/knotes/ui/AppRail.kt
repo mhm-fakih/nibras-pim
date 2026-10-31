@@ -3,6 +3,7 @@ package com.knotes.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.DriveFolderUpload
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Headset
@@ -41,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -54,6 +57,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.knotes.R
 import com.knotes.nibras.NIBRAS_TYPES
+import kotlinx.coroutines.launch
 
 /** Constant destination id for the local-notes home screen. */
 const val HOME_DEST = "home"
@@ -100,7 +104,9 @@ private fun bandOf(dest: String): RailBand? = when (dest) {
  * pages behind a neutral icon for exactly the same reason and could only ever hide four of them.
  *
  * The band containing the current page opens itself: a collapsed band whose child is the current
- * page would hide where you already are. Settings belongs to neither band and is always visible at
+ * page would hide where you already are. Tapping an open band's heading shuts it, so on a short
+ * screen the local band can be folded away to bring the server band into view. When the rail is
+ * still taller than the screen, an arrow at the bottom says so and scrolls to the rest. Settings belongs to neither band and is always visible at
  * the bottom, because a rail whose configuration page can be collapsed out of reach is a trap.
  */
 @Composable
@@ -137,12 +143,17 @@ fun AppRail(
     // Follows the selection rather than being set by it: opening a page from anywhere — a widget,
     // a notification, a link out of another page — should leave the rail showing where you are.
     LaunchedEffect(selected) { bandOf(selected)?.let { open = it.name } }
+    // A band's heading toggles it; with both shut, only the two headings and Settings remain.
+    val toggle = { band: RailBand -> open = if (open == band.name) NONE_OPEN else band.name }
+    val scroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
 
+    Box(modifier = Modifier.width(56.dp).fillMaxHeight()) {
     Column(
         modifier = Modifier
             .width(56.dp)
             .fillMaxHeight()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scroll)
             .statusBarsPadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -153,7 +164,7 @@ fun AppRail(
             alpha = LOCAL_ALPHA,
             // With no server band there is nothing to switch to, so this one is always open.
             expanded = open == RailBand.LOCAL.name || !serverEnabled,
-            onToggle = { open = RailBand.LOCAL.name },
+            onToggle = { toggle(RailBand.LOCAL) },
         ) {
             // Order set deliberately: prayer times first, being the one opened at a fixed hour
             // rather than browsed, then notes, then the two media browsers, with the collector —
@@ -272,7 +283,7 @@ fun AppRail(
                 tint = MaterialTheme.colorScheme.primary,
                 alpha = SERVER_ALPHA,
                 expanded = open == RailBand.SERVER.name,
-                onToggle = { open = RailBand.SERVER.name },
+                onToggle = { toggle(RailBand.SERVER) },
             ) {
                 NIBRAS_TYPES.forEach { type ->
                     val sel = type.code == selected
@@ -358,7 +369,30 @@ fun AppRail(
             )
         }
     }
+    // More rail below the screen's edge: without a cue, a short phone showed the local band and
+    // nothing said the server band and Settings were under it. Tapping scrolls to the end.
+    if (scroll.canScrollForward) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f))
+                .clickable { scope.launch { scroll.animateScrollTo(scroll.maxValue) } }
+                .padding(vertical = 2.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.KeyboardArrowDown,
+                contentDescription = stringResource(R.string.notes_rail_more_below),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+    }
 }
+
+/** [AppRail]'s open band when both are shut. */
+private const val NONE_OPEN = "none"
 
 /**
  * One tinted band of the rail: a heading you can tap, and its destinations when it is open.
@@ -395,7 +429,7 @@ private fun RailSection(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(enabled = !expanded, onClick = onToggle)
+                .clickable(onClick = onToggle)
                 // More below than above: the gap under the heading is what separates it from the
                 // first destination, and without it the icon read as another cell in the list
                 // rather than as the label over it.

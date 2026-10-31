@@ -43,7 +43,7 @@ Without --export-md the export is saved as a knotes note (type R: a Resource) in
 knotes folder (--knotes, else $NIBRAS_KNOTES_DIR, else ~/new/knotes):
     <yyyy_mm_dd-hhmmss>~R~p<priority>~<category>.md
 The timestamp is the export time. Priority and category default to the
-folder's .knotes.json (priority_default, default_category), else p2 and D.
+folder's .knotes.json (priority_default, default_category), else p2 and X.
 """
 
 from __future__ import annotations

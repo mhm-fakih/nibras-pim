@@ -233,6 +233,8 @@ public class TaskService extends AbstractCrudService<Task, TaskDto> {
                 "goals", bookmarkedGoalOptions(),
                 "tags", tagOptions(),
                 // The "People" picker on the task form — tagging by contact alongside by tag.
-                "contacts", contactOptions());
+                "contacts", contactOptions(),
+                // GTD contexts (@desk, @car…), for the list's Context filter.
+                "contexts", options(com.nibras.pim.domain.lookup.Context.class));
     }
 }

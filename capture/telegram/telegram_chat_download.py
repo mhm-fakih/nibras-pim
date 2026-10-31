@@ -22,7 +22,7 @@ Output (in the knotes folder: --knotes, else $NIBRAS_KNOTES_DIR, else
   <yyyy_mm_dd-hhmmss>~N~p<priority>~<category>.d/     its media, as
       <id>_<timestamp>.<ext>
 The timestamp is the export time. Priority and category default to the
-folder's .knotes.json (priority_default, default_category), else p2 and D.
+folder's .knotes.json (priority_default, default_category), else p2 and X.
 
 Usage:
   ../run.sh telegram                                 # interactive

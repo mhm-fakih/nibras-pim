@@ -244,6 +244,8 @@ export interface ListParams {
   /** Only tasks whose status is active (or unset); false = only the closed ones. */
   activeStatus?: boolean;
   typeId?: number;
+  /** Tasks' GTD context (@desk, @car…). */
+  contextId?: number;
   /** Exact priority, e.g. 3 — distinct from the highPriority preset's ">= 3". */
   priority?: number;
   tagId?: number;
@@ -283,6 +285,18 @@ export async function listEntities(
   params: ListParams,
 ): Promise<PageResponse<EntityRecord>> {
   const { data } = await http.get(`/${path}`, { params: clean({ ...params }) });
+  return data;
+}
+
+/**
+ * Per-option counts for a list's filter menus, keyed by menu ("statuses", "types", "contexts",
+ * "priorities") then by option id ("none" for records without one). Each menu is counted under
+ * every other filter but its own, so the numbers are what choosing that option would show.
+ */
+export type FacetCounts = Record<string, Record<string, number>>;
+
+export async function getFacets(path: string, params: ListParams): Promise<FacetCounts> {
+  const { data } = await http.get(`/${path}/facets`, { params: clean({ ...params }) });
   return data;
 }
 

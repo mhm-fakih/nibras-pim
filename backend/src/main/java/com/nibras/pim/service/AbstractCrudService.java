@@ -132,6 +132,87 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
     }
 
     /**
+     * How many records each option of the list's filter menus would show: per status, type,
+     * context and priority, keyed by the option's id ("none" for records without one).
+     *
+     * <p>Each menu is counted with every OTHER filter applied but its own left out, so the numbers
+     * are what picking that option would give — and picking one doesn't zero the rest of its menu.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Map<String, Long>> facetCounts(FilterParams f) {
+        Map<String, Map<String, Long>> out = new LinkedHashMap<>();
+        facet(out, "status", "statuses", withStatus(f, null));
+        facet(out, "type", "types", withType(f, null));
+        facet(out, "context", "contexts", withContext(f, null));
+        facet(out, "priority", "priorities", withPriority(f, null));
+        return out;
+    }
+
+    private void facet(Map<String, Map<String, Long>> out, String attr, String key, FilterParams f) {
+        var cb = em.getCriteriaBuilder();
+        var query = cb.createQuery(Object[].class);
+        var root = query.from(entityClass());
+        if (!has(root, attr)) {
+            return;
+        }
+        // A lookup groups by its id through a LEFT join, so records without one form the null group;
+        // priority, a plain column, groups by its value. Anything else by that name isn't a menu.
+        boolean column = "priority".equals(attr);
+        if (!column && !com.nibras.pim.domain.lookup.LookupEntity.class.isAssignableFrom(root.get(attr).getJavaType())) {
+            return;
+        }
+        jakarta.persistence.criteria.Expression<?> by = !column
+                ? root.join(attr, jakarta.persistence.criteria.JoinType.LEFT).get("id")
+                : root.get(attr);
+        var where = spec(f).toPredicate(root, query, cb);
+        query.multiselect(by, cb.countDistinct(root));
+        if (where != null) {
+            query.where(where);
+        }
+        query.distinct(false);
+        query.groupBy(by);
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (Object[] row : em.createQuery(query).getResultList()) {
+            counts.put(row[0] == null ? "none" : String.valueOf(row[0]), (Long) row[1]);
+        }
+        out.put(key, counts);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Class<E> entityClass() {
+        return (Class<E>) org.springframework.core.GenericTypeResolver
+                .resolveTypeArguments(getClass(), AbstractCrudService.class)[0];
+    }
+
+    private static FilterParams withStatus(FilterParams f, Long v) {
+        return new FilterParams(f.q(), f.createdOn(), f.onDay(), f.from(), f.to(), f.bookmarked(), f.urgent(),
+                f.dashboard(), v, f.typeId(), f.priority(), f.tagId(), f.goalId(), f.writingId(), f.noStatus(),
+                f.noType(), f.noDepartment(), f.noPriority(), f.hasTags(), f.overdue(), f.dueSoon(),
+                f.highPriority(), f.recentCreated(), f.recentUpdated(), f.activeStatus(), f.contextId());
+    }
+
+    private static FilterParams withType(FilterParams f, Long v) {
+        return new FilterParams(f.q(), f.createdOn(), f.onDay(), f.from(), f.to(), f.bookmarked(), f.urgent(),
+                f.dashboard(), f.statusId(), v, f.priority(), f.tagId(), f.goalId(), f.writingId(), f.noStatus(),
+                f.noType(), f.noDepartment(), f.noPriority(), f.hasTags(), f.overdue(), f.dueSoon(),
+                f.highPriority(), f.recentCreated(), f.recentUpdated(), f.activeStatus(), f.contextId());
+    }
+
+    private static FilterParams withContext(FilterParams f, Long v) {
+        return new FilterParams(f.q(), f.createdOn(), f.onDay(), f.from(), f.to(), f.bookmarked(), f.urgent(),
+                f.dashboard(), f.statusId(), f.typeId(), f.priority(), f.tagId(), f.goalId(), f.writingId(),
+                f.noStatus(), f.noType(), f.noDepartment(), f.noPriority(), f.hasTags(), f.overdue(), f.dueSoon(),
+                f.highPriority(), f.recentCreated(), f.recentUpdated(), f.activeStatus(), v);
+    }
+
+    private static FilterParams withPriority(FilterParams f, Integer v) {
+        return new FilterParams(f.q(), f.createdOn(), f.onDay(), f.from(), f.to(), f.bookmarked(), f.urgent(),
+                f.dashboard(), f.statusId(), f.typeId(), v, f.tagId(), f.goalId(), f.writingId(), f.noStatus(),
+                f.noType(), f.noDepartment(), f.noPriority(), f.hasTags(), f.overdue(), f.dueSoon(),
+                f.highPriority(), f.recentCreated(), f.recentUpdated(), f.activeStatus(), f.contextId());
+    }
+
+    /**
      * This module's DTO for one of its entities.
      *
      * <p>Exists for the report runner: a report query hands back entities, and they have to be
@@ -727,6 +808,9 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
             }
             if (f.typeId() != null && has(root, "type")) {
                 ps.add(cb.equal(root.get("type").get("id"), f.typeId()));
+            }
+            if (f.contextId() != null && has(root, "context")) {
+                ps.add(cb.equal(root.get("context").get("id"), f.contextId()));
             }
             if (f.tagId() != null && has(root, "tags")) {
                 query.distinct(true);

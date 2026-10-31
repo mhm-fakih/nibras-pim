@@ -355,6 +355,14 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
                   : undefined
               }
             />
+            {/* An empty field shows no FieldView, and with it no label: the append box stood under
+                the previous field as though it belonged to it. */}
+            {(f.name === 'description' || f.name === 'notes') && canWriteContent &&
+              (record[f.name] === null || record[f.name] === undefined || record[f.name] === '') && (
+                <Typography variant="overline" color="text.secondary" sx={{ display: 'block' }}>
+                  {f.label}
+                </Typography>
+              )}
             {(f.name === 'description' || f.name === 'notes') && canWriteContent && (
               <AppendToDescriptionBar
                 key={`${record.id}-${f.name}`}

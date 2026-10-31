@@ -165,17 +165,17 @@ public class PublicDashboardService {
 
     private static FilterParams filterByDashboardFlag() {
         return new FilterParams(null, null, null, null, null, null, null, Boolean.TRUE,
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private static FilterParams filterByTypeBookmarked(Long typeId) {
         return new FilterParams(null, null, null, null, null, Boolean.TRUE, null, null,
-                null, typeId, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, typeId, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private static FilterParams filterByGoal(Long goalId) {
         return new FilterParams(null, null, null, null, null, null, null, null,
-                null, null, null, null, goalId, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, goalId, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     // ---- tiny hand-rolled JSON field readers (config is a flat {"key":"value"} blob) -------

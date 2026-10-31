@@ -30,7 +30,7 @@ from pathlib import Path
 # same variable, so setting it once points capture and import at one folder.
 DEFAULT_DIR = "~/new/knotes"
 FALLBACK_PRIORITY = 2      # used when the folder has no .knotes.json
-FALLBACK_CATEGORY = "D"
+FALLBACK_CATEGORY = "X"  # captures: also used when the folder's default_category is empty
 
 
 def knotes_dir(override: str | None = None) -> Path:
@@ -63,7 +63,8 @@ def new_note_path(folder: Path, note_type: str = "N", priority: int | None = Non
     """
     default_priority, default_category = knotes_defaults(folder)
     priority = default_priority if priority is None else priority
-    category = category or default_category
+    # An empty default_category in .knotes.json gave names like "…~p2~.md" with no department.
+    category = category or default_category or FALLBACK_CATEGORY
     when = when or datetime.now()
     while True:
         stamp = when.strftime("%Y_%m_%d-%H%M%S")

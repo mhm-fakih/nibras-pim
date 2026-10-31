@@ -107,6 +107,25 @@ public class RepositoryService {
         }
     }
 
+    /**
+     * The folder a new record WILL get, before it has an id: {@link #folder} with {@code <id÷100>} and
+     * {@code <id>} in place of the numbers. A record created without a type gets no type level, as in
+     * {@link #folder}.
+     */
+    public String folderTemplate(int repo, String moduleKey, String typeCode) {
+        AppModule m = modules.findByModuleKey(moduleKey)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Unknown module: " + moduleKey));
+        String code = m.getCode() != null && !m.getCode().isBlank() ? m.getCode() : moduleKey;
+        Path p = repoRoot(repo).resolve(code);
+        if (Boolean.TRUE.equals(m.getBucketByType()) && typeCode != null && !typeCode.isBlank()) {
+            p = p.resolve(typeCode);
+        }
+        if (Boolean.TRUE.equals(m.getBucketBy100())) {
+            p = p.resolve("<id÷100>");
+        }
+        return p.resolve("<id>").toString();
+    }
+
     /** The record's folder in repository {@code repo}, applying the module's bucketing settings. */
     public Path folder(int repo, String moduleKey, long id, String typeCode) {
         AppModule m = modules.findByModuleKey(moduleKey)
