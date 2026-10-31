@@ -31,14 +31,14 @@ class DataSafetyTests extends AuthTestSupport {
         assertThat(sqlFile).as("db/extra-schema.sql should exist").exists();
 
         // Same command used for every manual verification of this file this project has ever had:
-        // mysql -uuser1 -puser1 db_nibras2_test < extra-schema.sql. Run twice — the file's own
+        // mysql db_nibras2_test < extra-schema.sql (credentials from ~/.my.cnf). Run twice — the file's own
         // docstring promises it's safe to re-run; this test verifies that promise, not just trusts it.
         runMysqlScript(sqlFile);
         runMysqlScript(sqlFile);
     }
 
     private void runMysqlScript(File sqlFile) throws Exception {
-        Process p = new ProcessBuilder("mysql", "-uuser1", "-puser1", "db_nibras2_test")
+        Process p = new ProcessBuilder("mysql", "db_nibras2_test")
                 .redirectInput(sqlFile)
                 .redirectErrorStream(true)
                 .start();

@@ -127,8 +127,26 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 }
 
+// The DB password is not in application.yml (${DB_PASSWORD:}). Local runs take it from the
+// [client] block of the private ~/.my.cnf, the same file the mysql CLI and scripts use.
+def myCnfPassword = {
+    def f = new File(System.getProperty('user.home'), '.my.cnf')
+    if (!f.canRead()) return null
+    def line = f.readLines().find { it.trim().startsWith('password') && it.contains('=') }
+    line ? line.substring(line.indexOf('=') + 1).trim() : null
+}
+def withDbPassword = { task ->
+    def pw = System.getenv('DB_PASSWORD') ?: myCnfPassword()
+    if (pw) task.environment('DB_PASSWORD', pw)
+}
+
 tasks.named('test') {
     useJUnitPlatform()
+    withDbPassword(it)
+}
+
+tasks.named('bootRun') {
+    withDbPassword(it)
 }
 
 // ---- Bundle the React frontend into the WAR (served as static resources) ----------------

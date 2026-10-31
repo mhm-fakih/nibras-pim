@@ -14,7 +14,7 @@ spring:
     # of shifting it (a UTC connection rendered 10:30 as 13:30, drifting calendar/journal/plan times).
     url: jdbc:mysql://localhost:3306/db_nibras2_s?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Africa/Cairo
     username: ${DB_USERNAME:user1}
-    password: ${DB_PASSWORD:user1}
+    password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
   # Schema migrations applied automatically at startup, so a new machine no longer needs
   # db/extra-schema.sql run by hand. This is deliberately NOT hibernate ddl-auto: Flyway runs
