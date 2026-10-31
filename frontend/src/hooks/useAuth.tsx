@@ -5,6 +5,7 @@ import {
   Role,
   fetchMe,
   getToken,
+  refreshToken,
   login as apiLogin,
   logout as apiLogout,
 } from '../api/client';
@@ -46,6 +47,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
+
+  // Renew the token every half hour while signed in, and when the tab comes back into view (a
+  // sleeping laptop or TV may have skipped ticks). A page that stays open — the checklist on a TV —
+  // so never reaches the end of its session; one that is closed still expires as configured.
+  useEffect(() => {
+    if (!user) return;
+    const renew = () => {
+      if (getToken()) refreshToken().catch(() => {});
+    };
+    const id = window.setInterval(renew, 30 * 60 * 1000);
+    const onVisible = () => document.visibilityState === 'visible' && renew();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [user]);
 
   const login = async (username: string, password: string) => {
     setUser(await apiLogin(username, password));

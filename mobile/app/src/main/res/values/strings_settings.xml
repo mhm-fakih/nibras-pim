@@ -124,8 +124,8 @@
     <string name="settings_wizard_step_of">Step %1$d of %2$d</string>
     <string name="settings_wizard_skip">Skip setup</string>
     <string name="settings_wizard_next">Next</string>
-    <string name="settings_wizard_start">Start using knotes</string>
-    <string name="settings_wizard_title_welcome">Welcome to knotes</string>
+    <string name="settings_wizard_start">Start using Nibras Mobile</string>
+    <string name="settings_wizard_title_welcome">Welcome to Nibras Mobile</string>
     <string name="settings_wizard_title_notes">Where your notes live</string>
     <string name="settings_wizard_title_collect">Collecting files into notes</string>
     <string name="settings_wizard_title_media">Your media library</string>
@@ -133,7 +133,7 @@
     <string name="settings_wizard_title_nibras">Connect to Nibras</string>
     <string name="settings_wizard_title_alerts">Reminders and the chime</string>
     <string name="settings_wizard_title_done">You\'re set up</string>
-    <string name="settings_wizard_intro_1">knotes keeps your notes as ordinary text files on this device — one file per note, named by the moment you wrote it. Nothing is locked in an app database: the same files open on your computer, and a note you delete here is a file that is gone.</string>
+    <string name="settings_wizard_intro_1">Nibras Mobile keeps your notes as ordinary text files on this device — one file per note, named by the moment you wrote it. Nothing is locked in an app database: the same files open on your computer, and a note you delete here is a file that is gone.</string>
     <string name="settings_wizard_intro_2">The next few screens point the app at the folders it should read. Each one turns on a part of the app, and each says which.</string>
     <string name="settings_wizard_intro_3">Nothing here is permanent — every answer is in Settings afterwards, and you can reopen this tour from there. Skip setup at any point if you would rather explore first.</string>
     <string name="settings_wizard_notes_1">The home screen writes and lists notes here. Each note is one Markdown file; when you attach files to a note they go in a companion folder beside it, named after the note.</string>
@@ -155,7 +155,7 @@
     </plurals>
     <string name="settings_wizard_gallery_1">The Gallery page browses a folder of images and lets you draw on them — arrows, boxes and text burnt into a copy, so a marked-up screenshot can be attached to a note or sent on.</string>
     <string name="settings_wizard_pictures_folder">Pictures folder</string>
-    <string name="settings_wizard_nibras_1">knotes works entirely on its own. If you also run Nibras, connecting it adds your tasks, journal, planner and resources to this app: the records you have bookmarked sync down to the phone, you can read and edit them offline, and anything you change is sent back when the connection returns.</string>
+    <string name="settings_wizard_nibras_1">Nibras Mobile works entirely on its own. If you also run Nibras, connecting it adds your tasks, journal, planner and resources to this app: the records you have bookmarked sync down to the phone, you can read and edit them offline, and anything you change is sent back when the connection returns.</string>
     <string name="settings_wizard_nibras_2">Leave this blank to skip — you can connect later in Settings.</string>
     <string name="settings_wizard_server_address">Server address</string>
     <string name="settings_wizard_nibras_note">Notes on this phone are never sent to Nibras by this connection — they stay files in your notes folder. This is for the records that already live on the server.</string>

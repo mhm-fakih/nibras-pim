@@ -1,5 +1,6 @@
 package com.knotes.status
 
+import com.knotes.util.RtlNotification.rtlIfArabic
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -152,7 +153,7 @@ class StatusService : Service() {
                 title = context.resources.getQuantityString(R.plurals.widgets_status_notes, counts.total, counts.total)
                 lines += context.getString(R.string.widgets_status_today_total, counts.today, counts.total)
             } else {
-                title = settings.appName
+                title = settings.appName.ifBlank { context.getString(R.string.app_name) }
             }
             if (settings.syncActive) {
                 val online = SyncStatusStore.online.value
@@ -167,15 +168,15 @@ class StatusService : Service() {
                 // A plain static glyph in the status bar (no number). The counts/sync status live
                 // in the expanded notification lines and in the KPI home-screen widget instead.
                 .setSmallIcon(R.drawable.ic_stat_notes)
-                .setContentTitle(title)
-                .setContentText(lines.joinToString("  ·  "))
+                .setContentTitle(com.knotes.util.Bidi.notif(context, title))
+                .setContentText(com.knotes.util.Bidi.notif(context, lines.joinToString("  ·  ")))
                 .setContentIntent(open)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setShowWhen(false)
                 .setPriority(NotificationCompat.PRIORITY_MIN)
                 .setCategory(NotificationCompat.CATEGORY_STATUS)
-                .build()
+                .rtlIfArabic(context).build()
         }
 
         private fun ensureChannel(context: Context) {

@@ -109,7 +109,7 @@
     <string name="notes_quick_task_priority">مهمة · p%1$d</string>
     <string name="notes_quick_what_happened">ماذا حدث؟</string>
     <string name="notes_quick_what_needs_doing">ما الذي يجب فعله؟</string>
-    <string name="notes_permission_explanation">يحفظ knotes ملاحظاتك كملفات نصية عادية. امنح إذن الوصول إلى الملفات لقراءتها وحفظها.</string>
+    <string name="notes_permission_explanation">يحفظ نبراس محمول ملاحظاتك كملفات نصية عادية. امنح إذن الوصول إلى الملفات لقراءتها وحفظها.</string>
     <string name="notes_permission_grant">منح الوصول إلى الملفات</string>
     <string name="notes_open_folder_empty_or_missing">المجلد فارغ أو غير موجود</string>
     <string name="notes_open_folder_has">يحتوي المجلد على: %1$s</string>

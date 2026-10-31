@@ -274,7 +274,8 @@ class SettingsStore(context: Context) {
         chimeSoundUri = prefs.getString(K_CHIME_SOUND, "") ?: "",
         chimeStartHour = prefs.getInt(K_CHIME_START, 8),
         chimeEndHour = prefs.getInt(K_CHIME_END, 22),
-        appName = prefs.getString(K_APP_NAME, DEFAULT_APP_NAME) ?: DEFAULT_APP_NAME,
+        // Blank (or the old default "knotes") means the app's own name in the UI language.
+        appName = prefs.getString(K_APP_NAME, null)?.takeUnless { it == OLD_DEFAULT_APP_NAME }.orEmpty(),
         defaultType = prefs.getString(K_DEF_TYPE, "") ?: "",
         defaultCategory = prefs.getString(K_DEF_CAT, "") ?: "",
         defaultPriority = prefs.getInt(K_DEF_PRIO, 2),
@@ -352,7 +353,7 @@ class SettingsStore(context: Context) {
             .putString(K_CHIME_SOUND, settings.chimeSoundUri.trim())
             .putInt(K_CHIME_START, settings.chimeStartHour.coerceIn(0, 23))
             .putInt(K_CHIME_END, settings.chimeEndHour.coerceIn(settings.chimeStartHour + 1, 24))
-            .putString(K_APP_NAME, settings.appName.trim().ifBlank { DEFAULT_APP_NAME })
+            .putString(K_APP_NAME, settings.appName.trim())
             .putString(K_DEF_TYPE, settings.defaultType.trim())
             .putString(K_DEF_CAT, settings.defaultCategory.trim())
             .putInt(K_DEF_PRIO, settings.defaultPriority)
@@ -459,7 +460,7 @@ class SettingsStore(context: Context) {
 
         private const val DEFAULT_REM_OFFSETS = "60,5"
 
-        const val DEFAULT_APP_NAME = "knotes"
+        const val OLD_DEFAULT_APP_NAME = "knotes"
 
         const val DEFAULT_NIBRAS_URL = "http://192.168.0.47:8081"
         const val DEFAULT_NIBRAS_USER = "*"

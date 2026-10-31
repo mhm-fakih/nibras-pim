@@ -199,7 +199,7 @@ fun AlarmEditor(
                     steps = 18,
                 )
 
-                Label(stringResource(R.string.prayer_alarm_volume, a.volumePercent))
+                Label(if (a.volumePercent == 0) stringResource(R.string.prayer_alarm_volume_quietest) else stringResource(R.string.prayer_alarm_volume, a.volumePercent))
                 Slider(
                     value = a.volumePercent.toFloat(),
                     onValueChange = { a = a.copy(volumePercent = it.toInt().coerceIn(0, 100)) },

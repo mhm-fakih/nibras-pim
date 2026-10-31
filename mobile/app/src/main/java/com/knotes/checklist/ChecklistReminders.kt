@@ -1,5 +1,6 @@
 package com.knotes.checklist
 
+import com.knotes.util.RtlNotification.rtlIfArabic
 import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -109,12 +110,12 @@ object ChecklistReminders {
         )
         val n = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_notes)
-            .setContentTitle(due.title)
-            .setContentText(context.getString(R.string.checklist_reminder_text))
+            .setContentTitle(com.knotes.util.Bidi.notif(context, due.title))
+            .setContentText(com.knotes.util.Bidi.notif(context, context.getString(R.string.checklist_reminder_text)))
             .setSilent(true)
             .setAutoCancel(true)
             .setContentIntent(open)
-            .build()
+            .rtlIfArabic(context).build()
         runCatching { NotificationManagerCompat.from(context).notify(NOTIF_BASE + due.sectionCode, n) }
     }
 

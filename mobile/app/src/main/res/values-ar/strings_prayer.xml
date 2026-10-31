@@ -197,6 +197,8 @@
     <string name="prayer_alarm_default_sound">صوت المنبّه الافتراضي</string>
     <string name="prayer_alarm_repeat">التكرار: %1$d×</string>
     <string name="prayer_alarm_volume">مستوى الصوت: %1$d%%</string>
+    <string name="prayer_alarm_volume_quietest">مستوى الصوت: الأدنى −5 ديسيبل</string>
+    <string name="prayer_alarm_stop">إيقاف</string>
     <string name="prayer_alarm_duplicate">تكرار المنبّه</string>
     <string name="prayer_alarm_days_once">الأيام — دون اختيار يعني مرة واحدة</string>
     <string name="prayer_alarm_days">الأيام</string>
@@ -207,6 +209,7 @@
     <string name="prayer_alarm_delete_q">حذف هذا المنبّه؟</string>
     <string name="prayer_alarm_untitled">منبّه بلا عنوان</string>
     <string name="prayer_alarm_once">مرة واحدة</string>
+    <string name="prayer_alarm_on_days">في: %1$s</string>
     <string name="prayer_alarm_not_started">لم يبدأ</string>
     <string name="prayer_alarm_running">يعمل</string>
     <string name="prayer_alarm_off">متوقف</string>

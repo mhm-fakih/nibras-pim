@@ -121,6 +121,12 @@
             </intent-filter>
         </service>
 
+        <!-- Plays a fired alarm's sound; foreground so the process survives until it has played. -->
+        <service
+            android:name=".alarm.AlarmSoundService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
         <!-- Persistent status notification (today's note count); keeps the process alive for alarms. -->
         <service
             android:name=".status.StatusService"
@@ -182,12 +188,13 @@
             android:name=".alarm.AlarmReceiver"
             android:exported="false" />
 
-        <!-- Re-arm alarms after a reboot. -->
+        <!-- Re-arm alarms after a reboot, and after an update (which clears them too). -->
         <receiver
             android:name=".reminder.BootReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 

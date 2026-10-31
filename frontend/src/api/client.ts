@@ -71,6 +71,31 @@ export async function login(username: string, password: string): Promise<AuthUse
   return data.user as AuthUser;
 }
 
+/**
+ * Swap the current token for a fresh one. Called on a timer while the app is open (useAuth), so a
+ * page left up — the checklist on a TV — never runs out of session.
+ */
+export async function refreshToken(): Promise<AuthUser> {
+  const { data } = await http.post('/auth/refresh');
+  setToken(data.token);
+  return data.user as AuthUser;
+}
+
+export interface SessionSettings {
+  expiryHours: number;
+  maxHours: number;
+}
+
+export async function getSessionSettings(): Promise<SessionSettings> {
+  const { data } = await http.get('/auth/session');
+  return data as SessionSettings;
+}
+
+export async function setSessionExpiryHours(expiryHours: number): Promise<SessionSettings> {
+  const { data } = await http.put('/auth/session', { expiryHours });
+  return data as SessionSettings;
+}
+
 export async function fetchMe(): Promise<AuthUser> {
   const { data } = await http.get('/auth/me');
   return data as AuthUser;

@@ -109,7 +109,7 @@
     <string name="notes_quick_task_priority">Tâche · p%1$d</string>
     <string name="notes_quick_what_happened">Que s’est-il passé ?</string>
     <string name="notes_quick_what_needs_doing">Que faut-il faire ?</string>
-    <string name="notes_permission_explanation">knotes enregistre vos notes sous forme de fichiers texte. Autorisez l’accès aux fichiers pour les lire et les enregistrer.</string>
+    <string name="notes_permission_explanation">Nibras Mobile enregistre vos notes sous forme de fichiers texte. Autorisez l’accès aux fichiers pour les lire et les enregistrer.</string>
     <string name="notes_permission_grant">Autoriser l’accès aux fichiers</string>
     <string name="notes_open_folder_empty_or_missing">dossier vide ou absent</string>
     <string name="notes_open_folder_has">le dossier contient : %1$s</string>

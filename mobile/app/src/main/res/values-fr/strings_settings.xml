@@ -126,8 +126,8 @@
     <string name="settings_wizard_step_of">Étape %1$d sur %2$d</string>
     <string name="settings_wizard_skip">Passer la configuration</string>
     <string name="settings_wizard_next">Suivant</string>
-    <string name="settings_wizard_start">Commencer avec knotes</string>
-    <string name="settings_wizard_title_welcome">Bienvenue dans knotes</string>
+    <string name="settings_wizard_start">Commencer avec Nibras Mobile</string>
+    <string name="settings_wizard_title_welcome">Bienvenue dans Nibras Mobile</string>
     <string name="settings_wizard_title_notes">Où vivent vos notes</string>
     <string name="settings_wizard_title_collect">Rassembler des fichiers en notes</string>
     <string name="settings_wizard_title_media">Votre médiathèque</string>
@@ -135,7 +135,7 @@
     <string name="settings_wizard_title_nibras">Se connecter à Nibras</string>
     <string name="settings_wizard_title_alerts">Rappels et carillon</string>
     <string name="settings_wizard_title_done">Tout est prêt</string>
-    <string name="settings_wizard_intro_1">knotes conserve vos notes sous forme de simples fichiers texte sur cet appareil — un fichier par note, nommé d’après le moment où vous l’avez écrite. Rien n’est enfermé dans une base de données : les mêmes fichiers s’ouvrent sur votre ordinateur, et une note supprimée ici est un fichier qui disparaît.</string>
+    <string name="settings_wizard_intro_1">Nibras Mobile conserve vos notes sous forme de simples fichiers texte sur cet appareil — un fichier par note, nommé d’après le moment où vous l’avez écrite. Rien n’est enfermé dans une base de données : les mêmes fichiers s’ouvrent sur votre ordinateur, et une note supprimée ici est un fichier qui disparaît.</string>
     <string name="settings_wizard_intro_2">Les écrans suivants indiquent à l’application les dossiers à lire. Chacun active une partie de l’application, et chacun précise laquelle.</string>
     <string name="settings_wizard_intro_3">Rien n’est définitif — chaque réponse se retrouve ensuite dans les Paramètres, d’où vous pouvez aussi relancer cette visite. Passez la configuration à tout moment si vous préférez explorer d’abord.</string>
     <string name="settings_wizard_notes_1">L’écran d’accueil écrit et liste les notes ici. Chaque note est un fichier Markdown ; les fichiers joints à une note vont dans un dossier compagnon à côté d’elle, qui porte son nom.</string>
@@ -159,7 +159,7 @@
     </plurals>
     <string name="settings_wizard_gallery_1">La page Galerie parcourt un dossier d’images et vous permet de dessiner dessus — flèches, cadres et texte incrustés dans une copie, pour qu’une capture annotée puisse être jointe à une note ou partagée.</string>
     <string name="settings_wizard_pictures_folder">Dossier des images</string>
-    <string name="settings_wizard_nibras_1">knotes fonctionne entièrement seul. Si vous utilisez aussi Nibras, le connecter ajoute vos tâches, journal, planning et ressources à cette application : les fiches que vous avez mises en favori sont synchronisées sur le téléphone, vous pouvez les lire et les modifier hors ligne, et vos modifications sont renvoyées au retour de la connexion.</string>
+    <string name="settings_wizard_nibras_1">Nibras Mobile fonctionne entièrement seul. Si vous utilisez aussi Nibras, le connecter ajoute vos tâches, journal, planning et ressources à cette application : les fiches que vous avez mises en favori sont synchronisées sur le téléphone, vous pouvez les lire et les modifier hors ligne, et vos modifications sont renvoyées au retour de la connexion.</string>
     <string name="settings_wizard_nibras_2">Laissez vide pour passer — vous pourrez vous connecter plus tard dans les Paramètres.</string>
     <string name="settings_wizard_server_address">Adresse du serveur</string>
     <string name="settings_wizard_nibras_note">Cette connexion n’envoie jamais les notes du téléphone à Nibras — elles restent des fichiers dans votre dossier de notes. Elle sert aux fiches qui se trouvent déjà sur le serveur.</string>

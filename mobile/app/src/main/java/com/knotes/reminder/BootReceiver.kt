@@ -11,10 +11,16 @@ import com.knotes.prayer.SilenceState
 import com.knotes.status.ChimeScheduler
 import com.knotes.status.StatusService
 
-/** Re-arms reminder alarms after a reboot (the OS clears them) using the cached plan list. */
+/**
+ * Re-arms reminder alarms after a reboot, and after the app is updated, using the cached plan list.
+ *
+ * The update case was missing: installing a new version cancels every alarm the app holds, exactly
+ * as a reboot does, and nothing re-armed them until an alarm was next edited — so after each update
+ * the alarms simply did not go off.
+ */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
         PlansRepository.reschedule(context, SettingsStore(context).value)
         PlansWidget.refresh(context)
         BookmarksWidget.refresh(context)
@@ -22,7 +28,9 @@ class BootReceiver : BroadcastReceiver() {
         TodayTasksWidget.refresh(context)
         TasksBoardWidget.refresh(context)
         // Re-assert the persistent status notification and the quarter-hour chime.
-        StatusService.sync(context)
+        // An update is no licence to start a foreground service from the background; the status
+        // notification comes back when the app is next opened.
+        runCatching { StatusService.sync(context) }
         ChimeScheduler.sync(context)
         // Prayer alarms, and the ringer if a prayer silence was cut short by the restart — the
         // alarm that would have ended it did not survive the reboot either.

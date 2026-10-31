@@ -1,5 +1,6 @@
 package com.knotes.collect
 
+import com.knotes.util.RtlNotification.rtlIfArabic
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -101,12 +102,12 @@ class CollectReceiver : BroadcastReceiver() {
         )
         val n = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle(title)
-            .setContentText(text)
+            .setContentTitle(com.knotes.util.Bidi.notif(context, title))
+            .setContentText(com.knotes.util.Bidi.notif(context, text))
             .setContentIntent(open)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setAutoCancel(true)
-            .build()
+            .rtlIfArabic(context).build()
         runCatching { NotificationManagerCompat.from(context).notify(NOTIF_ID, n) }
     }
 

@@ -1,5 +1,6 @@
 package com.knotes.reminder
 
+import com.knotes.util.RtlNotification.rtlIfArabic
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -108,8 +109,8 @@ class ReminderReceiver : BroadcastReceiver() {
         )
         val builder = NotificationCompat.Builder(context, channel)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle(summary)
-            .setContentText(when_)
+            .setContentTitle(com.knotes.util.Bidi.notif(context, summary))
+            .setContentText(com.knotes.util.Bidi.notif(context, when_))
             .setContentIntent(openApp)
             .setPriority(if (requireDismiss) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
@@ -125,7 +126,7 @@ class ReminderReceiver : BroadcastReceiver() {
             builder.setFullScreenIntent(openApp, true)
         }
 
-        runCatching { NotificationManagerCompat.from(context).notify(NOTIF_ID, builder.build()) }
+        runCatching { NotificationManagerCompat.from(context).notify(NOTIF_ID, builder.rtlIfArabic(context).build()) }
         // Read at fire time rather than baked into the alarm, so flipping the switch applies to
         // reminders already scheduled.
         val ignoreSilent = SettingsStore(context).value.reminderIgnoreSilent

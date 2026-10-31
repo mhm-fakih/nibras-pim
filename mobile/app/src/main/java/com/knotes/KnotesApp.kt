@@ -37,6 +37,9 @@ class KnotesApp : Application() {
         // Below Android 13 the chosen UI language has to be put on the shared resources by hand,
         // or receivers and widgets would keep drawing in the phone's language.
         com.knotes.util.AppLanguage.applyToProcess(this)
+        // A force-stop (by hand or by an OEM battery manager) cancels the app's alarms; re-arm the
+        // user's own alarms whenever the process starts again.
+        runCatching { com.knotes.alarm.AlarmScheduler.rearm(this) }
         runCatching {
             val request = NetworkRequest.Builder()
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)

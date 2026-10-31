@@ -54,6 +54,11 @@ public class SettingController {
 
     @PutMapping("/value")
     public Map<String, String> setValue(@RequestParam String key, @RequestBody SettingValue body) {
+        if (com.nibras.pim.security.JwtService.EXPIRY_SETTING.equals(key)) {
+            // Admin-only, validated: PUT /api/auth/session.
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.FORBIDDEN, "Use the session setting.");
+        }
         settings.set(key, body.value() == null ? "" : body.value());
         return Map.of("key", key, "value", body.value() == null ? "" : body.value());
     }

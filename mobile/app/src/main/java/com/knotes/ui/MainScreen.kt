@@ -451,11 +451,12 @@ fun MainScreen(
                     } else {
                         Column {
                             Row(verticalAlignment = Alignment.Bottom) {
-                                Text(settings.appName)
+                                Text(settings.appName.ifBlank { stringResource(R.string.app_name) })
                                 Spacer(Modifier.width(6.dp))
                                 Text(
                                     "v${BuildConfig.VERSION_NAME}.b${BuildConfig.BUILD_NUMBER} \"${BuildConfig.CODENAME}\"",
-                                    style = MaterialTheme.typography.labelSmall,
+                                    // Latin text: kept left-to-right in the Arabic UI, or its quotes jump ends.
+                                    style = MaterialTheme.typography.labelSmall.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(bottom = 2.dp),
                                 )

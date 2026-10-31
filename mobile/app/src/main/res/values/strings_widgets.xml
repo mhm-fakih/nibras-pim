@@ -23,7 +23,7 @@
     <string name="widgets_collect_scan_again">Scan again</string>
     <string name="widgets_working">Working…</string>
     <string name="widgets_collect_needs_access_title">Automatic collection needs file access</string>
-    <string name="widgets_collect_needs_access_text">Open knotes to grant it.</string>
+    <string name="widgets_collect_needs_access_text">Open Nibras Mobile to grant it.</string>
     <plurals name="widgets_collect_notif_collected">
         <item quantity="one">Collected %1$d file</item>
         <item quantity="other">Collected %1$d files</item>

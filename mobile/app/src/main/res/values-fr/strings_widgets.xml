@@ -26,7 +26,7 @@
     <string name="widgets_collect_scan_again">Analyser encore</string>
     <string name="widgets_working">En cours…</string>
     <string name="widgets_collect_needs_access_title">La collecte automatique nécessite l’accès aux fichiers</string>
-    <string name="widgets_collect_needs_access_text">Ouvrez knotes pour l’autoriser.</string>
+    <string name="widgets_collect_needs_access_text">Ouvrez Nibras Mobile pour l’autoriser.</string>
     <plurals name="widgets_collect_notif_collected">
         <item quantity="one">%1$d fichier collecté</item>
         <item quantity="many">%1$d fichiers collectés</item>

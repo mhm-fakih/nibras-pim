@@ -35,7 +35,7 @@
     <string name="widgets_collect_scan_again">افحص مجددًا</string>
     <string name="widgets_working">جارٍ العمل…</string>
     <string name="widgets_collect_needs_access_title">الجمع التلقائي يحتاج إلى إذن الوصول إلى الملفات</string>
-    <string name="widgets_collect_needs_access_text">افتح knotes لمنح الإذن.</string>
+    <string name="widgets_collect_needs_access_text">افتح نبراس محمول لمنح الإذن.</string>
     <plurals name="widgets_collect_notif_collected">
         <item quantity="zero">جُمع %1$d ملف</item>
         <item quantity="one">جُمع ملف واحد</item>
@@ -110,7 +110,7 @@
     <string name="widgets_bookmarks_title">السجلات المرجعية</string>
     <string name="widgets_bookmarks_empty">لا توجد إشارات مرجعية</string>
     <string name="widgets_no_title">(بلا عنوان)</string>
-    <string name="widgets_kpi_title">مؤشرات Nibras Mobile</string>
+    <string name="widgets_kpi_title">مؤشرات نبراس محمول</string>
     <string name="widgets_kpi_notes">%1$d ملاحظة اليوم / %2$d</string>
     <string name="widgets_kpi_free_gb">%1$.1f غ.ب متاح</string>
     <string name="widgets_kpi_files">%1$d ملف</string>

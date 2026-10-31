@@ -109,7 +109,7 @@
     <string name="notes_quick_task_priority">Task · p%1$d</string>
     <string name="notes_quick_what_happened">What happened?</string>
     <string name="notes_quick_what_needs_doing">What needs doing?</string>
-    <string name="notes_permission_explanation">knotes stores your notes as plain text files. Grant file access to read and save them.</string>
+    <string name="notes_permission_explanation">Nibras Mobile stores your notes as plain text files. Grant file access to read and save them.</string>
     <string name="notes_permission_grant">Grant file access</string>
     <string name="notes_open_folder_empty_or_missing">folder is empty or missing</string>
     <string name="notes_open_folder_has">folder has: %1$s</string>

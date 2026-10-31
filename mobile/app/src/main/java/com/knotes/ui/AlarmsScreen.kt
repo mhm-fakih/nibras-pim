@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
@@ -42,6 +43,11 @@ import android.content.Context
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.knotes.R
@@ -196,32 +202,58 @@ private fun AlarmRow(
         if (alarm.soundUri.isBlank()) context.getString(R.string.prayer_alarm_default_sound)
         else soundName(context, alarm.soundUri)
     }
+    val (setting, status) = whenLines(context, alarm, nextAt, zone)
+    val small = MaterialTheme.typography.labelMedium
+    val dim = MaterialTheme.colorScheme.onSurfaceVariant
+    // One fact per line, so a card reads top to bottom; every action on the last row.
     Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp)) {
+            // Time on the left, the name on the right — fixed sides whatever the UI language, each
+            // in its own direction.
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        defaultLabel(context, alarm),
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            textDirection = if (com.knotes.util.Bidi.isRtlLine(defaultLabel(context, alarm)) == true) TextDirection.Rtl else TextDirection.Ltr,
+                        ),
+                        maxLines = 1,
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        alarm.label.trim(),
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            textDirection = if (com.knotes.util.Bidi.isRtlLine(alarm.label) == true) TextDirection.Rtl else TextDirection.Ltr,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Right,
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            Text(status, style = small, color = dim)
+            if (setting.isNotEmpty()) Text(setting, style = small, color = dim)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.MusicNote, contentDescription = null, tint = dim, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.size(4.dp))
+                Text(sound, style = small, color = dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(
+                stringResource(R.string.prayer_alarm_repeat, alarm.repeatCount) + " · " +
+                    if (alarm.volumePercent == 0) stringResource(R.string.prayer_alarm_volume_quietest)
+                    else stringResource(R.string.prayer_alarm_volume, alarm.volumePercent),
+                style = small,
+                color = dim,
+            )
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp, bottom = 4.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    alarm.label.ifBlank { defaultLabel(context, alarm) },
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    whenLine(context, alarm, nextAt, zone),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                // What it does when it rings: the sound file, how many times, how loud.
-                Text(
-                    "♪ $sound · " + stringResource(R.string.prayer_alarm_repeat, alarm.repeatCount) +
-                        " · " + stringResource(R.string.prayer_alarm_volume, alarm.volumePercent),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            TextButton(onClick = onEdit) { Text(stringResource(R.string.prayer_edit)) }
+            IconButton(onClick = onDuplicate) {
+                Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.prayer_alarm_duplicate))
             }
             if (alarm.kind == AlarmKind.COUNTDOWN) {
                 IconButton(onClick = onStartStop) {
@@ -233,18 +265,11 @@ private fun AlarmRow(
                     )
                 }
             }
-            Switch(checked = alarm.enabled, onCheckedChange = onToggle)
             IconButton(onClick = onDelete) {
                 Icon(Icons.Filled.DeleteOutline, contentDescription = stringResource(R.string.prayer_delete))
             }
-        }
-        Row(modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)) {
-            TextButton(onClick = onEdit) { Text(stringResource(R.string.prayer_edit)) }
-            TextButton(onClick = onDuplicate) {
-                Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.size(6.dp))
-                Text(stringResource(R.string.prayer_alarm_duplicate))
-            }
+            Spacer(Modifier.weight(1f))
+            Switch(checked = alarm.enabled, onCheckedChange = onToggle)
         }
     }
 }
@@ -257,26 +282,25 @@ private fun defaultLabel(context: Context, a: Alarm): String = when (a.kind) {
 }
 
 /**
- * The second line: what it is set to, and when that actually lands.
+ * Two lines: its days or state, and when it actually rings.
  *
  * "Not scheduled" is said out loud. An alarm that is on but has no next time — a countdown waiting
  * to be started, a prayer with no time today — otherwise looks identical to one that is armed.
  */
-private fun whenLine(context: Context, a: Alarm, nextAt: Long?, zone: ZoneId): String {
+private fun whenLines(context: Context, a: Alarm, nextAt: Long?, zone: ZoneId): Pair<String, String> {
     fun days() = a.days.sorted().joinToString(" ") {
         it.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())
     }
     val setting = when (a.kind) {
-        AlarmKind.CLOCK -> "%02d:%02d".format(a.hour, a.minute) + " · " +
-            if (a.days.isEmpty()) context.getString(R.string.prayer_alarm_once) else days()
-        AlarmKind.COUNTDOWN -> minutesLabel(context, a.durationMin) + " · " + context.getString(
+        // The time itself is on the title line (see defaultLabel); here only what goes with it.
+        AlarmKind.CLOCK -> if (a.days.isEmpty()) context.getString(R.string.prayer_alarm_once) else context.getString(R.string.prayer_alarm_on_days, days())
+        AlarmKind.COUNTDOWN -> context.getString(
             if (a.dueAtMillis == null) R.string.prayer_alarm_not_started else R.string.prayer_alarm_running,
         )
-        AlarmKind.PRAYER -> offsetLabel(context, a.prayer, a.offsetMin) +
-            if (a.days.isEmpty()) "" else " · " + days()
+        AlarmKind.PRAYER -> if (a.days.isEmpty()) "" else context.getString(R.string.prayer_alarm_on_days, days())
     }
-    if (!a.enabled) return "$setting · " + context.getString(R.string.prayer_alarm_off)
-    val at = nextAt ?: return "$setting · " + context.getString(R.string.prayer_alarm_not_scheduled)
+    if (!a.enabled) return setting to context.getString(R.string.prayer_alarm_off)
+    val at = nextAt ?: return setting to context.getString(R.string.prayer_alarm_not_scheduled)
     val t = java.time.LocalDateTime.ofInstant(Instant.ofEpochMilli(at), zone)
     val today = LocalDate.now(zone)
     val day = when (t.toLocalDate()) {
@@ -288,5 +312,5 @@ private fun whenLine(context: Context, a: Alarm, nextAt: Long?, zone: ZoneId): S
             t.toLocalDate().dayOfMonth,
         )
     }
-    return "$setting · " + context.getString(R.string.prayer_alarm_rings, day, "%02d:%02d".format(t.hour, t.minute))
+    return setting to context.getString(R.string.prayer_alarm_rings, day, "%02d:%02d".format(t.hour, t.minute))
 }

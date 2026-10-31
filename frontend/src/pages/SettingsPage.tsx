@@ -1,3 +1,4 @@
+import { useAuth } from '../hooks/useAuth';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,6 +40,8 @@ import {
   updateLocalNotesConfig,
   updateModule,
   updateRepoSettings,
+  getSessionSettings,
+  setSessionExpiryHours,
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
 import { DEFAULT_MAX_SLOT_MINUTES } from '../hooks/useRunningTimer';
@@ -65,6 +68,7 @@ export function SettingsPage() {
         </Typography>
 
         <AppSettingsSection />
+        <SessionSection />
         <PagesSection />
         <FeaturesSection />
         <NotificationsSection />
@@ -155,6 +159,53 @@ function AppSettingsSection() {
           Save
         </Button>
       </Stack>
+    </Box>
+  );
+}
+
+/**
+ * How long a sign-in lasts. An open page renews its token every half hour, so this only bites a
+ * device that was closed or asleep for longer than it.
+ */
+function SessionSection() {
+  const qc = useQueryClient();
+  const { isAdmin } = useAuth();
+  const { data } = useQuery({ queryKey: ['auth-session'], queryFn: getSessionSettings });
+  const [value, setValue] = useState('');
+  useEffect(() => {
+    if (data) setValue(String(data.expiryHours));
+  }, [data]);
+  const save = useMutation({
+    mutationFn: (v: string) => setSessionExpiryHours(Number(v)),
+    onSuccess: (d) => qc.setQueryData(['auth-session'], d),
+  });
+  const commit = () => {
+    if (data && value !== String(data.expiryHours) && Number(value) >= 1) save.mutate(value);
+  };
+
+  return (
+    <Box sx={{ mb: 4 }}>
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        Session
+      </Typography>
+      <TextField
+        size="small"
+        type="number"
+        label="Stay signed in for (hours)"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === 'Enter' && commit()}
+        disabled={!isAdmin}
+        inputProps={{ min: 1, max: data?.maxHours }}
+        sx={{ width: 260 }}
+        error={save.isError}
+        helperText={
+          save.isError
+            ? `1 to ${data?.maxHours ?? 8760} hours.`
+            : `An open page (e.g. the checklist on a TV) renews itself and never expires; this is how long a closed one stays signed in. Applies from the next sign-in.${isAdmin ? '' : ' Admins only.'}`
+        }
+      />
     </Box>
   );
 }

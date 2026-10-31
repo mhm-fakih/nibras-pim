@@ -186,13 +186,67 @@ class MainActivity : ComponentActivity() {
                         uri, arrayOf(MediaStore.MediaColumns.DATA), null, null, null,
                     )?.use { c ->
                         val idx = c.getColumnIndex(MediaStore.MediaColumns.DATA)
-                        if (c.moveToFirst() && idx >= 0) c.getString(idx)?.let { return File(it) }
+                        if (c.moveToFirst() && idx >= 0) c.getString(idx)?.let { File(it) }?.takeIf { it.isFile }?.let { return it }
                     }
                 }
+                // File managers' own providers (Samsung My Files, Transsion, Files by Google) expose
+                // no DATA column, so nothing played. Their links usually end in the real path under
+                // a provider-specific root: try each tail of the path against shared storage.
+                pathTail(uri)?.let { return it }
+                // Then by name and size, through MediaStore.
+                byNameAndSize(context, uri)?.let { return it }
+                // Last resort: a private copy, so the file at least plays.
+                return copyToCache(context, uri)
             }
         }
         return null
     }
+
+    private fun pathTail(uri: Uri): File? {
+        val segments = uri.pathSegments.map(Uri::decode)
+        val root = Environment.getExternalStorageDirectory()
+        for (i in segments.indices) {
+            val tail = segments.drop(i).joinToString("/")
+            listOf(File("/$tail"), File(root, tail)).firstOrNull { it.isFile }?.let { return it }
+        }
+        return null
+    }
+
+    private fun byNameAndSize(context: Context, uri: Uri): File? = runCatching {
+        var name: String? = null
+        var size = -1L
+        context.contentResolver.query(uri, null, null, null, null)?.use { c ->
+            if (c.moveToFirst()) {
+                c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME).takeIf { it >= 0 }?.let { name = c.getString(it) }
+                c.getColumnIndex(android.provider.OpenableColumns.SIZE).takeIf { it >= 0 }?.let { size = c.getLong(it) }
+            }
+        }
+        val n = name ?: return null
+        context.contentResolver.query(
+            MediaStore.Files.getContentUri("external"),
+            arrayOf(MediaStore.MediaColumns.DATA, MediaStore.MediaColumns.SIZE),
+            "${MediaStore.MediaColumns.DISPLAY_NAME} = ?", arrayOf(n), null,
+        )?.use { c ->
+            while (c.moveToNext()) {
+                val f = c.getString(0)?.let(::File) ?: continue
+                if (f.isFile && (size < 0 || f.length() == size)) return f
+            }
+        }
+        null
+    }.getOrNull()
+
+    private fun copyToCache(context: Context, uri: Uri): File? = runCatching {
+        var name = uri.lastPathSegment?.substringAfterLast('/') ?: "opened"
+        context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0)?.let { name = it }
+        }
+        val dir = File(context.cacheDir, "opened").apply { mkdirs() }
+        dir.listFiles()?.forEach { it.delete() }
+        val out = File(dir, name.replace('/', '_'))
+        context.contentResolver.openInputStream(uri)?.use { input -> out.outputStream().use { input.copyTo(it) } }
+            ?: return null
+        out
+    }.getOrNull()
 }
 
 @Composable

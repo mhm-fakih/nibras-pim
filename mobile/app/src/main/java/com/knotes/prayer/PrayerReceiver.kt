@@ -1,5 +1,6 @@
 package com.knotes.prayer
 
+import com.knotes.util.RtlNotification.rtlIfArabic
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -96,15 +97,13 @@ class PrayerReceiver : BroadcastReceiver() {
         ensureChannels(context)
         val builder = NotificationCompat.Builder(context, CHANNEL_REMINDER)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle(
-                context.getString(R.string.prayer_notif_reminder_title, context.getString(prayer.labelRes), lead),
-            )
-            .setContentText(withArabic(context, prayer, clock(due)))
+            .setContentTitle(com.knotes.util.Bidi.notif(context, context.getString(R.string.prayer_notif_reminder_title, context.getString(prayer.labelRes), lead),))
+            .setContentText(com.knotes.util.Bidi.notif(context, withArabic(context, prayer, clock(due))))
             .setContentIntent(openPrayerPage(context))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
-        runCatching { NotificationManagerCompat.from(context).notify(NOTIF_REMINDER, builder.build()) }
+        runCatching { NotificationManagerCompat.from(context).notify(NOTIF_REMINDER, builder.rtlIfArabic(context).build()) }
         // Notification usage, so it follows the notification-volume slider like the quarter-hour
         // chime rather than arriving at alarm volume.
         playOnce(context, "", AudioAttributes.USAGE_NOTIFICATION, RingtoneManager.TYPE_NOTIFICATION)
@@ -118,15 +117,15 @@ class PrayerReceiver : BroadcastReceiver() {
         )
         val builder = NotificationCompat.Builder(context, CHANNEL_ATHAN)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle(withArabic(context, prayer, context.getString(prayer.labelRes)))
-            .setContentText(clock(at))
+            .setContentTitle(com.knotes.util.Bidi.notif(context, withArabic(context, prayer, context.getString(prayer.labelRes))))
+            .setContentText(com.knotes.util.Bidi.notif(context, clock(at)))
             .setContentIntent(openPrayerPage(context))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setOngoing(true)
             .setAutoCancel(false)
             .addAction(0, context.getString(R.string.prayer_stop), stop)
-        runCatching { NotificationManagerCompat.from(context).notify(NOTIF_ATHAN, builder.build()) }
+        runCatching { NotificationManagerCompat.from(context).notify(NOTIF_ATHAN, builder.rtlIfArabic(context).build()) }
         soundAthan(context, settings, prayer, startNow = true)
     }
 

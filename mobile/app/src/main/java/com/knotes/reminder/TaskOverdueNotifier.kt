@@ -1,5 +1,6 @@
 package com.knotes.reminder
 
+import com.knotes.util.RtlNotification.rtlIfArabic
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -53,14 +54,14 @@ object TaskOverdueNotifier {
         }
         val builder = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle(context.resources.getQuantityString(R.plurals.widgets_tasks_overdue, overdue.size, overdue.size))
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentTitle(com.knotes.util.Bidi.notif(context, context.resources.getQuantityString(R.plurals.widgets_tasks_overdue, overdue.size, overdue.size)))
+            .setContentText(com.knotes.util.Bidi.notif(context, body))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(com.knotes.util.Bidi.notif(context, body)))
             .setContentIntent(openApp)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
-        runCatching { NotificationManagerCompat.from(context).notify(NOTIF_ID, builder.build()) }
+        runCatching { NotificationManagerCompat.from(context).notify(NOTIF_ID, builder.rtlIfArabic(context).build()) }
     }
 
     private fun ensureChannel(context: Context) {

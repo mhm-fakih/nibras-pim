@@ -216,8 +216,10 @@ function FieldInput({
           multiline
           minRows={isMarkdown ? 6 : 2}
           // Cap the height: past this many rows the field stops growing and scrolls internally,
-          // so a long paste doesn't stretch the form and hijack the page scrollbar.
-          maxRows={isMarkdown ? 18 : 8}
+          // so a long paste doesn't stretch the form and hijack the page scrollbar. Kept low (a
+          // little over the 6-row minimum): at 18 rows a full text filled the screen and the
+          // wheel scrolled the field instead of the form.
+          maxRows={isMarkdown ? 9 : 8}
           fullWidth
           inputProps={{ dir: 'auto', style: isMarkdown ? { fontFamily: 'monospace' } : undefined }}
         />

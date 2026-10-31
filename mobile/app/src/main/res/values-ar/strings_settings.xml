@@ -132,8 +132,8 @@
     <string name="settings_wizard_step_of">الخطوة %1$d من %2$d</string>
     <string name="settings_wizard_skip">تخطي الإعداد</string>
     <string name="settings_wizard_next">التالي</string>
-    <string name="settings_wizard_start">ابدأ استخدام knotes</string>
-    <string name="settings_wizard_title_welcome">مرحبًا بك في knotes</string>
+    <string name="settings_wizard_start">ابدأ استخدام نبراس محمول</string>
+    <string name="settings_wizard_title_welcome">مرحبًا بك في نبراس محمول</string>
     <string name="settings_wizard_title_notes">أين تُحفظ ملاحظاتك</string>
     <string name="settings_wizard_title_collect">تجميع الملفات في ملاحظات</string>
     <string name="settings_wizard_title_media">مكتبة الوسائط</string>
@@ -141,7 +141,7 @@
     <string name="settings_wizard_title_nibras">الاتصال بـ Nibras</string>
     <string name="settings_wizard_title_alerts">التذكيرات والرنين</string>
     <string name="settings_wizard_title_done">اكتمل الإعداد</string>
-    <string name="settings_wizard_intro_1">يحفظ knotes ملاحظاتك ملفاتٍ نصية عادية على هذا الجهاز — ملف لكل ملاحظة، يُسمّى بلحظة كتابتها. لا شيء محبوس في قاعدة بيانات التطبيق: الملفات نفسها تُفتح على حاسوبك، والملاحظة التي تحذفها هنا ملفٌّ يختفي.</string>
+    <string name="settings_wizard_intro_1">يحفظ نبراس محمول ملاحظاتك ملفاتٍ نصية عادية على هذا الجهاز — ملف لكل ملاحظة، يُسمّى بلحظة كتابتها. لا شيء محبوس في قاعدة بيانات التطبيق: الملفات نفسها تُفتح على حاسوبك، والملاحظة التي تحذفها هنا ملفٌّ يختفي.</string>
     <string name="settings_wizard_intro_2">توجّه الشاشات التالية التطبيق إلى المجلدات التي يقرأ منها. كل مجلد يفعّل جزءًا من التطبيق، وكل شاشة تذكر أيّ جزء.</string>
     <string name="settings_wizard_intro_3">لا شيء هنا نهائي — كل إجابة موجودة في الإعدادات لاحقًا، ويمكنك إعادة فتح هذه الجولة من هناك. تخطَّ الإعداد في أي وقت إن فضّلت الاستكشاف أولًا.</string>
     <string name="settings_wizard_notes_1">تكتب الشاشة الرئيسية الملاحظات هنا وتعرضها. كل ملاحظة ملف Markdown واحد؛ وعند إرفاق ملفات بملاحظة توضع في مجلد مرافق بجانبها يحمل اسمها.</string>
@@ -171,7 +171,7 @@
     </plurals>
     <string name="settings_wizard_gallery_1">تتصفح صفحة المعرض مجلدًا من الصور وتتيح لك الرسم عليها — أسهم ومربعات ونصوص تُثبَّت في نسخة، فيمكن إرفاق لقطة الشاشة المعلَّمة بملاحظة أو إرسالها.</string>
     <string name="settings_wizard_pictures_folder">مجلد الصور</string>
-    <string name="settings_wizard_nibras_1">يعمل knotes بمفرده تمامًا. وإن كنت تستخدم Nibras أيضًا، فإن ربطه يضيف مهامك ويومياتك ومخططك ومواردك إلى هذا التطبيق: تُزامَن السجلات التي عليها إشارة مرجعية إلى الهاتف، ويمكنك قراءتها وتعديلها دون اتصال، ويُرسَل كل ما تغيّره عند عودة الاتصال.</string>
+    <string name="settings_wizard_nibras_1">يعمل نبراس محمول بمفرده تمامًا. وإن كنت تستخدم Nibras أيضًا، فإن ربطه يضيف مهامك ويومياتك ومخططك ومواردك إلى هذا التطبيق: تُزامَن السجلات التي عليها إشارة مرجعية إلى الهاتف، ويمكنك قراءتها وتعديلها دون اتصال، ويُرسَل كل ما تغيّره عند عودة الاتصال.</string>
     <string name="settings_wizard_nibras_2">اترك هذا فارغًا للتخطي — يمكنك الاتصال لاحقًا من الإعدادات.</string>
     <string name="settings_wizard_server_address">عنوان الخادم</string>
     <string name="settings_wizard_nibras_note">لا يرسل هذا الاتصال ملاحظات الهاتف إلى Nibras أبدًا — تبقى ملفات في مجلد ملاحظاتك. إنه للسجلات الموجودة على الخادم أصلًا.</string>

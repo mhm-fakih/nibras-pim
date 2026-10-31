@@ -1,5 +1,6 @@
 package com.knotes.alarm
 
+import com.knotes.util.RtlNotification.rtlIfArabic
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
@@ -13,7 +14,6 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.knotes.R
 import java.time.ZoneId
-import kotlin.math.roundToInt
 
 /**
  * Fires the alarms that are due, then re-arms for the next one.
@@ -38,7 +38,10 @@ class AlarmReceiver : BroadcastReceiver() {
 
         due.forEach { alarm ->
             notify(context, alarm)
-            play(context, alarm)
+            // In a foreground service, so the process isn't frozen or killed mid-sound. Only when
+            // the system refuses that (an inexact alarm has no right to start one) is it played
+            // from here, best effort.
+            runCatching { AlarmSoundService.play(context, alarm) }.onFailure { play(context, alarm) }
         }
 
         // A countdown is spent once it has sounded — clearing dueAtMillis is what stops it being
@@ -67,14 +70,13 @@ class AlarmReceiver : BroadcastReceiver() {
             ?: android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
             ?: return
         val audio = context.getSystemService(AudioManager::class.java) ?: return
-        val max = audio.getStreamMaxVolume(AudioManager.STREAM_ALARM)
         val previous = audio.getStreamVolume(AudioManager.STREAM_ALARM)
-        val wanted = (max * alarm.volumePercent / 100f).roundToInt().coerceIn(0, max)
+        val level = AlarmSoundService.levelFor(audio, alarm.volumePercent)
 
         var played = 0
         val player = MediaPlayer()
         try {
-            audio.setStreamVolume(AudioManager.STREAM_ALARM, wanted, 0)
+            audio.setStreamVolume(AudioManager.STREAM_ALARM, level.index, 0)
             player.setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
@@ -82,6 +84,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     .build(),
             )
             player.setDataSource(context, uri)
+            player.setVolume(level.gain, level.gain)
             player.setOnCompletionListener {
                 played++
                 if (played < alarm.repeatCount.coerceIn(1, 20)) {
@@ -121,11 +124,11 @@ class AlarmReceiver : BroadcastReceiver() {
             alarm.id.hashCode(),
             NotificationCompat.Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_notes)
-                .setContentTitle(text)
+                .setContentTitle(com.knotes.util.Bidi.notif(context, text))
                 .setAutoCancel(true)
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .build(),
+                .rtlIfArabic(context).build(),
         )
     }
 

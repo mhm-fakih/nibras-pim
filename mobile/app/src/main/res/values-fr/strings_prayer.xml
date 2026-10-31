@@ -191,6 +191,8 @@
     <string name="prayer_alarm_default_sound">Son d’alarme par défaut</string>
     <string name="prayer_alarm_repeat">Répétitions : %1$d×</string>
     <string name="prayer_alarm_volume">Volume : %1$d %%</string>
+    <string name="prayer_alarm_volume_quietest">Volume : minimum −5 dB</string>
+    <string name="prayer_alarm_stop">Arrêter</string>
     <string name="prayer_alarm_duplicate">Dupliquer</string>
     <string name="prayer_alarm_days_once">Jours — aucun signifie une seule fois</string>
     <string name="prayer_alarm_days">Jours</string>
@@ -201,6 +203,7 @@
     <string name="prayer_alarm_delete_q">Supprimer cette alarme ?</string>
     <string name="prayer_alarm_untitled">Alarme sans titre</string>
     <string name="prayer_alarm_once">une fois</string>
+    <string name="prayer_alarm_on_days">Le %1$s</string>
     <string name="prayer_alarm_not_started">non démarré</string>
     <string name="prayer_alarm_running">en cours</string>
     <string name="prayer_alarm_off">désactivée</string>

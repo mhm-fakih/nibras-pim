@@ -348,6 +348,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                     value = appName,
                     onValueChange = { appName = it },
                     label = { Text(stringResource(R.string.settings_app_name_label)) },
+                    placeholder = { Text(stringResource(R.string.app_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )

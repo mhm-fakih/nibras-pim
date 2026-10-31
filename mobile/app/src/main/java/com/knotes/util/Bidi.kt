@@ -96,6 +96,28 @@ object Bidi {
         textAlign = TextAlign.Justify,
     )
 
+    /**
+     * [text] for a notification: each Arabic line right-to-left, and in the Arabic UI the lines with
+     * no letters (times, counts) too.
+     *
+     * The notification shade is laid out by the system in the PHONE's language, not the app's, so
+     * an Arabic-UI app on an English phone gets left-aligned Arabic there. Each line is decided by
+     * its first strong character, so a leading RIGHT-TO-LEFT MARK on each line turns it around
+     * without changing what it says.
+     */
+    fun notif(context: android.content.Context, text: CharSequence?): String? {
+        if (text == null) return null
+        val s = text.toString()
+        val arabicUi = AppLanguage.current(context) == AppLanguage.Lang.ARABIC
+        return s.split('\n').joinToString("\n") { line ->
+            val rtl = isRtlLine(line)
+            // English data stays left-to-right even in the Arabic UI; digits-only lines follow the UI.
+            if (rtl == true || (arabicUi && rtl == null && line.isNotBlank())) RLM + line else line
+        }
+    }
+
+    private const val RLM = '\u200F'
+
     /** [text] with each line carrying its own direction, justified. */
     fun directional(text: String, fallbackRtl: Boolean = false): AnnotatedString =
         buildAnnotatedString {

@@ -189,6 +189,8 @@
     <string name="prayer_alarm_default_sound">Default alarm sound</string>
     <string name="prayer_alarm_repeat">Repeat: %1$dx</string>
     <string name="prayer_alarm_volume">Volume: %1$d%%</string>
+    <string name="prayer_alarm_volume_quietest">Volume: lowest −5 dB</string>
+    <string name="prayer_alarm_stop">Stop</string>
     <string name="prayer_alarm_duplicate">Duplicate</string>
     <string name="prayer_alarm_days_once">Days — none means once</string>
     <string name="prayer_alarm_days">Days</string>
@@ -199,6 +201,7 @@
     <string name="prayer_alarm_delete_q">Delete this alarm?</string>
     <string name="prayer_alarm_untitled">Untitled alarm</string>
     <string name="prayer_alarm_once">once</string>
+    <string name="prayer_alarm_on_days">On %1$s</string>
     <string name="prayer_alarm_not_started">not started</string>
     <string name="prayer_alarm_running">running</string>
     <string name="prayer_alarm_off">off</string>
