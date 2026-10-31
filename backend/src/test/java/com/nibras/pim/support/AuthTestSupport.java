@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -48,6 +49,8 @@ public abstract class AuthTestSupport {
     protected PasswordEncoder encoder;
     @Autowired
     protected ObjectMapper objectMapper;
+    @Autowired
+    private JdbcTemplate jdbc;
 
     protected String jwt;
 
@@ -67,6 +70,30 @@ public abstract class AuthTestSupport {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         jwt = objectMapper.readValue(resp, LoginResponse.class).token();
+    }
+
+    /**
+     * Task statuses (by the codes the tests ask for) and a journal type. Lookups are reference
+     * data the app never creates, so the tests can't rely on the clone still having them: on
+     * 2026-10-29 db_nibras2_test was rebuilt with empty lookup tables and twelve tests failed on
+     * "no status done" / an empty journal_type.
+     */
+    @BeforeEach
+    void ensureLookups() {
+        String[][] statuses = {
+                {"not-s", "Needs Action"}, {"inp", "In progress"}, {"done", "Completed"},
+                {"def", "Deferred"}, {"dismissed", "Cancelled"}, {"froz", "Frozen"}};
+        for (String[] s : statuses) {
+            jdbc.update("""
+                    INSERT INTO work_status (version, code, name, date_created, last_updated)
+                    SELECT 0, ?, ?, NOW(), NOW() FROM DUAL
+                    WHERE NOT EXISTS (SELECT 1 FROM work_status WHERE code = ? AND deleted_on IS NULL)""",
+                    s[0], s[1], s[0]);
+        }
+        jdbc.update("""
+                INSERT INTO journal_type (version, code, name, date_created, last_updated)
+                SELECT 0, 'note', 'Note', NOW(), NOW() FROM DUAL
+                WHERE NOT EXISTS (SELECT 1 FROM journal_type WHERE deleted_on IS NULL)""");
     }
 
     protected String bearer() {
