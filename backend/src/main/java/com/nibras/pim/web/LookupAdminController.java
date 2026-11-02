@@ -43,6 +43,15 @@ public class LookupAdminController {
         service.setStyle(table, id, body.style());
     }
 
+    public record ActiveRequest(boolean active) {
+    }
+
+    /** Task statuses only: whether tasks with this status count as open. */
+    @PutMapping("/{table}/{id}/active")
+    public void setActive(@PathVariable String table, @PathVariable long id, @RequestBody ActiveRequest body) {
+        service.setActive(table, id, body.active());
+    }
+
     public record DefaultRequest(Long id) {
     }
 

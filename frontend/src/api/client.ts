@@ -479,6 +479,8 @@ export interface LookupValue {
   name: string;
   code?: string;
   style?: string;
+  /** Task statuses only: tasks with this status count as open. Null/absent on other tables. */
+  active?: boolean;
 }
 export interface LookupGroup {
   table: string;
@@ -496,6 +498,11 @@ export async function getLookupGroups(): Promise<LookupGroup[]> {
 /** Set one lookup value's chip style (pass '' to clear). */
 export async function setLookupStyle(table: string, id: number, style: string): Promise<void> {
   await http.put(`/lookups/${table}/${id}/style`, { style });
+}
+
+/** Task statuses only: whether tasks with this status count as open (active). */
+export async function setLookupActive(table: string, id: number, active: boolean): Promise<void> {
+  await http.put(`/lookups/${table}/${id}/active`, { active });
 }
 
 /** Set (id) or clear (null) the parameter's default value, applied when a record leaves it blank. */
@@ -1570,6 +1577,8 @@ export interface CustomDashboardRegion {
   config?: string;
   /** How many of the dashboard's grid columns this region spans. Default 1. */
   colSpan?: number;
+  /** How many grid rows it spans. Default 1. */
+  rowSpan?: number | null;
 }
 
 export interface CustomDashboard {
@@ -1578,6 +1587,8 @@ export interface CustomDashboard {
   columnsCount: number;
   /** Minutes between auto full-page-reloads of the chrome-free view. Null/0 disables it. */
   refreshMinutes?: number | null;
+  /** Relative column widths, comma-separated ("1,2,1"). Null/blank: equal columns. */
+  columnWidths?: string | null;
   regions: CustomDashboardRegion[];
 }
 
@@ -1599,6 +1610,51 @@ export async function createCustomDashboard(body: CustomDashboard): Promise<Cust
 export async function updateCustomDashboard(id: number, body: CustomDashboard): Promise<CustomDashboard> {
   const { data } = await http.put(`/custom-dashboards/${id}`, body);
   return data;
+}
+
+/**
+ * Saves only a dashboard's column widths (dragging a separator on the view page). The view page has
+ * no login of its own, so this goes around the axios client, whose 401 handler would send a TV to
+ * the sign-in page: returns false when there's no session or the account may not edit.
+ */
+export async function saveDashboardColumnWidths(id: number, columnWidths: string): Promise<boolean> {
+  const token = getToken();
+  if (!token) return false;
+  try {
+    const r = await fetch(`${BASE}api/custom-dashboards/${id}/column-widths`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ columnWidths }),
+    });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ticks a task off (or back on) from a dashboard's open-tasks list — the same save as the record
+ * page's completion checkmark: stamps completedOn (the server then sets the "done" status) and
+ * unpins it; unticking clears completedOn and restores the previous status. Around axios for the
+ * same reason as saveDashboardColumnWidths: a TV with no session must not jump to the sign-in page.
+ */
+export async function setTaskCompleted(id: number, done: boolean): Promise<'ok' | 'no-session' | 'failed'> {
+  const token = getToken();
+  if (!token) return 'no-session';
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+  try {
+    const r = await fetch(`${BASE}api/tasks/${id}`, { headers });
+    if (r.status === 401 || r.status === 403) return 'no-session';
+    if (!r.ok) return 'failed';
+    const rec = await r.json();
+    const patch = { ...rec, completedOn: done ? new Date().toISOString() : null };
+    if (done && rec.bookmarked) patch.bookmarked = false;
+    const w = await fetch(`${BASE}api/tasks/${id}`, { method: 'PUT', headers, body: JSON.stringify(patch) });
+    if (w.status === 401 || w.status === 403) return 'no-session';
+    return w.ok ? 'ok' : 'failed';
+  } catch {
+    return 'failed';
+  }
 }
 
 export async function deleteCustomDashboard(id: number): Promise<void> {
@@ -1635,12 +1691,19 @@ export interface PublicDashboardRegion {
   orderIndex: number;
   componentType: string;
   colSpan?: number;
+  rowSpan?: number | null;
   config?: string;
   quote: EntityRecord | null;
   calendarEvents: CalendarEvent[] | null;
   goalsHeatmap: PublicGoalHeatmap[] | null;
   kanbanBoard: KanbanData | null;
   file: DashboardFileContent | null;
+  /** 'checklist' regions: this week's checklist (null when there is none yet). */
+  checklist?: ChecklistWeek | null;
+  /** 'tasks' regions: open tasks, due first. */
+  tasks?: EntityRecord[] | null;
+  /** 'localTasks' regions: task notes in the local notes folder, highest priority first. */
+  localTasks?: LocalNote[] | null;
 }
 
 export interface PublicDashboardSnapshot {
@@ -1648,6 +1711,7 @@ export interface PublicDashboardSnapshot {
   name: string;
   columnsCount: number;
   refreshMinutes?: number | null;
+  columnWidths?: string | null;
   regions: PublicDashboardRegion[];
 }
 

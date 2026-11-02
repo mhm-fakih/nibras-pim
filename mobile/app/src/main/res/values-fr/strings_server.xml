@@ -130,4 +130,5 @@
     <string name="server_calendar_batch_no_title">pas de titre après l\'heure</string>
     <string name="server_calendar_batch_add">Ajouter %1$d</string>
     <string name="server_calendar_batch_saved">%1$d entrées enregistrées</string>
+    <string name="server_calendar_fetch_failed">Serveur injoignable — le calendrier affiché est le dernier chargé</string>
 </resources>

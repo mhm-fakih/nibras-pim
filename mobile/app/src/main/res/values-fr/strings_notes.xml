@@ -54,7 +54,7 @@
     <string name="notes_card_push_again">Renvoyer vers Nibras</string>
     <string name="notes_card_push_to_nibras">Envoyer vers Nibras</string>
     <string name="notes_card_open_files_folder_count">Ouvrir le dossier des fichiers (%1$d)</string>
-    <string name="notes_card_edit_in_composer">Modifier dans l’éditeur ci-dessous</string>
+    <string name="notes_card_edit_in_composer">Modifier le texte et les étiquettes</string>
     <string name="notes_delete_blocked_title">Impossible de supprimer cette note</string>
     <string name="notes_delete_confirm_title">Supprimer cette note ?</string>
     <string name="notes_delete_blocked_body">Son dossier de fichiers contient encore des fichiers. Supprimer la note les laisserait sans rien qui les nomme — videz d’abord le dossier, puis supprimez.</string>
@@ -145,6 +145,6 @@
     </plurals>
     <string name="notes_rail_videos">Vidéos</string>
     <string name="notes_add_note">Ajouter une note</string>
-    <string name="notes_quick_add_hint">Note rapide — enregistrée N · P2 · X</string>
+    <string name="notes_quick_add_hint">Note rapide — enregistrée %1$s</string>
     <string name="notes_open_full_form">Formulaire complet : type, priorité, département</string>
 </resources>

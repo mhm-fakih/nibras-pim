@@ -30,6 +30,9 @@ public class CustomDashboard extends BaseEntity {
 
     private Integer columnsCount = 2;
 
+    /** Relative column widths, comma-separated ("1,2,1"); null means equal columns. */
+    private String columnWidths;
+
     /** Minutes between auto-refreshes of the chrome-free view (a full page reload — simplest way
      * to guarantee a TV left on this page for days never runs stale JS or an accumulated memory
      * leak). Null/non-positive disables auto-refresh. */

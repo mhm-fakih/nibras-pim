@@ -53,6 +53,11 @@ public class CourseService extends AbstractCrudService<Course, CourseDto> {
         c.setTags(dto.tags());
         c.setPriority(dto.priority());
         c.setBookmarked(dto.bookmarked());
+        if (dto.departmentId() == null) {
+            // The column is NOT NULL: say so instead of letting the insert fail as a 500.
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "A course must belong to a department.");
+        }
         c.setDepartment(ref(Department.class, dto.departmentId()));
     }
 

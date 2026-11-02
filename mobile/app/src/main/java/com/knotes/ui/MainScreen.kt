@@ -233,7 +233,8 @@ fun MainScreen(
     // keeps only the one-field quick add below it. Opened from that bar, by "Edit tags" on a card,
     // and by text shared from another app.
     var composing by rememberSaveable { mutableStateOf(false) }
-    // The quick-add field: one multiline box, saved as N · P2 · dept X — the least friction there is.
+    // The quick-add field: one multiline box, saved with the default type, priority and category
+    // from Settings (the same ones the full form starts on) — the least friction there is.
     var quick by rememberSaveable { mutableStateOf("") }
 
     fun resetInput() {
@@ -673,12 +674,17 @@ fun MainScreen(
             }
 
             QuickAddBar(
+                tags = listOfNotNull(
+                    settings.effectiveDefaultType,
+                    "P${settings.effectiveDefaultPriority}",
+                    settings.effectiveDefaultCategory,
+                ).joinToString(" · "),
                 text = quick,
                 onText = { quick = it },
                 onSend = {
                     val text = quick.trim()
                     if (text.isNotEmpty()) {
-                        vm.add(text, QUICK_TYPE, QUICK_PRIORITY, QUICK_DEPT)
+                        vm.add(text, settings.effectiveDefaultType, settings.effectiveDefaultPriority, settings.effectiveDefaultCategory)
                         quick = ""
                     }
                 },
@@ -983,18 +989,15 @@ private fun InputBar(
     }
 }
 
-/** What the quick-add bar files a note as: a plain Note, priority 2, the miscellaneous department. */
-private const val QUICK_TYPE = "N"
-private const val QUICK_PRIORITY = 2
-private const val QUICK_DEPT = "X"
-
 /**
  * The notes page's add bar: one multiline field and a send button, nothing to choose. A note typed
- * here is saved as N · P2 · X — sorting it out can wait; getting it down should not. The button
+ * here is saved with the defaults from Settings ([tags], shown in the hint) — sorting it out can
+ * wait; getting it down should not. The button
  * on the left opens the full form (Add note page), carrying the text over.
  */
 @Composable
 private fun QuickAddBar(
+    tags: String,
     text: String,
     onText: (String) -> Unit,
     onSend: () -> Unit,
@@ -1031,7 +1034,7 @@ private fun QuickAddBar(
                     decorationBox = { inner ->
                         if (text.isEmpty()) {
                             Text(
-                                stringResource(R.string.notes_quick_add_hint),
+                                stringResource(R.string.notes_quick_add_hint, tags),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

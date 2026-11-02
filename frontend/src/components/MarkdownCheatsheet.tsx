@@ -24,7 +24,7 @@ const ROWS: { syntax: string; note?: string }[] = [
   { syntax: '1. numbered\n2. second' },
   { syntax: '> a blockquote' },
   { syntax: '[a link](https://example.com)' },
-  { syntax: '![alt text](image-url.png)', note: 'image' },
+  { syntax: '![app icon](favicon.svg)', note: 'image (any address or path)' },
   { syntax: '| A | B |\n| - | - |\n| 1 | 2 |', note: 'table' },
   { syntax: '```\ncode block\n```' },
   { syntax: '---', note: 'horizontal rule' },

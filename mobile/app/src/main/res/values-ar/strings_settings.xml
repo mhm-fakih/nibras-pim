@@ -93,8 +93,6 @@
         <item quantity="other">%d كلمة، ثم «اقرأ المزيد»</item>
     </plurals>
     <string name="settings_feed_text_size">حجم النص %1$d sp</string>
-    <string name="settings_prayer_hidden_title">أوقات الصلاة مخفية</string>
-    <string name="settings_prayer_hidden_desc">أُوقفت من صفحة الصلاة، فأُزيلت أيضًا من الشريط الجانبي. أعد تفعيلها من هنا.</string>
     <string name="settings_file_collection_title">تجميع الملفات</string>
     <string name="settings_file_collection_toggle_desc">صفحة التجميع وتشغيلها اليومي. التعطيل يزيلهما معًا مهما كان إعداد التجميع التلقائي أدناه.</string>
     <string name="settings_chime_title">الرنين</string>
@@ -178,8 +176,8 @@
     <string name="settings_wizard_nibras_2">اترك هذا فارغًا للتخطي — يمكنك الاتصال لاحقًا من الإعدادات.</string>
     <string name="settings_wizard_server_address">عنوان الخادم</string>
     <string name="settings_wizard_nibras_note">لا يرسل هذا الاتصال ملاحظات الهاتف إلى Nibras أبدًا — تبقى ملفات في مجلد ملاحظاتك. إنه للسجلات الموجودة على الخادم أصلًا.</string>
-    <string name="settings_wizard_alerts_1">يمكن للخطط المحددة بوقت أن تنبّهك قبل بدئها، ويمكن للتطبيق أن يُصدر رنينًا هادئًا كل ربع ساعة لتشعر بمرور الوقت دون النظر إلى شيء.</string>
-    <string name="settings_wizard_chime_toggle">رنين كل ربع ساعة</string>
+    <string name="settings_wizard_alerts_1">يمكن للخطط المحددة بوقت أن تنبّهك قبل بدئها، ويمكن للتطبيق أن يُصدر رنينًا هادئًا على فترات تختارها (كل 15 دقيقة في البداية) لتشعر بمرور الوقت دون النظر إلى شيء.</string>
+    <string name="settings_wizard_chime_toggle">الرنين الدوري</string>
     <string name="settings_wizard_status_toggle">إبقاء إشعار الحالة</string>
     <string name="settings_wizard_status_help">يعرض عدد ملاحظات اليوم، ويُبقي التطبيق يعمل لتعمل التذكيرات والرنين فعلًا.</string>
     <string name="settings_wizard_sync_toggle">المزامنة مع Nibras في الخلفية</string>

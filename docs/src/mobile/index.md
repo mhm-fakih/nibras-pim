@@ -47,7 +47,7 @@ On a fresh install, a short tour walks you through the folders the app reads and
 | **Pictures** | A **Gallery** switch, and the **Pictures folder** it shows. See [Gallery](gallery.md). |
 | **Prayer times** | A **Prayer times** switch. Location, method and sounds are set on the [Prayer times](prayer.md) page itself. |
 | **Connect to Nibras** | A **Use a Nibras server** switch, the **Server address**, **Username** and **Password**, and **Sync with Nibras in the background**. Leave the address blank to skip. See [Nibras sync](sync.md). |
-| **Reminders and the chime** | Switches for **Quarter-hour chime** and **Keep a status notification**, plus **Allow notifications**. |
+| **Reminders and the chime** | Switches for **Chime** and **Keep a status notification**, plus **Allow notifications**. |
 | **You're set up** | A summary of every folder the app will read and which parts are **On** or **Off**. Tap **Start using Nibras Mobile**. |
 
 A part you switch off leaves the [rail](navigation.md) and does nothing in the background. Each one has the same switch at the top of its tab in Settings, so you can turn it back on later.

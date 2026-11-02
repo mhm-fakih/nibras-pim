@@ -51,6 +51,18 @@ data class CalendarEvent(
     val repeatWeeklyUntil: LocalDate? = null,
 )
 
+/** What is sent for [this] — the one mapping every sender uses, so none drops a field (the
+ * background sync used to leave out the description and the weekly repeat). */
+fun CalendarEvent.toEntry() = CalendarEntry(
+    type = type,
+    id = id,
+    startDate = formatServerDateTime(LocalDateTime.of(date, start)),
+    endDate = formatServerDateTime(LocalDateTime.of(date, end)),
+    summary = summary,
+    description = description,
+    repeatWeeklyUntil = repeatWeeklyUntil?.toString() ?: "",
+)
+
 private val LOCAL_PATTERNS = listOf(
     "yyyy-MM-dd'T'HH:mm:ss",
     "yyyy-MM-dd HH:mm:ss",

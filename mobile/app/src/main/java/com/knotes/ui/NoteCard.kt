@@ -283,8 +283,8 @@ internal fun NoteCard(
                             )
                         }
                         DropdownMenuItem(
-                            // Still offered: the composer edits text and tags together in the
-                            // list, without leaving it. The reader/editor is the other way in.
+                            // Opens the full Add note page on this note: text, type, priority
+                            // and department together. The reader/editor is the other way in.
                             text = { Text(stringResource(R.string.notes_card_edit_in_composer)) },
                             onClick = {
                                 menuOpen = false

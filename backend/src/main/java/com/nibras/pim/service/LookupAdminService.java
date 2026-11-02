@@ -66,8 +66,14 @@ public class LookupAdminService {
         this.settings = settings;
     }
 
-    public record LookupValue(Long id, String name, String code, String style) {
+    /** {@code active}: only on task statuses (work_status.marked_as_active) — whether a task with
+     * this status counts as open (the Tasks list's Active filter, the dashboard's open tasks).
+     * Null for every other table. */
+    public record LookupValue(Long id, String name, String code, String style, Boolean active) {
     }
+
+    /** The one table whose values carry the "active" flag. */
+    public static final String ACTIVE_TABLE = "work_status";
 
     /** {@code defaultId} = the value used when this parameter is left blank (marked {@code *} in the UI). */
     public record LookupGroup(String table, String label, Long defaultId, List<LookupValue> values) {
@@ -85,11 +91,13 @@ public class LookupAdminService {
         List<LookupGroup> out = new ArrayList<>();
         KINDS.forEach((table, label) -> {
             try {
+                boolean withActive = ACTIVE_TABLE.equals(table);
                 List<LookupValue> values = jdbc.query(
-                        "SELECT id, name, code, style FROM " + table
+                        "SELECT id, name, code, style" + (withActive ? ", marked_as_active" : "") + " FROM " + table
                                 + " WHERE deleted_on IS NULL ORDER BY name",
                         (rs, i) -> new LookupValue(rs.getLong("id"), rs.getString("name"),
-                                rs.getString("code"), rs.getString("style")));
+                                rs.getString("code"), rs.getString("style"),
+                                withActive ? rs.getBoolean("marked_as_active") : null));
                 out.add(new LookupGroup(table, label, defaultId(table), values));
             } catch (org.springframework.dao.DataAccessException skip) {
                 // Legacy table without the expected columns — leave it out rather than 500.
@@ -146,7 +154,26 @@ public class LookupAdminService {
                         + "VALUES (?, ?, 0, NOW(), NOW())",
                 name.trim(), code == null || code.isBlank() ? null : code.trim());
         Long id = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-        return new LookupValue(id, name.trim(), code, null);
+        Boolean active = null;
+        if (ACTIVE_TABLE.equals(table)) {
+            // A new task status starts as active (open work); untick it on the Parameters page.
+            jdbc.update("UPDATE " + table + " SET marked_as_active = 1 WHERE id = ?", id);
+            active = true;
+        }
+        return new LookupValue(id, name.trim(), code, null, active);
+    }
+
+    /** Whether tasks with this status count as open. Task statuses only. */
+    @Transactional
+    public void setActive(String table, long id, boolean active) {
+        if (!ACTIVE_TABLE.equals(table)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Only task statuses have an active flag.");
+        }
+        int n = jdbc.update("UPDATE " + table + " SET marked_as_active = ?, last_updated = NOW() WHERE id = ?",
+                active, id);
+        if (n == 0) {
+            throw new ResponseStatusException(BAD_REQUEST, "Lookup value not found.");
+        }
     }
 
     /** Rename a lookup value and/or change its code. */
@@ -184,7 +211,7 @@ public class LookupAdminService {
                         "SELECT id, name, code, style FROM " + table
                                 + " WHERE (style IS NULL OR style = '') AND deleted_on IS NULL",
                         (rs, i) -> new LookupValue(rs.getLong("id"), rs.getString("name"),
-                                rs.getString("code"), rs.getString("style")));
+                                rs.getString("code"), rs.getString("style"), null));
                 for (LookupValue v : blanks) {
                     jdbc.update("UPDATE " + table + " SET style = ? WHERE id = ?",
                             "background-color:" + paletteColor(v.name()), v.id());

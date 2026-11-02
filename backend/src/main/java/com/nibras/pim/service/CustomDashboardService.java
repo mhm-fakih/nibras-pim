@@ -102,6 +102,45 @@ public class CustomDashboardService {
         }
     }
 
+    /** Saves only the column widths: what dragging a separator on the view page sends. */
+    @Transactional
+    public CustomDashboardDto setColumnWidths(Long id, String widths) {
+        CustomDashboard d = load(id);
+        d.setColumnWidths(normaliseWidths(widths));
+        return toDto(d);
+    }
+
+    /**
+     * "1, 2.5,1" → "1,2.5,1": each weight a positive number, rounded to two decimals. Blank means
+     * equal columns (null); anything else that isn't a list of positive numbers is a 400.
+     */
+    static String normaliseWidths(String widths) {
+        if (widths == null || widths.isBlank()) {
+            return null;
+        }
+        String[] parts = widths.split(",");
+        if (parts.length > 12) {
+            throw new ResponseStatusException(BAD_REQUEST, "Too many column widths.");
+        }
+        StringBuilder out = new StringBuilder();
+        for (String part : parts) {
+            double w;
+            try {
+                w = Double.parseDouble(part.trim());
+            } catch (NumberFormatException e) {
+                throw new ResponseStatusException(BAD_REQUEST, "Column widths are numbers separated by commas, like 1,2,1.");
+            }
+            if (!(w > 0) || w > 1000) {
+                throw new ResponseStatusException(BAD_REQUEST, "Each column width must be a positive number.");
+            }
+            if (out.length() > 0) {
+                out.append(',');
+            }
+            out.append(java.math.BigDecimal.valueOf(Math.round(w * 100) / 100.0).stripTrailingZeros().toPlainString());
+        }
+        return out.toString();
+    }
+
     private CustomDashboard load(Long id) {
         return repo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Dashboard " + id + " not found"));
@@ -111,6 +150,7 @@ public class CustomDashboardService {
         d.setName(dto.name());
         d.setColumnsCount(dto.columnsCount() == null ? 2 : dto.columnsCount());
         d.setRefreshMinutes(dto.refreshMinutes());
+        d.setColumnWidths(normaliseWidths(dto.columnWidths()));
         // Whole-list replace: orphanRemoval on the mapped collection deletes anything dropped.
         d.getRegions().clear();
         List<CustomDashboardRegionDto> incoming = dto.regions();
@@ -122,6 +162,7 @@ public class CustomDashboardService {
             region.setComponentType(r.componentType());
             region.setConfig(r.config());
             region.setColSpan(r.colSpan() != null && r.colSpan() > 0 ? r.colSpan() : 1);
+            region.setRowSpan(r.rowSpan() != null && r.rowSpan() > 1 ? Math.min(r.rowSpan(), 6) : null);
             d.getRegions().add(region);
         }
     }
@@ -129,8 +170,9 @@ public class CustomDashboardService {
     private CustomDashboardDto toDto(CustomDashboard d) {
         List<CustomDashboardRegionDto> regions = d.getRegions().stream()
                 .map(r -> new CustomDashboardRegionDto(
-                        r.getId(), r.getOrderIndex(), r.getComponentType(), r.getConfig(), r.getColSpan()))
+                        r.getId(), r.getOrderIndex(), r.getComponentType(), r.getConfig(), r.getColSpan(), r.getRowSpan()))
                 .toList();
-        return new CustomDashboardDto(d.getId(), d.getName(), d.getColumnsCount(), d.getRefreshMinutes(), regions);
+        return new CustomDashboardDto(d.getId(), d.getName(), d.getColumnsCount(), d.getRefreshMinutes(),
+                d.getColumnWidths(), regions);
     }
 }

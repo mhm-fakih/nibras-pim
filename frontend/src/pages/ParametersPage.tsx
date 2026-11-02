@@ -21,6 +21,7 @@ import {
   fillLookupColors,
   getLookupGroups,
   renameLookupValue,
+  setLookupActive,
   setLookupDefault,
   setLookupStyle,
 } from '../api/client';
@@ -95,6 +96,14 @@ function LookupColorsSection() {
         {groups.map((g) => (
           <Box key={g.table}>
             <SectionHeading label={g.label} count={g.values.length} />
+            {g.values.some((v) => v.active != null) && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                Ticked = <strong>active</strong>: a task with that status counts as open — it shows
+                under the Tasks list's “Active” filter and in a dashboard's open tasks. Untick
+                statuses that mean finished or parked (Completed, Cancelled, Deferred…). A task with
+                no status counts as open.
+              </Typography>
+            )}
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
               {g.values.map((v) => (
                 <LookupChip
@@ -148,6 +157,14 @@ function LookupChip({
   const remove = useMutation({
     mutationFn: () => deleteLookupValue(table, value.id),
     onSuccess: invalidate,
+  });
+  const setActive = useMutation({
+    mutationFn: (active: boolean) => setLookupActive(table, value.id, active),
+    onSuccess: () => {
+      invalidate();
+      // Lists filtered by "active" read it on the server; refetch what's on screen.
+      qc.invalidateQueries({ queryKey: ['list', 'tasks'] });
+    },
   });
   const rename = useMutation({
     mutationFn: () => renameLookupValue(table, value.id, name.trim(), code.trim() || undefined),
@@ -231,6 +248,18 @@ function LookupChip({
         ...style,
       }}
     >
+      {value.active != null && (
+        <Box
+          component="input"
+          type="checkbox"
+          checked={value.active}
+          disabled={setActive.isPending}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setActive.mutate(e.target.checked)}
+          title={value.active ? 'Active: tasks with this status count as open — click to untick' : 'Not active: tasks with this status count as done or parked — click to make it active'}
+          aria-label={`${value.name} counts as open`}
+          sx={{ m: 0, width: 14, height: 14, cursor: 'pointer' }}
+        />
+      )}
       <Box
         component="span"
         onClick={() => setDefault.mutate()}

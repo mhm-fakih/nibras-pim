@@ -91,23 +91,7 @@ object PushCenter {
 
         // Calendar outbox — same behaviour as the Calendar page's flushPending, but available
         // process-wide so events created offline sync even if that page is never reopened.
-        var calendarSynced = false
-        calendar.pending.value.forEach { event ->
-            val entry = CalendarEntry(
-                type = event.type,
-                id = event.id,
-                startDate = formatServerDateTime(LocalDateTime.of(event.date, event.start)),
-                endDate = formatServerDateTime(LocalDateTime.of(event.date, event.end)),
-                summary = event.summary,
-            )
-            val ok = runCatching {
-                api.pushCalendar(base, settings.nibrasUsername, listOf(entry))
-            }.getOrDefault(false)
-            if (ok) {
-                calendar.remove(event)
-                calendarSynced = true
-            }
-        }
+        val calendarSynced = calendar.flush(api, base, settings.nibrasUsername) > 0
         if (calendarSynced) {
             // Pending events were already in the plans store (first-class pre-sync); refresh so
             // the widget/reminders switch over to the server copies without duplicating.

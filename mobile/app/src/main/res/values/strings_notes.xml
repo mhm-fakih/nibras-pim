@@ -54,7 +54,7 @@
     <string name="notes_card_push_again">Push again to Nibras</string>
     <string name="notes_card_push_to_nibras">Push to Nibras</string>
     <string name="notes_card_open_files_folder_count">Open files folder (%1$d)</string>
-    <string name="notes_card_edit_in_composer">Edit in the composer below</string>
+    <string name="notes_card_edit_in_composer">Edit text and tags</string>
     <string name="notes_delete_blocked_title">Can\'t delete this note</string>
     <string name="notes_delete_confirm_title">Delete this note?</string>
     <string name="notes_delete_blocked_body">Its files folder still holds files. Deleting the note would leave them with nothing naming them — empty the folder first, then delete.</string>
@@ -145,6 +145,6 @@
     </plurals>
     <string name="notes_rail_videos">Videos</string>
     <string name="notes_add_note">Add note</string>
-    <string name="notes_quick_add_hint">Quick note — saved as N · P2 · X</string>
+    <string name="notes_quick_add_hint">Quick note — saved as %1$s</string>
     <string name="notes_open_full_form">Full form: type, priority, department</string>
 </resources>

@@ -47,7 +47,7 @@ Lors d'une nouvelle installation, une courte visite vous présente les dossiers 
 | **Images** | Un interrupteur **Galerie**, et le **Dossier des images** qu'elle affiche. Voir [Galerie](gallery.md). |
 | **Heures de prière** | Un interrupteur **Heures de prière**. Le lieu, la méthode et les sons se règlent sur la page [Heures de prière](prayer.md) elle-même. |
 | **Se connecter à Nibras** | Un interrupteur **Utiliser un serveur Nibras**, l'**Adresse du serveur**, le **Nom d’utilisateur** et le **Mot de passe**, et **Synchroniser avec Nibras en arrière-plan**. Laissez l'adresse vide pour passer. Voir [Synchronisation Nibras](sync.md). |
-| **Rappels et carillon** | Les interrupteurs **Carillon tous les quarts d’heure** et **Garder une notification d’état**, ainsi que **Autoriser les notifications**. |
+| **Rappels et carillon** | Les interrupteurs **Carillon** et **Garder une notification d’état**, ainsi que **Autoriser les notifications**. |
 | **Tout est prêt** | Un récapitulatif de chaque dossier que l'application lira et des parties **Activé** ou **Désactivé**. Touchez **Commencer avec Nibras Mobile**. |
 
 Une partie désactivée quitte le [rail](navigation.md) et ne fait rien en arrière-plan. Chacune a le même interrupteur en haut de son onglet dans les Paramètres, pour la réactiver plus tard.

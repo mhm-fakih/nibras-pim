@@ -46,7 +46,9 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
 
     val pending: StateFlow<List<CalendarEvent>> = store.pending
 
-    private val _fetched = MutableStateFlow<List<CalendarEvent>>(emptyList())
+    // Starts from the last good fetch of this app session, so reopening the page offline (or
+    // with the server unreachable) still shows the events the reminders are firing for.
+    private val _fetched = MutableStateFlow(lastFetched)
     val fetched: StateFlow<List<CalendarEvent>> = _fetched.asStateFlow()
 
     private val _loading = MutableStateFlow(false)
@@ -71,13 +73,42 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
         this.username = username
         viewModelScope.launch {
             _loading.value = true
-            // Retry any entries that were created while offline before fetching the server view.
-            flushPending()
-            val records = runCatching {
-                api.fetchType(base, "J", username) + api.fetchType(base, "P", username)
-            }.getOrNull()
-            if (records != null) _fetched.value = records.mapNotNull { it.toCalendarEvent() }
+            // Send anything queued first, so the fetch below already includes it.
+            store.flush(api, base, username)
+            fetch()
             _loading.value = false
+        }
+    }
+
+    /**
+     * Journal and planner entries, fetched separately: one failing no longer blanks the other.
+     * A failed part keeps what was shown before, and says so — an empty calendar while the
+     * reminders (which keep their own copy) still fire looked like events had vanished.
+     */
+    private suspend fun fetch() {
+        val journals = runCatching { api.fetchType(base, "J", username) }.getOrNull()
+        val plans = runCatching { api.fetchType(base, "P", username) }.getOrNull()
+        val previous = _fetched.value
+        val j = journals?.mapNotNull { it.toCalendarEvent() } ?: previous.filter { it.type == "J" }
+        val p = plans?.mapNotNull { it.toCalendarEvent() } ?: previous.filter { it.type == "P" }
+        _fetched.value = j + p
+        lastFetched = _fetched.value
+        if (journals == null || plans == null) _message.value = str(R.string.server_calendar_fetch_failed)
+    }
+
+    /** Queue, then send through the store's one sender; true when [events] all reached the server. */
+    private suspend fun sendQueued(events: List<CalendarEvent>): Boolean {
+        store.flush(api, base, username)
+        return events.none(store::isPending)
+    }
+
+    private suspend fun refreshPlans() {
+        // Reflect the change in the "Upcoming plans" widget and the reminders right away: this
+        // bridges the knotes_calendar store into knotes_plans (which they read) — works whether the
+        // event just synced or is still pending offline.
+        runCatching {
+            com.knotes.reminder.PlansRepository.refresh(
+                getApplication(), com.knotes.SettingsStore(getApplication()).value)
         }
     }
 
@@ -86,21 +117,13 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
         val event = CalendarEvent(type, "", date, start, end, summary.trim(), description.trim())
         store.add(event)
         viewModelScope.launch {
-            val synced = runCatching { api.pushCalendar(base, username, listOf(entryOf(event))) }.getOrDefault(false)
-            if (synced) {
-                store.remove(event)
+            if (sendQueued(listOf(event))) {
                 _message.value = str(R.string.server_calendar_saved)
-                if (base.isNotEmpty()) load(base, username)
+                fetch()
             } else {
                 _message.value = str(R.string.server_saved_sync_when_online)
             }
-            // Reflect the new event in the "Upcoming plans" widget right away: this bridges the
-            // knotes_calendar store into knotes_plans (which the widget reads) and refreshes it —
-            // works whether the event just synced or is still pending offline.
-            runCatching {
-                com.knotes.reminder.PlansRepository.refresh(
-                    getApplication(), com.knotes.SettingsStore(getApplication()).value)
-            }
+            refreshPlans()
         }
     }
 
@@ -122,18 +145,13 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
         }
         store.addAll(events)
         viewModelScope.launch {
-            val synced = runCatching { api.pushCalendar(base, username, events.map(::entryOf)) }.getOrDefault(false)
-            if (synced) {
-                events.forEach(store::remove)
+            if (sendQueued(events)) {
                 _message.value = str(R.string.server_calendar_batch_saved, events.size)
-                if (base.isNotEmpty()) load(base, username)
+                fetch()
             } else {
                 _message.value = str(R.string.server_saved_sync_when_online)
             }
-            runCatching {
-                com.knotes.reminder.PlansRepository.refresh(
-                    getApplication(), com.knotes.SettingsStore(getApplication()).value)
-            }
+            refreshPlans()
         }
     }
 
@@ -158,30 +176,29 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
         // Reflect immediately (both the fetched view and the outbox), so the edit is visible right
         // away and survives the app closing before it syncs.
         _fetched.value = _fetched.value.map { if (it.type == event.type && it.id == event.id) event else it }
-        store.upsert(event)
+        // A computed occurrence of a repeat is never queued under its composite id: the background
+        // sync would send it as a brand-new entry. It is queued once it has a real id, below.
+        if (!event.virtual) store.upsert(event)
         viewModelScope.launch {
             // A virtual occurrence of a recurring planner has no record behind it, and its id is a
             // composite the push endpoint can't accept — so editing one creates the record first.
             // Deliberately NOT queued offline: without a real id the outbox would push a composite
             // that the server would reject, and the edit would look saved while being dropped.
             val resolved = resolveOccurrence(event) ?: run {
-                store.remove(event)
                 _fetched.value = _fetched.value.map { if (it.localKey == event.localKey) original else it }
                 _message.value = str(R.string.server_calendar_repeat_offline)
                 return@launch
             }
-            val synced = runCatching { api.pushCalendar(base, username, listOf(entryOf(resolved))) }.getOrDefault(false)
-            if (synced) {
-                store.remove(event)
+            // A materialised occurrence now has a real id: queue it under that id (replacing the
+            // copy queued above) and send it through the one sender.
+            if (event.virtual) store.upsert(resolved)
+            if (sendQueued(listOf(resolved))) {
                 _message.value = str(R.string.server_saved)
-                if (base.isNotEmpty()) load(base, username)
+                fetch()
             } else {
                 _message.value = str(R.string.server_saved_sync_when_online)
             }
-            runCatching {
-                com.knotes.reminder.PlansRepository.refresh(
-                    getApplication(), com.knotes.SettingsStore(getApplication()).value)
-            }
+            refreshPlans()
         }
     }
 
@@ -196,26 +213,12 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
         return event.copy(id = id, virtual = false)
     }
 
-    /** Push every still-pending local entry; drop each one that the server accepts. */
-    private suspend fun flushPending() {
-        if (base.isEmpty()) return
-        store.pending.value.forEach { event ->
-            val ok = runCatching { api.pushCalendar(base, username, listOf(entryOf(event))) }.getOrDefault(false)
-            if (ok) store.remove(event)
-        }
-    }
-
-    private fun entryOf(event: CalendarEvent) = CalendarEntry(
-        type = event.type,
-        id = event.id,
-        startDate = formatServerDateTime(LocalDateTime.of(event.date, event.start)),
-        endDate = formatServerDateTime(LocalDateTime.of(event.date, event.end)),
-        summary = event.summary,
-        description = event.description,
-        repeatWeeklyUntil = event.repeatWeeklyUntil?.toString() ?: "",
-    )
-
     override fun onCleared() {
         runCatching { connectivity?.unregisterNetworkCallback(networkCallback) }
+    }
+
+    private companion object {
+        /** The last calendar fetched in this app process (see [_fetched]). */
+        @Volatile var lastFetched: List<CalendarEvent> = emptyList()
     }
 }

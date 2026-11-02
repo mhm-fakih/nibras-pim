@@ -74,6 +74,7 @@ class CollectReceiver : BroadcastReceiver() {
             type = settings.effectiveDefaultType,
             priority = settings.effectiveDefaultPriority,
             category = settings.effectiveDefaultCategory,
+            heading = { n -> context.resources.getQuantityString(R.plurals.widgets_collect_notif_collected, n, n) },
         )
         val ok = results.count { it.ok }
         val failed = results.size - ok

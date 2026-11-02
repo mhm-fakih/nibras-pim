@@ -855,7 +855,13 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
                 ps.add(cb.isNull(root.get("priority")));
             }
             if (isTrue(f.hasTags()) && has(root, "tags")) {
-                ps.add(cb.isNotEmpty(root.<Set<Tag>>get("tags")));
+                if (root.getModel().getAttribute("tags").isCollection()) {
+                    ps.add(cb.isNotEmpty(root.<Set<Tag>>get("tags")));
+                } else {
+                    // Courses keep their knotes vocabulary as one comma-separated string, not a tag
+                    // set: "has tags" means that string is filled in. (isNotEmpty on it threw a 500.)
+                    ps.add(cb.and(cb.isNotNull(root.get("tags")), cb.notEqual(root.<String>get("tags"), "")));
+                }
             }
             if (isTrue(f.overdue()) && has(root, "endDate")) {
                 ps.add(cb.lessThan(root.<LocalDateTime>get("endDate"), now));

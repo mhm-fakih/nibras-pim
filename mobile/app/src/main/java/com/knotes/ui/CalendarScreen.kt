@@ -646,8 +646,15 @@ private fun EventBlock(
 
     val startMin = previewStartMin ?: e.start.minutesOfDay()
     val endMin = previewEndMin ?: e.end.minutesOfDay()
-    val top = (hourHeight * ((startMin - startHour * 60) / 60f)).coerceAtLeast(0.dp)
-    val height = (hourHeight * ((endMin - startMin) / 60f)).coerceAtLeast(14.dp)
+    // Drawn inside the shown hours even when it falls outside them: an event after the end hour
+    // used to sit below the grid, invisible, while its reminder still went off. Pinned to the top
+    // or bottom edge instead; its label keeps the real time.
+    val winStart = startHour * 60
+    val winEnd = endHour * 60
+    val shownStart = startMin.coerceIn(winStart, maxOf(winStart, winEnd - 30))
+    val shownEnd = endMin.coerceIn(minOf(shownStart + 30, winEnd), winEnd)
+    val top = (hourHeight * ((shownStart - winStart) / 60f)).coerceAtLeast(0.dp)
+    val height = (hourHeight * ((shownEnd - shownStart) / 60f)).coerceAtLeast(14.dp)
     // Planner (P, from exportJsonP) → green; Journal (J) → light blue. A computed occurrence of a
     // recurring planner is drawn paler than a stored one: it has no record behind it yet, and the
     // difference matters — editing one creates a record, and offline it can't be edited at all.

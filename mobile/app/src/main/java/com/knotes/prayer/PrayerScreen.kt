@@ -652,9 +652,9 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
          *
          * Note what it does that "Alarms on" above does not: it takes the page out of the rail as
          * well as cancelling the schedule. Which is why turning it off from HERE is a one-way door
-         * — the page you are standing on is the page that disappears — and why Settings keeps a
-         * single "Prayer times are hidden · Show" row while it is off. That row is the way back in;
-         * without it the switch could not be undone.
+         * — the page you are standing on is the page that disappears — and why Settings keeps the
+         * same switch on its Prayer times tab, reachable while the page is out of the rail. That
+         * tab is the way back in; without it the switch could not be undone.
          */
         Spacer(Modifier.height(8.dp))
         val appSettings = remember { com.knotes.SettingsStore(context) }

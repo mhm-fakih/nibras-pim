@@ -8,6 +8,7 @@ import {
   getISOWeek,
   isSameDay,
   parseISO,
+  startOfDay,
   startOfWeek,
 } from 'date-fns';
 import {
@@ -374,6 +375,32 @@ export function CalendarPage() {
                   <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                     {format(d, 'd')}
                   </Typography>
+                  {spanningEvents(events, d).map((ev) => (
+                    <Tooltip key={eventKey(ev)} title={`${ev.title} (${format(parseISO(ev.start), 'd MMM')} – ${format(parseISO(ev.end!), 'd MMM')})`}>
+                      <Box
+                        onClick={() => {
+                          if (ev.module === 'sprints') navigate('/sprints');
+                          else if (ev.id != null) window.open(`/read/${ev.module}/${ev.id}`, '_blank', 'noopener');
+                        }}
+                        sx={{
+                          ...eventStyle(ev),
+                          mt: 0.5,
+                          mx: 0.5,
+                          px: 0.5,
+                          fontSize: 12,
+                          lineHeight: '18px',
+                          borderRadius: 0.5,
+                          overflow: 'hidden',
+                          whiteSpace: 'nowrap',
+                          textOverflow: 'ellipsis',
+                          cursor: 'pointer',
+                          textAlign: 'start',
+                        }}
+                      >
+                        {ev.title}
+                      </Box>
+                    </Tooltip>
+                  ))}
                 </Box>
               ))}
             </Box>
@@ -531,8 +558,23 @@ export function CalendarPage() {
   );
 }
 
+/** Ends on a later day than it starts — a sprint, typically. */
+function isMultiDay(e: CalendarEvent): boolean {
+  return !!e.end && !isSameDay(parseISO(e.start), parseISO(e.end));
+}
+
+/** Timed events starting on `day`. Multi-day ones are left out: as a block they ran from their
+ * start time off the bottom of the first day; they are shown in the strip under the day headers. */
 function eventsForDay(events: CalendarEvent[], day: Date): CalendarEvent[] {
-  return events.filter((e) => isSameDay(parseISO(e.start), day));
+  return events.filter((e) => !isMultiDay(e) && isSameDay(parseISO(e.start), day));
+}
+
+/** Multi-day events covering `day`, for the strip under the day headers. */
+function spanningEvents(events: CalendarEvent[], day: Date): CalendarEvent[] {
+  const d0 = startOfDay(day).getTime();
+  return events.filter(
+    (e) => isMultiDay(e) && startOfDay(parseISO(e.start)).getTime() <= d0 && startOfDay(parseISO(e.end!)).getTime() >= d0,
+  );
 }
 
 /** Thin red "current time" bar, auto-advancing (see the 30s tick in CalendarPage), on today's

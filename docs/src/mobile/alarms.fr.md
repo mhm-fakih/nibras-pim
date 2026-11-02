@@ -105,7 +105,7 @@ Si des tâches du serveur ont dépassé leur échéance, Nibras Mobile publie au
 
 Un carillon doux qui marque le passage du temps, pour le sentir passer sans rien regarder. Configurez-le dans les [Paramètres](settings.md#alerts) → **Alertes** → **État et carillon** :
 
-- **Carillon** : activé ou désactivé (activé par défaut ; également proposé dans la visite de configuration sous le nom **Carillon tous les quarts d’heure**).
+- **Carillon** : activé ou désactivé (activé par défaut ; également proposé dans la visite de configuration sous le nom **Carillon**).
 - **Carillon toutes les** : **15 min**, **30 min**, **1 h** ou **2 h**. L'intervalle se compte depuis l'heure de début : avec une heure de début à 8 et **2 h**, il sonne à 08:00, 10:00, 12:00, et ainsi de suite.
 - **Choisir le fichier du carillon** : n'importe quel fichier audio. Si aucun n'est choisi, le son de notification par défaut du téléphone est utilisé.
 - **Heure de début du carillon** et **Heure de fin du carillon** : il ne sonne que dans cette plage (de 8 à 22 par défaut, bornes comprises).

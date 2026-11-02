@@ -76,6 +76,7 @@ fun CollectScreen(
     var describing by remember { mutableStateOf(false) }
     var description by rememberSaveable { mutableStateOf("") }
     if (describing) {
+        val res = androidx.compose.ui.platform.LocalContext.current.resources
         AlertDialog(
             onDismissRequest = { describing = false },
             title = { Text(pluralStringResource(R.plurals.widgets_collect_button, found.size, found.size)) },
@@ -93,7 +94,9 @@ fun CollectScreen(
             confirmButton = {
                 TextButton(onClick = {
                     describing = false
-                    vm.collect(newDir, timestampFormat, noteType, notePriority, noteCategory, description)
+                    vm.collect(newDir, timestampFormat, noteType, notePriority, noteCategory, description) { n ->
+                        res.getQuantityString(R.plurals.widgets_collect_notif_collected, n, n)
+                    }
                     description = ""
                 }) { Text(stringResource(R.string.widgets_collect_confirm)) }
             },

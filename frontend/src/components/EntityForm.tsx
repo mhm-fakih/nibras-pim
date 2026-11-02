@@ -129,7 +129,7 @@ export function EntityForm({ config, recordId, initial, onClose, onSaved }: Prop
       sx={{ p: 3, maxWidth: 900 }}
     >
       <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-        {isEdit ? `Edit ${config.label.toLowerCase()}` : `New ${config.label.toLowerCase()}`}
+        {`${isEdit ? 'Edit' : 'New'} ${config.label.toLowerCase().replace(/s$/, '')}`}
       </Typography>
 
       <Stack spacing={2}>

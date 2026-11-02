@@ -165,7 +165,7 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
 
   return (
     <Box sx={{ p: 3, maxWidth: 900 }}>
-      <CoverImage module={config.key} id={id} />
+      {record?.hasCover !== false && <CoverImage module={config.key} id={id} />}
       <Typography
         variant="h5"
         dir={isRtlText(record.displayTitle) ? 'rtl' : 'ltr'}

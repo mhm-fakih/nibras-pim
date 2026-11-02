@@ -35,6 +35,9 @@ public class CustomDashboardRegion extends BaseEntity {
     @Column(name = "col_span")
     private Integer colSpan = 1;
 
+    /** Grid rows this region spans; null means 1. */
+    private Integer rowSpan;
+
     @Column(columnDefinition = "longtext")
     private String config;
 

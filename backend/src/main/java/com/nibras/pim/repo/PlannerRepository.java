@@ -13,6 +13,21 @@ import java.util.Optional;
 @Repository
 public interface PlannerRepository extends BaseRepository<Planner> {
 
+    /**
+     * An entry the phone already created: same title, start and end, and not an occurrence of a
+     * series. Lets a re-sent "new" entry (a retried or doubled sync) update it instead of adding a
+     * copy. Null start/end match null.
+     */
+    @Query("""
+            select p from Planner p
+            where p.summary = :summary and p.seriesId is null
+              and ((:start is null and p.startDate is null) or p.startDate = :start)
+              and ((:end is null and p.endDate is null) or p.endDate = :end)
+            order by p.id asc
+            """)
+    List<Planner> findSameEntry(@Param("summary") String summary, @Param("start") LocalDateTime start,
+                                @Param("end") LocalDateTime end);
+
     /** Entries whose effective start (startDate, else dateCreated) is in the window. */
     @Query("""
             select p from Planner p

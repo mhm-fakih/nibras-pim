@@ -133,4 +133,5 @@
     <string name="server_calendar_batch_no_title">لا عنوان بعد الوقت</string>
     <string name="server_calendar_batch_add">أضف %1$d</string>
     <string name="server_calendar_batch_saved">حُفظ %1$d من المدخلات</string>
+    <string name="server_calendar_fetch_failed">تعذّر الوصول إلى الخادم — يُعرض التقويم كما حُمّل آخر مرة</string>
 </resources>

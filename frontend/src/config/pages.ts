@@ -25,6 +25,10 @@ export const TOGGLEABLE_PAGES: ToolPage[] = [
   { key: 'images', label: 'Image renamer' },
   { key: 'sites', label: 'Static website' },
   { key: 'audit', label: 'Audit log' },
+  { key: 'checklists/view', label: 'Checklists (week)' },
+  { key: 'flashcards', label: 'Flash cards' },
+  { key: 'highlights', label: 'Highlights' },
+  { key: 'local-notes', label: 'Local notes' },
 ];
 
 export const pageSettingKey = (key: string) => `page.${key}.enabled`;

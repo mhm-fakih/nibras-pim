@@ -20,10 +20,10 @@ If you are connected to a Nibras server and have plans coming up, a collapsible 
 
 The bar at the bottom of the list is the fastest way in:
 
-1. Type in **Quick note — saved as N · P2 · X**. The box grows to a few lines as you type.
+1. Type in **Quick note — saved as …** (the hint shows the tags it will use, e.g. N · P2 · X). The box grows to a few lines as you type.
 2. Tap the send arrow (**Save note**).
 
-The note is saved straight away as a new file, always with type `N`, priority 2 and category `X`. There is nothing to choose: get it down now and give it its proper tags later, from the card or the reader (see [Capture, then classify](../concepts/capture-then-classify.md)).
+The note is saved straight away as a new file, with the default type, priority and category set in **Settings** (the same ones the full form starts on; `N`, 2 and `X` unless you changed them). There is nothing to choose: get it down now and give it its proper tags later, from the card or the reader (see [Capture, then classify](../concepts/capture-then-classify.md)).
 
 ### The full form: Add note
 
@@ -69,7 +69,7 @@ Tap a card to **read** it.
 |---|---|
 | **Push to Nibras** | Creates this note as a record on your Nibras server. Shows **Queued — will sync** while waiting, and **Push again to Nibras** once sent. See [Nibras sync](sync.md#push-a-note-to-nibras). |
 | **Open files folder (N)** | Opens the note's attachment folder in a file manager. Only shown when there are attachments. |
-| **Edit in the composer below** | Opens the note in the full form (the page is titled **Editing note**), so you can change its text and all three tags at once. **Save note** saves the changes; **Cancel** or Back leaves the note as it was. |
+| **Edit text and tags** | Opens the note in the full form (the page is titled **Editing note**), so you can change its text and all three tags at once. **Save note** saves the changes; **Cancel** or Back leaves the note as it was. |
 | **Delete** | Deletes the note, after asking. |
 
 ## Read and edit a note

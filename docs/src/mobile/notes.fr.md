@@ -20,10 +20,10 @@ Si vous êtes connecté à un serveur Nibras et que des plans approchent, un pan
 
 La barre en bas de la liste est le moyen le plus rapide :
 
-1. Saisissez votre texte dans **Note rapide — enregistrée N · P2 · X**. La zone s'agrandit de quelques lignes au fil de la saisie.
+1. Saisissez votre texte dans **Note rapide — enregistrée …** (l’indication montre les étiquettes utilisées, par ex. N · P2 · X). La zone s'agrandit de quelques lignes au fil de la saisie.
 2. Touchez la flèche d'envoi (**Enregistrer la note**).
 
-La note est enregistrée immédiatement sous forme de nouveau fichier, toujours avec le type `N`, la priorité 2 et la catégorie `X`. Il n'y a rien à choisir : notez maintenant, et donnez-lui ses vraies étiquettes plus tard, depuis la carte ou la lecture (voir [Capturer, puis classer](../concepts/capture-then-classify.md)).
+La note est enregistrée immédiatement sous forme de nouveau fichier, avec le type, la priorité et la catégorie par défaut définis dans les **Paramètres** (les mêmes que ceux du formulaire complet ; `N`, 2 et `X` si vous ne les avez pas changés). Il n'y a rien à choisir : notez maintenant, et donnez-lui ses vraies étiquettes plus tard, depuis la carte ou la lecture (voir [Capturer, puis classer](../concepts/capture-then-classify.md)).
 
 ### Le formulaire complet : Ajouter une note { #the-full-form-add-note }
 
@@ -69,7 +69,7 @@ Touchez une carte pour la **lire**.
 |---|---|
 | **Envoyer vers Nibras** | Crée cette note comme fiche sur votre serveur Nibras. Affiche **En attente — sera synchronisée** pendant l'attente, puis **Renvoyer vers Nibras** une fois envoyée. Voir [Synchronisation Nibras](sync.md#push-a-note-to-nibras). |
 | **Ouvrir le dossier des fichiers (N)** | Ouvre le dossier des pièces jointes de la note dans un gestionnaire de fichiers. N'apparaît que s'il y a des pièces jointes. |
-| **Modifier dans l’éditeur ci-dessous** | Ouvre la note dans le formulaire complet (la page s'intitule **Modification de la note**), pour modifier son texte et ses trois étiquettes à la fois. **Enregistrer la note** enregistre les changements ; **Annuler** ou Retour laisse la note telle quelle. |
+| **Modifier le texte et les étiquettes** | Ouvre la note dans le formulaire complet (la page s'intitule **Modification de la note**), pour modifier son texte et ses trois étiquettes à la fois. **Enregistrer la note** enregistre les changements ; **Annuler** ou Retour laisse la note telle quelle. |
 | **Supprimer** | Supprime la note, après confirmation. |
 
 ## Lire et modifier une note { #read-and-edit-a-note }

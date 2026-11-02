@@ -43,13 +43,14 @@ class CollectViewModel : ViewModel() {
         priority: Int,
         category: String?,
         description: String = "",
+        heading: (Int) -> String,
     ) {
         val toMove = _found.value
         if (toMove.isEmpty()) return
         viewModelScope.launch {
             _status.value = CollectStatus.Collecting
             val (target, results) = withContext(Dispatchers.IO) {
-                FileCollector.collect(toMove, newDir, format, type, priority, category, description)
+                FileCollector.collect(toMove, newDir, format, type, priority, category, description, heading)
             }
             _results.value = results
             _targetPath.value = target.absolutePath

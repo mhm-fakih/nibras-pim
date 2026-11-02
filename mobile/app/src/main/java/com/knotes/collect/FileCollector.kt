@@ -134,6 +134,8 @@ object FileCollector {
         category: String?,
         /** What the set is, typed when collecting by hand; heads the note (and so titles it). */
         description: String = "",
+        /** The "Collected N files" line, in the app's language (the caller has the resources). */
+        heading: (Int) -> String = { n -> "Collected $n " + if (n == 1) "file" else "files" },
     ): Pair<File, List<CollectedFile>> {
         val parent = File(newDir)
         parent.mkdirs()
@@ -170,7 +172,7 @@ object FileCollector {
             // The description first: a note is titled by its first line, and "Collected 7 files"
             // says nothing about which seven, or why they were worth keeping together.
             description.trim().takeIf { it.isNotEmpty() }?.let { append(it).append("\n\n") }
-            append("Collected ").append(ok).append(if (ok == 1) " file" else " files").append("\n\n")
+            append(heading(ok)).append("\n\n")
             results.forEach { r ->
                 append("- ").append(r.newName)
                 if (!r.ok) append("  (failed: ").append(r.error ?: "unknown").append(")")

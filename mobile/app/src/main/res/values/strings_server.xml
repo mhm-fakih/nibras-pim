@@ -129,4 +129,5 @@
     <string name="server_calendar_batch_no_title">no title after the time</string>
     <string name="server_calendar_batch_add">Add %1$d</string>
     <string name="server_calendar_batch_saved">%1$d entries saved</string>
+    <string name="server_calendar_fetch_failed">Couldn\'t reach the server — showing the calendar as last loaded</string>
 </resources>

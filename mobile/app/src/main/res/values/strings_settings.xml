@@ -85,8 +85,6 @@
         <item quantity="other">%d words, then Read more</item>
     </plurals>
     <string name="settings_feed_text_size">Text size %1$d sp</string>
-    <string name="settings_prayer_hidden_title">Prayer times are hidden</string>
-    <string name="settings_prayer_hidden_desc">Switched off on the prayer page, which also took it out of the left rail. Turn it back on here.</string>
     <string name="settings_file_collection_title">File collection</string>
     <string name="settings_file_collection_toggle_desc">The collector page and its daily run. Off removes both, whatever the automatic-collection setting below says.</string>
     <string name="settings_chime_title">Chime</string>
@@ -162,8 +160,8 @@
     <string name="settings_wizard_nibras_2">Leave this blank to skip — you can connect later in Settings.</string>
     <string name="settings_wizard_server_address">Server address</string>
     <string name="settings_wizard_nibras_note">Notes on this phone are never sent to Nibras by this connection — they stay files in your notes folder. This is for the records that already live on the server.</string>
-    <string name="settings_wizard_alerts_1">Plans with a time can alert you before they start, and the app can sound a quiet chime on the quarter hour so time passing is noticeable without looking at anything.</string>
-    <string name="settings_wizard_chime_toggle">Quarter-hour chime</string>
+    <string name="settings_wizard_alerts_1">Plans with a time can alert you before they start, and the app can sound a quiet chime at an interval you choose (every 15 minutes to start with) so time passing is noticeable without looking at anything.</string>
+    <string name="settings_wizard_chime_toggle">Chime</string>
     <string name="settings_wizard_status_toggle">Keep a status notification</string>
     <string name="settings_wizard_status_help">Shows today\'s note count, and keeps the app running so reminders and the chime actually fire.</string>
     <string name="settings_wizard_sync_toggle">Sync with Nibras in the background</string>

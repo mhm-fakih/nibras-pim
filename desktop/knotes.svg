@@ -1,13 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- Shared app mark, flat: one navy (#133155) disc and a solid white glyph, details cut back in
+  <!-- Shared app mark, flat: one navy (#133155) square tile and a solid white glyph, details cut back in
        the same navy, no gradients or shadows. Same family as audio-player.svg and the image
-       annotator's icon; only the glyph differs. Here: a note page with a turned corner, a bold
+       annotator's icon; only the glyph differs, and this one sits on a square (barely rounded
+       corners) rather than their disc. Here: a note page with a turned corner, a bold
        title line and two body lines, the shape a card shows.
 
        Keep this comment INSIDE <svg>: gdk-pixbuf sniffs only the first bytes of the file for the
        "<svg" tag, so a long comment above it makes the loader reject the file outright, which
        silently drops the window icon. -->
-  <circle cx="64" cy="64" r="60" fill="#133155"/>
+  <rect x="4" y="4" width="120" height="120" rx="10" fill="#133155"/>
   <g transform="rotate(-8 64 64)">
     <path d="M45,30 H74 L90,46 V92 a5,5 0 0 1 -5,5 H45 a5,5 0 0 1 -5,-5 V35 a5,5 0 0 1 5,-5 Z" fill="#FFFFFF"/>
     <path d="M74,30 V41 a5,5 0 0 0 5,5 H90" fill="none" stroke="#133155" stroke-width="3" stroke-linejoin="round"/>

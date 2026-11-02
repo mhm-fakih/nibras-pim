@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Box,
   Button,
+  Checkbox,
+  FormControlLabel,
   IconButton,
   List,
   ListItem,
@@ -31,7 +33,13 @@ import {
   updateCustomDashboard,
 } from '../api/client';
 import { SideNav } from '../components/SideNav';
-import { DASHBOARD_COMPONENT_TYPES, DashboardComponent } from '../components/DashboardComponents';
+import {
+  DASHBOARD_COMPONENT_TYPES,
+  DashboardComponent,
+  DEFAULT_TEXT_SCALE,
+  TEXT_SCALES,
+  regionZoom,
+} from '../components/DashboardComponents';
 
 const BLANK: CustomDashboard = { name: '', columnsCount: 2, refreshMinutes: 5, regions: [] };
 
@@ -53,9 +61,10 @@ export function DashboardsPage() {
           Dashboards
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Build a dashboard from regions — quote of the day, a filtered calendar, the goals habit
-          heatmap, a kanban board, or a file's content — arranged in a simple grid. Open a
-          dashboard's view link on a TV or spare monitor for a chrome-free display.
+          Build a dashboard from regions — quote of the day, a calendar of journal and planner
+          entries, today's checklist, open tasks, local task notes, the goals habit heatmap, a kanban board, or a
+          file's content — arranged in a grid; a region can span several columns and rows. Open a dashboard's view link on a TV or spare monitor
+          for a chrome-free display; drag the line between two columns there to resize them.
         </Typography>
 
         {editingId == null && (
@@ -213,6 +222,15 @@ function DashboardEditor({ id, onDone }: { id: number | null; onDone: () => void
           sx={{ width: 100 }}
         />
         <TextField
+          label="Column widths"
+          size="small"
+          placeholder="equal"
+          value={form.columnWidths ?? ''}
+          onChange={(e) => setForm((f) => ({ ...f, columnWidths: e.target.value }))}
+          helperText="e.g. 1,2,1 — or drag in the view"
+          sx={{ width: 190 }}
+        />
+        <TextField
           label="Auto-refresh (min)"
           type="number"
           size="small"
@@ -289,7 +307,13 @@ function RegionEditor({
           size="small"
           label="Component"
           value={region.componentType}
-          onChange={(e) => onChange({ componentType: e.target.value, config: '{}' })}
+          onChange={(e) =>
+            onChange({
+              componentType: e.target.value,
+              // A new component starts with its own settings, but keeps the text size.
+              config: cfg.textScale ? JSON.stringify({ textScale: cfg.textScale }) : '{}',
+            })
+          }
           sx={{ minWidth: 220 }}
         >
           {DASHBOARD_COMPONENT_TYPES.map((c) => (
@@ -304,10 +328,35 @@ function RegionEditor({
           label="Columns"
           value={region.colSpan ?? 1}
           onChange={(e) => onChange({ colSpan: Math.max(1, Number(e.target.value) || 1) })}
-          helperText="Grid columns to span"
+          helperText="Columns it spans"
           inputProps={{ min: 1, max: 6 }}
           sx={{ width: 110 }}
         />
+        <TextField
+          size="small"
+          type="number"
+          label="Rows"
+          value={region.rowSpan ?? 1}
+          onChange={(e) => onChange({ rowSpan: Math.max(1, Math.min(6, Number(e.target.value) || 1)) })}
+          helperText="Rows it spans"
+          inputProps={{ min: 1, max: 6 }}
+          sx={{ width: 100 }}
+        />
+        <TextField
+          select
+          size="small"
+          label="Text size"
+          value={(cfg.textScale as number) ?? DEFAULT_TEXT_SCALE}
+          onChange={(e) => setCfg({ textScale: Number(e.target.value) })}
+          helperText="Of the normal size"
+          sx={{ width: 110 }}
+        >
+          {TEXT_SCALES.map((t) => (
+            <MenuItem key={t} value={t}>
+              {t} %
+            </MenuItem>
+          ))}
+        </TextField>
         <Box sx={{ flex: 1 }} />
         <Tooltip title="Move up">
           <span>
@@ -343,6 +392,9 @@ function RegionEditor({
       )}
       {region.componentType === 'calendar' && (
         <Stack spacing={2}>
+          <Typography variant="caption" color="text.secondary">
+            Shows this week's journal and planner entries, repeating ones included (marked with ↻).
+          </Typography>
           <TextField
             size="small"
             label="Event type name"
@@ -397,7 +449,76 @@ function RegionEditor({
           />
         </Stack>
       )}
-      {(region.componentType === 'goalsHeatmap' || region.componentType === 'kanban') && (
+      {region.componentType === 'tasks' && (
+        <>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+          Open tasks: not completed, and with a status ticked “active” on the Parameters page
+          (such as Not started or In progress) or no status at all. Those due first, soonest first, then
+          the rest by priority. Each has a checkbox to mark it completed (needs a signed-in screen).
+        </Typography>
+        <Stack direction="row" spacing={2} alignItems="flex-start" flexWrap="wrap" useFlexGap>
+          <TextField
+            size="small"
+            type="number"
+            label="Show at most"
+            value={(cfg.limit as number) ?? 30}
+            onChange={(e) => setCfg({ limit: Math.max(1, Number(e.target.value) || 30) })}
+            inputProps={{ min: 1, max: 200 }}
+            sx={{ width: 130 }}
+          />
+          <TextField
+            size="small"
+            type="number"
+            label="Overdue up to (days)"
+            value={(cfg.overdueDays as number) ?? 30}
+            onChange={(e) => setCfg({ overdueDays: Math.max(0, Number(e.target.value) || 0) })}
+            helperText="Older overdue tasks are left out; 0 shows all"
+            inputProps={{ min: 0 }}
+            sx={{ width: 220 }}
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={cfg.bookmarkedOnly === true}
+                onChange={(e) => setCfg({ bookmarkedOnly: e.target.checked })}
+              />
+            }
+            label="Bookmarked tasks only"
+          />
+        </Stack>
+        </>
+      )}
+      {region.componentType === 'localTasks' && (
+        <>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+            Task notes in the local notes folder: files whose name has type T (…~T~p3~X.md), at
+            the chosen priority or higher. Highest priority first, then newest.
+          </Typography>
+          <Stack direction="row" spacing={2}>
+            <TextField
+              size="small"
+              type="number"
+              label="Lowest priority"
+              value={(cfg.minPriority as number) ?? 3}
+              onChange={(e) => setCfg({ minPriority: Math.max(1, Number(e.target.value) || 3) })}
+              inputProps={{ min: 1, max: 9 }}
+              sx={{ width: 140 }}
+            />
+            <TextField
+              size="small"
+              type="number"
+              label="Show at most"
+              value={(cfg.limit as number) ?? 30}
+              onChange={(e) => setCfg({ limit: Math.max(1, Number(e.target.value) || 30) })}
+              inputProps={{ min: 1, max: 200 }}
+              sx={{ width: 130 }}
+            />
+          </Stack>
+        </>
+      )}
+      {(region.componentType === 'goalsHeatmap' ||
+        region.componentType === 'kanban' ||
+        region.componentType === 'checklist') && (
         <Typography variant="caption" color="text.secondary">
           No settings for this component.
         </Typography>
@@ -407,7 +528,9 @@ function RegionEditor({
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
           Preview
         </Typography>
-        <DashboardComponent componentType={region.componentType} config={region.config} />
+        <Box sx={{ zoom: regionZoom(region.config) }}>
+          <DashboardComponent componentType={region.componentType} config={region.config} />
+        </Box>
       </Box>
     </Paper>
   );

@@ -87,8 +87,6 @@
         <item quantity="other">%d mots, puis Lire la suite</item>
     </plurals>
     <string name="settings_feed_text_size">Taille du texte %1$d sp</string>
-    <string name="settings_prayer_hidden_title">Les heures de prière sont masquées</string>
-    <string name="settings_prayer_hidden_desc">Désactivées depuis la page des prières, ce qui les a aussi retirées de la barre latérale. Réactivez-les ici.</string>
     <string name="settings_file_collection_title">Collecte de fichiers</string>
     <string name="settings_file_collection_toggle_desc">La page de collecte et son exécution quotidienne. Désactivé retire les deux, quel que soit le réglage de collecte automatique ci-dessous.</string>
     <string name="settings_chime_title">Carillon</string>
@@ -166,8 +164,8 @@
     <string name="settings_wizard_nibras_2">Laissez vide pour passer — vous pourrez vous connecter plus tard dans les Paramètres.</string>
     <string name="settings_wizard_server_address">Adresse du serveur</string>
     <string name="settings_wizard_nibras_note">Cette connexion n’envoie jamais les notes du téléphone à Nibras — elles restent des fichiers dans votre dossier de notes. Elle sert aux fiches qui se trouvent déjà sur le serveur.</string>
-    <string name="settings_wizard_alerts_1">Les plans avec une heure peuvent vous alerter avant de commencer, et l’application peut faire sonner un discret carillon tous les quarts d’heure pour que le temps qui passe se remarque sans rien regarder.</string>
-    <string name="settings_wizard_chime_toggle">Carillon tous les quarts d’heure</string>
+    <string name="settings_wizard_alerts_1">Les plans avec une heure peuvent vous alerter avant de commencer, et l’application peut faire sonner un discret carillon à l’intervalle de votre choix (toutes les 15 minutes au départ) pour que le temps qui passe se remarque sans rien regarder.</string>
+    <string name="settings_wizard_chime_toggle">Carillon</string>
     <string name="settings_wizard_status_toggle">Garder une notification d’état</string>
     <string name="settings_wizard_status_help">Affiche le nombre de notes du jour et maintient l’application active pour que les rappels et le carillon se déclenchent vraiment.</string>
     <string name="settings_wizard_sync_toggle">Synchroniser avec Nibras en arrière-plan</string>

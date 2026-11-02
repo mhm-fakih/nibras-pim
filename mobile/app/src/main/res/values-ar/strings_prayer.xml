@@ -110,7 +110,7 @@
     <string name="prayer_alarms_on">تفعيل التنبيهات</string>
     <string name="prayer_alarms_on_note">المفتاح الرئيسي. عند إيقافه تبقى الأوقات ظاهرة، لكن لا يصدر أي صوت ولا يُضبط أي منبّه.</string>
     <string name="prayer_in_app">مواقيت الصلاة في التطبيق</string>
-    <string name="prayer_in_app_note">عند إيقافه تختفي الصفحة من الشريط الجانبي ولا يُجدوَل شيء. تعرض الإعدادات حينها صفًا لإعادتها — فهذا المفتاح يختفي مع الصفحة.</string>
+    <string name="prayer_in_app_note">عند إيقافه تختفي الصفحة من الشريط الجانبي ولا يُجدوَل شيء. أعِد تشغيله من الإعدادات ← أوقات الصلاة.</string>
     <string name="prayer_call_athan_at">رفع الأذان عند</string>
     <string name="prayer_shurooq_note">الشروق ليس صلاة، لذا لا يظهر في هذه القائمة.</string>
     <string name="prayer_choose_athan_file">اختيار ملف الأذان</string>

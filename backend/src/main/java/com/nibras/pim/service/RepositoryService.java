@@ -203,11 +203,21 @@ public class RepositoryService {
             replaceSymlink(link, target);
 
             if (date.equals(LocalDate.now())) {
-                atomicSymlink(Paths.get(System.getProperty("user.home"), "tdy"), target);
+                atomicSymlink(todayLink(), target);
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Could not link journal day", e);
         }
+    }
+
+    /**
+     * The "today" symlink, swapped to the current day's journal folder. {@code today.path}, default
+     * {@code ~/tdy}: a second installation on the same machine (another account's database) points
+     * it elsewhere so the two never fight over one link.
+     */
+    public Path todayLink() {
+        String def = System.getProperty("user.home") + "/tdy";
+        return Paths.get(settings.get("today.path", def)).toAbsolutePath().normalize();
     }
 
     /** Root of the "checkout" folder — where bookmarked records get a symlink to their repo-1 folder. */

@@ -105,7 +105,7 @@ If tasks on the server are past their due date, Nibras Mobile also posts a singl
 
 A soft chime that marks time passing, so you notice it without looking at anything. Set it up in [Settings](settings.md#alerts) → **Alerts** → **Status & chime**:
 
-- **Chime**: on or off (on by default; also offered in the setup tour as **Quarter-hour chime**).
+- **Chime**: on or off (on by default; also offered in the setup tour as **Chime**).
 - **Chime every**: **15 min**, **30 min**, **1 h** or **2 h**. The interval is counted from the start hour: with a start hour of 8 and **2 h**, it sounds at 08:00, 10:00, 12:00 and so on.
 - **Choose chime file**: any audio file. If none is chosen, the phone's default notification sound is used.
 - **Chime start hour** and **Chime end hour**: it only sounds inside this window (8 to 22 by default, both included).

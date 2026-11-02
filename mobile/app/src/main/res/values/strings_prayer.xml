@@ -110,7 +110,7 @@
     <string name="prayer_alarms_on">Alarms on</string>
     <string name="prayer_alarms_on_note">The master switch. Off, the page still shows the times but nothing sounds and no alarm is set.</string>
     <string name="prayer_in_app">Prayer times in the app</string>
-    <string name="prayer_in_app_note">Off, the page leaves the left rail and nothing is scheduled. Settings then shows a row to bring it back — this switch goes with the page.</string>
+    <string name="prayer_in_app_note">Off, the page leaves the left rail and nothing is scheduled. Turn it back on in Settings → Prayer times.</string>
     <string name="prayer_call_athan_at">Call the athan at</string>
     <string name="prayer_shurooq_note">Shurooq is sunrise, not a prayer, so it is never on this list.</string>
     <string name="prayer_choose_athan_file">Choose athan file</string>

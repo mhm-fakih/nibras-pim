@@ -553,7 +553,8 @@ public class SyncService {
                 // and silently ignored any id, so editing a Journal calendar entry from the phone
                 // was impossible.
                 Long id = asLong(r.get("id"));
-                Journal existing = id != null ? journalRepo.findById(id).orElse(null) : null;
+                Journal existing = id != null ? journalRepo.findById(id).orElse(null)
+                        : sameJournal(summary, start, end);
                 Journal j = existing != null ? existing : new Journal();
                 if (j.getLevel() == null) {
                     j.setLevel("m");
@@ -575,7 +576,13 @@ public class SyncService {
                 ids.add(j.getId());
             } else {
                 Long id = asLong(r.get("id"));
-                Planner existing = id != null ? plannerRepo.findById(id).orElse(null) : null;
+                // No id: a new entry — unless the very same one (title, start, end) is already
+                // there, which is the phone re-sending an entry it pushed before (a retried or
+                // doubled sync). Updating that one, instead of adding another, is what keeps a
+                // flaky connection from filling a day with copies; a re-send that asks for weekly
+                // repeats turns the existing entry into the series.
+                Planner existing = id != null ? plannerRepo.findById(id).orElse(null)
+                        : samePlanner(summary, start, end);
                 Planner p = existing != null ? existing : new Planner();
                 p.setSummary(summary);
                 // Same guard as Journal above: don't blank out an existing description just
@@ -607,6 +614,24 @@ public class SyncService {
             }
         }
         return ids;
+    }
+
+    private Planner samePlanner(String summary, LocalDateTime start, LocalDateTime end) {
+        if (summary == null || summary.isBlank()) {
+            return null;
+        }
+        List<Planner> same = plannerRepo.findSameEntry(summary, start, end);
+        // Prefer the series master if a weekly copy was already made, else the oldest.
+        return same.stream().filter(p -> Boolean.TRUE.equals(p.getRecurring())).findFirst()
+                .orElse(same.isEmpty() ? null : same.get(0));
+    }
+
+    private Journal sameJournal(String summary, LocalDateTime start, LocalDateTime end) {
+        if (summary == null || summary.isBlank()) {
+            return null;
+        }
+        List<Journal> same = journalRepo.findSameEntry(summary, start, end);
+        return same.isEmpty() ? null : same.get(0);
     }
 
     /**

@@ -50,6 +50,15 @@ public class CustomDashboardController {
         return service.update(id, dto);
     }
 
+    public record ColumnWidths(String columnWidths) {
+    }
+
+    /** Only the column widths, e.g. {"columnWidths":"1,2,1"}: dragging a separator on the view page. */
+    @PutMapping("/{id}/column-widths")
+    public CustomDashboardDto columnWidths(@PathVariable Long id, @RequestBody ColumnWidths body) {
+        return service.setColumnWidths(id, body.columnWidths());
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {

@@ -54,7 +54,7 @@
     <string name="notes_card_push_again">إرسال مجددًا إلى Nibras</string>
     <string name="notes_card_push_to_nibras">إرسال إلى Nibras</string>
     <string name="notes_card_open_files_folder_count">فتح مجلد الملفات (%1$d)</string>
-    <string name="notes_card_edit_in_composer">تعديل في نموذج الكتابة بالأسفل</string>
+    <string name="notes_card_edit_in_composer">تعديل النص والوسوم</string>
     <string name="notes_delete_blocked_title">لا يمكن حذف هذه الملاحظة</string>
     <string name="notes_delete_confirm_title">حذف هذه الملاحظة؟</string>
     <string name="notes_delete_blocked_body">لا يزال مجلد ملفاتها يحتوي على ملفات. حذف الملاحظة سيتركها بلا ما يدلّ عليها — أفرغ المجلد أولًا ثم احذف.</string>
@@ -161,6 +161,6 @@
     </plurals>
     <string name="notes_rail_videos">الفيديو</string>
     <string name="notes_add_note">إضافة ملاحظة</string>
-    <string name="notes_quick_add_hint">ملاحظة سريعة — تُحفظ N · P2 · X</string>
+    <string name="notes_quick_add_hint">ملاحظة سريعة — تُحفظ %1$s</string>
     <string name="notes_open_full_form">النموذج الكامل: النوع والأولوية والقسم</string>
 </resources>

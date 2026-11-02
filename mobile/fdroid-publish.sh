@@ -16,7 +16,7 @@ TAG=${1:?usage: fdroid-publish.sh <github-release-tag>}
 FDROID_DIR=${FDROID_DIR:-$HOME/dev/nibras-fdroid}
 GH_REPO=${GH_REPO:-mhm-fakih/nibras-pim}
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export ANDROID_HOME=${ANDROID_HOME:-$HOME/Android/Sdk}
+export ANDROID_HOME=${ANDROID_HOME:-$HOME/prj/Android/Sdk}
 
 die() { echo "fdroid-publish.sh: $*" >&2; exit 1; }
 [ -f "$FDROID_DIR/config.yml" ] && [ -f "$FDROID_DIR/keystore.p12" ] \

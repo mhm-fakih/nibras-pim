@@ -68,11 +68,19 @@ public class SecurityConfig {
                         .requestMatchers("/api/users/**", "/api/permissions/**").access(perm(perms, Permissions.USERS_MANAGE))
                         .requestMatchers("/api/admin/**").access(perm(perms, Permissions.TOOLS_ADMIN))
                         .requestMatchers("/api/audit", "/api/audit/**").access(perm(perms, Permissions.TOOLS_AUDIT))
+                        // First-run setup wizard: modules, folders and pages, so settings-level.
+                        .requestMatchers("/api/setup").access(perm(perms, Permissions.TOOLS_SETTINGS))
 
                         // Parameter/lookup writes.
                         .requestMatchers(HttpMethod.POST, PARAM_PATHS).access(perm(perms, Permissions.PARAMS_WRITE))
                         .requestMatchers(HttpMethod.PUT, PARAM_PATHS).access(perm(perms, Permissions.PARAMS_WRITE))
                         .requestMatchers(HttpMethod.DELETE, PARAM_PATHS).access(perm(perms, Permissions.PARAMS_WRITE))
+
+                        // The caller's own session and password: any signed-in user, a read-only
+                        // account included. Matched before the content-write rule below, which
+                        // would otherwise refuse these POSTs, logging a read-only TV page out when
+                        // its session ran out and making a forced password change impossible.
+                        .requestMatchers(HttpMethod.POST, "/api/auth/refresh", "/api/auth/password").authenticated()
 
                         // Mobile commits + all other content writes.
                         .requestMatchers(HttpMethod.POST, MOBILE_PUSH_PATHS).access(perm(perms, Permissions.CONTENT_WRITE))

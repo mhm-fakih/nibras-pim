@@ -1,4 +1,5 @@
 import { useAuth } from '../hooks/useAuth';
+import { OPEN_SETUP_EVENT } from '../components/SetupWizard';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -157,6 +158,9 @@ function AppSettingsSection() {
         />
         <Button variant="contained" size="small" disabled={save.isPending} onClick={() => save.mutate()}>
           Save
+        </Button>
+        <Button size="small" onClick={() => window.dispatchEvent(new Event(OPEN_SETUP_EVENT))}>
+          Run the setup wizard again
         </Button>
       </Stack>
     </Box>

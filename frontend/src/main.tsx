@@ -13,6 +13,7 @@ import { AppShell } from './components/AppShell';
 import { AuthProvider } from './hooks/useAuth';
 import { RequireAuth } from './components/RequireAuth';
 import { ChangePasswordDialog } from './components/ChangePasswordDialog';
+import { SetupWizard } from './components/SetupWizard';
 import { LoginPage } from './pages/LoginPage';
 import { UsersPage } from './pages/UsersPage';
 import { PermissionsPage } from './pages/PermissionsPage';
@@ -84,6 +85,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 element={
                   <RequireAuth>
                     <ChangePasswordDialog />
+                    <SetupWizard />
                     <ShortcutsProvider>
                       <NotificationWatcher />
                       <Routes>

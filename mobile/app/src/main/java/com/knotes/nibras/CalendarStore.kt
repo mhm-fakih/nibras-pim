@@ -4,24 +4,59 @@ import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
 import java.time.LocalTime
 
-/** Locally-added calendar entries not yet confirmed on the server (offline-first outbox + display). */
+/**
+ * Locally-added calendar entries not yet confirmed on the server (offline-first outbox + display).
+ *
+ * ONE queue per process, however many `CalendarStore(context)` objects exist: the calendar page,
+ * the background sync (PushCenter) and the reminders each make one, and each used to hold its own
+ * copy in memory. One copy removing an entry it had sent was then undone by another copy's next
+ * save, which wrote its stale list back — and the entry was sent again, which is how a timetable
+ * entered once became two or three copies of every class on the server. Sending goes through
+ * [flush] only, under one lock, for the same reason.
+ */
 class CalendarStore(context: Context) {
 
     private val prefs = context.applicationContext
         .getSharedPreferences("knotes_calendar", Context.MODE_PRIVATE)
 
-    private val _pending = MutableStateFlow(load())
+    private val _pending: MutableStateFlow<List<CalendarEvent>> = synchronized(CalendarStore::class.java) {
+        shared ?: MutableStateFlow(load()).also { shared = it }
+    }
     val pending: StateFlow<List<CalendarEvent>> = _pending.asStateFlow()
+
+    /**
+     * Sends every queued entry, one at a time, and drops each one the server takes. The only place
+     * calendar entries are sent from; the lock keeps two callers (the page and the background sync)
+     * from sending the same entry at once. Returns how many were sent.
+     */
+    suspend fun flush(api: NibrasApi, base: String, username: String): Int = flushLock.withLock {
+        if (base.isBlank()) return@withLock 0
+        var sent = 0
+        _pending.value.forEach { event ->
+            val ok = runCatching { api.pushCalendar(base, username, listOf(event.toEntry())) }.getOrDefault(false)
+            if (ok) {
+                remove(event)
+                sent++
+            }
+        }
+        sent
+    }
+
+    /** Still waiting to be sent (the same entry, by id or local key)? */
+    fun isPending(event: CalendarEvent): Boolean = _pending.value.any { same(it, event) }
 
     fun add(event: CalendarEvent) = addAll(listOf(event))
 
     fun addAll(events: List<CalendarEvent>) {
-        _pending.value = _pending.value + events
+        _pending.update { it + events }
         save(_pending.value)
     }
 
@@ -35,7 +70,7 @@ class CalendarStore(context: Context) {
      * was pushed as its own create, which is how one edited entry became several server records.
      */
     fun upsert(event: CalendarEvent) {
-        _pending.value = _pending.value.filterNot { same(it, event) } + event
+        _pending.update { list -> list.filterNot { same(it, event) } + event }
         save(_pending.value)
     }
 
@@ -43,7 +78,7 @@ class CalendarStore(context: Context) {
         // By identity, not value equality: the copy handed back after a push may differ from the
         // stored one (an edit landed in between), and a value-equality removal would silently miss
         // it and leave the entry to be pushed again on the next flush.
-        _pending.value = _pending.value.filterNot { same(it, event) }
+        _pending.update { list -> list.filterNot { same(it, event) } }
         save(_pending.value)
     }
 
@@ -103,6 +138,8 @@ class CalendarStore(context: Context) {
     }
 
     private companion object {
+        @Volatile var shared: MutableStateFlow<List<CalendarEvent>>? = null
+        val flushLock = Mutex()
         const val K_PENDING = "pending_calendar"
         const val K_LAST_TYPE = "last_entry_type"
     }

@@ -110,7 +110,7 @@
     <string name="prayer_alarms_on">Alertes activées</string>
     <string name="prayer_alarms_on_note">L’interrupteur principal. Désactivé, la page affiche toujours les horaires, mais rien ne sonne et aucune alarme n’est programmée.</string>
     <string name="prayer_in_app">Horaires de prière dans l’appli</string>
-    <string name="prayer_in_app_note">Désactivé, la page quitte la barre latérale et rien n’est programmé. Les paramètres affichent alors une ligne pour la rétablir — cet interrupteur disparaît avec la page.</string>
+    <string name="prayer_in_app_note">Désactivé, la page quitte la barre latérale et rien n’est programmé. Réactivez-la dans Paramètres → Heures de prière.</string>
     <string name="prayer_call_athan_at">Appeler l’adhan à</string>
     <string name="prayer_shurooq_note">Le Chourouq est le lever du soleil, pas une prière : il ne figure donc jamais dans cette liste.</string>
     <string name="prayer_choose_athan_file">Choisir un fichier d’adhan</string>
