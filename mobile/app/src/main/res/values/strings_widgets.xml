@@ -147,4 +147,37 @@
     <string name="widgets_label_tasks_board">Tasks board</string>
     <string name="checklist_reminders_channel">Checklist reminders</string>
     <string name="checklist_reminder_text">Time to fill in its items.</string>
+    <!-- WhatsApp collector: copies (never moves) what WhatsApp received since the last run. -->
+    <string name="widgets_collect_src_folders">Folders (move)</string>
+    <string name="widgets_collect_src_whatsapp">WhatsApp (copy)</string>
+    <string name="widgets_collect_will_copy_whatsapp">New since %1$s in %2$s. They will be COPIED (WhatsApp keeps its own) into a note titled “%3$s”.</string>
+    <string name="widgets_collect_whatsapp_missing">WhatsApp\'s media folder was not found on this phone.</string>
+    <string name="widgets_collect_copying">Copying files…</string>
+    <plurals name="widgets_collect_copied">
+        <item quantity="one">Copied %1$d of %2$d file</item>
+        <item quantity="other">Copied %1$d of %2$d files</item>
+    </plurals>
+    <plurals name="widgets_collect_copy_button">
+        <item quantity="one">Copy %1$d file</item>
+        <item quantity="other">Copy %1$d files</item>
+    </plurals>
+    <string name="widgets_collect_kind_voice">Voice notes</string>
+    <string name="widgets_collect_kind_audio">Audio</string>
+    <string name="widgets_collect_kind_documents">Documents</string>
+    <string name="widgets_collect_kind_videos">Videos</string>
+    <string name="widgets_collect_kind_images">Images</string>
+    <string name="widgets_collect_kind_statuses">Statuses</string>
+    <plurals name="widgets_collect_whatsapp_notif">
+        <item quantity="one">Copied %1$d new WhatsApp file</item>
+        <item quantity="other">Copied %1$d new WhatsApp files</item>
+    </plurals>
+    <plurals name="widgets_collect_whatsapp_notif_failed">
+        <item quantity="one">Copied %1$d WhatsApp file, %2$d failed</item>
+        <item quantity="other">Copied %1$d WhatsApp files, %2$d failed</item>
+    </plurals>
+    <string name="widgets_collect_range_since_last">Since last copy</string>
+    <string name="widgets_collect_range_today">Today</string>
+    <string name="widgets_collect_range_7">Last 7 days</string>
+    <string name="widgets_collect_range_30">Last 30 days</string>
+    <string name="widgets_collect_range_all">Everything</string>
 </resources>

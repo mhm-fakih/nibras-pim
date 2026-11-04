@@ -24,7 +24,8 @@ object CollectScheduler {
         val settings = SettingsStore(context).value
         // Two switches, and the feature one wins: `collectEnabled` says whether the collector is
         // in the app at all, `collectAutoEnabled` only whether it runs by itself.
-        if (!settings.collectEnabled || !settings.collectAutoEnabled) {
+        // Either automation needs the alarm: the folder collection, or the WhatsApp copy.
+        if (!settings.collectEnabled || !(settings.collectAutoEnabled || settings.whatsappAutoEnabled)) {
             cancel(context)
             return
         }

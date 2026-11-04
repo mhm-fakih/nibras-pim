@@ -1,5 +1,8 @@
 package com.nibras.pim.service;
 
+import com.nibras.pim.domain.lookup.StorageCabinet;
+import com.nibras.pim.domain.lookup.StorageRoom;
+import com.nibras.pim.domain.lookup.StorageShelf;
 import com.nibras.pim.domain.Book;
 import com.nibras.pim.domain.lookup.Course;
 import com.nibras.pim.domain.lookup.Department;
@@ -59,11 +62,17 @@ public class BookService extends AbstractCrudService<Book, BookDto> {
                 b.getType() == null ? null : b.getType().getId(),
                 b.getDepartment() == null ? null : b.getDepartment().getId(),
                 b.getCourse() == null ? null : b.getCourse().getId(),
+                b.getStorageRoom() == null ? null : b.getStorageRoom().getId(),
+                b.getStorageCabinet() == null ? null : b.getStorageCabinet().getId(),
+                b.getStorageShelf() == null ? null : b.getStorageShelf().getId(),
                 b.getTags().stream().map(t -> t.getId()).toList(),
                 b.getStatus() == null ? null : lookup(b.getStatus()),
                 b.getType() == null ? null : lookup(b.getType()),
                 b.getDepartment() == null ? null : deptLookup(b.getDepartment()),
                 b.getCourse() == null ? null : courseLookup(b.getCourse()),
+                b.getStorageRoom() == null ? null : lookup(b.getStorageRoom()),
+                b.getStorageCabinet() == null ? null : lookup(b.getStorageCabinet()),
+                b.getStorageShelf() == null ? null : lookup(b.getStorageShelf()),
                 b.getTags().stream().map(t -> new TagDto(t.getId(), t.getName())).toList(),
                 coverExists(b.getId()), b.getDateCreated(), b.getLastUpdated());
     }
@@ -101,7 +110,24 @@ public class BookService extends AbstractCrudService<Book, BookDto> {
         b.setType(ref(ResourceType.class, dto.typeId()));
         b.setDepartment(ref(Department.class, dto.departmentId()));
         b.setCourse(ref(Course.class, dto.courseId()));
+        applyPlace(dto, b);
         b.setTags(resolveTags(dto.tagIds()));
+    }
+
+    /**
+     * Room, cabinet and shelf, kept consistent: the most specific one given wins and the levels
+     * above it follow from the parameters (a shelf's cabinet, a cabinet's room), so a resource can
+     * never claim a shelf in one room and sit in another.
+     */
+    private void applyPlace(BookDto dto, Book b) {
+        StorageShelf shelf = ref(StorageShelf.class, dto.storageShelfId());
+        StorageCabinet cabinet = shelf != null && shelf.getCabinet() != null ? shelf.getCabinet()
+                : ref(StorageCabinet.class, dto.storageCabinetId());
+        StorageRoom room = cabinet != null && cabinet.getRoom() != null ? cabinet.getRoom()
+                : ref(StorageRoom.class, dto.storageRoomId());
+        b.setStorageShelf(shelf);
+        b.setStorageCabinet(cabinet);
+        b.setStorageRoom(room);
     }
 
     @Override
@@ -110,6 +136,10 @@ public class BookService extends AbstractCrudService<Book, BookDto> {
                 "statuses", options(ResourceStatus.class),
                 "types", options(ResourceType.class),
                 "departments", departmentOptions(),
-                "tags", tagOptions());
+                "tags", tagOptions(),
+                // Each carries parentId (a cabinet's room, a shelf's cabinet) for the cascading picker.
+                "storageRooms", options(StorageRoom.class),
+                "storageCabinets", options(StorageCabinet.class),
+                "storageShelves", options(StorageShelf.class));
     }
 }

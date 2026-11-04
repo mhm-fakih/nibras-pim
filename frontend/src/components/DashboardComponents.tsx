@@ -1,13 +1,18 @@
 import { useMemo, useState } from 'react';
+import { clampDays, dayColumns, DEFAULT_CHECKLIST_DAYS, markOn } from '../util/checklistDays';
+import { useHour12 } from '../hooks/useHour12';
+import { fmtHour, fmtTime } from '../util/clock';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Box, Checkbox, Chip, Stack, Tooltip, Typography } from '@mui/material';
 import Autorenew from '@mui/icons-material/Autorenew';
+import FolderOutlined from '@mui/icons-material/FolderOutlined';
 import {
   CalendarEvent,
   ChecklistMark,
   ChecklistWeek,
   getChecklistIndex,
+  getTaskRepo1FileCounts,
   getChecklistWeek,
   DashboardFileContent,
   EntityRecord,
@@ -37,7 +42,8 @@ export const DASHBOARD_COMPONENT_TYPES: { type: string; label: string }[] = [
   { type: 'goalsHeatmap', label: 'Goals habit heatmap' },
   { type: 'kanban', label: 'Kanban board' },
   { type: 'file', label: 'File content' },
-  { type: 'checklist', label: 'Checklist (today)' },
+  { type: 'checklist', label: 'Checklist (last days)' },
+  { type: 'plans', label: 'Plans (bookmarked planner entries)' },
   { type: 'tasks', label: 'Open tasks' },
   { type: 'localTasks', label: 'Local tasks (notes folder)' },
 ];
@@ -90,11 +96,13 @@ export function DashboardComponent({ componentType, config }: { componentType: s
     case 'file':
       return <FileComponent config={config} />;
     case 'checklist':
-      return <ChecklistComponent />;
+      return <ChecklistComponent config={config} />;
     case 'tasks':
       return <TasksComponent config={config} />;
     case 'localTasks':
       return <LocalTasksComponent config={config} />;
+    case 'plans':
+      return <PlansComponent config={config} />;
     default:
       return <Typography color="text.secondary">Unknown component type "{componentType}".</Typography>;
   }
@@ -177,7 +185,8 @@ function CalendarComponent({ config }: { config?: string }) {
 
   const { data } = useQuery({
     queryKey: ['dashboard-calendar', eventType, ymd(days[0]), ymd(days[6])],
-    queryFn: () => getCalendarEvents(ymd(days[0]), ymd(days[6]), 'journals,planners', eventType),
+    // Local P/J notes too (the server leaves them out when an event type is asked for).
+    queryFn: () => getCalendarEvents(ymd(days[0]), ymd(days[6]), 'journals,planners,localnotes', eventType),
     staleTime: 0,
     refetchInterval: 2 * 60 * 1000,
   });
@@ -232,6 +241,7 @@ function CalendarGrid({
   navigable?: boolean;
 }) {
   const navigate = useNavigate();
+  const hour12 = useHour12();
   const from = startHour != null && startHour >= 0 && startHour < 24 ? startHour : 7;
   const to = endHour != null && endHour > from && endHour <= 24 ? endHour : 22;
   const rows = to - from;
@@ -263,7 +273,7 @@ function CalendarGrid({
                   whiteSpace: 'nowrap',
                 }}
               >
-                {String(from + i).padStart(2, '0')}:00
+                {fmtHour(from + i, hour12)}
               </Typography>
             ))}
           </Box>
@@ -316,7 +326,7 @@ function CalendarGrid({
                     rows={rows}
                     lane={lane}
                     lanes={lanes}
-                    onClick={navigable ? () => navigate(`/${e.module}`) : undefined}
+                    onClick={navigable ? () => navigate(e.module === 'localnotes' ? '/local-notes' : `/${e.module}`) : undefined}
                   />
                 ))}
               </Box>
@@ -384,6 +394,7 @@ function GridEventBlock({
   lanes?: number;
   onClick?: () => void;
 }) {
+  const hour12 = useHour12();
   const start = new Date(ev.start);
   const [, endMs] = eventRange(ev);
   const totalMinutes = rows * 60;
@@ -393,24 +404,32 @@ function GridEventBlock({
   const heightPct = Math.min(100, Math.max(4, (Math.min(durationMin, totalMinutes) / totalMinutes) * 100));
   const topPct = Math.min(100 - heightPct, Math.max(0, (minutesFromStart / totalMinutes) * 100));
   const recurring = ev.virtual || ev.seriesId != null;
-  const moduleColor = ev.module === 'journals' ? '#8764b8' : '#0078d4';
+  // A note from the local notes folder (type P or J in its file name): drawn in the colours of
+  // the module it stands for, on a pale fill, with a folder icon — it is a file, not a record.
+  const local = ev.module === 'localnotes';
+  const localJournal = local && ev.typeName === 'Journal note';
+  const moduleColor = ev.module === 'journals' || localJournal ? '#8764b8' : '#0078d4';
   const style = lookupStyle(
     ev.typeId != null ? { id: ev.typeId, name: ev.typeName ?? '', style: ev.typeStyle } : undefined,
   );
-  const bg = style.backgroundColor ?? (ev.module === 'journals' ? '#8764b8' : '#0078d4');
+  const bg = local
+    ? localJournal
+      ? '#ece6f6'
+      : '#dbe9fb'
+    : (style.backgroundColor ?? (ev.module === 'journals' ? '#8764b8' : '#0078d4'));
   // A type colour is a pastel: dark text on it, as on the calendar page (white on it was unreadable).
-  const fg = style.backgroundColor ? (style.color ?? 'rgba(0,0,0,0.85)') : '#fff';
+  const fg = local ? 'rgba(0,0,0,0.85)' : style.backgroundColor ? (style.color ?? 'rgba(0,0,0,0.85)') : '#fff';
 
   return (
     <Tooltip
       title={
         <Box dir="auto">
           <Typography variant="body2" sx={{ fontWeight: 700 }}>
-            {ev.title || '(untitled)'} ({start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+            {ev.title || '(untitled)'} ({fmtTime(start, hour12)})
           </Typography>
           <Typography variant="caption" sx={{ display: 'block', opacity: 0.85 }}>
-            {ev.module === 'journals' ? 'Journal' : 'Planner'}
-            {ev.typeName ? ` · ${ev.typeName}` : ''}
+            {local ? `Local notes · ${ev.typeName}` : ev.module === 'journals' ? 'Journal' : 'Planner'}
+            {!local && ev.typeName ? ` · ${ev.typeName}` : ''}
             {recurring ? ' · repeats' : ''}
           </Typography>
           {ev.description && ev.description !== '?' && (
@@ -446,6 +465,9 @@ function GridEventBlock({
           '&:hover': onClick ? { filter: 'brightness(1.1)' } : undefined,
         }}
       >
+        {local && (
+          <FolderOutlined aria-label="local note" sx={{ fontSize: '1.1em', verticalAlign: '-0.2em', mr: 0.25, opacity: 0.8 }} />
+        )}
         {recurring && (
           <Autorenew
             aria-label="repeats"
@@ -694,9 +716,17 @@ export function PublicDashboardComponent({ region }: { region: PublicDashboardRe
     case 'file':
       return <PublicFileComponent data={region.file} />;
     case 'checklist':
-      return <ChecklistView week={region.checklist ?? null} />;
+      return (
+        <ChecklistView
+          week={region.checklist ?? null}
+          previous={region.checklistPrevious ?? null}
+          days={checklistDays(region.config)}
+        />
+      );
     case 'tasks':
-      return <TasksView tasks={region.tasks ?? []} />;
+      return <TasksView tasks={region.tasks ?? []} fileCounts={region.taskFiles ?? undefined} />;
+    case 'plans':
+      return <PlansView plans={region.plans ?? []} config={region.config} />;
     case 'localTasks':
       return <LocalTasksView notes={region.localTasks ?? []} minPriority={localTasksConfig(region.config).minPriority} />;
     default:
@@ -704,31 +734,91 @@ export function PublicDashboardComponent({ region }: { region: PublicDashboardRe
   }
 }
 
-// ---- Checklist: today's column of this week's phone checklist ----------------------
+// ---- Checklist: the last few days of the phone checklist, side by side ------------------
 
-function ChecklistComponent() {
+/** Config `days`: how many days to show, today last (default 3, at most 7). */
+function checklistDays(config?: string): number {
+  return clampDays(safeParse<{ days?: number }>(config, {}).days ?? DEFAULT_CHECKLIST_DAYS);
+}
+
+function ChecklistComponent({ config }: { config?: string }) {
   const { data } = useQuery({
     queryKey: ['dashboard-checklist'],
     queryFn: async () => {
       const idx = await getChecklistIndex();
-      try {
-        return await getChecklistWeek(idx.current);
-      } catch {
-        return null;
-      }
+      const week = await getChecklistWeek(idx.current).catch(() => null);
+      // Last week's id, from a date seven days back — the same ISO week numbering the server uses.
+      const lastWeekId = isoWeekId(new Date(Date.now() - 7 * 86400000));
+      const previous = await getChecklistWeek(lastWeekId).catch(() => null);
+      return { week, previous };
     },
     staleTime: 0,
     refetchInterval: 2 * 60 * 1000,
   });
-  return <ChecklistView week={data ?? null} />;
+  return <ChecklistView week={data?.week ?? null} previous={data?.previous ?? null} days={checklistDays(config)} />;
+}
+
+/** "2026-W45" for a date — ISO week-based year and week, as ChecklistWeekFile.idOf. */
+function isoWeekId(date: Date): string {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day); // the Thursday of this week decides the year
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
 const MARK_GLYPH: Record<ChecklistMark, string> = { DONE: '✓', PARTIAL: '◐', NONE: '' };
 
-/** Today's state of every item: daily groups show today's mark, weekly groups the week's. Done
- * items are dimmed and struck through, so what is left reads first from across a room. */
-function ChecklistView({ week }: { week: ChecklistWeek | null }) {
-  const dayIndex = (new Date().getDay() + 6) % 7; // Mon=0
+function MarkBox({ mark, today }: { mark: ChecklistMark; today: boolean }) {
+  return (
+    <Box
+      sx={{
+        width: 20,
+        height: 20,
+        mx: 'auto',
+        border: today ? 2 : 1.5,
+        borderRadius: 0.5,
+        borderColor: mark === 'NONE' ? (today ? 'text.primary' : 'text.disabled') : 'success.main',
+        color: 'success.main',
+        fontSize: 15,
+        lineHeight: today ? '16px' : '18px',
+        textAlign: 'center',
+        fontWeight: 700,
+      }}
+    >
+      {MARK_GLYPH[mark]}
+    </Box>
+  );
+}
+
+/**
+ * Every item with a tick box per day — the last `days` days, today last — so a habit's run over
+ * the days reads across one row. Today's done items are dimmed and struck through, so what is
+ * left today reads first from across a room.
+ */
+function ChecklistView({
+  week,
+  previous,
+  days,
+}: {
+  week: ChecklistWeek | null;
+  previous: ChecklistWeek | null;
+  days: number;
+}) {
+  const cols = dayColumns(new Date(), days);
+  const today = cols[cols.length - 1];
+  // "Current focus": clicking an item marks it on this screen only — a pointer for whoever is
+  // looking at the dashboard, separate from ticking it done. Held in memory, nothing saved: a
+  // reload (or the dashboard's own periodic reload) clears it.
+  const [focus, setFocus] = useState<Set<string>>(() => new Set());
+  const toggleFocus = (key: string) =>
+    setFocus((f) => {
+      const next = new Set(f);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   if (!week) {
     return (
       <>
@@ -739,61 +829,96 @@ function ChecklistView({ week }: { week: ChecklistWeek | null }) {
       </>
     );
   }
-  const items = week.groups.flatMap((g) => g.items.map((i) => (g.weekly ? i.marks[0] : i.marks[dayIndex]) ?? 'NONE'));
-  const done = items.filter((m) => m === 'DONE').length;
+  const todayMarks = week.groups.flatMap((g) => g.items.map((i) => markOn(g, i, today, week, previous)));
+  const done = todayMarks.filter((m) => m === 'DONE').length;
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <Typography variant="subtitle1" sx={{ fontWeight: 700, flexShrink: 0 }}>
         Checklist
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1, flexShrink: 0 }}>
-        {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })} · {done}/{items.length}
+        {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })} · {done}/{todayMarks.length} today
       </Typography>
       <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-        {week.groups.map((g) => (
-          <Box key={g.code} sx={{ mb: 1.5 }}>
-            <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main', mb: 0.5 }}>
-              {g.title}
-              {g.weekly ? ' (this week)' : ''}
-            </Typography>
-            {g.items.map((i) => {
-              const m = (g.weekly ? i.marks[0] : i.marks[dayIndex]) ?? 'NONE';
-              return (
-                <Stack key={i.code} direction="row" spacing={1} alignItems="flex-start" sx={{ py: 0.25 }}>
-                  <Box
-                    sx={{
-                      width: 20,
-                      height: 20,
-                      flexShrink: 0,
-                      border: 1.5,
-                      borderRadius: 0.5,
-                      borderColor: m === 'NONE' ? 'text.secondary' : 'success.main',
-                      color: 'success.main',
-                      fontSize: 15,
-                      lineHeight: '18px',
-                      textAlign: 'center',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {MARK_GLYPH[m]}
-                  </Box>
-                  <Typography
-                    dir={dirOf(i.text)}
-                    sx={{
-                      fontSize: 15,
-                      lineHeight: 1.35,
-                      color: m === 'DONE' ? 'text.disabled' : 'text.primary',
-                      textDecoration: m === 'DONE' ? 'line-through' : undefined,
-                      textAlign: 'start',
-                    }}
-                  >
-                    {i.text}
+        <Box
+          component="table"
+          sx={{ width: '100%', borderCollapse: 'collapse', '& td, & th': { py: 0.25, px: 0.5, verticalAlign: 'top' } }}
+        >
+          <thead>
+            <tr>
+              <th />
+              {cols.map((c) => (
+                <Box
+                  component="th"
+                  key={c.date.toISOString()}
+                  sx={{
+                    width: 34,
+                    fontSize: 12,
+                    fontWeight: c.isToday ? 700 : 400,
+                    color: c.isToday ? 'primary.main' : 'text.secondary',
+                    whiteSpace: 'nowrap',
+                    textAlign: 'center',
+                  }}
+                >
+                  {c.date.toLocaleDateString(undefined, { weekday: 'short' })}
+                </Box>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {week.groups.map((g) => [
+              <tr key={`g${g.code}`}>
+                <Box component="td" colSpan={cols.length + 1} sx={{ pt: '8px !important' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                    {g.title}
+                    {g.weekly ? ' (per week)' : ''}
                   </Typography>
-                </Stack>
-              );
-            })}
-          </Box>
-        ))}
+                </Box>
+              </tr>,
+              ...g.items.map((i) => {
+                const marks = cols.map((c) => markOn(g, i, c, week, previous));
+                const todayDone = marks[marks.length - 1] === 'DONE';
+                const key = `${g.code}-${i.code}`;
+                const focused = focus.has(key);
+                return (
+                  <tr key={key}>
+                    <Box
+                      component="td"
+                      onClick={() => toggleFocus(key)}
+                      title={focused ? 'Current focus — click to clear' : 'Click to mark as the current focus'}
+                      sx={{
+                        cursor: 'pointer',
+                        borderInlineStart: '4px solid',
+                        borderInlineStartColor: focused ? 'primary.main' : 'transparent',
+                        bgcolor: focused ? 'action.selected' : undefined,
+                        borderRadius: 0.5,
+                      }}
+                    >
+                      <Typography
+                        dir={dirOf(i.text)}
+                        sx={{
+                          fontSize: 15,
+                          lineHeight: 1.35,
+                          fontWeight: focused ? 700 : undefined,
+                          color: todayDone ? 'text.disabled' : 'text.primary',
+                          textDecoration: todayDone ? 'line-through' : undefined,
+                          textAlign: 'start',
+                        }}
+                      >
+                        {i.text}
+                      </Typography>
+                    </Box>
+                    {cols.map((c, k) => (
+                      <td key={k}>
+                        <MarkBox mark={marks[k]} today={c.isToday} />
+                      </td>
+                    ))}
+                  </tr>
+                );
+              }),
+            ])}
+          </tbody>
+        </Box>
       </Box>
     </Box>
   );
@@ -847,14 +972,21 @@ function TasksComponent({ config }: { config?: string }) {
     () => pickOpenTasks([...(data?.content ?? [])], cfg),
     [data, cfg.limit, cfg.overdueDays],
   );
-  return <TasksView tasks={sorted} />;
+  const ids = sorted.map((t) => t.id).join(',');
+  const { data: fileCounts } = useQuery({
+    queryKey: ['dashboard-task-files', ids],
+    queryFn: () => getTaskRepo1FileCounts(sorted.map((t) => t.id)),
+    enabled: sorted.length > 0,
+    staleTime: 60 * 1000,
+  });
+  return <TasksView tasks={sorted} fileCounts={fileCounts} />;
 }
 
 /** What the list holds, said on the list itself (a TV has no tooltips to hover). */
 const OPEN_TASKS_NOTE =
   'Open: not completed, with an active status (or none). Due first, soonest first; older than the overdue limit left out.';
 
-function TasksView({ tasks }: { tasks: EntityRecord[] }) {
+function TasksView({ tasks, fileCounts }: { tasks: EntityRecord[]; fileCounts?: Record<string, number> }) {
   const today = ymd(new Date());
   const qc = useQueryClient();
   // Ticked here, by task id: stays struck through until the next refresh drops it from the list,
@@ -943,6 +1075,15 @@ function TasksView({ tasks }: { tasks: EntityRecord[] }) {
                   {status?.name && (
                     <Chip size="small" label={status.name} sx={{ height: 20, fontSize: 12, ...lookupStyle(status) }} />
                   )}
+                  {/* Files in the task's repository-1 folder — its working files. */}
+                  {(fileCounts?.[String(t.id)] ?? 0) > 0 && (
+                    <Tooltip title="Files in the task's repository-1 folder">
+                      <Stack direction="row" spacing={0.25} alignItems="center" sx={{ color: 'text.secondary' }}>
+                        <FolderOutlined sx={{ fontSize: 16 }} />
+                        <Typography variant="body2">{fileCounts?.[String(t.id)]}</Typography>
+                      </Stack>
+                    </Tooltip>
+                  )}
                 </Stack>
               </Box>
             </Stack>
@@ -1026,6 +1167,111 @@ function LocalTasksView({ notes, minPriority }: { notes: LocalNote[]; minPriorit
           );
         })}
       </Box>
+    </Box>
+  );
+}
+
+// ---- Plans: bookmarked planner entries of chosen types (this month's focus, policies) -----------
+
+interface PlansConfig {
+  /** Planner type codes or names, comma-separated ("focus,policy"); blank = every type. */
+  types?: string;
+  limit?: number;
+  title?: string;
+}
+
+export function planTypesOf(config?: string): string[] {
+  return (safeParse<PlansConfig>(config, {}).types ?? '')
+    .split(',')
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/** Same selection as the server's PublicDashboardService.resolvePlans, for the builder's preview. */
+function PlansComponent({ config }: { config?: string }) {
+  const cfg = safeParse<PlansConfig>(config, {});
+  const types = planTypesOf(config);
+  const { data } = useQuery({
+    queryKey: ['dashboard-plans'],
+    queryFn: () => listEntities('planners', { bookmarked: true, size: 1000, sort: 'startDate,desc' }),
+    staleTime: 0,
+    refetchInterval: 2 * 60 * 1000,
+  });
+  const plans = (data?.content ?? [])
+    .filter((p) => p.seriesId == null)
+    .filter(
+      (p) =>
+        types.length === 0 ||
+        types.includes(String(p.type?.code ?? '').toLowerCase()) ||
+        types.includes(String(p.type?.name ?? '').toLowerCase()),
+    )
+    .slice(0, Math.max(1, cfg.limit ?? 20));
+  return <PlansView plans={plans} config={config} />;
+}
+
+function planDates(p: EntityRecord): string {
+  const fmt = (v?: string | null) =>
+    v ? new Date(v).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  const a = fmt(p.startDate as string | null);
+  const b = fmt(p.endDate as string | null);
+  return a && b && a !== b ? `${a} – ${b}` : a || b;
+}
+
+/**
+ * Each plan as a card-like row: its type, its title, the period it covers, and the opening of its
+ * description — what a "this month's focus" or a standing policy needs to say from across a room.
+ */
+function PlansView({ plans, config }: { plans: EntityRecord[]; config?: string }) {
+  const cfg = safeParse<PlansConfig>(config, {});
+  return (
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1, flexShrink: 0 }}>
+        {cfg.title?.trim() || 'Plans'}
+      </Typography>
+      {plans.length === 0 ? (
+        <Typography color="text.secondary">
+          No bookmarked plans{cfg.types ? ` of type ${cfg.types}` : ''}.
+        </Typography>
+      ) : (
+        <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+          {plans.map((p) => {
+            const title = String(p.summary ?? p.displayTitle ?? '(untitled)');
+            const desc = String(p.description ?? '').replace(/<[^>]+>/g, ' ').replace(/==/g, '').trim();
+            return (
+              <Box key={p.id} sx={{ py: 1, borderBottom: 1, borderColor: 'divider' }}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.25 }}>
+                  {p.type && (
+                    <Chip size="small" label={p.type.name} sx={{ height: 20, fontSize: 12, ...lookupStyle(p.type) }} />
+                  )}
+                  <Typography variant="caption" color="text.secondary">
+                    {planDates(p)}
+                  </Typography>
+                </Stack>
+                <Typography dir={dirOf(title)} sx={{ fontSize: 16, fontWeight: 600, textAlign: 'start' }}>
+                  {title}
+                </Typography>
+                {desc && (
+                  <Typography
+                    dir={dirOf(desc)}
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      textAlign: 'start',
+                      whiteSpace: 'pre-line',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 4,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {desc}
+                  </Typography>
+                )}
+              </Box>
+            );
+          })}
+        </Box>
+      )}
     </Box>
   );
 }

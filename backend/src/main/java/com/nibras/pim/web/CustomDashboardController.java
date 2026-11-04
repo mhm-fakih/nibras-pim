@@ -59,6 +59,15 @@ public class CustomDashboardController {
         return service.setColumnWidths(id, body.columnWidths());
     }
 
+    public record RowHeights(String rowHeights) {
+    }
+
+    /** Only the row heights, e.g. {"rowHeights":"1,2"}: dragging a row separator on the view page. */
+    @PutMapping("/{id}/row-heights")
+    public CustomDashboardDto rowHeights(@PathVariable Long id, @RequestBody RowHeights body) {
+        return service.setRowHeights(id, body.rowHeights());
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {

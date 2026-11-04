@@ -33,6 +33,10 @@ public class CustomDashboard extends BaseEntity {
     /** Relative column widths, comma-separated ("1,2,1"); null means equal columns. */
     private String columnWidths;
 
+    /** Relative row heights, comma-separated ("1,2"); null means equal rows. Set only by dragging
+     * a row separator on the view page — the builder's save leaves it alone. */
+    private String rowHeights;
+
     /** Minutes between auto-refreshes of the chrome-free view (a full page reload — simplest way
      * to guarantee a TV left on this page for days never runs stale JS or an accumulated memory
      * leak). Null/non-positive disables auto-refresh. */

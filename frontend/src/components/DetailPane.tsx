@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { placePath } from '../util/storagePlace';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -38,6 +39,7 @@ import {
   createEntity,
   createSubtask,
   deleteEntity,
+  catalogRecordFiles,
   getEntity,
   getSetting,
   listEntities,
@@ -59,6 +61,7 @@ import { EntityConfig, ENTITY_CLASS_BY_KEY } from '../config/entities';
 import { lookupStyle } from './statusStyle';
 import { HistoryPanel } from './HistoryPanel';
 import { RepoFilesPanel } from './RepoFilesPanel';
+import { CatalogFilesPanel } from './CatalogFilesPanel';
 import { RelatedRecordsPanel } from './RelatedRecordsPanel';
 import { MarkdownView } from './MarkdownView';
 import { toggleChecklistItem } from '../util/checklist';
@@ -92,6 +95,14 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
     queryKey: ['record', config.key, id],
     queryFn: () => getEntity(config.key, id),
   });
+
+  // Files on catalogued storage (external disks): the delete dialog warns about them. Same query
+  // key as CatalogFilesPanel, so it costs no extra request.
+  const { data: catalogData } = useQuery({
+    queryKey: ['catalog-record', config.key, id],
+    queryFn: () => catalogRecordFiles(config.key, id),
+  });
+  const catalogued = catalogData ?? [];
 
   const del = useMutation({
     mutationFn: () => deleteEntity(config.key, id),
@@ -385,14 +396,23 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
 
       <RepoFilesPanel module={config.key} id={id} />
 
+      <CatalogFilesPanel module={config.key} id={id} />
+
       <HistoryPanel entityClass={ENTITY_CLASS_BY_KEY[config.key] ?? config.key} id={id} />
 
       <Dialog open={confirm} onClose={() => setConfirm(false)}>
-        <DialogTitle>Delete this {config.label.toLowerCase()}?</DialogTitle>
+        <DialogTitle>Delete this record?</DialogTitle>
         <DialogContent>
           <DialogContentText>
             It will be soft-deleted (recoverable in the database), not permanently removed.
           </DialogContentText>
+          {catalogued.length > 0 && (
+            <DialogContentText color="warning.main" sx={{ mt: 1.5, fontWeight: 600 }}>
+              This record has {catalogued.length} file{catalogued.length === 1 ? '' : 's'} catalogued on other storage (
+              {[...new Set(catalogued.map((f) => f.locationName))].join(', ')}). Deleting the record leaves those files
+              there with nothing in the database pointing at them.
+            </DialogContentText>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirm(false)}>Cancel</Button>
@@ -937,6 +957,16 @@ export function FieldView({
   /** Ticking a `- [ ]` item in this field. Omitted where the record can't be written. */
   onToggleChecklistItem?: (index: number) => void;
 }) {
+  if (type === 'storagePlace') {
+    const path = placePath(record);
+    if (!path) return null;
+    return (
+      <Box>
+        <FieldLabel>{label}</FieldLabel>
+        <Typography dir="auto">{path}</Typography>
+      </Box>
+    );
+  }
   // status/type/department/course/book/tags/recurrence are already shown as chips in the header.
   if (['status', 'type', 'department', 'course', 'book', 'tags', 'contacts', 'recurrence'].includes(type)) return null;
   if (value === null || value === undefined || value === '') return null;

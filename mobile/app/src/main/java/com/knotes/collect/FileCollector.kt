@@ -65,6 +65,43 @@ object FileCollector {
         }.sortedBy { it.newName }
     }
 
+    /**
+     * Files under [root] — walked recursively — modified after [sinceMillis]: the WhatsApp
+     * collector's scan. WhatsApp keeps media in typed subfolders (`WhatsApp Images`, `WhatsApp
+     * Video`, …, voice notes a level deeper in weekly folders), so a flat listing would miss most
+     * of it.
+     *
+     * Skipped: hidden files and folders (`.nomedia`, `.trash`, `.thumbs`), and stickers and
+     * profile photos — they arrive by the dozen and nobody collects them. The one hidden folder
+     * that IS read is `.Statuses`: the statuses you have viewed, which WhatsApp deletes after a
+     * day, so collecting them is the only way to keep one. Each file is labelled with the
+     * top-level subfolder it came from.
+     */
+    fun scanChangedSince(root: File, sinceMillis: Long, format: String): List<FoundFile> {
+        if (!root.isDirectory) return emptyList()
+        val out = mutableListOf<FoundFile>()
+        fun walk(dir: File, label: String) {
+            val kids = dir.listFiles() ?: return
+            for (f in kids) {
+                if (f.name.startsWith(".") && !(f.isDirectory && f.name in WHATSAPP_HIDDEN_READ)) continue
+                if (f.isDirectory) {
+                    if (WHATSAPP_SKIP.any { f.name.contains(it, ignoreCase = true) }) continue
+                    walk(f, if (dir == root) f.name else label)
+                } else if (f.isFile && f.lastModified() > sinceMillis) {
+                    out += toFound(f, label, format)
+                }
+            }
+        }
+        walk(root, root.name)
+        return out.sortedBy { it.newName }
+    }
+
+    /** Subfolder names (substrings) the WhatsApp scan never enters. */
+    private val WHATSAPP_SKIP = listOf("Sticker", "Profile Photos")
+
+    /** Hidden folders the WhatsApp scan reads anyway. */
+    private val WHATSAPP_HIDDEN_READ = setOf(".Statuses")
+
     private fun toFound(file: File, label: String, format: String): FoundFile {
         // knotes' own notes already lead with a standardized timestamp and encode tags in the name
         // (e.g. 2026_06_10-143025~W~p3~A.md); keep their name byte-for-byte so the tags survive.
@@ -123,7 +160,10 @@ object FileCollector {
      * It used to be `newDir/<timestamp>/` — a bare folder no tool recognised as anything.
      *
      * Returns the companion folder and a per-file result. Files are moved (removed from the
-     * source); rename is used when possible, falling back to copy+delete across volumes.
+     * source); rename is used when possible, falling back to copy+delete across volumes. With
+     * [copy] they are copied instead and the source is left exactly as it was — what the WhatsApp
+     * collector does, since WhatsApp keeps track of its own media and a moved file would show as
+     * missing in the chat.
      */
     fun collect(
         found: List<FoundFile>,
@@ -136,6 +176,7 @@ object FileCollector {
         description: String = "",
         /** The "Collected N files" line, in the app's language (the caller has the resources). */
         heading: (Int) -> String = { n -> "Collected $n " + if (n == 1) "file" else "files" },
+        copy: Boolean = false,
     ): Pair<File, List<CollectedFile>> {
         val parent = File(newDir)
         parent.mkdirs()
@@ -156,12 +197,12 @@ object FileCollector {
         val taken = HashSet<String>()
         val results = found.map { f ->
             val dest = uniqueDest(target, f.newName, taken)
-            val moved = move(f.source, dest)
+            val moved = if (copy) copy(f.source, dest) else move(f.source, dest)
             CollectedFile(
                 originalName = f.source.name,
                 newName = dest.name,
                 ok = moved,
-                error = if (moved) null else "move failed",
+                error = if (moved) null else if (copy) "copy failed" else "move failed",
             )
         }
         // The note itself, written after the moves so it can say what actually landed. A failed
@@ -200,6 +241,13 @@ object FileCollector {
         taken.add(candidate)
         return File(dir, candidate)
     }
+
+    /** Copy keeping the source's modified time, so the copy still sorts by when it arrived. */
+    private fun copy(src: File, dest: File): Boolean = runCatching {
+        src.copyTo(dest, overwrite = false)
+        dest.setLastModified(src.lastModified())
+        true
+    }.getOrDefault(false)
 
     private fun move(src: File, dest: File): Boolean {
         if (src.renameTo(dest)) return true

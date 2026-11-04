@@ -31,9 +31,13 @@ public class CalendarEventService {
     private final PlannerRepository planners;
     private final PlannerSeriesService series;
     private final SprintService sprints;
+    /** Lazily: the local-notes service sits on the import machinery, which needs nothing from here. */
+    private final org.springframework.beans.factory.ObjectProvider<com.nibras.pim.service.localnotes.LocalNotesService> localNotes;
 
     public CalendarEventService(JournalRepository journals, PlannerRepository planners,
-                                PlannerSeriesService series, SprintService sprints) {
+                                PlannerSeriesService series, SprintService sprints,
+                                org.springframework.beans.factory.ObjectProvider<com.nibras.pim.service.localnotes.LocalNotesService> localNotes) {
+        this.localNotes = localNotes;
         this.journals = journals;
         this.planners = planners;
         this.series = series;
@@ -61,6 +65,30 @@ public class CalendarEventService {
                 String typeStyle = j.getType() == null ? null : j.getType().getStyle();
                 out.add(CalendarEventDto.plain("journals", j.getId(), j.feedTitle(), j.getDescription(),
                         start, j.getEndDate(), typeName, typeId, typeStyle));
+            }
+        }
+        // Local notes of type P (plans) and J (journal) from the notes folder, at the time in their
+        // file name, as half-hour blocks — they mark a moment, not a span. No type lookup to
+        // filter on, so a dashboard asking for one event type leaves them out.
+        if (modules.contains("localnotes") && wanted == null) {
+            com.nibras.pim.service.localnotes.LocalNotesService notes = localNotes.getIfAvailable();
+            if (notes != null) {
+                try {
+                    for (var day : notes.view().days()) {
+                        if (day.day().isBefore(from.toLocalDate()) || day.day().isAfter(to.toLocalDate())) continue;
+                        for (var n : day.notes()) {
+                            String t = n.type() == null ? "" : n.type().toUpperCase();
+                            if (!(t.equals("P") || t.equals("J")) || n.timestamp() == null) continue;
+                            if (n.timestamp().isBefore(from) || n.timestamp().isAfter(to)) continue;
+                            out.add(CalendarEventDto.plain("localnotes", null,
+                                    n.title() == null || n.title().isBlank() ? n.filename() : n.title(), n.snippet(),
+                                    n.timestamp(), n.timestamp().plusMinutes(30),
+                                    t.equals("P") ? "Plan note" : "Journal note", null, null));
+                        }
+                    }
+                } catch (RuntimeException unreadable) {
+                    // No notes folder configured or unreadable: the calendar just shows the rest.
+                }
             }
         }
         // Sprints are blocks, not entries: one bar from start to end, so a day's committed work is

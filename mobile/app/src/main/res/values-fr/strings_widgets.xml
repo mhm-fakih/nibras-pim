@@ -157,4 +157,39 @@
     <string name="widgets_label_tasks_board">Tableau des tâches</string>
     <string name="checklist_reminders_channel">Rappels des listes</string>
     <string name="checklist_reminder_text">C’est le moment de cocher ses éléments.</string>
+    <!-- WhatsApp collector: copies (never moves) what WhatsApp received since the last run. -->
+    <string name="widgets_collect_src_folders">Dossiers (déplacer)</string>
+    <string name="widgets_collect_src_whatsapp">WhatsApp (copier)</string>
+    <string name="widgets_collect_will_copy_whatsapp">Nouveaux depuis %1$s dans %2$s. Ils seront COPIÉS (WhatsApp garde les siens) dans une note intitulée « %3$s ».</string>
+    <string name="widgets_collect_whatsapp_missing">Le dossier des médias WhatsApp est introuvable sur ce téléphone.</string>
+    <string name="widgets_collect_copying">Copie des fichiers…</string>
+    <plurals name="widgets_collect_copied">
+        <item quantity="one">%1$d fichier sur %2$d copié</item>
+        <item quantity="many">%1$d fichiers sur %2$d copiés</item>
+        <item quantity="other">%1$d fichiers sur %2$d copiés</item>
+    </plurals>
+    <plurals name="widgets_collect_copy_button">
+        <item quantity="one">Copier %1$d fichier</item>
+        <item quantity="many">Copier %1$d fichiers</item>
+        <item quantity="other">Copier %1$d fichiers</item>
+    </plurals>
+    <string name="widgets_collect_kind_voice">Notes vocales</string>
+    <string name="widgets_collect_kind_audio">Audio</string>
+    <string name="widgets_collect_kind_documents">Documents</string>
+    <string name="widgets_collect_kind_videos">Vidéos</string>
+    <string name="widgets_collect_kind_images">Images</string>
+    <string name="widgets_collect_kind_statuses">Statuts</string>
+    <plurals name="widgets_collect_whatsapp_notif">
+        <item quantity="one">%1$d nouveau fichier WhatsApp copié</item>
+        <item quantity="other">%1$d nouveaux fichiers WhatsApp copiés</item>
+    </plurals>
+    <plurals name="widgets_collect_whatsapp_notif_failed">
+        <item quantity="one">%1$d fichier WhatsApp copié, %2$d en échec</item>
+        <item quantity="other">%1$d fichiers WhatsApp copiés, %2$d en échec</item>
+    </plurals>
+    <string name="widgets_collect_range_since_last">Depuis la dernière copie</string>
+    <string name="widgets_collect_range_today">Aujourd\'hui</string>
+    <string name="widgets_collect_range_7">7 derniers jours</string>
+    <string name="widgets_collect_range_30">30 derniers jours</string>
+    <string name="widgets_collect_range_all">Tout</string>
 </resources>

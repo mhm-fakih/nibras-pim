@@ -89,7 +89,17 @@ import java.util.Locale
 private val DOW: DateTimeFormatter get() = DateTimeFormatter.ofPattern("EEE", Locale.getDefault())
 private val DAY: DateTimeFormatter get() = DateTimeFormatter.ofPattern("MMM d", Locale.getDefault())
 private val MONTH: DateTimeFormatter get() = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.getDefault())
-private val HHMM = DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())
+/**
+ * 12- or 24-hour clock for every time this page shows (Settings → Calendar; 12-hour by default).
+ * Set by [CalendarScreen] on each composition, so a change in Settings shows on the next visit.
+ */
+private var use24h = false
+private val HHMM: DateTimeFormatter
+    get() = DateTimeFormatter.ofPattern(if (use24h) "HH:mm" else "h:mm a", Locale.getDefault())
+
+/** The label on an hour line: "13:00" or "1 PM". */
+private fun hourLabel(h: Int): String =
+    if (use24h) "%02d:00".format(h) else LocalTime.of(h % 24, 0).format(DateTimeFormatter.ofPattern("h a", Locale.getDefault()))
 
 private fun LocalTime.minutesOfDay() = hour * 60 + minute
 
@@ -105,7 +115,15 @@ private fun timeOfMin(m: Int): LocalTime {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalendarScreen(startHour: Int, endHour: Int, baseUrl: String, username: String, miniCalendarVisible: Boolean = true) {
+fun CalendarScreen(
+    startHour: Int,
+    endHour: Int,
+    baseUrl: String,
+    username: String,
+    miniCalendarVisible: Boolean = true,
+    clock24h: Boolean = false,
+) {
+    use24h = clock24h
     val vm: CalendarViewModel = viewModel()
     val fetched by vm.fetched.collectAsState()
     val pending by vm.pending.collectAsState()
@@ -457,7 +475,7 @@ private fun CalendarGrid(
                 for (h in startHour until endHour) {
                     Box(modifier = Modifier.height(hourHeight).fillMaxWidth()) {
                         Text(
-                            "%02d:00".format(h),
+                            hourLabel(h),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -749,7 +767,7 @@ private fun AddEntryDialog(
     LaunchedEffect(Unit) { summaryFocus.requestFocus() }
 
     fun pickTime(initial: LocalTime, onPicked: (LocalTime) -> Unit) {
-        TimePickerDialog(context, { _, h, m -> onPicked(LocalTime.of(h, m)) }, initial.hour, initial.minute, true).show()
+        TimePickerDialog(context, { _, h, m -> onPicked(LocalTime.of(h, m)) }, initial.hour, initial.minute, use24h).show()
     }
 
     Dialog(onDismissRequest = onDismiss) {

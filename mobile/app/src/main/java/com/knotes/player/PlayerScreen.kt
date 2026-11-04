@@ -50,6 +50,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.FiberNew
+import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.FolderCopy
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
@@ -91,6 +93,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -555,6 +558,14 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                                 }
                             }
                         }
+                        // "Play next" queue: the recent AI narrations with a tick box each; the
+                        // next file played is the first ticked one. Here, under the transport,
+                        // because it is chosen while listening, not set up once in Settings.
+                        if (controller.playNextMode == PlayNextMode.AI_QUEUE) {
+                            Spacer(Modifier.height(12.dp))
+                            AiQueuePanel(controller, currentFile)
+                        }
+
                         // The file's bookmarks, newest first, right under its controls: where you
                         // are and where you marked are read together, with no tab to switch to.
                         Spacer(Modifier.height(12.dp))
@@ -1509,6 +1520,7 @@ private fun PlayNextRow(controller: PlayerController) {
         PlayNextMode.RANDOM_OLD -> stringResource(R.string.player_next_caption_random_old, NextTrack.OLD_DAYS)
         PlayNextMode.RANDOM_OLD_PARENT -> stringResource(R.string.player_next_caption_random_here)
         PlayNextMode.RANDOM_NEW_PARENT -> stringResource(R.string.player_next_caption_newest_here)
+        PlayNextMode.AI_QUEUE -> stringResource(R.string.player_next_caption_ai_queue)
     }
 
     Column {
@@ -1550,6 +1562,64 @@ private fun PlayNextRow(controller: PlayerController) {
     }
 }
 
+/**
+ * The AI_QUEUE list: recent unbookmarked narrations from the AI answers folder's companion
+ * folders, newest first, each with a tick box. Ticked ones play next, top to bottom.
+ */
+@Composable
+private fun AiQueuePanel(controller: PlayerController, currentFile: File) {
+    LaunchedEffect(Unit) {
+        if (controller.aiNarrations.isEmpty()) controller.refreshAiNarrations()
+    }
+    val queued = controller.aiQueue.toSet()
+    val dateFmt = remember { java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            stringResource(R.string.player_ai_queue_title, queued.size),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f),
+        )
+        if (controller.aiNarrationsLoading) {
+            Text(stringResource(R.string.player_finding_one), style = MaterialTheme.typography.labelSmall)
+        } else {
+            IconButton(onClick = { controller.refreshAiNarrations() }) {
+                Icon(Icons.Filled.Refresh, stringResource(R.string.player_ai_queue_refresh), modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+    if (!controller.aiNarrationsLoading && controller.aiNarrations.isEmpty()) {
+        Text(stringResource(R.string.player_ai_queue_empty), style = MaterialTheme.typography.bodySmall, color = Color(0xFF888888))
+    }
+    controller.aiNarrations.forEach { n ->
+        val path = n.file.absolutePath
+        val playing = path == currentFile.absolutePath
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { controller.toggleQueued(n.file) }.padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(checked = path in queued, onCheckedChange = { controller.toggleQueued(n.file) })
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    n.title,
+                    fontWeight = if (playing) FontWeight.Bold else null,
+                    color = if (playing) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Content),
+                )
+                Text(
+                    (if (n.recordedMillis > 0) dateFmt.format(java.util.Date(n.recordedMillis)) + " · " else "") + n.file.name,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFFAAAAAA),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
 /** Short name for a play-next mode — the chip label and the settings row (a string resource). */
 private fun playNextLabel(mode: PlayNextMode): Int = when (mode) {
     PlayNextMode.NONE -> R.string.player_off
@@ -1557,6 +1627,7 @@ private fun playNextLabel(mode: PlayNextMode): Int = when (mode) {
     PlayNextMode.RANDOM_OLD -> R.string.player_next_random_old
     PlayNextMode.RANDOM_OLD_PARENT -> R.string.player_next_random_here
     PlayNextMode.RANDOM_NEW_PARENT -> R.string.player_next_newest_here
+    PlayNextMode.AI_QUEUE -> R.string.player_next_ai_queue
 }
 
 /**
@@ -1572,6 +1643,7 @@ private fun playNextIcon(mode: PlayNextMode): androidx.compose.ui.graphics.vecto
         PlayNextMode.RANDOM_OLD -> Icons.Filled.Shuffle
         PlayNextMode.RANDOM_OLD_PARENT -> Icons.Filled.FolderCopy
         PlayNextMode.RANDOM_NEW_PARENT -> Icons.Filled.FiberNew
+        PlayNextMode.AI_QUEUE -> Icons.Filled.RecordVoiceOver
     }
 
 /** Sleep-timer picker. The service holds the actual countdown, so it fires with the screen off. */

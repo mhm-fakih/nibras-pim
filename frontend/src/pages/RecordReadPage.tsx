@@ -8,9 +8,6 @@ import {
   CircularProgress,
   Divider,
   Stack,
-  ToggleButton,
-  ToggleButtonGroup,
-  Tooltip,
   Typography,
 } from '@mui/material';
 import Edit from '@mui/icons-material/Edit';
@@ -25,14 +22,8 @@ import { AuthImage } from '../components/AuthImage';
 import { isRtlText } from '../util/rtl';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureFlags } from '../hooks/useFeature';
-import {
-  HighlightMode,
-  HighlightableText,
-  addMarker,
-  appendHighlight,
-  removeHighlight,
-  removeMarker,
-} from '../components/HighlightableText';
+import { HighlightableText } from '../components/HighlightableText';
+import { appendHighlight, removeHighlight, toggleRange } from '../util/highlights';
 
 /**
  * Which field carries the readable body and which collects highlighted sentences, per module.
@@ -58,10 +49,6 @@ function highlightFields(entity: string | undefined): { source: string; target: 
     : undefined;
 }
 
-/** Highlight granularity is remembered PER RECORD — a dense article wants clauses while a short
- *  note wants whole sentences, so a single global setting would be wrong for one of them. */
-const modeKey = (entity: string, id: number) => `nibras.read.highlightMode.${entity}.${id}`;
-
 /**
  * A record's content on its own tab, narrow and reading-optimized — no list/nav chrome. Editing
  * still lives in the master-detail shell, so "Edit" hands the record back to it via
@@ -75,15 +62,6 @@ export function RecordReadPage() {
   const config = entity ? ENTITY_BY_KEY[entity] : undefined;
   const recordId = Number(id);
 
-  // Clause by default: a sentence in this material routinely runs the length of a paragraph, so
-  // sentence mode highlights an entire block at a time — technically correct and useless in
-  // practice. Per-record choices already saved keep winning; only the default moved.
-  const [mode, setMode] = useState<HighlightMode>(
-    () =>
-      (entity && Number.isFinite(recordId)
-        ? (localStorage.getItem(modeKey(entity, recordId)) as HighlightMode | null)
-        : null) || 'clause',
-  );
   const [highlighting, setHighlighting] = useState(false);
 
   const { data: record, isLoading } = useQuery({
@@ -98,13 +76,21 @@ export function RecordReadPage() {
   // collector. Sent as a full-record PUT — the generic endpoint applies every DTO field, so a
   // partial body would null out everything else.
   const toggle = useMutation({
-    mutationFn: ({ text, wasMarked }: { text: string; wasMarked: boolean }) => {
+    // From the record's CURRENT value, by range: the sentence's flags flip and the markers are
+    // rewritten from them (util/highlights), so an older clause highlight inside the sentence is
+    // absorbed rather than nested. The collector loses every highlight that disappeared (that
+    // clause) and gains every one that appeared (the sentence).
+    mutationFn: async ({ start, end }: { start: number; end: number }) => {
       const src = String(record?.[fields!.source] ?? '');
-      const tgt = record?.[fields!.target] as string | null | undefined;
+      const result = toggleRange(src, start, end);
+      if (!result) return; // refused: it would have changed the text itself
+      let tgt = (record?.[fields!.target] as string | null | undefined) ?? '';
+      for (const t of result.removed) tgt = removeHighlight(tgt, t);
+      for (const t of result.added) tgt = appendHighlight(tgt, t);
       return updateEntity(entity!, recordId, {
         ...record,
-        [fields!.source]: wasMarked ? removeMarker(src, text) : addMarker(src, text),
-        [fields!.target]: wasMarked ? removeHighlight(tgt, text) : appendHighlight(tgt, text),
+        [fields!.source]: result.source,
+        [fields!.target]: tgt,
       });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['record', entity, recordId] }),
@@ -221,26 +207,8 @@ export function RecordReadPage() {
           </Button>
           {highlighting && (
             <>
-              <ToggleButtonGroup
-                size="small"
-                exclusive
-                value={mode}
-                onChange={(_, v: HighlightMode | null) => {
-                  if (v) {
-                    setMode(v);
-                    localStorage.setItem(modeKey(entity!, recordId), v);
-                  }
-                }}
-              >
-                <Tooltip title="Whole grammatical sentences — same split the mobile app uses">
-                  <ToggleButton value="sentence">Sentence</ToggleButton>
-                </Tooltip>
-                <Tooltip title="Also splits at ، ؛ , ; : — for articles with very long sentences">
-                  <ToggleButton value="clause">Clause</ToggleButton>
-                </Tooltip>
-              </ToggleButtonGroup>
               <Typography variant="caption" color="text.secondary">
-                Click text to highlight — it also goes to “{config.fields.find((f) => f.name === fields.target)?.label ?? fields.target}”.
+                Click a sentence to highlight it — it also goes to “{config.fields.find((f) => f.name === fields.target)?.label ?? fields.target}”.
               </Typography>
             </>
           )}
@@ -257,9 +225,8 @@ export function RecordReadPage() {
               <FieldLabel>{f.label}</FieldLabel>
               <HighlightableText
                 source={String(record[f.name] ?? '')}
-                mode={mode}
                 disabled={toggle.isPending}
-                onToggle={(text, wasMarked) => toggle.mutate({ text, wasMarked })}
+                onToggle={(start, end) => toggle.mutate({ start, end })}
               />
               <Divider sx={{ mt: 2 }} />
             </Box>

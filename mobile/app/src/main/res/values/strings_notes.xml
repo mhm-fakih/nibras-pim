@@ -81,7 +81,7 @@
     <string name="notes_calendar_next_month">Next month</string>
     <string name="notes_calendar_today">Today</string>
     <string name="notes_read_ai_answer">AI answer</string>
-    <string name="notes_read_tap_clause_hint">Tap a clause to highlight it</string>
+    <string name="notes_read_tap_clause_hint">Tap a sentence to highlight it</string>
     <string name="notes_read_edit_tags_hint">· Edit above · tags below</string>
     <string name="notes_read_empty">This note is empty.</string>
     <string name="notes_read_empty_start_typing">This note is empty — start typing.</string>

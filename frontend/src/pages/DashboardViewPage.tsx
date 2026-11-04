@@ -3,7 +3,9 @@ import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Box, CircularProgress, Paper, Stack, Typography } from '@mui/material';
 import DashboardOutlined from '@mui/icons-material/DashboardOutlined';
-import { getPublicDashboard, saveDashboardColumnWidths } from '../api/client';
+import { getPublicDashboard, saveDashboardColumnWidths, saveDashboardRowHeights } from '../api/client';
+import { dragPair, parseWeights, placeRegions, rowSeparators } from '../util/dashboardLayout';
+import { Hour12Context } from '../hooks/useHour12';
 import { PublicDashboardComponent, parseColumnWidths, regionZoom } from '../components/DashboardComponents';
 
 /** Full-screen, centered message — used whenever this page can't show the dashboard itself. Kept
@@ -43,22 +45,24 @@ function FullScreenMessage({ heading, detail }: { heading: string; detail?: stri
  * regions/components get configured and needs a normal login. */
 const GAP = 16; // the grid's gap, px (MUI spacing 2)
 const PAD = 16; // the grid's padding, px
-const localKey = (id: number) => `nibras.dashboard.${id}.columnWidths`;
+const localKey = (id: number, what: 'columnWidths' | 'rowHeights' = 'columnWidths') => `nibras.dashboard.${id}.${what}`;
+/** No row is dragged shorter than this. */
+const MIN_ROW_PX = 120;
 
-function readLocal(id: number): string | null {
+function readLocal(id: number, what: 'columnWidths' | 'rowHeights' = 'columnWidths'): string | null {
   try {
-    return window.localStorage.getItem(localKey(id));
+    return window.localStorage.getItem(localKey(id, what));
   } catch {
     return null;
   }
 }
 
-function writeLocal(id: number, widths: string | null) {
+function writeLocal(id: number, widths: string | null, what: 'columnWidths' | 'rowHeights' = 'columnWidths') {
   try {
-    if (widths) window.localStorage.setItem(localKey(id), widths);
-    else window.localStorage.removeItem(localKey(id));
+    if (widths) window.localStorage.setItem(localKey(id, what), widths);
+    else window.localStorage.removeItem(localKey(id, what));
   } catch {
-    /* private window: the widths just don't outlive the page */
+    /* private window: the sizes just don't outlive the page */
   }
 }
 
@@ -77,6 +81,11 @@ export function DashboardViewPage() {
     Number.isFinite(dashboardId) ? readLocal(dashboardId) : null,
   );
   const [savedNote, setSavedNote] = useState<string | null>(null);
+  // The same pair for row heights (the separators between stacked regions).
+  const [dragHeights, setDragHeights] = useState<number[] | null>(null);
+  const [localHeights, setLocalHeights] = useState<string | null>(() =>
+    Number.isFinite(dashboardId) ? readLocal(dashboardId, 'rowHeights') : null,
+  );
   const { data, isLoading, isError } = useQuery({
     queryKey: ['public-dashboard', dashboardId],
     queryFn: () => getPublicDashboard(dashboardId),
@@ -141,6 +150,48 @@ export function DashboardViewPage() {
     return PAD + (tracks * before) / total + GAP * i + GAP / 2;
   });
 
+  // Pinned placement (the browser's own auto-placement, computed here) so the rows are known.
+  const { placed, rows } = placeRegions(
+    regions.map((r) => ({ colSpan: r.colSpan ?? 1, rowSpan: Math.min(Math.max(r.rowSpan ?? 1, 1), 6) })),
+    columns,
+  );
+  const heights = dragHeights ?? parseWeights(localHeights ?? data.rowHeights, rows);
+  const rowSeps = rowSeparators(placed, rows, columns);
+
+  const startRowDrag = (i: number) => (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const grid = gridRef.current;
+    if (!grid) return;
+    // The rows' real heights, as laid out — the browser resolves the fr tracks to px here.
+    const px = getComputedStyle(grid).gridTemplateRows.split(' ').map((v) => parseFloat(v) || 0);
+    const startY = e.clientY;
+    const start = [...heights];
+    let latest = start;
+    const move = (ev: PointerEvent) => {
+      latest = dragPair(start, px, i, ev.clientY - startY, MIN_ROW_PX);
+      setDragHeights(latest);
+    };
+    const up = async () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      const value = fmt(latest);
+      if (await saveDashboardRowHeights(dashboardId, value)) {
+        writeLocal(dashboardId, null, 'rowHeights');
+        setLocalHeights(null);
+        await qc.invalidateQueries({ queryKey: ['public-dashboard', dashboardId] });
+        setSavedNote('Row heights saved.');
+      } else {
+        writeLocal(dashboardId, value, 'rowHeights');
+        setLocalHeights(value);
+        setSavedNote('Row heights kept on this screen only — sign in here to save them for every screen.');
+      }
+      setDragHeights(null);
+      window.setTimeout(() => setSavedNote(null), 5000);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
   const startDrag = (i: number) => (e: ReactPointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     const startX = e.clientX;
@@ -177,17 +228,21 @@ export function DashboardViewPage() {
   // Calendar (and kanban, which can also run long) claim real vertical space and stretch to fill
   // it; everything else (quote, file, the heatmap) just wraps its own content — stretching those
   // to match a tall neighbour left a bordered box full of empty space below the actual text.
-  const fillsHeight = (type: string) => ['calendar', 'kanban', 'checklist', 'tasks', 'localTasks'].includes(type);
+  const fillsHeight = (type: string) => ['calendar', 'kanban', 'checklist', 'tasks', 'localTasks', 'plans'].includes(type);
 
   return (
+    // The clock comes with the snapshot: this page makes no signed-in requests (see Hour12Context).
+    <Hour12Context.Provider value={data.hour12 ?? true}>
     <Box sx={{ height: '100vh', overflow: 'hidden', position: 'relative', bgcolor: 'background.default' }}>
       <Box
         ref={gridRef}
         sx={{
           display: 'grid',
           gridTemplateColumns: widths.map((w) => `minmax(0, ${w}fr)`).join(' '),
-          // Rows share the screen's height equally (a region spanning two takes two shares); past
-          // what fits, rows keep a usable minimum and the page scrolls.
+          // Rows share the screen's height by their weights (equal until a row separator is
+          // dragged; a region spanning two takes both shares); past what fits, rows keep a usable
+          // minimum and the page scrolls.
+          gridTemplateRows: heights.map((h) => `minmax(${MIN_ROW_PX}px, ${h}fr)`).join(' ') || undefined,
           gridAutoRows: 'minmax(260px, 1fr)',
           gap: 2,
           p: 2,
@@ -196,18 +251,17 @@ export function DashboardViewPage() {
           overflow: 'auto',
         }}
       >
-        {regions.map((r) => {
+        {regions.map((r, idx) => {
           const fill = fillsHeight(r.componentType);
-          const span = Math.min(Math.max(r.colSpan ?? 1, 1), columns);
-          const rowSpan = Math.min(Math.max(r.rowSpan ?? 1, 1), 6);
+          const at = placed[idx];
           return (
             <Paper
               key={r.id ?? r.orderIndex}
               variant="outlined"
               sx={{
                 p: 2,
-                gridColumn: `span ${span}`,
-                gridRow: `span ${rowSpan}`,
+                gridColumn: `${at.col + 1} / span ${at.colSpan}`,
+                gridRow: `${at.row + 1} / span ${at.rowSpan}`,
                 minHeight: 0,
                 alignSelf: fill ? 'stretch' : 'start',
                 display: 'flex',
@@ -229,6 +283,40 @@ export function DashboardViewPage() {
             </Paper>
           );
         })}
+        {/* Row separators: drag one to move the boundary between two stacked regions. Grid items
+            in the upper row's cells, pulled down into the gap, so they sit exactly between the
+            two whatever the heights or the scroll. Invisible until hovered. */}
+        {rowSeps.map((sep) => (
+          <Box
+            key={`r${sep.row}-${sep.fromCol}`}
+            onPointerDown={startRowDrag(sep.row)}
+            title="Drag to resize the rows"
+            sx={{
+              gridRow: `${sep.row + 1}`,
+              gridColumn: `${sep.fromCol + 1} / ${sep.toCol + 2}`,
+              alignSelf: 'end',
+              height: 12,
+              mb: `${-(GAP / 2 + 6)}px`,
+              position: 'relative',
+              zIndex: 2,
+              cursor: 'row-resize',
+              touchAction: 'none',
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                left: 8,
+                right: 8,
+                top: 5,
+                height: 2,
+                borderRadius: 1,
+                bgcolor: 'primary.main',
+                opacity: dragHeights ? 0.6 : 0,
+                transition: 'opacity 120ms',
+              },
+              '&:hover::after': { opacity: 0.6 },
+            }}
+          />
+        ))}
         {regions.length === 0 && (
           <Typography color="text.secondary" sx={{ p: 2 }}>
             This dashboard has no regions yet — add some from the builder.
@@ -277,5 +365,6 @@ export function DashboardViewPage() {
         </Paper>
       )}
     </Box>
+    </Hour12Context.Provider>
   );
 }

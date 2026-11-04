@@ -1,4 +1,5 @@
 import { MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useState } from 'react';
+import Payments from '@mui/icons-material/Payments';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
@@ -125,10 +126,12 @@ const TOOLS: {
   { path: '/insights', label: 'Insights', icon: InsightsIcon, group: 'views' },
   { path: '/sprints', label: 'Sprints', icon: DirectionsRun, group: 'views' },
   { path: '/reports', label: 'Reports', icon: TableChart, group: 'views' },
+  { path: '/expenses', label: 'Expenses', icon: Payments, group: 'views' },
   { path: '/bookmarks', label: 'All bookmarks', icon: StarIcon, group: 'library' },
   { path: '/flashcards', label: 'Flash cards', icon: StyleIcon, group: 'library' },
   { path: '/highlights', label: 'Highlights', icon: FormatQuote, group: 'library' },
   { path: '/local-notes', label: 'Local notes', icon: NotesIcon, group: 'library' },
+  { path: '/catalog', label: 'Disk catalogue', icon: Storage, group: 'library' },
   // A full-screen wall view, so it opens in its own tab rather than replacing this one.
   { path: '/checklists/view', label: 'Checklists (week)', icon: ChecklistIcon, group: 'library', newTab: true },
   { path: '/batch', label: 'Batch entry', icon: PlaylistAdd, group: 'io', perm: 'content.write' },

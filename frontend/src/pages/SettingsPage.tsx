@@ -1,7 +1,8 @@
 import { useAuth } from '../hooks/useAuth';
+import { HOUR12_SETTING, useHour12 } from '../hooks/useHour12';
 import { OPEN_SETUP_EVENT } from '../components/SetupWizard';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
@@ -20,6 +21,8 @@ import {
   TableRow,
   TextField,
   Typography,
+  Tab,
+  Tabs,
 } from '@mui/material';
 import {
   AppModule,
@@ -58,8 +61,21 @@ import {
 } from '../config/pages';
 import { useNotificationPrefs } from '../hooks/useNotificationPrefs';
 
+type SettingsTab = 'general' | 'pages' | 'modules' | 'files' | 'records';
+
+const SETTINGS_TABS: { key: SettingsTab; label: string }[] = [
+  { key: 'general', label: 'General' },
+  { key: 'pages', label: 'Pages & features' },
+  { key: 'modules', label: 'Modules' },
+  { key: 'files', label: 'Files & storage' },
+  { key: 'records', label: 'Records' },
+];
+
 export function SettingsPage() {
   const { modules } = useModules();
+  const [params, setParams] = useSearchParams();
+  const asked = params.get('tab');
+  const tab: SettingsTab = SETTINGS_TABS.some((t) => t.key === asked) ? (asked as SettingsTab) : 'general';
   return (
     <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <SideNav />
@@ -68,62 +84,96 @@ export function SettingsPage() {
           Settings
         </Typography>
 
-        <AppSettingsSection />
-        <SessionSection />
-        <PagesSection />
-        <FeaturesSection />
-        <NotificationsSection />
-        <IndicatorAutoCollectSection />
-        <DescriptionAppendSection />
+        {/* Tabs: the page had grown into one long list. The open tab is in the URL (?tab=), so a
+            reload or a bookmarked link comes back to it. */}
+        <Tabs
+          value={tab}
+          onChange={(_, v: SettingsTab) => setParams(v === 'general' ? {} : { tab: v }, { replace: true })}
+          variant="scrollable"
+          allowScrollButtonsMobile
+          sx={{ borderBottom: 1, borderColor: 'divider', mb: 1 }}
+        >
+          {SETTINGS_TABS.map((t) => (
+            <Tab key={t.key} value={t.key} label={t.label} />
+          ))}
+        </Tabs>
 
-        <Typography variant="subtitle1" sx={{ mb: 3 }}>
-          Modules
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Enable or disable a module in the navigation and give it a short code (e.g. T) used
-          for command-style search/update.
-        </Typography>
-        {/* Scrolls in its own box when the window is narrow, not the whole page sideways. */}
-        <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Module</TableCell>
-                <TableCell sx={{ minWidth: 120 }}>Label</TableCell>
-                <TableCell width={60}>Code</TableCell>
-                <TableCell width={60}>Color</TableCell>
-                <TableCell width={70}>Order</TableCell>
-                <TableCell width={70}>Sync order</TableCell>
-                <TableCell width={70}>Enabled</TableCell>
-                <TableCell width={70}>Bucket /100</TableCell>
-                <TableCell width={70}>Bucket by type</TableCell>
-                <TableCell width={70} />
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {modules.map((m) => (
-                <ModuleRow key={m.moduleKey} module={m} />
-              ))}
-            </TableBody>
-          </Table>
-        </Paper>
+        {tab === 'general' && (
+          <>
+            <AppSettingsSection />
+            <SessionSection />
+            <CalendarClockSection />
+            <NotificationsSection />
+            <IndicatorAutoCollectSection />
+            <DescriptionAppendSection />
+          </>
+        )}
 
-        {/* The parameter editors used to live here; they moved to their own page so the
-            PARAMETERS_DATA_ENTRY role can reach them without tools.settings. */}
-        <Alert severity="info" variant="outlined" sx={{ mt: 5, py: 0.5 }}>
-          Status / type / context values, their colours and defaults now live on the{' '}
-          <Link to="/parameters">Parameters</Link> page.
-        </Alert>
+        {tab === 'pages' && (
+          <>
+            <PagesSection />
+            <FeaturesSection />
+          </>
+        )}
 
-        <RepositoriesSection />
-        <LocalNotesSection />
-        <FileSearchSection />
+        {tab === 'modules' && (
+          <Box sx={{ mt: 4 }}>
+          <Typography variant="subtitle1" sx={{ mb: 3 }}>
+            Modules
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Enable or disable a module in the navigation and give it a short code (e.g. T) used
+            for command-style search/update.
+          </Typography>
+          {/* Scrolls in its own box when the window is narrow, not the whole page sideways. */}
+          <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Module</TableCell>
+                  <TableCell sx={{ minWidth: 120 }}>Label</TableCell>
+                  <TableCell width={60}>Code</TableCell>
+                  <TableCell width={60}>Color</TableCell>
+                  <TableCell width={70}>Order</TableCell>
+                  <TableCell width={70}>Sync order</TableCell>
+                  <TableCell width={70}>Enabled</TableCell>
+                  <TableCell width={70}>Bucket /100</TableCell>
+                  <TableCell width={70}>Bucket by type</TableCell>
+                  <TableCell width={70} />
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {modules.map((m) => (
+                  <ModuleRow key={m.moduleKey} module={m} />
+                ))}
+              </TableBody>
+            </Table>
+          </Paper>
 
-        <ExportSection />
+          {/* The parameter editors used to live here; they moved to their own page so the
+              PARAMETERS_DATA_ENTRY role can reach them without tools.settings. */}
+          <Alert severity="info" variant="outlined" sx={{ mt: 5, py: 0.5 }}>
+            Status / type / context values, their colours and defaults now live on the{' '}
+            <Link to="/parameters">Parameters</Link> page.
+          </Alert>
+          </Box>
+        )}
 
-        <BookmarkSection />
+        {tab === 'files' && (
+          <>
+            <RepositoriesSection />
+            <LocalNotesSection />
+            <FileSearchSection />
+            <ExportSection />
+          </>
+        )}
 
-        <TaskCompletionSection />
+        {tab === 'records' && (
+          <>
+            <BookmarkSection />
+            <TaskCompletionSection />
+          </>
+        )}
       </Box>
     </Box>
   );
@@ -489,6 +539,27 @@ function IndicatorAutoCollectSection() {
 }
 
 /** Toggle whether exporting a record's text opens the file (xdg-open) afterwards. */
+/** 12- or 24-hour times on the Calendar page and the dashboards' calendars (12-hour by default). */
+function CalendarClockSection() {
+  const qc = useQueryClient();
+  const hour12 = useHour12();
+  const save = useMutation({
+    mutationFn: (h12: boolean) => setSetting(HOUR12_SETTING, h12 ? 'true' : 'false'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setting', HOUR12_SETTING] }),
+  });
+  return (
+    <Box sx={{ mt: 5 }}>
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        Calendar
+      </Typography>
+      <FormControlLabel
+        control={<Switch checked={!hour12} onChange={(e) => save.mutate(!e.target.checked)} />}
+        label="24-hour clock (13:00 rather than 1 PM) on the calendar and the dashboards"
+      />
+    </Box>
+  );
+}
+
 function ExportSection() {
   const qc = useQueryClient();
   const { data } = useQuery({

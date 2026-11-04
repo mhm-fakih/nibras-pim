@@ -39,6 +39,8 @@ import { SideNav } from '../components/SideNav';
 import { EventDialog } from '../components/EventDialog';
 import { useAuth } from '../hooks/useAuth';
 import { useCalendarPrefs } from '../hooks/useCalendarPrefs';
+import { useHour12 } from '../hooks/useHour12';
+import { fmtHour, fmtMinutes, fmtTime } from '../util/clock';
 
 const SLOT_PX = 26;
 const GUTTER = 56;
@@ -123,6 +125,7 @@ interface ResizeState {
 }
 
 export function CalendarPage() {
+  const hour12 = useHour12();
   const qc = useQueryClient();
   const { canWriteContent } = useAuth();
   const navigate = useNavigate();
@@ -330,7 +333,7 @@ export function CalendarPage() {
           >
             {Array.from({ length: 24 }, (_, h) => (
               <MenuItem key={h} value={h} disabled={h >= prefs.endHour}>
-                {String(h).padStart(2, '0')}:00
+                {fmtHour(h, hour12)}
               </MenuItem>
             ))}
           </TextField>
@@ -344,7 +347,7 @@ export function CalendarPage() {
           >
             {Array.from({ length: 24 }, (_, h) => h + 1).map((h) => (
               <MenuItem key={h} value={h} disabled={h <= prefs.startHour}>
-                {String(h).padStart(2, '0')}:00
+                {fmtHour(h, hour12)}
               </MenuItem>
             ))}
           </TextField>
@@ -430,7 +433,7 @@ export function CalendarPage() {
                             lineHeight: 1,
                           }}
                         >
-                          {String(Math.floor(mins / 60)).padStart(2, '0')}:00
+                          {fmtHour(Math.floor(mins / 60), hour12)}
                         </Typography>
                       )}
                     </Box>
@@ -593,6 +596,7 @@ function NowIndicator({
   endHour: number;
   slotMinutes: number;
 }) {
+  const hour12 = useHour12();
   if (!isSameDay(day, now)) return null;
   const minutesFromStart = now.getHours() * 60 + now.getMinutes() - startHour * 60;
   const span = (endHour - startHour) * 60;
@@ -629,7 +633,7 @@ function NowIndicator({
             borderRadius: 0.5,
           }}
         >
-          {format(now, 'HH:mm')} {before ? '▲' : '▼'}
+          {fmtTime(now, hour12)} {before ? '▲' : '▼'}
         </Box>
       )}
       <Box
@@ -667,6 +671,7 @@ function EventBlock({
   /** Present only on an occurrence of a recurring series: drop this one occurrence. */
   onSkip?: () => void;
 }) {
+  const hour12 = useHour12();
   const start = parseISO(ev.start);
   const end = ev.end ? parseISO(ev.end) : new Date(start.getTime() + slotMinutes * 60_000);
   // While this event's edge is being dragged, render the live (snapped) preview span instead of
@@ -683,7 +688,7 @@ function EventBlock({
       title={
         <Box dir="auto">
           <Typography variant="body2" sx={{ fontWeight: 700 }}>
-            {ev.title} ({format(start, 'HH:mm')})
+            {ev.title} ({fmtTime(start, hour12)})
           </Typography>
           {ev.seriesId != null && (
             <Typography variant="caption" sx={{ display: 'block' }}>
@@ -783,7 +788,7 @@ function EventBlock({
           </>
         )}
         {ev.seriesId != null && <span title="Repeats">⟳ </span>}
-        {`${String(Math.floor(startMin / 60)).padStart(2, '0')}:${String(startMin % 60).padStart(2, '0')}`} {ev.title}
+        {fmtMinutes(startMin, hour12)} {ev.title}
       </Box>
     </Tooltip>
   );

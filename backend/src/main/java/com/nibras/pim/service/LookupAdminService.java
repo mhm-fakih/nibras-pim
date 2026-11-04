@@ -37,9 +37,18 @@ public class LookupAdminService {
         KINDS.put("writing_type", "Writing type");
         KINDS.put("resource_type", "Resource type");
         KINDS.put("work_location", "Context");
+        // Where resources physically are: room -> cabinet -> shelf (see PARENTS).
+        KINDS.put("storage_room", "Room");
+        KINDS.put("storage_cabinet", "Cabinet");
+        KINDS.put("storage_shelf", "Shelf");
         // NB: `department` is a module entity (its table has no `style` column), so it is not
         // editable here — department chips fall back to the deterministic palette in the UI.
     }
+
+    /** Tables whose values sit inside a value of another table: table -> (parent column, parent table). */
+    private static final Map<String, String[]> PARENTS = Map.of(
+            "storage_cabinet", new String[]{"room_id", "storage_room"},
+            "storage_shelf", new String[]{"cabinet_id", "storage_cabinet"});
 
     /** Pastel palette, kept in sync with statusStyle.ts (LOOKUP_PALETTE). */
     private static final String[] PALETTE = {
@@ -69,14 +78,21 @@ public class LookupAdminService {
     /** {@code active}: only on task statuses (work_status.marked_as_active) — whether a task with
      * this status counts as open (the Tasks list's Active filter, the dashboard's open tasks).
      * Null for every other table. */
-    public record LookupValue(Long id, String name, String code, String style, Boolean active) {
+    public record LookupValue(Long id, String name, String code, String style, Boolean active,
+                              /** Cabinets and shelves: the room / cabinet they are in. */
+                              Long parentId) {
+        public LookupValue(Long id, String name, String code, String style, Boolean active) {
+            this(id, name, code, style, active, null);
+        }
     }
 
     /** The one table whose values carry the "active" flag. */
     public static final String ACTIVE_TABLE = "work_status";
 
     /** {@code defaultId} = the value used when this parameter is left blank (marked {@code *} in the UI). */
-    public record LookupGroup(String table, String label, Long defaultId, List<LookupValue> values) {
+    public record LookupGroup(String table, String label, Long defaultId, List<LookupValue> values,
+                              /** The table this one's values sit in (cabinet -> room, shelf -> cabinet); null otherwise. */
+                              String parentTable) {
     }
 
     private static void requireKnown(String table) {
@@ -92,13 +108,16 @@ public class LookupAdminService {
         KINDS.forEach((table, label) -> {
             try {
                 boolean withActive = ACTIVE_TABLE.equals(table);
+                String[] parent = PARENTS.get(table);
                 List<LookupValue> values = jdbc.query(
-                        "SELECT id, name, code, style" + (withActive ? ", marked_as_active" : "") + " FROM " + table
+                        "SELECT id, name, code, style" + (withActive ? ", marked_as_active" : "")
+                                + (parent != null ? ", " + parent[0] + " AS parent_id" : "") + " FROM " + table
                                 + " WHERE deleted_on IS NULL ORDER BY name",
                         (rs, i) -> new LookupValue(rs.getLong("id"), rs.getString("name"),
                                 rs.getString("code"), rs.getString("style"),
-                                withActive ? rs.getBoolean("marked_as_active") : null));
-                out.add(new LookupGroup(table, label, defaultId(table), values));
+                                withActive ? rs.getBoolean("marked_as_active") : null,
+                                parent != null ? (Long) rs.getObject("parent_id", Long.class) : null));
+                out.add(new LookupGroup(table, label, defaultId(table), values, parent != null ? parent[1] : null));
             } catch (org.springframework.dao.DataAccessException skip) {
                 // Legacy table without the expected columns — leave it out rather than 500.
             }
@@ -146,6 +165,12 @@ public class LookupAdminService {
      */
     @Transactional
     public LookupValue create(String table, String name, String code) {
+        return create(table, name, code, null);
+    }
+
+    /** As {@link #create(String, String, String)}, placing the value inside {@code parentId} (cabinets, shelves). */
+    @Transactional
+    public LookupValue create(String table, String name, String code, Long parentId) {
         requireKnown(table);
         if (name == null || name.isBlank()) {
             throw new ResponseStatusException(BAD_REQUEST, "Name is required.");
@@ -154,13 +179,41 @@ public class LookupAdminService {
                         + "VALUES (?, ?, 0, NOW(), NOW())",
                 name.trim(), code == null || code.isBlank() ? null : code.trim());
         Long id = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        if (parentId != null) setParent(table, id, parentId);
         Boolean active = null;
         if (ACTIVE_TABLE.equals(table)) {
             // A new task status starts as active (open work); untick it on the Parameters page.
             jdbc.update("UPDATE " + table + " SET marked_as_active = 1 WHERE id = ?", id);
             active = true;
         }
-        return new LookupValue(id, name.trim(), code, null, active);
+        return new LookupValue(id, name.trim(), code, null, active, parentId);
+    }
+
+    /** Put a cabinet in a room, or a shelf in a cabinet (null takes it out). Those two tables only. */
+    @Transactional
+    public void setParent(String table, long id, Long parentId) {
+        String[] parent = PARENTS.get(table);
+        if (parent == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "Only cabinets and shelves sit inside something.");
+        }
+        if (parentId != null) {
+            Integer exists = jdbc.queryForObject("SELECT COUNT(*) FROM " + parent[1] + " WHERE id = ? AND deleted_on IS NULL",
+                    Integer.class, parentId);
+            if (exists == null || exists == 0) {
+                throw new ResponseStatusException(BAD_REQUEST, "No such " + KINDS.get(parent[1]).toLowerCase() + ".");
+            }
+        }
+        int n = jdbc.update("UPDATE " + table + " SET " + parent[0] + " = ?, last_updated = NOW() WHERE id = ?", parentId, id);
+        if (n == 0) {
+            throw new ResponseStatusException(BAD_REQUEST, "Lookup value not found.");
+        }
+        // Resources on this shelf / in this cabinet follow it (the levels above are derived).
+        if ("storage_shelf".equals(table)) {
+            jdbc.update("UPDATE book b LEFT JOIN storage_cabinet c ON c.id = ? SET b.storage_cabinet_id = ?, b.storage_room_id = c.room_id "
+                    + "WHERE b.storage_shelf_id = ?", parentId, parentId, id);
+        } else {
+            jdbc.update("UPDATE book SET storage_room_id = ? WHERE storage_cabinet_id = ?", parentId, id);
+        }
     }
 
     /** Whether tasks with this status count as open. Task statuses only. */
@@ -198,6 +251,21 @@ public class LookupAdminService {
         int n = jdbc.update("UPDATE " + table + " SET deleted_on = NOW() WHERE id = ? AND deleted_on IS NULL", id);
         if (n == 0) {
             throw new ResponseStatusException(BAD_REQUEST, "Lookup value not found.");
+        }
+        // A removed place must not stay referenced: the hidden row can't be loaded, so a resource
+        // still pointing at it would fail to open. Resources there lose that level (the levels
+        // above stay), and cabinets / shelves inside it become unplaced.
+        switch (table) {
+            case "storage_room" -> {
+                jdbc.update("UPDATE book SET storage_room_id = NULL WHERE storage_room_id = ?", id);
+                jdbc.update("UPDATE storage_cabinet SET room_id = NULL WHERE room_id = ?", id);
+            }
+            case "storage_cabinet" -> {
+                jdbc.update("UPDATE book SET storage_cabinet_id = NULL, storage_shelf_id = NULL WHERE storage_cabinet_id = ?", id);
+                jdbc.update("UPDATE storage_shelf SET cabinet_id = NULL WHERE cabinet_id = ?", id);
+            }
+            case "storage_shelf" -> jdbc.update("UPDATE book SET storage_shelf_id = NULL WHERE storage_shelf_id = ?", id);
+            default -> { }
         }
     }
 

@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import type { PlaceValue } from '../util/storagePlace';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Autocomplete,
@@ -202,6 +203,14 @@ function FieldInput({
             onChange(courseId ?? '');
             if (departmentId != null) setField('department', departmentId); // course → set its dept
           }}
+        />
+      );
+    case 'storagePlace':
+      return (
+        <StoragePlaceField
+          value={(value as PlaceValue | undefined) ?? { room: '', cabinet: '', shelf: '' }}
+          lookups={lookups}
+          onChange={onChange}
         />
       );
     case 'textarea':
@@ -578,6 +587,13 @@ function initForm(fields: FieldDef[], record?: EntityRecord): FormState {
       case 'book':
         f[field.name] = record?.bookId ?? '';
         break;
+      case 'storagePlace':
+        f[field.name] = {
+          room: record?.storageRoomId ?? '',
+          cabinet: record?.storageCabinetId ?? '',
+          shelf: record?.storageShelfId ?? '',
+        } as PlaceValue;
+        break;
       case 'goal':
         f[field.name] = record?.goalId ?? '';
         break;
@@ -631,6 +647,13 @@ function buildPayload(fields: FieldDef[], form: FormState): Record<string, unkno
       case 'book':
         body.bookId = v === '' || v == null ? null : v;
         break;
+      case 'storagePlace': {
+        const pv = (v as PlaceValue | undefined) ?? { room: '', cabinet: '', shelf: '' };
+        body.storageRoomId = pv.room === '' ? null : pv.room;
+        body.storageCabinetId = pv.cabinet === '' ? null : pv.cabinet;
+        body.storageShelfId = pv.shelf === '' ? null : pv.shelf;
+        break;
+      }
       case 'goal':
         body.goalId = v === '' || v == null ? null : v;
         break;
@@ -683,4 +706,80 @@ function toLocalIso(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(
     d.getMinutes(),
   )}:${p(d.getSeconds())}`;
+}
+
+/**
+ * Room › cabinet › shelf, as three linked pickers. Picking a shelf fills in its cabinet and room;
+ * picking a room or cabinet narrows the lists below it and clears what no longer fits. The server
+ * enforces the same rule, so a resource can't end up on a shelf in another room.
+ */
+function StoragePlaceField({
+  value,
+  lookups,
+  onChange,
+}: {
+  value: PlaceValue;
+  lookups?: Record<string, Lookup[]>;
+  onChange: (v: PlaceValue) => void;
+}) {
+  const rooms = lookups?.storageRooms ?? [];
+  const cabinets = lookups?.storageCabinets ?? [];
+  const shelves = lookups?.storageShelves ?? [];
+  const cabinetOf = (shelfId: number | '') => shelves.find((s) => s.id === shelfId)?.parentId ?? '';
+  const roomOf = (cabinetId: number | '') => cabinets.find((c) => c.id === cabinetId)?.parentId ?? '';
+  const cabinetChoices = value.room === '' ? cabinets : cabinets.filter((c) => c.parentId === value.room);
+  const shelfChoices = value.cabinet === '' ? shelves : shelves.filter((s) => s.parentId === value.cabinet);
+  if (rooms.length + cabinets.length + shelves.length === 0) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        Where it is: add rooms, cabinets and shelves on the Parameters page first.
+      </Typography>
+    );
+  }
+  const pick = (label: string, current: number | '', options: Lookup[], set: (id: number | '') => void) => (
+    <TextField
+      select
+      size="small"
+      label={label}
+      value={options.some((o) => o.id === current) ? current : ''}
+      onChange={(e) => set(e.target.value === '' ? '' : Number(e.target.value))}
+      sx={{ minWidth: 150, flex: 1 }}
+    >
+      <MenuItem value="">
+        <em>—</em>
+      </MenuItem>
+      {options.map((o) => (
+        <MenuItem key={o.id} value={o.id}>
+          {o.name}
+        </MenuItem>
+      ))}
+    </TextField>
+  );
+  return (
+    <Box>
+      <Typography variant="caption" color="text.secondary">
+        Where it is
+      </Typography>
+      <Stack direction="row" spacing={1} sx={{ mt: 0.5, maxWidth: 560 }}>
+        {pick('Room', value.room, rooms, (room) =>
+          onChange({
+            room,
+            cabinet: value.cabinet !== '' && room !== '' && roomOf(value.cabinet) !== room ? '' : value.cabinet,
+            shelf: value.cabinet !== '' && room !== '' && roomOf(value.cabinet) !== room ? '' : value.shelf,
+          }),
+        )}
+        {pick('Cabinet', value.cabinet, cabinetChoices, (cabinet) =>
+          onChange({
+            room: cabinet === '' ? value.room : (roomOf(cabinet) || value.room),
+            cabinet,
+            shelf: value.shelf !== '' && cabinetOf(value.shelf) !== cabinet ? '' : value.shelf,
+          }),
+        )}
+        {pick('Shelf', value.shelf, shelfChoices, (shelf) => {
+          const cabinet = shelf === '' ? value.cabinet : (cabinetOf(shelf) || value.cabinet);
+          onChange({ room: cabinet === '' ? value.room : (roomOf(cabinet) || value.room), cabinet, shelf });
+        })}
+      </Stack>
+    </Box>
+  );
 }

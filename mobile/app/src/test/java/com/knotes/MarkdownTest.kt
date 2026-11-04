@@ -74,8 +74,8 @@ class MarkdownTest {
             assertTrue("span out of bounds", span.start in 0..text.length && span.end in 0..text.length)
             assertTrue("inverted span", span.start < span.end)
         }
-        // And the clause boundaries are unaffected by the presence of markup.
-        val clauses = Clauses.clauseSpans(text)
+        // And the sentence boundaries are unaffected by the presence of markup.
+        val clauses = Clauses.sentenceSpans(text)
         for (c in clauses) {
             assertEquals(c.text, text.substring(c.start, c.end))
         }

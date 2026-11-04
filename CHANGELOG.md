@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-11-04 — 1.3.3 "Serenity"
+
+- **Highlighting:** a tap highlights the whole sentence, on the phone, the web and the desktop
+  alike (was a clause); tapping a highlighted sentence clears it, and no stray "=" is ever left.
+- **Dashboards:** checklist and open-tasks components for a TV board; regions span rows and
+  columns, and both column widths and row heights are dragged into place; a local-tasks component;
+  a Plans component (bookmarked planner entries of chosen types); the checklist shows several days
+  side by side, and an item can be picked as the current focus (on screen only); the calendar
+  shows local P and J notes with a folder icon; open tasks show how many files they have in
+  repository 1.
+- **Expenses (web):** payments under their categories, with new categories; amounts in several
+  currencies, summed in a default currency through dated exchange rates; cost per category per
+  month, monthly totals, and monthly / yearly breakdown charts.
+- **Resources:** where a book physically is — room › cabinet › shelf, all set in Parameters — and
+  a Shelf map report of what each shelf holds.
+- **Disk catalogue:** scan a storage folder (an external disk, say) for record files; they stay
+  listed and searchable per record while the disk is unplugged, and deleting a record warns when
+  it has files there.
+- **Fresh install:** an empty database gets the full schema and starter parameters, a first-run
+  setup wizard (name, modules, pages, folders), and a desktop launcher.
+- **Web:** Settings grouped in tabs; calendars in 12- or 24-hour time (12 by default); each task
+  status has an "active" checkbox; read-only accounts can renew their session and change their
+  password; multi-day events are bars across the days they cover; fixes from a page-by-page pass.
+- **Mobile:** a WhatsApp collector that COPIES new media (voice, audio, documents, videos, images,
+  statuses — you choose) into a "Whatsapp new files" note, from today on the first run, by hand or
+  daily; the player's "Play next" can queue recent AI narrations; 12/24-hour calendar; the
+  calendar sync no longer duplicates entries; quick add uses the Settings defaults; lists leave
+  room for their floating buttons, so a last card's actions are never under them.
+
 ## 2026-11-01 — 1.3.2 "Serenity"
 
 - **Mobile:** a quick timer on top of the Alarms page — a 60-minute dial and one button, its sound,

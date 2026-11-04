@@ -4,6 +4,7 @@ import { EntityRecord, Lookup, coverUrl } from '../api/client';
 import { ENTITY_BY_KEY, FieldType } from '../config/entities';
 import { AuthImage } from './AuthImage';
 import { lookupStyle } from './statusStyle';
+import { placePath } from '../util/storagePlace';
 
 /**
  * The one column that isn't a field: it renders the record's cover image rather than any property
@@ -50,7 +51,7 @@ export function reportColumns(moduleKey: string): ReportColumnDef[] {
  * meaning). Offering them and letting the query fail would be a worse answer than not offering them.
  */
 export function sortableColumns(moduleKey: string): ReportColumnDef[] {
-  return reportColumns(moduleKey).filter((c) => c.kind !== 'cover' && c.kind !== 'tags');
+  return reportColumns(moduleKey).filter((c) => c.kind !== 'cover' && c.kind !== 'tags' && c.kind !== 'storagePlace');
 }
 
 export function columnLabel(moduleKey: string, name: string): string {
@@ -87,7 +88,7 @@ export function ReportCell({
   record: EntityRecord;
   moduleKey: string;
 }) {
-  const value = record[column.name];
+  const value = column.kind === 'storagePlace' ? placePath(record) : record[column.name];
 
   if (column.kind === 'cover') {
     if (!record.hasCover) {

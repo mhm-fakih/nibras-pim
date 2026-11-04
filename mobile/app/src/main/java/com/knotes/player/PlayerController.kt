@@ -459,6 +459,63 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
     fun changePlayNextMode(mode: PlayNextMode) {
         playNextMode = mode
         prefs.edit().putString(K_PLAY_NEXT, mode.name).apply()
+        if (mode == PlayNextMode.AI_QUEUE) refreshAiNarrations()
+    }
+
+    // ---- AI_QUEUE: the recent AI narrations, ticked to play next -------------------------------
+
+    /** The narrations offered (newest first); loaded when the mode is chosen or refreshed. */
+    var aiNarrations by mutableStateOf<List<AiNarration>>(emptyList())
+        private set
+    var aiNarrationsLoading by mutableStateOf(false)
+        private set
+
+    /**
+     * The ticked narrations, as paths, in the order they will play — the list's order (newest
+     * first), so what is ticked plays top to bottom as it reads. Kept across restarts.
+     */
+    var aiQueue by mutableStateOf(
+        prefs.getString(K_AI_QUEUE, "").orEmpty().split("\n").filter { it.isNotBlank() }
+    )
+        private set
+
+    fun refreshAiNarrations() {
+        if (aiNarrationsLoading) return
+        aiNarrationsLoading = true
+        viewModelScope.launch {
+            val dir = File(SettingsStore(getApplication()).state.value.aiDir())
+            val list = withContext(Dispatchers.IO) { runCatching { AiNarrations.list(dir) }.getOrDefault(emptyList()) }
+            aiNarrations = list
+            aiNarrationsLoading = false
+        }
+    }
+
+    fun toggleQueued(file: File) {
+        val path = file.absolutePath
+        val ticked = if (path in aiQueue) aiQueue - path else aiQueue + path
+        // Re-ordered to the list's order; anything ticked that the list no longer shows keeps its
+        // place at the end rather than being silently dropped.
+        val listed = aiNarrations.map { it.file.absolutePath }
+        saveQueue(listed.filter { it in ticked } + ticked.filter { it !in listed })
+    }
+
+    private fun saveQueue(queue: List<String>) {
+        aiQueue = queue
+        prefs.edit().putString(K_AI_QUEUE, queue.joinToString("\n")).apply()
+    }
+
+    /** The first ticked narration that still exists and isn't what's playing; null if none. */
+    private fun peekQueued(): File? {
+        val current = currentFile?.absolutePath
+        return aiQueue.map(::File).firstOrNull { it.isFile && it.absolutePath != current }
+    }
+
+    /**
+     * Take [file] off the queue as it starts — not when it is merely picked, so a countdown that
+     * is cancelled leaves it ticked. Entries for files that have gone missing are dropped too.
+     */
+    private fun dequeue(file: File) {
+        saveQueue(aiQueue.filter { it != file.absolutePath && File(it).isFile })
     }
 
     /** Resize the recents list; a smaller cap drops the oldest entries straight away. */
@@ -534,6 +591,8 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
             PlayNextMode.RANDOM_OLD -> pickRandom(libraryRoots(), NextTrack.Pick.OLDEST) { open(it) }
             PlayNextMode.RANDOM_OLD_PARENT -> pickRandom(parentRoots(), NextTrack.Pick.OLDEST) { open(it) }
             PlayNextMode.RANDOM_NEW_PARENT -> pickRandom(parentRoots(), NextTrack.Pick.NEWEST) { open(it) }
+            PlayNextMode.AI_QUEUE -> peekQueued()?.let { dequeue(it); open(it) }
+                ?: run { notice = getApplication<Application>().getString(R.string.player_notice_queue_empty) }
             // The ordered modes run out at the end of a folder, which is just as silent as an empty
             // random pick and needs saying just as much.
             else -> nextSibling()?.let { open(it) }
@@ -568,6 +627,9 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
             PlayNextMode.RANDOM_OLD -> startAutoNext { pickRandom(libraryRoots(), NextTrack.Pick.OLDEST) { open(it) } }
             PlayNextMode.RANDOM_OLD_PARENT -> startAutoNext { pickRandom(parentRoots(), NextTrack.Pick.OLDEST) { open(it) } }
             PlayNextMode.RANDOM_NEW_PARENT -> startAutoNext { pickRandom(parentRoots(), NextTrack.Pick.NEWEST) { open(it) } }
+            // Nothing ticked: stay on the finished file, as NONE does — nothing was asked for.
+            PlayNextMode.AI_QUEUE -> peekQueued()?.let { next -> startAutoNext { dequeue(next); open(next) } }
+                ?: finished?.let { openPaused(it, 0L) }
         }
     }
 
@@ -677,6 +739,7 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         const val MIN_SKIP_SECS = 5
         const val MAX_SKIP_SECS = 60
         const val K_PLAY_NEXT = "play_next_mode"
+        const val K_AI_QUEUE = "ai_queue"
         const val K_VIDEO_DISABLED = "video_disabled"
         const val K_VIDEO_AUTO_NEXT = "video_auto_next"
         const val NEXT_COUNTDOWN_SECS = 5

@@ -175,6 +175,8 @@ export interface Lookup {
   style?: string;
   /** Task statuses only: whether the status means the task is still open (marked_as_active). */
   active?: boolean;
+  /** Storage places only: a cabinet's room, a shelf's cabinet. */
+  parentId?: number;
 }
 
 export interface TagRef {
@@ -481,10 +483,14 @@ export interface LookupValue {
   style?: string;
   /** Task statuses only: tasks with this status count as open. Null/absent on other tables. */
   active?: boolean;
+  /** Cabinets and shelves: the room / cabinet they are in. */
+  parentId?: number;
 }
 export interface LookupGroup {
   table: string;
   label: string;
+  /** Cabinets → 'storage_room', shelves → 'storage_cabinet'; absent for flat lists. */
+  parentTable?: string | null;
   /** Value used when this parameter is left blank on a new record (marked with * in the UI). */
   defaultId?: number | null;
   values: LookupValue[];
@@ -517,9 +523,14 @@ export async function fillLookupColors(): Promise<number> {
 }
 
 /** Add a new value to a lookup table (e.g. a new resource type). */
-export async function createLookupValue(table: string, name: string, code?: string): Promise<LookupValue> {
-  const { data } = await http.post(`/lookups/${table}`, { name, code });
+export async function createLookupValue(table: string, name: string, code?: string, parentId?: number | null): Promise<LookupValue> {
+  const { data } = await http.post(`/lookups/${table}`, { name, code, parentId: parentId ?? null });
   return data;
+}
+
+/** Put a cabinet in a room or a shelf in a cabinet (null takes it out). */
+export async function setLookupParent(table: string, id: number, parentId: number | null): Promise<void> {
+  await http.put(`/lookups/${table}/${id}/parent`, { parentId });
 }
 
 /** Rename a lookup value and/or change its code. */
@@ -599,7 +610,7 @@ export async function setCoverFromUrl(module: string, id: number, url: string): 
 }
 
 export interface CalendarEvent {
-  module: 'journals' | 'planners' | 'sprints';
+  module: 'journals' | 'planners' | 'sprints' | 'localnotes';
   /** Null on a virtual occurrence — there is no record behind it yet. See `virtual`. */
   id: number | null;
   title: string;
@@ -1617,6 +1628,22 @@ export async function updateCustomDashboard(id: number, body: CustomDashboard): 
  * no login of its own, so this goes around the axios client, whose 401 handler would send a TV to
  * the sign-in page: returns false when there's no session or the account may not edit.
  */
+/** As saveDashboardColumnWidths, for the row heights (the separators between stacked regions). */
+export async function saveDashboardRowHeights(id: number, rowHeights: string): Promise<boolean> {
+  const token = getToken();
+  if (!token) return false;
+  try {
+    const r = await fetch(`${BASE}api/custom-dashboards/${id}/row-heights`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ rowHeights }),
+    });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function saveDashboardColumnWidths(id: number, columnWidths: string): Promise<boolean> {
   const token = getToken();
   if (!token) return false;
@@ -1700,10 +1727,16 @@ export interface PublicDashboardRegion {
   file: DashboardFileContent | null;
   /** 'checklist' regions: this week's checklist (null when there is none yet). */
   checklist?: ChecklistWeek | null;
+  /** 'checklist' regions: the week before, for the days of a multi-day view that fall in it. */
+  checklistPrevious?: ChecklistWeek | null;
   /** 'tasks' regions: open tasks, due first. */
   tasks?: EntityRecord[] | null;
   /** 'localTasks' regions: task notes in the local notes folder, highest priority first. */
   localTasks?: LocalNote[] | null;
+  /** 'plans' regions: bookmarked planner entries of the chosen types. */
+  plans?: EntityRecord[] | null;
+  /** 'tasks' regions: files in each task's repository-1 folder, by task id. */
+  taskFiles?: Record<string, number> | null;
 }
 
 export interface PublicDashboardSnapshot {
@@ -1712,6 +1745,10 @@ export interface PublicDashboardSnapshot {
   columnsCount: number;
   refreshMinutes?: number | null;
   columnWidths?: string | null;
+  /** Relative row heights ("1,2"), set by dragging a row separator; absent = equal rows. */
+  rowHeights?: string | null;
+  /** Calendars show 12-hour times (the `calendar.hour12` setting); absent on older servers. */
+  hour12?: boolean;
   regions: PublicDashboardRegion[];
 }
 
@@ -2252,5 +2289,284 @@ export async function getChecklistIndex(): Promise<ChecklistIndex> {
 /** One week of the phone's checklists, as the phone last saved it. */
 export async function getChecklistWeek(id: string): Promise<ChecklistWeek> {
   const { data } = await http.get(`/checklists/${encodeURIComponent(id)}`);
+  return data;
+}
+
+// ---- Disk catalogue: record files on storage that isn't always attached ---------------------
+
+export interface StorageLocation {
+  id: number;
+  name: string;
+  /** Which repository's layout the storage holds: 1 sandbox, 2 main, 3 dismissed. */
+  repo: number;
+  rootPath: string;
+  note?: string | null;
+  lastScanAt?: string | null;
+  lastScanFiles?: number | null;
+  lastScanBytes?: number | null;
+  lastScanRecords?: number | null;
+  lastScanError?: string | null;
+  /** The folder is there right now (the disk is attached). */
+  mounted: boolean;
+  scanning: boolean;
+  scanProgress?: number | null;
+}
+
+export interface StorageLocationInput {
+  name: string;
+  repo: number;
+  rootPath: string;
+  note?: string;
+}
+
+export interface CatalogFile {
+  locationId: number;
+  locationName: string;
+  repo: number;
+  mounted: boolean;
+  moduleKey: string;
+  recordId: number;
+  recordTitle?: string | null;
+  recordExists: boolean;
+  relPath: string;
+  fullPath: string;
+  size: number;
+  modified?: string | null;
+}
+
+export interface CatalogRecordSummary {
+  locationId: number;
+  locationName: string;
+  moduleKey: string;
+  recordId: number;
+  recordTitle?: string | null;
+  recordExists: boolean;
+  files: number;
+  bytes: number;
+}
+
+export async function listStorageLocations(): Promise<StorageLocation[]> {
+  const { data } = await http.get('/catalog/locations');
+  return data;
+}
+export async function createStorageLocation(input: StorageLocationInput): Promise<StorageLocation> {
+  const { data } = await http.post('/catalog/locations', input);
+  return data;
+}
+export async function updateStorageLocation(id: number, input: StorageLocationInput): Promise<StorageLocation> {
+  const { data } = await http.put(`/catalog/locations/${id}`, input);
+  return data;
+}
+export async function deleteStorageLocation(id: number): Promise<void> {
+  await http.delete(`/catalog/locations/${id}`);
+}
+export async function scanStorageLocation(id: number): Promise<StorageLocation> {
+  const { data } = await http.post(`/catalog/locations/${id}/scan`);
+  return data;
+}
+export async function catalogRecordsOn(id: number): Promise<CatalogRecordSummary[]> {
+  const { data } = await http.get(`/catalog/locations/${id}/records`);
+  return data;
+}
+export async function searchCatalog(q: string, location?: number | null): Promise<CatalogFile[]> {
+  const { data } = await http.get('/catalog/search', { params: { q, location: location ?? undefined } });
+  return data;
+}
+export async function catalogRecordFiles(module: string, id: number): Promise<CatalogFile[]> {
+  const { data } = await http.get(`/catalog/records/${module}/${id}`);
+  return data;
+}
+
+// ---- Shelf map: where resources physically are --------------------------------------------
+
+export interface ShelfMapItem {
+  id: number;
+  title?: string | null;
+  author?: string | null;
+  typeName?: string | null;
+  typeStyle?: string | null;
+  isRead?: boolean | null;
+}
+export interface ShelfMapShelf {
+  id: number | null;
+  name: string | null;
+  style?: string | null;
+  items: ShelfMapItem[];
+}
+export interface ShelfMapCabinet {
+  id: number | null;
+  name: string | null;
+  style?: string | null;
+  shelves: ShelfMapShelf[];
+  /** Placed in the cabinet but not on a particular shelf. */
+  loose: ShelfMapItem[];
+}
+export interface ShelfMapRoom {
+  /** null: the cabinets and shelves not put anywhere yet. */
+  id: number | null;
+  name: string | null;
+  style?: string | null;
+  cabinets: ShelfMapCabinet[];
+  /** Placed in the room but not in a cabinet. */
+  loose: ShelfMapItem[];
+}
+export interface ShelfMap {
+  rooms: ShelfMapRoom[];
+  placed: number;
+  unplaced: number;
+}
+
+export async function getShelfMap(): Promise<ShelfMap> {
+  const { data } = await http.get('/shelf-map');
+  return data;
+}
+
+// ---- Expenses (legacy payment / payment_category tables), multi-currency --------------------
+
+export interface ExpenseCategory {
+  id: number;
+  name: string;
+  code?: string | null;
+  description?: string | null;
+  style?: string | null;
+  orderNumber?: number | null;
+  expenses: number;
+}
+export interface ExpenseCategoryInput {
+  name: string;
+  code?: string;
+  description?: string;
+  style?: string;
+}
+export interface Expense {
+  id: number;
+  amount: number;
+  currency: string;
+  date: string;
+  categoryId?: number | null;
+  categoryName?: string | null;
+  summary?: string | null;
+  description?: string | null;
+  notes?: string | null;
+  /** In the default currency at the rate of its date; null when no rate reaches it. */
+  converted?: number | null;
+}
+export interface ExpenseInput {
+  amount: number;
+  currency: string;
+  date: string;
+  categoryId: number | null;
+  summary?: string;
+  description?: string;
+  notes?: string;
+}
+export interface Currency {
+  id: number;
+  code: string;
+  name?: string | null;
+  symbol?: string | null;
+}
+export interface CurrencyRate {
+  id: number;
+  from: string;
+  to: string;
+  rate: number;
+  validFrom: string;
+  note?: string | null;
+}
+export interface CategorySeries {
+  id: number | null;
+  name: string;
+  values: number[];
+  total: number;
+}
+export interface Unconverted {
+  currency: string;
+  count: number;
+  amount: number;
+}
+export interface ExpenseYearReport {
+  year: number;
+  currency: string;
+  monthTotals: number[];
+  total: number;
+  categories: CategorySeries[];
+  unconverted: Unconverted[];
+}
+export interface ExpenseYearsReport {
+  currency: string;
+  years: number[];
+  yearTotals: number[];
+  categories: CategorySeries[];
+  unconverted: Unconverted[];
+}
+
+export async function listExpenses(params: { from?: string; to?: string; categoryId?: number | null; q?: string }): Promise<Expense[]> {
+  const { data } = await http.get('/expenses', { params: { ...params, categoryId: params.categoryId ?? undefined } });
+  return data;
+}
+export async function createExpense(input: ExpenseInput): Promise<Expense> {
+  const { data } = await http.post('/expenses', input);
+  return data;
+}
+export async function updateExpense(id: number, input: ExpenseInput): Promise<Expense> {
+  const { data } = await http.put(`/expenses/${id}`, input);
+  return data;
+}
+export async function deleteExpense(id: number): Promise<void> {
+  await http.delete(`/expenses/${id}`);
+}
+export async function listExpenseCategories(): Promise<ExpenseCategory[]> {
+  const { data } = await http.get('/expenses/categories');
+  return data;
+}
+export async function createExpenseCategory(input: ExpenseCategoryInput): Promise<ExpenseCategory> {
+  const { data } = await http.post('/expenses/categories', input);
+  return data;
+}
+export async function updateExpenseCategory(id: number, input: ExpenseCategoryInput): Promise<ExpenseCategory> {
+  const { data } = await http.put(`/expenses/categories/${id}`, input);
+  return data;
+}
+export async function deleteExpenseCategory(id: number): Promise<void> {
+  await http.delete(`/expenses/categories/${id}`);
+}
+export async function listCurrencies(): Promise<{ defaultCurrency: string; currencies: Currency[] }> {
+  const { data } = await http.get('/expenses/currencies');
+  return data;
+}
+export async function addCurrency(code: string, name?: string, symbol?: string): Promise<Currency> {
+  const { data } = await http.post('/expenses/currencies', { code, name, symbol });
+  return data;
+}
+export async function deleteCurrency(code: string): Promise<void> {
+  await http.delete(`/expenses/currencies/${encodeURIComponent(code)}`);
+}
+export async function setDefaultCurrency(code: string): Promise<void> {
+  await http.put('/expenses/currencies/default', { code });
+}
+export async function listCurrencyRates(): Promise<CurrencyRate[]> {
+  const { data } = await http.get('/expenses/rates');
+  return data;
+}
+export async function addCurrencyRate(r: { from: string; to: string; rate: number; validFrom: string; note?: string }): Promise<CurrencyRate> {
+  const { data } = await http.post('/expenses/rates', r);
+  return data;
+}
+export async function deleteCurrencyRate(id: number): Promise<void> {
+  await http.delete(`/expenses/rates/${id}`);
+}
+export async function getExpenseYearReport(year: number, currency?: string): Promise<ExpenseYearReport> {
+  const { data } = await http.get('/expenses/report/year', { params: { year, currency } });
+  return data;
+}
+export async function getExpenseYearsReport(currency?: string): Promise<ExpenseYearsReport> {
+  const { data } = await http.get('/expenses/report/years', { params: { currency } });
+  return data;
+}
+
+/** Files in each task's repository-1 folder, by task id (the dashboard's open tasks). */
+export async function getTaskRepo1FileCounts(ids: number[]): Promise<Record<string, number>> {
+  const { data } = await http.get('/tasks/repo1-file-counts', { params: { ids: ids.join(',') } });
   return data;
 }

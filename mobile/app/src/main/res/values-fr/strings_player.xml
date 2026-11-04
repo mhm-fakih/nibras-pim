@@ -151,4 +151,11 @@
     <string name="player_starred">En favori</string>
     <string name="player_unstar">Retirer des favoris</string>
     <string name="player_starred_empty">Aucun favori pour l’instant. Touchez ☆ Favori sous le nom d’un fichier, dans l’onglet Lecteur.</string>
+    <!-- AI_QUEUE play-next mode: tick recent AI narrations to play them next. -->
+    <string name="player_next_ai_queue">Narrations IA</string>
+    <string name="player_next_caption_ai_queue">Affiche sur la page du lecteur les narrations IA récentes (audio sans signet dans les dossiers de notes du dossier des réponses IA), chacune avec une case. Le prochain fichier lu est le premier coché ; sans case cochée, rien ne démarre seul.</string>
+    <string name="player_ai_queue_title">À suivre — narrations IA (%1$d cochées)</string>
+    <string name="player_ai_queue_refresh">Actualiser la liste</string>
+    <string name="player_ai_queue_empty">Aucune narration IA sans signet trouvée.</string>
+    <string name="player_notice_queue_empty">Rien de coché — cochez une narration dans la liste pour la lire ensuite.</string>
 </resources>

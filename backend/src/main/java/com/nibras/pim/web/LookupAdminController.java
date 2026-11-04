@@ -66,13 +66,22 @@ public class LookupAdminController {
         return Map.of("filled", service.fillColors());
     }
 
-    public record ValueRequest(String name, String code) {
+    public record ParentRequest(Long parentId) {
+    }
+
+    /** Put a cabinet in a room or a shelf in a cabinet ({"parentId": null} takes it out). */
+    @PutMapping("/{table}/{id}/parent")
+    public void parent(@PathVariable String table, @PathVariable long id, @RequestBody ParentRequest body) {
+        service.setParent(table, id, body.parentId());
+    }
+
+    public record ValueRequest(String name, String code, Long parentId) {
     }
 
     @PostMapping("/{table}")
     @ResponseStatus(HttpStatus.CREATED)
     public LookupValue create(@PathVariable String table, @RequestBody ValueRequest body) {
-        return service.create(table, body.name(), body.code());
+        return service.create(table, body.name(), body.code(), body.parentId());
     }
 
     @PutMapping("/{table}/{id}")

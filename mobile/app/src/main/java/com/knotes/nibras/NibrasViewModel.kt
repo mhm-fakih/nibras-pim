@@ -232,6 +232,24 @@ class NibrasViewModel(app: Application) : AndroidViewModel(app) {
         if (store.isHighlighted(key)) removeHighlight(record, clean, key) else addHighlight(base, record, clean)
     }
 
+    /**
+     * A tap on a sentence of the full text. [older] are smaller highlights saved inside it before
+     * taps became sentence-sized (clauses, or a legacy split): highlighted sentence → it and those
+     * are cleared; otherwise those are cleared and the whole sentence is highlighted, so a sentence
+     * never ends up holding two overlapping highlights.
+     */
+    fun toggleSentence(base: String, record: NibrasRecord, sentence: String, older: List<String>) {
+        val clean = sentence.trim()
+        if (clean.isEmpty()) return
+        val on = !store.isHighlighted(store.highlightKey(record.id, clean))
+        older.map { it.trim() }.filter { it.isNotEmpty() && it != clean }.forEach { t ->
+            val k = store.highlightKey(record.id, t)
+            if (store.isHighlighted(k)) removeHighlight(record, t, k)
+        }
+        if (on) addHighlight(base, record, clean)
+        else removeHighlight(record, clean, store.highlightKey(record.id, clean))
+    }
+
     /** Removes a highlight locally and drops it from the outbox if it hasn't been pushed yet.
      *  (There's no server "un-highlight" endpoint, so an already-synced highlight is cleared
      *  only on this device.) */

@@ -57,11 +57,11 @@ import com.knotes.util.Markdown
 import kotlin.math.abs
 
 /**
- * Read one note, tapping clauses to highlight them — the local-file counterpart of the Resources
+ * Read one note, tapping sentences to highlight them — the local-file counterpart of the Resources
  * full-text reader.
  *
  * <h3>Highlights live in the note file</h3>
- * A tapped clause is wrapped in `==…==` **in the note itself**, not recorded in a phone-local set.
+ * A tapped sentence is wrapped in `==…==` **in the note itself**, not recorded in a phone-local set.
  * That is the difference between this and the Nibras resource reader, and it follows from where
  * the thing being read lives: a resource is a server record the phone only mirrors, so its
  * highlight has to be queued and pushed. A note *is* a file in a synced folder — so writing the
@@ -102,12 +102,15 @@ fun NoteReadScreen(
     // note as it was when the screen opened.
     var source by remember(note.file.absolutePath) { mutableStateOf(note.content) }
 
-    val plain = remember(source) { Highlights.strip(source) }
-    val marked = remember(source) { Highlights.markedTexts(source) }
-    val spans = remember(plain) { Clauses.clauseSpans(plain) }
+    // Plain text plus a per-character flag: highlights are painted from the flags, so one made at
+    // clause level (before taps became sentence-sized) still shows exactly as it was saved.
+    val parsed = remember(source) { Highlights.split(source) }
+    val plain = parsed.first
+    val runs = remember(parsed) { Highlights.runs(parsed.first, parsed.second) }
+    val spans = remember(plain) { Clauses.sentenceSpans(plain) }
 
     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
-    val annotated = remember(plain, spans, marked, highlightColor, note.isRtl) {
+    val annotated = remember(plain, runs, highlightColor, note.isRtl) {
         buildAnnotatedString {
             append(plain)
             // Direction per LINE, from its first strong letter — a note that mixes an English
@@ -123,10 +126,8 @@ fun NoteReadScreen(
             // were computed from. Removing "**" would shift everything after it and highlight the
             // wrong words.
             Markdown.spans(plain).forEach { addStyle(it.style, it.start, it.end) }
-            spans.forEach { s ->
-                if (s.text in marked) {
-                    addStyle(SpanStyle(background = highlightColor, fontWeight = FontWeight.Bold), s.start, s.end)
-                }
+            runs.forEach { r ->
+                addStyle(SpanStyle(background = highlightColor, fontWeight = FontWeight.Bold), r.start, r.end)
             }
         }
     }
@@ -220,7 +221,7 @@ fun NoteReadScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.width(8.dp))
-                val n = marked.size
+                val n = runs.size
                 if (n > 0) {
                     Text(
                         pluralStringResource(R.plurals.notes_read_highlighted_count, n, n),
@@ -243,15 +244,15 @@ fun NoteReadScreen(
                         detectTapGestures { pos ->
                             val lr = layout ?: return@detectTapGestures
                             val offset = lr.getOffsetForPosition(pos)
-                            // Nearest clause when the tap lands in the gap between two (a space, or
+                            // Nearest sentence when the tap lands in the gap between two (a space, or
                             // past the end of a short last line) — a tap that does nothing reads as
                             // the feature being broken.
                             val hit = spans.firstOrNull { offset in it.start until it.end }
                                 ?: spans.minByOrNull { minOf(abs(offset - it.start), abs(offset - (it.end - 1))) }
                                 ?: return@detectTapGestures
-                            val updated =
-                                if (hit.text in marked) Highlights.unmark(source, hit.text)
-                                else Highlights.mark(source, hit.text)
+                            // Flags in, markers out (see Highlights): a sentence holding an older
+                            // clause highlight becomes one highlight, never nested markers.
+                            val updated = Highlights.toggle(source, hit.start, hit.end)
                             if (updated != source) {
                                 source = updated
                                 onSave(updated)

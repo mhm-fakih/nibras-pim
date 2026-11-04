@@ -12,27 +12,64 @@ data class TextSpan(val start: Int, val end: Int, val text: String)
  * Splitting on visual lines would do exactly that — it moves with viewport width, font size and
  * zoom. Punctuation doesn't move.
  *
- * <h3>Clause, not sentence</h3>
- * A sentence in this material regularly runs a whole paragraph, so sentence-level tapping
- * highlights a block at a time — correct, and useless for picking out the line that mattered.
- * Clauses cut at the commas and dashes the writing already uses.
+ * <h3>Sentence, not clause</h3>
+ * A tap highlights a whole grammatical sentence. Clause-level tapping (splitting again at commas
+ * and dashes) was tried and left notes peppered with fragments; [clauseSpans] is kept only so
+ * highlights saved at clause level still show on records that have them.
  *
- * These terminator sets are kept identical to the web client's `HighlightableText.tsx`
- * (`splitSentences` / `splitClauses`) so a highlight made on the phone lands on the same
- * boundaries as one made in the browser.
+ * The sentence rules are kept identical to the web client's `HighlightableText.tsx`
+ * (`splitSentences`) and the desktop's `notes.sentence_bounds`, so a highlight made on one client
+ * lands on the same boundaries as one made on another:
+ * - `. ! ? … ؟ ؛` and the line break end a sentence;
+ * - a `.` between two word characters does not (`3.14`, `notes.md`, `#A.tafsir`, a URL);
+ * - a run of terminators (`?!`, `...`) ends the sentence once, after the last of them.
  */
 object Clauses {
 
     /** Sentence terminators — Arabic `؟`/`؛` included, plus the newline. */
-    private const val SENTENCE_BREAKS = ".!?؟؛\n"
+    private const val SENTENCE_BREAKS = ".!?…؟؛\n"
 
     /** Clause terminators — Arabic comma/semicolon, and the dashes used for asides. */
     private const val CLAUSE_BREAKS = "،؛,;:—–"
 
     /** Sentence ranges, offsets preserved. */
-    fun sentenceSpans(plain: String): List<TextSpan> = spansOn(plain, 0, plain.length, SENTENCE_BREAKS)
+    fun sentenceSpans(plain: String): List<TextSpan> {
+        val out = mutableListOf<TextSpan>()
+        var start = 0
+        for (i in plain.indices) {
+            if (endsSentence(plain, i)) {
+                addTrimmed(plain, start, i + 1, out)
+                start = i + 1
+            }
+        }
+        addTrimmed(plain, start, plain.length, out)
+        return out
+    }
 
-    /** Sentence ranges, each split again at clause boundaries. The break character stays with its clause. */
+    /** The sentence containing [offset] — or the nearest one when the offset falls in a gap. */
+    fun sentenceAt(plain: String, offset: Int): TextSpan? {
+        val spans = sentenceSpans(plain)
+        return spans.firstOrNull { offset in it.start until it.end }
+            ?: spans.minByOrNull { minOf(kotlin.math.abs(offset - it.start), kotlin.math.abs(offset - (it.end - 1))) }
+    }
+
+    /** Whether `plain[i]` ends a sentence here (see the rules in the class comment). */
+    internal fun endsSentence(plain: String, i: Int): Boolean {
+        val ch = plain[i]
+        if (ch !in SENTENCE_BREAKS) return false
+        if (ch == '\n') return true
+        val next = plain.getOrNull(i + 1)
+        if (next != null && next in SENTENCE_BREAKS) return false      // ".." / "?!" / ".\n": the last one breaks
+        if (ch == '.') {
+            val before = plain.getOrNull(i - 1)
+            if (before != null && next != null && isWordChar(before) && isWordChar(next)) return false
+        }
+        return true
+    }
+
+    private fun isWordChar(c: Char) = c.isLetterOrDigit() || c == '_'
+
+    /** LEGACY: sentences split again at clause boundaries — only to show old clause highlights. */
     fun clauseSpans(plain: String): List<TextSpan> =
         sentenceSpans(plain).flatMap { spansOn(plain, it.start, it.end, CLAUSE_BREAKS) }
 

@@ -141,6 +141,9 @@ fun AlarmsScreen(
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                    // Room for the add button floating over the bottom corner (56dp + 16dp margin),
+                    // so the last alarm's switch and menu scroll clear of it.
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp),
                 ) {
                     items(alarms, key = { it.id }) { alarm ->
                         AlarmRow(

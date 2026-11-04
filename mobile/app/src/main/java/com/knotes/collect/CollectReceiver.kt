@@ -42,7 +42,7 @@ class CollectReceiver : BroadcastReceiver() {
 
     private fun runCollection(context: Context) {
         val settings = SettingsStore(context).value
-        if (!settings.collectAutoEnabled) return
+        if (!settings.collectAutoEnabled && !settings.whatsappAutoEnabled) return
         // Without file access there is nothing to scan and every move would fail; saying so beats
         // reporting "collected 0 files" as though the folders were empty.
         if (!hasStorageAccess()) {
@@ -53,6 +53,9 @@ class CollectReceiver : BroadcastReceiver() {
             )
             return
         }
+
+        if (settings.whatsappAutoEnabled) runCatching { runWhatsAppCopy(context, settings) }
+        if (!settings.collectAutoEnabled) return
 
         val found = FileCollector.scan(
             sourceDirs = settings.collectSourceDirs,
@@ -90,10 +93,37 @@ class CollectReceiver : BroadcastReceiver() {
         runCatching { Widgets.refreshAll(context) }
     }
 
+    /** The automatic WhatsApp copy: the kinds ticked in Settings, into a "Whatsapp new files" note. */
+    private fun runWhatsAppCopy(context: Context, settings: com.knotes.AppSettings) {
+        val kinds = settings.whatsappAutoKinds
+            .mapNotNull { n -> WhatsAppCollect.Kind.entries.firstOrNull { it.name == n } }.toSet()
+        val (folder, results) = WhatsAppCollect.copyNow(
+            context, kinds,
+            newDir = settings.collectNewDir,
+            format = settings.timestampFormat,
+            type = settings.effectiveDefaultType,
+            priority = settings.effectiveDefaultPriority,
+            category = settings.effectiveDefaultCategory,
+            heading = { n -> context.resources.getQuantityString(R.plurals.widgets_collect_notif_collected, n, n) },
+        ) ?: return // nothing new: say nothing
+        val ok = results.count { it.ok }
+        val failed = results.size - ok
+        notify(
+            context,
+            if (failed > 0) {
+                context.resources.getQuantityString(R.plurals.widgets_collect_whatsapp_notif_failed, ok, ok, failed)
+            } else {
+                context.resources.getQuantityString(R.plurals.widgets_collect_whatsapp_notif, ok, ok)
+            },
+            folder.name,
+            WHATSAPP_NOTIF_ID,
+        )
+    }
+
     private fun hasStorageAccess(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
 
-    private fun notify(context: Context, title: String, text: String) {
+    private fun notify(context: Context, title: String, text: String, id: Int = NOTIF_ID) {
         ensureChannel(context)
         val open = PendingIntent.getActivity(
             context, 5,
@@ -109,7 +139,7 @@ class CollectReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setAutoCancel(true)
             .rtlIfArabic(context).build()
-        runCatching { NotificationManagerCompat.from(context).notify(NOTIF_ID, n) }
+        runCatching { NotificationManagerCompat.from(context).notify(id, n) }
     }
 
     private fun ensureChannel(context: Context) {
@@ -128,5 +158,6 @@ class CollectReceiver : BroadcastReceiver() {
     private companion object {
         const val CHANNEL = "auto_collect"
         const val NOTIF_ID = 4731
+        const val WHATSAPP_NOTIF_ID = 4732
     }
 }

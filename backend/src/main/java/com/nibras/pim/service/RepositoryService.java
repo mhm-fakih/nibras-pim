@@ -95,6 +95,29 @@ public class RepositoryService {
         return out;
     }
 
+    /**
+     * How many files the record's folder in {@code repo} holds, counting nested ones and skipping
+     * hidden files and folders; 0 when the folder doesn't exist or can't be read.
+     */
+    public int countFiles(int repo, String moduleKey, long id, String typeCode) {
+        Path dir;
+        try {
+            dir = folder(repo, moduleKey, id, typeCode);
+        } catch (RuntimeException unresolved) {
+            return 0;
+        }
+        if (!Files.isDirectory(dir)) return 0;
+        try (var walk = Files.walk(dir)) {
+            return (int) walk.filter(Files::isRegularFile)
+                    .filter(p -> {
+                        for (Path part : dir.relativize(p)) if (part.toString().startsWith(".")) return false;
+                        return true;
+                    }).count();
+        } catch (IOException | java.io.UncheckedIOException e) {
+            return 0;
+        }
+    }
+
     private static RepoFile toRepoFile(int repo, Path p) {
         try {
             var a = Files.readAttributes(p, java.nio.file.attribute.BasicFileAttributes.class);

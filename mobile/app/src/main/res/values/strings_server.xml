@@ -96,7 +96,7 @@
     <string name="server_browser_mark_unread">Mark unread</string>
     <string name="server_browser_add_note_hint">Add a note to this record…</string>
     <string name="server_browser_send_note">Send note</string>
-    <string name="server_browser_fulltext_hint">Full text — tap a clause to highlight</string>
+    <string name="server_browser_fulltext_hint">Full text — tap a sentence to highlight</string>
     <string name="server_browser_offline_no_cache">Offline — no cached records for this type yet</string>
     <string name="server_browser_bookmarked_again">Bookmarked again</string>
     <string name="server_browser_unbookmarked_undo">Un-bookmarked — tap the star to undo</string>

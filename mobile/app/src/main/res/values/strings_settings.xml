@@ -74,6 +74,8 @@
     <string name="settings_persistent_notif_desc">Ongoing notification with today\'s note count; also keeps the app alive so alarms ring on time.</string>
     <string name="settings_mini_calendar_title">Mini calendar</string>
     <string name="settings_mini_calendar_desc">Show the week-strip quick-jump at the top of the Calendar page.</string>
+    <string name="settings_calendar_24h_title">24-hour clock</string>
+    <string name="settings_calendar_24h_desc">Show calendar times as 13:00 instead of 1 PM.</string>
     <string name="settings_feed_header">Recent notes widget</string>
     <string name="settings_feed_today_only">today only</string>
     <plurals name="settings_feed_days_back">
@@ -221,4 +223,6 @@
     <string name="settings_theme_phone">The phone\'s wallpaper colours</string>
     <string name="settings_theme_hex">Other colour (hex)</string>
     <string name="settings_theme_hint">Tap a colour to apply it. The wallpaper button follows the phone\'s own palette.</string>
+    <string name="settings_whatsapp_auto_title">Copy new WhatsApp files automatically</string>
+    <string name="settings_whatsapp_auto_desc">Every day at the collection time, copy what WhatsApp received of the types ticked below into a “Whatsapp new files” note. Copies only — WhatsApp keeps its files.</string>
 </resources>

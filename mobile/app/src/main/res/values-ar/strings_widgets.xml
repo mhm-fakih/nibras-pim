@@ -187,4 +187,53 @@
     <string name="widgets_label_tasks_board">لوحة المهام</string>
     <string name="checklist_reminders_channel">تذكيرات قوائم التحقق</string>
     <string name="checklist_reminder_text">حان وقت تعبئة بنودها.</string>
+    <!-- WhatsApp collector: copies (never moves) what WhatsApp received since the last run. -->
+    <string name="widgets_collect_src_folders">المجلدات (نقل)</string>
+    <string name="widgets_collect_src_whatsapp">واتساب (نسخ)</string>
+    <string name="widgets_collect_will_copy_whatsapp">الجديد منذ %1$s في %2$s. ستُنسخ (ويبقى لواتساب ما عنده) إلى ملاحظة بعنوان «%3$s».</string>
+    <string name="widgets_collect_whatsapp_missing">لم يُعثر على مجلد وسائط واتساب على هذا الهاتف.</string>
+    <string name="widgets_collect_copying">جارٍ نسخ الملفات…</string>
+    <plurals name="widgets_collect_copied">
+        <item quantity="zero">نُسخ %1$d من %2$d ملف</item>
+        <item quantity="one">نُسخ %1$d من %2$d ملف</item>
+        <item quantity="two">نُسخ %1$d من %2$d ملف</item>
+        <item quantity="few">نُسخ %1$d من %2$d ملفات</item>
+        <item quantity="many">نُسخ %1$d من %2$d ملفًا</item>
+        <item quantity="other">نُسخ %1$d من %2$d ملف</item>
+    </plurals>
+    <plurals name="widgets_collect_copy_button">
+        <item quantity="zero">انسخ %1$d ملف</item>
+        <item quantity="one">انسخ ملفًا واحدًا</item>
+        <item quantity="two">انسخ ملفين</item>
+        <item quantity="few">انسخ %1$d ملفات</item>
+        <item quantity="many">انسخ %1$d ملفًا</item>
+        <item quantity="other">انسخ %1$d ملف</item>
+    </plurals>
+    <string name="widgets_collect_kind_voice">رسائل صوتية</string>
+    <string name="widgets_collect_kind_audio">صوتيات</string>
+    <string name="widgets_collect_kind_documents">مستندات</string>
+    <string name="widgets_collect_kind_videos">فيديوهات</string>
+    <string name="widgets_collect_kind_images">صور</string>
+    <string name="widgets_collect_kind_statuses">الحالات</string>
+    <plurals name="widgets_collect_whatsapp_notif">
+        <item quantity="zero">نُسخ %1$d ملف واتساب جديد</item>
+        <item quantity="one">نُسخ %1$d ملف واتساب جديد</item>
+        <item quantity="two">نُسخ %1$d ملف واتساب جديد</item>
+        <item quantity="few">نُسخ %1$d ملف واتساب جديد</item>
+        <item quantity="many">نُسخ %1$d ملف واتساب جديد</item>
+        <item quantity="other">نُسخ %1$d ملف واتساب جديد</item>
+    </plurals>
+    <plurals name="widgets_collect_whatsapp_notif_failed">
+        <item quantity="zero">نُسخ %1$d ملف واتساب، وفشل %2$d</item>
+        <item quantity="one">نُسخ %1$d ملف واتساب، وفشل %2$d</item>
+        <item quantity="two">نُسخ %1$d ملف واتساب، وفشل %2$d</item>
+        <item quantity="few">نُسخ %1$d ملف واتساب، وفشل %2$d</item>
+        <item quantity="many">نُسخ %1$d ملف واتساب، وفشل %2$d</item>
+        <item quantity="other">نُسخ %1$d ملف واتساب، وفشل %2$d</item>
+    </plurals>
+    <string name="widgets_collect_range_since_last">منذ آخر نسخ</string>
+    <string name="widgets_collect_range_today">اليوم</string>
+    <string name="widgets_collect_range_7">آخر 7 أيام</string>
+    <string name="widgets_collect_range_30">آخر 30 يومًا</string>
+    <string name="widgets_collect_range_all">الكل</string>
 </resources>

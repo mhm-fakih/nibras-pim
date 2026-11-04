@@ -664,6 +664,7 @@ private fun AppShell(
                             baseUrl = settings.nibrasBaseUrl,
                             username = settings.nibrasUsername,
                             miniCalendarVisible = settings.calendarEnabled,
+                            clock24h = settings.calendar24h,
                         )
                         else -> NibrasContent(
                             vm = nibrasVm,

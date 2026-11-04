@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Box,
@@ -100,9 +100,15 @@ export function ReportsPage() {
     <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <SideNav />
       <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-          Reports
-        </Typography>
+        <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1 }}>
+          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+            Reports
+          </Typography>
+          {/* Built-in: where resources physically are, drawn room by room (Parameters → Room/Cabinet/Shelf). */}
+          <Button component={Link} to="/reports/shelf-map" variant="outlined" size="small">
+            Shelf map
+          </Button>
+        </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 780 }}>
           Pick a record type, tick the columns you want to see, then say which records appear —
           either by ticking filters, or by writing the query yourself

@@ -16,7 +16,9 @@ export type FieldType =
   | 'tags'
   /** People a record is about — the same multi-select as `tags`, over contacts. */
   | 'contacts'
-  | 'recurrence';
+  | 'recurrence'
+  /** Resources: where it physically is — room › cabinet › shelf (Parameters lists). */
+  | 'storagePlace';
 
 export interface FieldDef {
   name: string;
@@ -167,6 +169,7 @@ export const ENTITIES: EntityConfig[] = [
       { name: 'status', label: 'Status', type: 'status' },
       { name: 'resourceYear', label: 'Year', type: 'text' },
       { name: 'pages', label: 'Pages', type: 'text' },
+      { name: 'storagePlace', label: 'Where it is', type: 'storagePlace' },
       { name: 'isRead', label: 'Read', type: 'switch' },
       { name: 'readOn', label: 'Read on', type: 'datetime', feature: 'resourceExtras' },
       { name: 'percentCompleted', label: '% complete', type: 'number' },

@@ -40,7 +40,14 @@ enum class PlayNextMode {
      * arrived *recently* and has never been bookmarked — for hearing what just came in, rather
      * than digging through what was forgotten.
      */
-    RANDOM_NEW_PARENT;
+    RANDOM_NEW_PARENT,
+
+    /**
+     * A hand-picked queue: the player lists the recent AI narrations — unbookmarked audio in the
+     * companion folders of the AI answers folder (`knotes-ai`) — each with a checkbox, and the
+     * next file played is the first ticked one. Nothing ticked: nothing starts by itself.
+     */
+    AI_QUEUE;
 
     /** True for the modes that pick at random rather than walking the folder in order. */
     val isRandom: Boolean get() = this == RANDOM_OLD || this == RANDOM_OLD_PARENT || this == RANDOM_NEW_PARENT
@@ -184,6 +191,48 @@ object NextTrack {
                 .map { it.first }
         }
         return pool.randomOrNull(random)
+    }
+}
+
+/** An AI narration offered by [PlayNextMode.AI_QUEUE]: the audio file and its note's title. */
+data class AiNarration(val file: File, val title: String, val recordedMillis: Long)
+
+object AiNarrations {
+
+    /** How many of the newest narrations the list offers. */
+    const val LIMIT = 40
+
+    /**
+     * The newest unbookmarked audio files inside the companion folders (`<stem>.d`) under
+     * [aiDir], newest first by recording date (see [MediaDates] — not mtime, which Syncthing
+     * rewrites). Each carries the first line of the note it belongs to (`<stem>.md`), which is
+     * what the narration is about; the file name alone says nothing. Off the main thread.
+     */
+    fun list(aiDir: File, limit: Int = LIMIT): List<AiNarration> {
+        val companion = { f: File ->
+            generateSequence(f.parentFile) { it.parentFile }
+                .takeWhile { it.absolutePath.startsWith(aiDir.absolutePath) && it.absolutePath != aiDir.absolutePath }
+                .firstOrNull { it.name.endsWith(COMPANION_SUFFIX) }
+        }
+        return MediaLibrary.mediaFilesUnder(listOf(aiDir))
+            .asSequence()
+            .filter { !isVideoFile(it.name) && !Bookmarks.hasBookmarks(it) }
+            .mapNotNull { f -> companion(f)?.let { f to it } }
+            .map { (f, dir) -> AiNarration(f, noteTitle(dir) ?: f.nameWithoutExtension, MediaDates.recordedMillis(f)) }
+            .sortedByDescending { it.recordedMillis }
+            .take(limit)
+            .toList()
+    }
+
+    /** First non-blank line of the note owning [companionDir], without a leading `#`. */
+    private fun noteTitle(companionDir: File): String? {
+        val note = File(companionDir.parentFile, companionDir.name.removeSuffix(COMPANION_SUFFIX) + ".md")
+        if (!note.isFile) return null
+        return runCatching {
+            note.bufferedReader().useLines { lines ->
+                lines.map { it.trim().trimStart('#').trim().replace("==", "") }.firstOrNull { it.isNotEmpty() }
+            }
+        }.getOrNull()?.take(120)
     }
 }
 

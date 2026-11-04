@@ -672,7 +672,11 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
     protected static LookupDto lookup(com.nibras.pim.domain.lookup.LookupEntity e) {
         Boolean active = e instanceof com.nibras.pim.domain.lookup.WorkStatus w
                 ? Boolean.TRUE.equals(w.getMarkedAsActive()) : null;
-        return new LookupDto(e.getId(), e.getName(), e.getCode(), e.getStyle(), active);
+        Long parentId = e instanceof com.nibras.pim.domain.lookup.StorageCabinet c
+                ? (c.getRoom() == null ? null : c.getRoom().getId())
+                : e instanceof com.nibras.pim.domain.lookup.StorageShelf s
+                ? (s.getCabinet() == null ? null : s.getCabinet().getId()) : null;
+        return new LookupDto(e.getId(), e.getName(), e.getCode(), e.getStyle(), active, parentId);
     }
 
     /** Department isn't a LookupEntity (no style column), so it gets its own projection. */

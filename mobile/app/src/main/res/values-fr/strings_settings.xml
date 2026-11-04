@@ -74,6 +74,8 @@
     <string name="settings_persistent_notif_desc">Notification continue avec le nombre de notes du jour ; maintient aussi l’application active pour que les alarmes sonnent à l’heure.</string>
     <string name="settings_mini_calendar_title">Mini-calendrier</string>
     <string name="settings_mini_calendar_desc">Afficher la barre de la semaine pour naviguer rapidement en haut de la page Calendrier.</string>
+    <string name="settings_calendar_24h_title">Format 24 heures</string>
+    <string name="settings_calendar_24h_desc">Afficher les heures du calendrier en 13:00 plutôt qu\'en 1 PM.</string>
     <string name="settings_feed_header">Widget des notes récentes</string>
     <string name="settings_feed_today_only">aujourd’hui seulement</string>
     <plurals name="settings_feed_days_back">
@@ -226,4 +228,6 @@
     <string name="settings_theme_phone">Couleurs du fond d\'écran</string>
     <string name="settings_theme_hex">Autre couleur (hex)</string>
     <string name="settings_theme_hint">Touchez une couleur pour l\'appliquer. Le bouton fond d\'écran suit la palette du téléphone.</string>
+    <string name="settings_whatsapp_auto_title">Copier automatiquement les nouveaux fichiers WhatsApp</string>
+    <string name="settings_whatsapp_auto_desc">Chaque jour à l\'heure de la collecte, copie ce que WhatsApp a reçu des types cochés ci-dessous dans une note « Whatsapp new files ». Copie seulement — WhatsApp garde ses fichiers.</string>
 </resources>

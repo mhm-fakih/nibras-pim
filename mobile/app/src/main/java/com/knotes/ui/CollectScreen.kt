@@ -45,10 +45,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.knotes.R
+import androidx.compose.material3.FilterChip
+import com.knotes.collect.CollectSource
 import com.knotes.collect.CollectStatus
 import com.knotes.collect.CollectViewModel
+import com.knotes.collect.WhatsAppCollect
+import java.text.DateFormat
+import java.util.Date
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun CollectScreen(
     sourceDirs: List<String>,
@@ -65,6 +70,16 @@ fun CollectScreen(
     val found by vm.found.collectAsState()
     val results by vm.results.collectAsState()
     val targetPath by vm.targetPath.collectAsState()
+    val source by vm.source.collectAsState()
+    val whatsAppDir by vm.whatsAppDir.collectAsState()
+    val whatsAppSince by vm.whatsAppSince.collectAsState()
+    val whatsAppAll by vm.whatsAppAll.collectAsState()
+    val kinds by vm.kinds.collectAsState()
+    val range by vm.range.collectAsState()
+    val whatsApp = source == CollectSource.WHATSAPP
+    val rescan = {
+        if (whatsApp) vm.scanWhatsApp("", timestampFormat) else vm.scan(sourceDirs, newDir, timestampFormat)
+    }
 
     LaunchedEffect(Unit) {
         if (status == CollectStatus.Idle) vm.scan(sourceDirs, newDir, timestampFormat)
@@ -74,9 +89,9 @@ fun CollectScreen(
     // the collection is titled by what it is about rather than by "Collected 7 files". Optional —
     // leaving it empty collects exactly as before.
     var describing by remember { mutableStateOf(false) }
+    val res = androidx.compose.ui.platform.LocalContext.current.resources
     var description by rememberSaveable { mutableStateOf("") }
     if (describing) {
-        val res = androidx.compose.ui.platform.LocalContext.current.resources
         AlertDialog(
             onDismissRequest = { describing = false },
             title = { Text(pluralStringResource(R.plurals.widgets_collect_button, found.size, found.size)) },
@@ -116,7 +131,7 @@ fun CollectScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { vm.scan(sourceDirs, newDir, timestampFormat) }) {
+                    IconButton(onClick = { rescan() }) {
                         Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.widgets_collect_rescan))
                     }
                 },
@@ -124,6 +139,58 @@ fun CollectScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Two collectors on one page: the folders one MOVES files out of the configured
+            // folders; the WhatsApp one COPIES what WhatsApp received since its last run, so
+            // WhatsApp's own chats keep their media.
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilterChip(
+                    selected = !whatsApp,
+                    enabled = status != CollectStatus.Collecting,
+                    onClick = { if (whatsApp) vm.scan(sourceDirs, newDir, timestampFormat) },
+                    label = { Text(stringResource(R.string.widgets_collect_src_folders)) },
+                )
+                FilterChip(
+                    selected = whatsApp,
+                    enabled = status != CollectStatus.Collecting,
+                    onClick = { if (!whatsApp) vm.scanWhatsApp("", timestampFormat) },
+                    label = { Text(stringResource(R.string.widgets_collect_src_whatsapp)) },
+                )
+            }
+            // WhatsApp: how far back to look — since the last copy normally; further for one run.
+            if (whatsApp && (status == CollectStatus.Ready || status == CollectStatus.Scanning)) {
+                androidx.compose.foundation.layout.FlowRow(
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    WhatsAppCollect.Range.entries.forEach { r ->
+                        FilterChip(
+                            selected = r == range,
+                            enabled = status == CollectStatus.Ready,
+                            onClick = { vm.changeRange(r, timestampFormat) },
+                            label = { Text(stringResource(rangeLabel(r))) },
+                        )
+                    }
+                }
+            }
+            // WhatsApp: which kinds of file to copy, each with how many new ones it has.
+            if (whatsApp && (status == CollectStatus.Ready || status == CollectStatus.Scanning)) {
+                androidx.compose.foundation.layout.FlowRow(
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    WhatsAppCollect.Kind.entries.forEach { k ->
+                        val n = whatsAppAll.count { WhatsAppCollect.kindOf(it) == k }
+                        FilterChip(
+                            selected = k in kinds,
+                            onClick = { vm.toggleKind(k) },
+                            label = { Text(stringResource(whatsAppKindLabel(k)) + if (status == CollectStatus.Ready) " ($n)" else "") },
+                        )
+                    }
+                }
+            }
             // Status banner
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 when (status) {
@@ -131,15 +198,27 @@ fun CollectScreen(
                     CollectStatus.Ready -> {
                         Text(pluralStringResource(R.plurals.widgets_collect_found, found.size, found.size), style = MaterialTheme.typography.titleMedium)
                         Text(
-                            stringResource(R.string.widgets_collect_will_move, newDir),
+                            if (whatsApp) stringResource(
+                                R.string.widgets_collect_will_copy_whatsapp,
+                                DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(whatsAppSince)),
+                                whatsAppDir?.absolutePath.orEmpty(),
+                                WhatsAppCollect.NOTE_TITLE,
+                            ) else stringResource(R.string.widgets_collect_will_move, newDir),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        if (whatsApp && whatsAppDir?.isDirectory == false) {
+                            Text(
+                                stringResource(R.string.widgets_collect_whatsapp_missing),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
                     }
-                    CollectStatus.Collecting -> Text(stringResource(R.string.widgets_collect_moving), style = MaterialTheme.typography.titleMedium)
+                    CollectStatus.Collecting -> Text(stringResource(if (whatsApp) R.string.widgets_collect_copying else R.string.widgets_collect_moving), style = MaterialTheme.typography.titleMedium)
                     CollectStatus.Done -> {
                         val ok = results.count { it.ok }
-                        Text(pluralStringResource(R.plurals.widgets_collect_moved, results.size, ok, results.size), style = MaterialTheme.typography.titleMedium)
+                        Text(pluralStringResource(if (whatsApp) R.plurals.widgets_collect_copied else R.plurals.widgets_collect_moved, results.size, ok, results.size), style = MaterialTheme.typography.titleMedium)
                         targetPath?.let {
                             Text("→ $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -180,12 +259,27 @@ fun CollectScreen(
                     when (status) {
                         CollectStatus.Ready -> Button(
                             // Not straight to collecting: first ask what the set is (see below).
-                            onClick = { describing = true },
+                            // The WhatsApp collection has a fixed title, so it copies at once.
+                            onClick = {
+                                if (whatsApp) {
+                                    vm.collect(newDir, timestampFormat, noteType, notePriority, noteCategory) { n ->
+                                        res.getQuantityString(R.plurals.widgets_collect_notif_collected, n, n)
+                                    }
+                                } else describing = true
+                            },
                             enabled = found.isNotEmpty(),
                             modifier = Modifier.fillMaxWidth(),
-                        ) { Text(if (found.isEmpty()) stringResource(R.string.widgets_collect_none_found) else pluralStringResource(R.plurals.widgets_collect_button, found.size, found.size)) }
+                        ) {
+                            Text(
+                                when {
+                                    found.isEmpty() -> stringResource(R.string.widgets_collect_none_found)
+                                    whatsApp -> pluralStringResource(R.plurals.widgets_collect_copy_button, found.size, found.size)
+                                    else -> pluralStringResource(R.plurals.widgets_collect_button, found.size, found.size)
+                                }
+                            )
+                        }
                         CollectStatus.Done -> OutlinedButton(
-                            onClick = { vm.scan(sourceDirs, newDir, timestampFormat) },
+                            onClick = { rescan() },
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(stringResource(R.string.widgets_collect_scan_again)) }
                         else -> Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
@@ -224,4 +318,12 @@ private fun FileRow(
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+private fun rangeLabel(r: WhatsAppCollect.Range): Int = when (r) {
+    WhatsAppCollect.Range.SINCE_LAST -> R.string.widgets_collect_range_since_last
+    WhatsAppCollect.Range.TODAY -> R.string.widgets_collect_range_today
+    WhatsAppCollect.Range.DAYS_7 -> R.string.widgets_collect_range_7
+    WhatsAppCollect.Range.DAYS_30 -> R.string.widgets_collect_range_30
+    WhatsAppCollect.Range.ALL -> R.string.widgets_collect_range_all
 }

@@ -94,6 +94,12 @@ data class AppSettings(
     val collectAutoEnabled: Boolean = false,
     val collectAutoHour: Int = 15,
     val collectAutoMinute: Int = 0,
+    /**
+     * Copy new WhatsApp files by itself, at the same daily time as the automatic collection, and
+     * which kinds ([com.knotes.collect.WhatsAppCollect.Kind] names) to copy. Off by default.
+     */
+    val whatsappAutoEnabled: Boolean = false,
+    val whatsappAutoKinds: Set<String> = com.knotes.collect.WhatsAppCollect.Kind.entries.map { it.name }.toSet(),
     /** Font-size multiplier for the Resources full-text view (1.0 = default). */
     val fulltextScale: Float,
     /** Root folders scanned by the Media page's Library (genre/artist/album) and Folders tabs. */
@@ -107,6 +113,8 @@ data class AppSettings(
     val calendarEndHour: Int,
     /** When off, the Calendar page hides its mini week-strip (quick-jump) at the top. */
     val calendarEnabled: Boolean,
+    /** 24-hour times on the Calendar page; off (the default) shows 12-hour times with AM/PM. */
+    val calendar24h: Boolean = false,
     /** Whether the prayer times exist at all — the page, the alarms and the widget's data. */
     val prayerEnabled: Boolean = true,
     /**
@@ -250,6 +258,9 @@ class SettingsStore(context: Context) {
         collectAutoEnabled = prefs.getBoolean(K_COLLECT_AUTO, false),
         collectAutoHour = prefs.getInt(K_COLLECT_AUTO_HOUR, 15),
         collectAutoMinute = prefs.getInt(K_COLLECT_AUTO_MIN, 0),
+        whatsappAutoEnabled = prefs.getBoolean(K_WA_AUTO, false),
+        whatsappAutoKinds = prefs.getString(K_WA_AUTO_KINDS, null)?.split(',')?.filter { it.isNotBlank() }?.toSet()
+            ?: com.knotes.collect.WhatsAppCollect.Kind.entries.map { it.name }.toSet(),
         fulltextScale = prefs.getFloat(K_FULLTEXT_SCALE, 1.5f),
         // Migration: if the new multi-root key was never written, seed once from the old
         // single-folder key (still just read, never written again — same pattern as "subjects" below).
@@ -261,6 +272,7 @@ class SettingsStore(context: Context) {
         calendarStartHour = prefs.getInt(K_CAL_START, 5),
         calendarEndHour = prefs.getInt(K_CAL_END, 22),
         calendarEnabled = prefs.getBoolean(K_CAL_ENABLED, true),
+        calendar24h = prefs.getBoolean(K_CAL_24H, false),
         prayerEnabled = prefs.getBoolean(K_PRAYER_ENABLED, true),
         mediaEnabled = prefs.getBoolean(K_MEDIA_ENABLED, true),
         galleryEnabled = prefs.getBoolean(K_GALLERY_ENABLED, true),
@@ -333,6 +345,8 @@ class SettingsStore(context: Context) {
             .putBoolean(K_COLLECT_AUTO, settings.collectAutoEnabled)
             .putInt(K_COLLECT_AUTO_HOUR, settings.collectAutoHour.coerceIn(0, 23))
             .putInt(K_COLLECT_AUTO_MIN, settings.collectAutoMinute.coerceIn(0, 59))
+            .putBoolean(K_WA_AUTO, settings.whatsappAutoEnabled)
+            .putString(K_WA_AUTO_KINDS, settings.whatsappAutoKinds.joinToString(","))
             .putFloat(K_FULLTEXT_SCALE, settings.fulltextScale.coerceIn(0.8f, 3f))
             .putString(
                 K_AUDIO_ROOTS,
@@ -344,6 +358,7 @@ class SettingsStore(context: Context) {
             .putInt(K_CAL_START, settings.calendarStartHour.coerceIn(0, 23))
             .putInt(K_CAL_END, settings.calendarEndHour.coerceIn(settings.calendarStartHour + 1, 24))
             .putBoolean(K_CAL_ENABLED, settings.calendarEnabled)
+            .putBoolean(K_CAL_24H, settings.calendar24h)
             .putBoolean(K_PRAYER_ENABLED, settings.prayerEnabled)
             .putBoolean(K_MEDIA_ENABLED, settings.mediaEnabled)
             .putBoolean(K_GALLERY_ENABLED, settings.galleryEnabled)
@@ -406,6 +421,8 @@ class SettingsStore(context: Context) {
         private const val K_COLLECT_AUTO = "collect_auto_enabled"
         private const val K_COLLECT_AUTO_HOUR = "collect_auto_hour"
         private const val K_COLLECT_AUTO_MIN = "collect_auto_minute"
+        private const val K_WA_AUTO = "whatsapp_auto_enabled"
+        private const val K_WA_AUTO_KINDS = "whatsapp_auto_kinds"
         private const val K_FULLTEXT_SCALE = "fulltext_scale"
         // "audiobook_dir" key retained read-only so an existing single folder migrates once into
         // audio_library_roots (same pattern as "subjects" above) — no longer written.
@@ -416,6 +433,7 @@ class SettingsStore(context: Context) {
         private const val K_CAL_START = "calendar_start_hour"
         private const val K_CAL_END = "calendar_end_hour"
         private const val K_CAL_ENABLED = "calendar_enabled"
+        private const val K_CAL_24H = "calendar_24h"
         private const val K_PRAYER_ENABLED = "prayer_enabled"
         private const val K_MEDIA_ENABLED = "media_enabled"
         private const val K_GALLERY_ENABLED = "gallery_enabled"
@@ -473,10 +491,10 @@ class SettingsStore(context: Context) {
          */
         val BACKUP_KEYS: Set<String> = setOf(
             K_STAR_ACTION, K_DIR, K_AI_DIR, K_FMT, K_PREVIEW, K_TOP_PRIORITY, K_PMIN, K_PMAX,
-            K_TYPES, K_CATEGORIES, K_NIBRAS_URL, K_NIBRAS_USER, K_NIBRAS_FILES, K_COLLECT_SRC,
+            K_TYPES, K_CATEGORIES, K_NIBRAS_URL, K_NIBRAS_USER, K_NIBRAS_FILES, K_COLLECT_SRC, K_WA_AUTO, K_WA_AUTO_KINDS,
             K_COLLECT_NEW, K_COLLECT_AUTO, K_COLLECT_AUTO_HOUR, K_COLLECT_AUTO_MIN,
             K_FULLTEXT_SCALE, K_AUDIO_ROOTS, K_GALLERY, K_VIDEOS, K_CAL_START, K_CAL_END,
-            K_CAL_ENABLED, K_PRAYER_ENABLED, K_MEDIA_ENABLED, K_GALLERY_ENABLED, K_SERVER_ENABLED,
+            K_CAL_ENABLED, K_CAL_24H, K_PRAYER_ENABLED, K_MEDIA_ENABLED, K_GALLERY_ENABLED, K_SERVER_ENABLED,
             K_CHECKLISTS_ENABLED, K_CHECKLISTS_DIR, K_COLLECT_ENABLED, K_FEED_DAYS, K_FEED_WORDS,
             K_FEED_TEXT_SP, K_BOARD_TEXT_SP, K_BOARD_COLUMNS, K_REM_OFFSETS, K_REM_SOUND,
             K_REM_DISMISS, K_REM_REPEAT, K_REM_IGNORE_SILENT, K_STATUS_NOTIF, K_SYNC_ENABLED, K_SYNC_CHECK_SEC,

@@ -17,6 +17,8 @@ import Edit from '@mui/icons-material/Edit';
 import {
   LookupValue,
   createLookupValue,
+  setLookupParent,
+  LookupGroup,
   deleteLookupValue,
   fillLookupColors,
   getLookupGroups,
@@ -104,6 +106,9 @@ function LookupColorsSection() {
                 no status counts as open.
               </Typography>
             )}
+            {g.parentTable ? (
+              <NestedValues group={g} parents={groups.find((p) => p.table === g.parentTable)} />
+            ) : (
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
               {g.values.map((v) => (
                 <LookupChip
@@ -120,6 +125,7 @@ function LookupColorsSection() {
               )}
               <AddLookupValueForm table={g.table} />
             </Stack>
+            )}
           </Box>
         ))}
       </Stack>
@@ -313,14 +319,68 @@ function LookupChip({
   );
 }
 
+/**
+ * Cabinets (by room) and shelves (by cabinet): the values grouped under what they sit in, each
+ * with a picker to move it, and an add form per group so a new shelf is created already inside
+ * its cabinet.
+ */
+function NestedValues({ group, parents }: { group: LookupGroup; parents?: LookupGroup }) {
+  const qc = useQueryClient();
+  const move = useMutation({
+    mutationFn: ({ id, parentId }: { id: number; parentId: number | null }) => setLookupParent(group.table, id, parentId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['lookup-groups'] }),
+  });
+  const parentValues = parents?.values ?? [];
+  const parentLabel = (parents?.label ?? '').toLowerCase();
+  const buckets: { parent: LookupValue | null; values: LookupValue[] }[] = [
+    ...parentValues.map((p) => ({ parent: p, values: group.values.filter((v) => v.parentId === p.id) })),
+    {
+      parent: null,
+      values: group.values.filter((v) => v.parentId == null || !parentValues.some((p) => p.id === v.parentId)),
+    },
+  ];
+  return (
+    <Stack spacing={1} sx={{ mt: 0.5 }}>
+      {buckets.map((b) => (
+        <Box key={b.parent?.id ?? 'none'} sx={{ pl: 1, borderLeft: 2, borderColor: 'divider' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+            {b.parent ? `In ${b.parent.name}` : `Not in any ${parentLabel}`}
+          </Typography>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+            {b.values.map((v) => (
+              <Stack key={v.id} direction="row" spacing={0.25} alignItems="center">
+                <LookupChip table={group.table} value={v} isDefault={group.defaultId === v.id} />
+                <select
+                  value={v.parentId ?? ''}
+                  title={`Move to another ${parentLabel}`}
+                  onChange={(e) => move.mutate({ id: v.id, parentId: e.target.value === '' ? null : Number(e.target.value) })}
+                  style={{ fontSize: 11, maxWidth: 110 }}
+                >
+                  <option value="">— no {parentLabel}</option>
+                  {parentValues.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </Stack>
+            ))}
+            <AddLookupValueForm table={group.table} parentId={b.parent?.id ?? null} />
+          </Stack>
+        </Box>
+      ))}
+    </Stack>
+  );
+}
+
 /** Inline "add a new value" mini-form appended to a lookup group's chip row. */
-function AddLookupValueForm({ table }: { table: string }) {
+function AddLookupValueForm({ table, parentId }: { table: string; parentId?: number | null }) {
   const qc = useQueryClient();
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
 
   const create = useMutation({
-    mutationFn: () => createLookupValue(table, name.trim(), code.trim() || undefined),
+    mutationFn: () => createLookupValue(table, name.trim(), code.trim() || undefined, parentId),
     onSuccess: () => {
       setName('');
       setCode('');

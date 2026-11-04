@@ -105,6 +105,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
     var collectAuto by remember { mutableStateOf(current.collectAutoEnabled) }
     var collectAutoHour by remember { mutableStateOf(current.collectAutoHour) }
     var collectAutoMinute by remember { mutableStateOf(current.collectAutoMinute) }
+    var waAuto by remember { mutableStateOf(current.whatsappAutoEnabled) }
+    var waAutoKinds by remember { mutableStateOf(current.whatsappAutoKinds) }
     var fulltextScale by remember { mutableStateOf(current.fulltextScale) }
     val audioLibraryRoots = remember { mutableStateListOf<String>().apply { addAll(current.audioLibraryRoots) } }
     var galleryDir by remember { mutableStateOf(current.galleryDir) }
@@ -112,6 +114,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
     var calStart by remember { mutableStateOf(current.calendarStartHour.toString()) }
     var calEnd by remember { mutableStateOf(current.calendarEndHour.toString()) }
     var calendarEnabled by remember { mutableStateOf(current.calendarEnabled) }
+    var calendar24h by remember { mutableStateOf(current.calendar24h) }
     var prayerEnabled by remember { mutableStateOf(current.prayerEnabled) }
     var collectEnabled by remember { mutableStateOf(current.collectEnabled) }
     var mediaEnabled by remember { mutableStateOf(current.mediaEnabled) }
@@ -237,6 +240,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 collectAutoEnabled = collectAuto,
                 collectAutoHour = collectAutoHour,
                 collectAutoMinute = collectAutoMinute,
+                whatsappAutoEnabled = waAuto,
+                whatsappAutoKinds = waAutoKinds,
                 fulltextScale = fulltextScale,
                 audioLibraryRoots = audioLibraryRoots.toList(),
                 galleryDir = galleryDir,
@@ -244,6 +249,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 calendarStartHour = calStart.toIntOrNull() ?: 5,
                 calendarEndHour = calEnd.toIntOrNull() ?: 22,
                 calendarEnabled = calendarEnabled,
+                calendar24h = calendar24h,
                 prayerEnabled = prayerEnabled,
                 collectEnabled = collectEnabled,
                 mediaEnabled = mediaEnabled,
@@ -779,7 +785,33 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                         }
                         Switch(checked = collectAuto, onCheckedChange = { collectAuto = it })
                     }
-                    if (collectAuto) {
+                    // The WhatsApp copy, unattended: at the same time, only the kinds ticked here.
+                    // It copies (never moves), so unlike the folder sweep it can't take anything away.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_whatsapp_auto_title), style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                stringResource(R.string.settings_whatsapp_auto_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(checked = waAuto, onCheckedChange = { waAuto = it })
+                    }
+                    if (waAuto) {
+                        androidx.compose.foundation.layout.FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            com.knotes.collect.WhatsAppCollect.Kind.entries.forEach { k ->
+                                FilterChip(
+                                    selected = k.name in waAutoKinds,
+                                    onClick = { waAutoKinds = if (k.name in waAutoKinds) waAutoKinds - k.name else waAutoKinds + k.name },
+                                    label = { Text(stringResource(whatsAppKindLabel(k))) },
+                                )
+                            }
+                        }
+                    }
+                    if (collectAuto || waAuto) {
                         StepSlider(
                             stringResource(R.string.settings_collect_at, "%02d:%02d".format(collectAutoHour, collectAutoMinute)),
                             (collectAutoHour * 60 + collectAutoMinute).toFloat(),
@@ -991,6 +1023,17 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                         )
                     }
                     Switch(checked = calendarEnabled, onCheckedChange = { calendarEnabled = it })
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_calendar_24h_title))
+                        Text(
+                            stringResource(R.string.settings_calendar_24h_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = calendar24h, onCheckedChange = { calendar24h = it })
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     OutlinedTextField(
@@ -1285,4 +1328,14 @@ private fun SchemeDropdown(value: String, onChange: (String) -> Unit, modifier: 
             }
         }
     }
+}
+
+/** Chip label for a WhatsApp file kind (shared wording with the Collect page). */
+internal fun whatsAppKindLabel(k: com.knotes.collect.WhatsAppCollect.Kind): Int = when (k) {
+    com.knotes.collect.WhatsAppCollect.Kind.VOICE -> R.string.widgets_collect_kind_voice
+    com.knotes.collect.WhatsAppCollect.Kind.AUDIO -> R.string.widgets_collect_kind_audio
+    com.knotes.collect.WhatsAppCollect.Kind.DOCUMENTS -> R.string.widgets_collect_kind_documents
+    com.knotes.collect.WhatsAppCollect.Kind.VIDEOS -> R.string.widgets_collect_kind_videos
+    com.knotes.collect.WhatsAppCollect.Kind.IMAGES -> R.string.widgets_collect_kind_images
+    com.knotes.collect.WhatsAppCollect.Kind.STATUSES -> R.string.widgets_collect_kind_statuses
 }

@@ -32,7 +32,8 @@ from config import Settings, RepoConfig, parse_tag_block, format_tag_block  # no
 from notes import (NoteRepository, Note, is_rtl, reads_rtl, companion_dir, companion_files, companion_search_names, inbox_entries,  # noqa: E402
                    companion_has_content, parse_created, QuickFile, QuickEntry,
                    QUICK_NOTES_FILE, QUICK_TASKS_FILE, markdown_spans,
-                   fmt_count, split_highlights, apply_highlights, clause_bounds,
+                   fmt_count, split_highlights, apply_highlights, sentence_bounds,
+                   toggle_highlight,
                    parse as parse_name)
 from backend import fetch_taxonomy, import_note  # noqa: E402
 from filters import FilterState, Taxonomy, default_filter, BY_CREATED, NS_INCLUDE, NS_ONLY, TX_INCLUDE, TX_ONLY  # noqa: E402
@@ -57,7 +58,7 @@ DEFAULT_OPENER = "start" if IS_WINDOWS else ("open" if IS_MACOS else "xdg-open")
 # file beside it. Display name and identity are allowed to differ; that's what this constant is for.
 APP_NAME = "Nibras Notes (dev)" if DEV_MODE else "Nibras Notes"
 
-VERSION = "1.3.2"
+VERSION = "1.3.3"
 
 
 def _data_dir() -> str:
@@ -1033,7 +1034,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         mode_box.get_style_context().add_class("linked")
         self.read_button = Gtk.ToggleButton(label="read")
         self.read_button.set_tooltip_text(
-            "Reading mode — click a clause to highlight it (==like this== in the file)")
+            "Reading mode — click a sentence to highlight it (==like this== in the file)")
         self.edit_button = Gtk.ToggleButton(label="edit")
         self.edit_button.set_tooltip_text("Editing mode — type into the note, saved as you go")
         for button, mode in ((self.read_button, "read"), (self.edit_button, "edit")):
@@ -1838,7 +1839,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if not settled:
             self._editor_say("Read-only — needs metadata. Settle it with Ctrl+Shift+<key> first.")
         elif reading:
-            self._editor_say("Reading — click a clause to highlight it.")
+            self._editor_say("Reading — click a sentence to highlight it.")
         else:
             self._editor_say("Editing — saved automatically as you type.")
         self._apply_editor_cursor()
@@ -1860,7 +1861,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
             i = end
 
     def _on_editor_click(self, view: Gtk.TextView, event) -> bool:
-        """Reading mode: a left click toggles the highlight on the clause under the pointer.
+        """Reading mode: a left click toggles the highlight on the sentence under the pointer.
 
         Left button only, and only in reading mode — in editing mode a click is a click, placing the
         cursor. Returns False either way so the view still gets its normal handling.
@@ -1870,7 +1871,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if not self.editor_view.get_sensitive() or self._editor_note.path in self._unrecognized_paths:
             return False
         bx, by = view.window_to_buffer_coords(Gtk.TextWindowType.TEXT, int(event.x), int(event.y))
-        # A click BELOW the text is not aimed at any clause — the pane is mostly empty space on a
+        # A click BELOW the text is not aimed at any sentence — the pane is mostly empty space on a
         # short note, and highlighting the last line from a click in the void would be a surprise.
         last = view.get_iter_location(self.editor_buffer.get_end_iter())
         if by > last.y + last.height:
@@ -1880,14 +1881,18 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # way to aim at that line — while still setting the iter to the right place. Honouring the
         # flag made every such click do nothing at all.
         _over_text, it = view.get_iter_at_location(bx, by)
-        plain, flags = split_highlights(self._editor_note.content)
-        start, end = clause_bounds(plain, it.get_offset())
+        plain, _flags = split_highlights(self._editor_note.content)
+        start, end = sentence_bounds(plain, it.get_offset())
         if start >= end:
-            return False   # a click on a break or past the text — nothing to toggle
-        turning_on = not all(flags[start:end])
-        for i in range(start, end):
-            flags[i] = turning_on
-        if self._editor_write(apply_highlights(plain, flags)):
+            return False   # a click on a blank line or past the text — nothing to toggle
+        # Flags in, markers out, read back before writing (notes.toggle_highlight): a sentence
+        # holding an older clause highlight becomes one highlight, never nested markers.
+        updated = toggle_highlight(self._editor_note.content, start, end)
+        if updated is None:
+            self._editor_say("Couldn't highlight that sentence cleanly — left as it was.")
+            return False
+        _plain, flags = split_highlights(updated)
+        if self._editor_write(updated):
             # Repaint, never re-render: toggling a highlight only moves ``==`` markers around in the
             # FILE, and reading mode doesn't show those — the text on screen is character-for-
             # character the same. Refilling the buffer would be a no-op the user still pays for, as
@@ -5347,8 +5352,8 @@ class SettingsDialog(Gtk.Dialog):
         self.highlight_button = Gtk.ColorButton.new_with_rgba(highlight)
         self.highlight_button.set_halign(Gtk.Align.START)
         self.highlight_button.set_tooltip_text(
-            "Background painted behind a clause highlighted in the side pane's reading mode "
-            "(stored in the note as ==clause==). The text on top switches between black and white "
+            "Background painted behind a sentence highlighted in the side pane's reading mode "
+            "(stored in the note as ==sentence==). The text on top switches between black and white "
             "to stay readable, so a dark colour works as well as a light one.")
         add("Highlight colour", self.highlight_button)
 

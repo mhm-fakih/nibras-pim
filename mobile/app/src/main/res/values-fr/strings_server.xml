@@ -96,7 +96,7 @@
     <string name="server_browser_mark_unread">Marquer comme non lu</string>
     <string name="server_browser_add_note_hint">Ajouter une note à cette fiche…</string>
     <string name="server_browser_send_note">Envoyer la note</string>
-    <string name="server_browser_fulltext_hint">Texte intégral — touchez une proposition pour la surligner</string>
+    <string name="server_browser_fulltext_hint">Texte intégral — touchez une phrase pour la surligner</string>
     <string name="server_browser_offline_no_cache">Hors ligne — aucune fiche en cache pour ce type</string>
     <string name="server_browser_bookmarked_again">Remis en favori</string>
     <string name="server_browser_unbookmarked_undo">Retiré des favoris — touchez l’étoile pour annuler</string>

@@ -59,9 +59,9 @@ def _cap(text: str, max_chars: int, tail_chars: int = 0) -> str:
     return text
 
 
-# ---------------------------------------------------------------- clause highlighting
+# ---------------------------------------------------------------- sentence highlighting
 #
-# A note marks a highlighted clause the way Obsidian and GitHub-flavoured markdown do, ``==like
+# A note marks a highlighted sentence the way Obsidian and GitHub-flavoured markdown do, ``==like
 # this==``, so the marking is just text: it survives Syncthing, reads fine in any editor, and means
 # the same thing on the phone. The desktop's reading mode hides the markers and paints the run
 # instead — see KnotesWindow._editor_render.
@@ -71,11 +71,11 @@ HIGHLIGHT_MARK = "=="
 # media it belongs to (``talk.mp3`` → ``talk.tmk``). See Note.time_mark_count.
 TIME_MARK_EXT = ".tmk"
 
-# What ends a clause. Sentence punctuation plus its Arabic equivalents (، ؛ ؟ — different code
-# points from the Latin ones, and a note is as likely to be in Arabic as in English) and the line
-# break, which ends a clause whatever precedes it. Dashes are deliberately absent: "- call Sara" is
-# a bullet, and splitting there would make the marker its own clause.
-CLAUSE_BREAKS = frozenset(".,;:!?…\n" + "،؛؟")
+# What ends a sentence: . ! ? … plus the Arabic ؟ ؛ (different code points from the Latin ones, and
+# a note is as likely to be in Arabic as in English), and the line break, which ends one whatever
+# precedes it. Commas don't: a click highlights a whole sentence, the same rules as the phone's
+# util/Clauses.kt and the web's util/highlights.ts, so a highlight lands on the same text anywhere.
+SENTENCE_BREAKS = frozenset(".!?…\n" + "؟؛")
 
 
 def split_highlights(text: str) -> tuple[str, list[bool]]:
@@ -151,70 +151,104 @@ def _group_runs(chars: list[tuple[str, bool]]) -> Runs:
     return runs
 
 
-def _is_break(text: str, i: int) -> bool:
-    """Is ``text[i]`` a clause break *here*?
+def _word_char(c: str | None) -> bool:
+    return c is not None and (c.isalnum() or c == "_")
 
-    A bare membership test in CLAUSE_BREAKS is not enough, because the same characters do two jobs.
-    A "." ends a sentence — but it also sits inside `#A.tafsir`, `notes.sqlite`, `3.14` and a URL,
-    and treating those as sentence ends chops a clause through the middle of a token. Highlighting
-    one then wrapped the ``==`` around a fragment (`#A.==tafsir #I==.digprod`), which is nonsense
-    to read and nonsense in the file.
 
-    So a "." only breaks when it is NOT between two word characters. Every other break character is
-    unconditional: a comma or a "?" inside a word is not a thing worth protecting. (A hyphen needs
-    no guard — it was never a break character here, which is why "- call Sara" is one clause.)
+def _ends_sentence(text: str, i: int) -> bool:
+    """Does ``text[i]`` end a sentence *here*?
+
+    A bare membership test in SENTENCE_BREAKS is not enough. A "." ends a sentence — but it also
+    sits inside `#A.tafsir`, `notes.sqlite`, `3.14` and a URL, and treating those as sentence ends
+    chops a sentence through the middle of a token (`#A.==tafsir #I==.digprod`). So a "." between
+    two word characters doesn't break. And a run of terminators ("?!", "...") ends the sentence
+    once, after the last of them, so the trailing dots aren't sentences of their own.
     """
     ch = text[i]
-    if ch not in CLAUSE_BREAKS:
+    if ch not in SENTENCE_BREAKS:
         return False
-    if ch == ".":
-        before = text[i - 1] if i > 0 else " "
-        after = text[i + 1] if i + 1 < len(text) else " "
-        if (before.isalnum() or before == "_") and (after.isalnum() or after == "_"):
-            return False
+    if ch == "\n":
+        return True
+    nxt = text[i + 1] if i + 1 < len(text) else None
+    if nxt is not None and nxt in SENTENCE_BREAKS:
+        return False
+    if ch == "." and _word_char(text[i - 1] if i > 0 else None) and _word_char(nxt):
+        return False
     return True
 
 
-def clause_bounds(plain: str, offset: int) -> tuple[int, int]:
-    """The clause containing ``offset``, as a ``[start, end)`` range of ``plain``.
+def sentence_spans(plain: str) -> list[tuple[int, int]]:
+    """Every sentence of ``plain`` as a ``[start, end)`` range, trimmed of surrounding whitespace."""
+    out: list[tuple[int, int]] = []
 
-    Empty when there's no clause there (a click on the blank line between two paragraphs) — the
-    caller treats that as "nothing to highlight" rather than guessing at a neighbour.
+    def add(s: int, e: int) -> None:
+        while s < e and plain[s].isspace():
+            s += 1
+        while e > s and plain[e - 1].isspace():
+            e -= 1
+        if s < e:
+            out.append((s, e))
+
+    start = 0
+    for i in range(len(plain)):
+        if _ends_sentence(plain, i):
+            add(start, i + 1)
+            start = i + 1
+    add(start, len(plain))
+    return out
+
+
+def sentence_bounds(plain: str, offset: int) -> tuple[int, int]:
+    """The sentence a click at ``offset`` is aimed at, as a ``[start, end)`` range of ``plain``.
+
+    Inside a sentence: that one. In the gap after a sentence on the same line (the empty run past
+    the end of a short line is the commonest way to aim at it): the one before. In the indent
+    before one: the one after. Anywhere else — a blank line between paragraphs — empty, which the
+    caller treats as "nothing to highlight" rather than guessing at a neighbour.
     """
-    n = len(plain)
-    if n == 0:
+    spans = sentence_spans(plain)
+    if not spans:
         return 0, 0
-    offset = min(max(offset, 0), n)
-    # A click lands on the character to the RIGHT of the caret, so landing on a break means the user
-    # aimed at the clause that just ended — walk back to it. Several breaks can sit together and all
-    # have to be crossed: clicking in the empty space past the end of a line (the commonest way to
-    # aim at a short line) puts the caret on that line's "\n", right after the sentence's ".".
-    #
-    # Crossing a SECOND newline is where it stops, and that's what keeps a click on a blank line
-    # from reaching back into the paragraph above it and marking a clause the user wasn't pointing
-    # at. Empty is the honest answer there.
-    if offset >= n:
-        offset = n - 1
-    newlines = 0
-    while offset >= 0 and _is_break(plain, offset):
-        if plain[offset] == "\n":
-            newlines += 1
-            if newlines > 1:
-                return 0, 0
-        offset -= 1
-    if offset < 0:
-        return 0, 0
-    start = offset
-    while start > 0 and not _is_break(plain, start - 1):
-        start -= 1
-    end = offset
-    while end < n and not _is_break(plain, end):
-        end += 1
-    while start < end and plain[start].isspace():   # hug the words, not the gap before them
-        start += 1
-    while end > start and plain[end - 1].isspace():
-        end -= 1
-    return start, end
+    offset = min(max(offset, 0), len(plain))
+    for s, e in spans:
+        if s <= offset < e:
+            return s, e
+    before = [sp for sp in spans if sp[1] <= offset]
+    after = [sp for sp in spans if sp[0] > offset]
+    if before and "\n" not in plain[before[-1][1]:offset]:
+        return before[-1]
+    if after and "\n" not in plain[offset:after[0][0]]:
+        return after[0]
+    return 0, 0
+
+
+def toggle_highlight(text: str, start: int, end: int) -> str | None:
+    """Flip the highlight on ``plain[start:end]`` of note ``text``; the new text, or None.
+
+    Fully highlighted (whitespace aside) → cleared; anything less — nothing, or an older clause-
+    sized highlight inside the sentence — → the whole range highlighted, so markers never nest.
+    None when the range is empty, or when the result would not read back as exactly the same
+    reading text with exactly the intended highlights: the guard that keeps a stray "=" (or an
+    eaten one, where the note itself contains "==") out of the file.
+    """
+    plain, flags = split_highlights(text)
+    if start < 0 or end > len(plain) or start >= end:
+        return None
+    before = list(flags)
+    on = not all(flags[i] or plain[i].isspace() for i in range(start, end))
+    for i in range(start, end):
+        flags[i] = on
+    updated = apply_highlights(plain, flags)
+    again, after = split_highlights(updated)
+    if again != plain:
+        return None
+    for i, ch in enumerate(plain):
+        if ch.isspace():
+            continue
+        want = on if start <= i < end else before[i]
+        if after[i] != want:
+            return None
+    return updated
 
 
 def is_rtl(text: str) -> bool:
@@ -381,7 +415,7 @@ def parse_created(timestamp: str, fmt: str, fallback_epoch: float) -> float:
 #
 # Everything here works on the ALREADY highlight-stripped text (what split_highlights returns),
 # because that is exactly what the reading buffer holds, so every offset lines up with the buffer,
-# with the clause flags and with clause_bounds.
+# with the highlight flags and with sentence_bounds.
 
 # Marker pairs, longest first: ** must be tried before * or "**bold**" reads as an empty italic.
 _MD_CODE_RE = re.compile(r"`([^`\n]+)`")

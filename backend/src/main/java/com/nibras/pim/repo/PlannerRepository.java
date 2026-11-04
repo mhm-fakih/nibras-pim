@@ -61,4 +61,18 @@ public interface PlannerRepository extends BaseRepository<Planner> {
 
     /** One materialised occurrence, by the slot it stands for. Used to keep materialising idempotent. */
     Optional<Planner> findFirstBySeriesIdAndRecurrenceId(Long seriesId, LocalDateTime recurrenceId);
+
+    /**
+     * The dashboard's "plans": bookmarked entries of the given types (matched on the type's code or
+     * name, lower-cased; an empty list means every type), not occurrences of a series, newest
+     * start first. Ids only — the service maps them to DTOs.
+     */
+    @Query("""
+            select p.id from Planner p left join p.type t
+             where p.bookmarked = true and p.seriesId is null
+               and (:anyType = true or lower(t.code) in :types or lower(t.name) in :types)
+             order by case when p.startDate is null then 1 else 0 end, p.startDate desc, p.lastUpdated desc
+            """)
+    List<Long> bookmarkedPlans(@Param("anyType") boolean anyType, @Param("types") Collection<String> types,
+                               org.springframework.data.domain.Pageable page);
 }

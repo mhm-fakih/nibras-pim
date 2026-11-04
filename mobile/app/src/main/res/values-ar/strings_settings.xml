@@ -74,6 +74,8 @@
     <string name="settings_persistent_notif_desc">إشعار مستمر بعدد ملاحظات اليوم؛ ويُبقي التطبيق يعمل لتُطلَق المنبهات في وقتها.</string>
     <string name="settings_mini_calendar_title">تقويم مصغّر</string>
     <string name="settings_mini_calendar_desc">إظهار شريط الأسبوع للانتقال السريع أعلى صفحة التقويم.</string>
+    <string name="settings_calendar_24h_title">نظام 24 ساعة</string>
+    <string name="settings_calendar_24h_desc">عرض أوقات التقويم بصيغة 13:00 بدلًا من 1 م.</string>
     <string name="settings_feed_header">أداة الملاحظات الأخيرة</string>
     <string name="settings_feed_today_only">اليوم فقط</string>
     <plurals name="settings_feed_days_back">
@@ -241,4 +243,6 @@
     <string name="settings_theme_phone">ألوان خلفية الهاتف</string>
     <string name="settings_theme_hex">لون آخر (hex)</string>
     <string name="settings_theme_hint">المس لونًا لتطبيقه. زر الخلفية يتبع ألوان الهاتف نفسه.</string>
+    <string name="settings_whatsapp_auto_title">نسخ ملفات واتساب الجديدة تلقائيًا</string>
+    <string name="settings_whatsapp_auto_desc">كل يوم في وقت الجمع، يُنسخ ما استلمه واتساب من الأنواع المحددة أدناه إلى ملاحظة «Whatsapp new files». نسخ فقط — يبقى لواتساب ما عنده.</string>
 </resources>

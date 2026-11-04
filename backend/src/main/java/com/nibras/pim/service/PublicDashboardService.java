@@ -21,6 +21,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -46,14 +47,26 @@ public class PublicDashboardService {
     private final TaskService tasks;
     private final com.nibras.pim.repo.TaskRepository taskRepo;
     private final com.nibras.pim.service.localnotes.LocalNotesService localNotes;
+    private final SettingService settings;
+    private final com.nibras.pim.repo.PlannerRepository plannerRepo;
+    private final com.nibras.pim.service.PlannerService planners;
+    private final RepositoryService repos;
 
     public PublicDashboardService(CustomDashboardService dashboards, IndexCardService notes, GoalService goals,
                                   IndicatorService indicators, IndicatorMonitorService indicatorMonitor,
                                   CalendarEventService calendarEvents, DashboardService kanban,
                                   com.nibras.pim.service.checklists.ChecklistService checklists, TaskService tasks,
                                   com.nibras.pim.repo.TaskRepository taskRepo,
-                                  com.nibras.pim.service.localnotes.LocalNotesService localNotes) {
+                                  com.nibras.pim.service.localnotes.LocalNotesService localNotes,
+                                  SettingService settings,
+                                  com.nibras.pim.repo.PlannerRepository plannerRepo,
+                                  com.nibras.pim.service.PlannerService planners,
+                                  RepositoryService repos) {
+        this.repos = repos;
+        this.plannerRepo = plannerRepo;
+        this.planners = planners;
         this.dashboards = dashboards;
+        this.settings = settings;
         this.notes = notes;
         this.goals = goals;
         this.indicators = indicators;
@@ -75,7 +88,13 @@ public class PublicDashboardService {
             DashboardFileContentDto file,
             com.nibras.pim.service.checklists.ChecklistWeekFile.Week checklist,
             List<TaskDto> tasks,
-            List<com.nibras.pim.web.dto.LocalNoteDto> localTasks) {
+            List<com.nibras.pim.web.dto.LocalNoteDto> localTasks,
+            /** 'checklist' regions: the week before this one, for a multi-day view reaching into it. */
+            com.nibras.pim.service.checklists.ChecklistWeekFile.Week checklistPrevious,
+            /** 'plans' regions: bookmarked planner entries of the chosen types. */
+            List<com.nibras.pim.web.dto.PlannerDto> plans,
+            /** 'tasks' regions: how many files each task has in repository 1, by task id. */
+            Map<Long, Integer> taskFiles) {
     }
 
     public record GoalHeatmap(Long goalId, String goalCode, List<IndicatorWithSeries> indicators) {
@@ -85,13 +104,15 @@ public class PublicDashboardService {
     }
 
     public record Snapshot(Long id, String name, Integer columnsCount, Integer refreshMinutes,
-                           String columnWidths, List<PublicRegion> regions) {
+                           String columnWidths, String rowHeights, Boolean hour12, List<PublicRegion> regions) {
     }
 
     public Snapshot snapshot(Long id) {
         CustomDashboardDto d = dashboards.get(id);
         List<PublicRegion> regions = d.regions().stream().map(this::resolve).toList();
-        return new Snapshot(d.id(), d.name(), d.columnsCount(), d.refreshMinutes(), d.columnWidths(), regions);
+        // The calendars' clock rides along: the public view can't read settings itself.
+        boolean hour12 = !"false".equals(settings.get("calendar.hour12", "true"));
+        return new Snapshot(d.id(), d.name(), d.columnsCount(), d.refreshMinutes(), d.columnWidths(), d.rowHeights(), hour12, regions);
     }
 
     private PublicRegion resolve(CustomDashboardRegionDto r) {
@@ -102,21 +123,22 @@ public class PublicDashboardService {
             case "kanban" -> withKanban(r);
             case "file" -> withFile(r, resolveFile(r.config()));
             case "checklist" -> new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(),
-                    null, null, null, null, null, resolveChecklist(), null, null);
+                    null, null, null, null, null, resolveChecklist(0), null, null, resolveChecklist(1), null, null);
             case "localTasks" -> new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(),
-                    null, null, null, null, null, null, null, resolveLocalTasks(r.config()));
-            case "tasks" -> new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(),
-                    null, null, null, null, null, null, resolveTasks(r.config()), null);
+                    null, null, null, null, null, null, null, resolveLocalTasks(r.config()), null, null, null);
+            case "plans" -> new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(),
+                    null, null, null, null, null, null, null, null, null, resolvePlans(r.config()), null);
+            case "tasks" -> withTasks(r);
             default -> withQuote(r, null);
         };
     }
 
     private PublicRegion withQuote(CustomDashboardRegionDto r, IndexCardDto note) {
-        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), note, null, null, null, null, null, null, null);
+        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), note, null, null, null, null, null, null, null, null, null, null);
     }
 
     private PublicRegion withCalendar(CustomDashboardRegionDto r, List<CalendarEventDto> events) {
-        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, events, null, null, null, null, null, null);
+        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, events, null, null, null, null, null, null, null, null, null);
     }
 
     private PublicRegion withGoalsHeatmap(CustomDashboardRegionDto r) {
@@ -135,15 +157,15 @@ public class PublicDashboardService {
                 })
                 .filter(g -> !g.indicators().isEmpty())
                 .toList();
-        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, null, groups, null, null, null, null, null);
+        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, null, groups, null, null, null, null, null, null, null, null);
     }
 
     private PublicRegion withKanban(CustomDashboardRegionDto r) {
-        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, null, null, kanban.kanban(), null, null, null, null);
+        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, null, null, kanban.kanban(), null, null, null, null, null, null, null);
     }
 
     private PublicRegion withFile(CustomDashboardRegionDto r, DashboardFileContentDto file) {
-        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, null, null, null, file, null, null, null);
+        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, null, null, null, file, null, null, null, null, null, null);
     }
 
     private IndexCardDto resolveQuote(String config) {
@@ -170,13 +192,18 @@ public class PublicDashboardService {
         LocalDate monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         LocalDate sunday = monday.plusDays(6);
         return calendarEvents.events(monday.atStartOfDay(), sunday.atTime(LocalTime.MAX),
-                Set.of("journals", "planners"), eventType == null || eventType.isBlank() ? null : eventType);
+                Set.of("journals", "planners", "localnotes"), eventType == null || eventType.isBlank() ? null : eventType);
     }
 
-    /** This week's checklist (a week with no file yet shows the last one's items unmarked); null when there is none. */
-    private com.nibras.pim.service.checklists.ChecklistWeekFile.Week resolveChecklist() {
+    /**
+     * The checklist {@code weeksBack} weeks ago — 0 this week, 1 last week (a multi-day view
+     * starting early in the week reaches into it). A week with no file yet shows the last one's
+     * items unmarked; null when there is none.
+     */
+    private com.nibras.pim.service.checklists.ChecklistWeekFile.Week resolveChecklist(int weeksBack) {
         try {
-            return checklists.week(checklists.currentWeek());
+            return checklists.week(com.nibras.pim.service.checklists.ChecklistWeekFile.idOf(
+                    LocalDate.now().minusWeeks(weeksBack)));
         } catch (org.springframework.web.server.ResponseStatusException none) {
             return null;
         }
@@ -189,6 +216,35 @@ public class PublicDashboardService {
      * than that many days (default 30, 0 keeps them all), so years-old leftovers don't crowd the
      * top; {@code bookmarkedOnly} keeps only bookmarked tasks.
      */
+    /**
+     * Bookmarked planner entries of the configured types — {@code types}: comma-separated codes or
+     * names ("focus,policy"; blank = every type) — newest first, at most {@code limit} (default 20).
+     */
+    private List<com.nibras.pim.web.dto.PlannerDto> resolvePlans(String config) {
+        String raw = jsonString(config, "types");
+        List<String> types = raw == null ? List.of() : java.util.Arrays.stream(raw.split(","))
+                .map(String::trim).filter(x -> !x.isEmpty()).map(String::toLowerCase).toList();
+        int limit = Math.max(1, Math.min(100, jsonInt(config, "limit", 20)));
+        return plannerRepo.bookmarkedPlans(types.isEmpty(), types.isEmpty() ? List.of("") : types, PageRequest.of(0, limit))
+                .stream().map(planners::get).toList();
+    }
+
+    private PublicRegion withTasks(CustomDashboardRegionDto r) {
+        List<TaskDto> list = resolveTasks(r.config());
+        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(),
+                null, null, null, null, null, null, list, null, null, null, taskFiles(list));
+    }
+
+    /** Files in each task's repository-1 folder (its working files), by task id. */
+    private Map<Long, Integer> taskFiles(List<TaskDto> list) {
+        Map<Long, Integer> out = new java.util.LinkedHashMap<>();
+        for (TaskDto t : list) {
+            // Tasks aren't filed by type in the repositories (only resources are), so no type level.
+            out.put(t.id(), repos.countFiles(1, "tasks", t.id(), null));
+        }
+        return out;
+    }
+
     private List<TaskDto> resolveTasks(String config) {
         int limit = Math.max(1, Math.min(200, jsonInt(config, "limit", 30)));
         int overdueDays = Math.max(0, jsonInt(config, "overdueDays", 30));

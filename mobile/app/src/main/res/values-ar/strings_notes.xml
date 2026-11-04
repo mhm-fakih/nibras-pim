@@ -81,7 +81,7 @@
     <string name="notes_calendar_next_month">الشهر التالي</string>
     <string name="notes_calendar_today">اليوم</string>
     <string name="notes_read_ai_answer">إجابة الذكاء الاصطناعي</string>
-    <string name="notes_read_tap_clause_hint">اضغط على عبارة لتمييزها</string>
+    <string name="notes_read_tap_clause_hint">اضغط على جملة لتمييزها</string>
     <string name="notes_read_edit_tags_hint">· التعديل بالأعلى · الوسوم بالأسفل</string>
     <string name="notes_read_empty">هذه الملاحظة فارغة.</string>
     <string name="notes_read_empty_start_typing">هذه الملاحظة فارغة — ابدأ الكتابة.</string>

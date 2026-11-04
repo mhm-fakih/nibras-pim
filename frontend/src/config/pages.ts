@@ -29,6 +29,8 @@ export const TOGGLEABLE_PAGES: ToolPage[] = [
   { key: 'flashcards', label: 'Flash cards' },
   { key: 'highlights', label: 'Highlights' },
   { key: 'local-notes', label: 'Local notes' },
+  { key: 'catalog', label: 'Disk catalogue' },
+  { key: 'expenses', label: 'Expenses' },
 ];
 
 export const pageSettingKey = (key: string) => `page.${key}.enabled`;

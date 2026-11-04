@@ -273,7 +273,13 @@ fun NibrasContent(
             if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             HorizontalDivider()
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                // Bottom padding: room for the two jump buttons floating over the list's corner,
+                // so the last record's actions can scroll clear of them instead of under them.
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 120.dp),
+                ) {
                     if (bookmarked.isNotEmpty()) {
                         item { SectionHeader(stringResource(R.string.server_browser_section_bookmarked), bookmarked.size) }
                         items(bookmarked, key = { it.key }) { rowContent(it) }
@@ -803,7 +809,7 @@ private fun NoteAdder(onAddNote: (String) -> Unit) {
     }
 }
 
-/** Resources full text rendered as tappable clauses; tapping highlights (bold) + queues a sync. */
+/** Resources full text rendered as tappable sentences; tapping highlights (bold) + queues a sync. */
 @Composable
 private fun ResourcesHighlighter(vm: NibrasViewModel, record: NibrasRecord, baseUrl: String, fulltextScale: Float) {
     val highlighted by vm.store.highlighted.collectAsState()
@@ -811,14 +817,13 @@ private fun ResourcesHighlighter(vm: NibrasViewModel, record: NibrasRecord, base
     // within it so a tap can highlight just the tapped sentence (a text highlight that wraps with
     // the lines, not a rectangular box).
     val plain = remember(record.id, record.fulltext) { htmlToPlain(record.fulltext) }
-    // Clause, not sentence: a sentence here routinely runs a whole paragraph, so sentence-level
-    // tapping highlights a block at a time. Same boundaries as the web client and the note reader.
-    val clauses = remember(plain) { Clauses.clauseSpans(plain) }
-    // Highlights saved before this changed are keyed by the whole SENTENCE they were made on, and
-    // no clause key will ever match one. Kept so a record already worked through doesn't come back
-    // looking untouched — a clause inside a highlighted sentence still shows as highlighted.
-    val legacySentences = remember(plain) { Clauses.sentenceSpans(plain) }
-    if (clauses.isEmpty()) return
+    // A tap highlights a whole sentence — same boundaries as the web client and the note reader.
+    val sentences = remember(plain) { Clauses.sentenceSpans(plain) }
+    // Highlights saved while taps were clause-sized are keyed by the CLAUSE text, which no sentence
+    // key matches. Still painted, so a record already worked through doesn't come back looking
+    // untouched; a tap on their sentence folds them into one sentence highlight.
+    val legacyClauses = remember(plain) { Clauses.clauseSpans(plain) }
+    if (sentences.isEmpty()) return
     val textDir = if (record.isRtl) TextDirection.Rtl else TextDirection.Ltr
     val base = MaterialTheme.typography.bodyMedium
     val fullStyle = base.copy(
@@ -828,7 +833,7 @@ private fun ResourcesHighlighter(vm: NibrasViewModel, record: NibrasRecord, base
     )
     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
 
-    val annotated = remember(plain, clauses, legacySentences, highlighted, record.id, highlightColor) {
+    val annotated = remember(plain, sentences, legacyClauses, highlighted, record.id, highlightColor) {
         val style = SpanStyle(background = highlightColor, fontWeight = FontWeight.Bold)
         buildAnnotatedString {
             append(plain)
@@ -837,12 +842,12 @@ private fun ResourcesHighlighter(vm: NibrasViewModel, record: NibrasRecord, base
             Bidi.lines(plain, fallbackRtl = record.isRtl).forEach {
                 addStyle(Bidi.paragraphStyle(it.rtl), it.start, it.end)
             }
-            clauses.forEach { c ->
-                if (vm.store.highlightKey(record.id, c.text) in highlighted) {
-                    addStyle(style, c.start, c.end)
+            sentences.forEach { s ->
+                if (vm.store.highlightKey(record.id, s.text) in highlighted) {
+                    addStyle(style, s.start, s.end)
                 }
             }
-            legacySentences.forEach { s ->
+            legacyClauses.forEach { s ->
                 if (vm.store.highlightKey(record.id, s.text) in highlighted) {
                     addStyle(style, s.start, s.end)
                 }
@@ -864,21 +869,17 @@ private fun ResourcesHighlighter(vm: NibrasViewModel, record: NibrasRecord, base
             .fillMaxWidth()
             // Side padding (before pointerInput so tap coordinates still match the text layout).
             .padding(horizontal = 12.dp)
-            .pointerInput(clauses) {
+            .pointerInput(sentences, legacyClauses) {
                 detectTapGestures { pos ->
                     val lr = layout ?: return@detectTapGestures
                     val offset = lr.getOffsetForPosition(pos)
-                    val hit = clauses.firstOrNull { offset in it.start until it.end }
-                        ?: clauses.minByOrNull { minOf(abs(offset - it.start), abs(offset - (it.end - 1))) }
+                    val hit = sentences.firstOrNull { offset in it.start until it.end }
+                        ?: sentences.minByOrNull { minOf(abs(offset - it.start), abs(offset - (it.end - 1))) }
                         ?: return@detectTapGestures
-                    // Tapping inside a sentence highlighted before the switch to clauses removes
-                    // that whole sentence, rather than adding a clause on top of it and leaving two
-                    // overlapping highlights the second tap can't undo.
-                    val enclosing = legacySentences.firstOrNull {
-                        it.start <= hit.start && it.end >= hit.end && it.text != hit.text &&
-                            vm.store.highlightKey(record.id, it.text) in highlighted
-                    }
-                    vm.toggleHighlight(baseUrl, record, (enclosing ?: hit).text)
+                    // Older clause highlights overlapping this sentence are folded into it (or
+                    // cleared with it), never left behind as a second, overlapping highlight.
+                    val older = legacyClauses.filter { it.start < hit.end && it.end > hit.start }.map { it.text }
+                    vm.toggleSentence(baseUrl, record, hit.text, older)
                 }
             },
     )

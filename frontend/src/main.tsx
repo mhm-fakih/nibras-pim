@@ -28,6 +28,7 @@ import { ImportNotesPage } from './pages/ImportNotesPage';
 import { BatchEntryPage } from './pages/BatchEntryPage';
 import { ImportFilesPage } from './pages/ImportFilesPage';
 import { ImagesPage } from './pages/ImagesPage';
+import { CatalogPage } from './pages/CatalogPage';
 import { KanbanPage } from './pages/KanbanPage';
 import { DashboardsPage } from './pages/DashboardsPage';
 import { DashboardViewPage } from './pages/DashboardViewPage';
@@ -40,6 +41,8 @@ import { FlashCardsPage } from './pages/FlashCardsPage';
 import { HighlightsPage } from './pages/HighlightsPage';
 import { LocalNotesPage } from './pages/LocalNotesPage';
 import { ReportPrintPage } from './pages/ReportPrintPage';
+import { ShelfMapPage } from './pages/ShelfMapPage';
+import { ExpensesPage } from './pages/ExpensesPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { MaintenancePage } from './pages/MaintenancePage';
 import { SprintsPage } from './pages/SprintsPage';
@@ -117,6 +120,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                         {/* Chrome-free, print-ready. Authed like any report read, but
                             deliberately outside the shell: see ReportPrintPage. */}
                         <Route path="/reports/:id/print" element={<ReportPrintPage />} />
+                        {/* Built-in report: where resources physically are. Print-ready like the above. */}
+                        <Route path="/reports/shelf-map" element={<ShelfMapPage />} />
                         <Route
                           path="/admin"
                           element={
@@ -163,6 +168,22 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                           element={
                             <RequireAuth permission="content.write">
                               <ImportFilesPage />
+                            </RequireAuth>
+                          }
+                        />
+                        <Route
+                          path="/expenses"
+                          element={
+                            <RequireAuth>
+                              <ExpensesPage />
+                            </RequireAuth>
+                          }
+                        />
+                        <Route
+                          path="/catalog"
+                          element={
+                            <RequireAuth>
+                              <CatalogPage />
                             </RequireAuth>
                           }
                         />

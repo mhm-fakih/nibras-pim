@@ -559,8 +559,14 @@ fun MainScreen(
             // When the jump-button overlay is shown (long lists), pad the list bottom by the
             // overlay's height so the LAST card can scroll clear of it — otherwise the overlay
             // sits exactly on that card's ⋮ menu button and steals its taps.
-            val overlayButtons = if (groupMode != GroupMode.NONE) 3 else 2
-            val listBottomPad = if (rows.size > 8) (10 + overlayButtons * 48).dp else 8.dp
+            //
+            // Counted from the buttons actually drawn below, and applied whatever the list's length:
+            // refresh is ALWAYS there, so a short list's last card sat under it (the reserve used to
+            // apply only past 8 rows, and counted buttons that weren't shown).
+            val jumpable = rows.size > SCROLL_JUMP_MIN
+            val overlayButtons = 1 + (if (jumpable) 2 else 0) + (if (jumpable && groupMode != GroupMode.NONE) 1 else 0)
+            // 10dp margin + 40dp per button + 8dp between them, and a little air above the stack.
+            val listBottomPad = (10 + overlayButtons * 48 + 12).dp
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),

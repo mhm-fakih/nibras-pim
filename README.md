@@ -74,7 +74,7 @@ Open http://localhost:5173 — it proxies `/api` and `/feeds` to the backend.
 ```bash
 cd backend
 ./gradlew clean bootWar --rerun-tasks   # also runs the frontend build and embeds it
-java -jar build/libs/nibras-pim-1.3.2.war
+java -jar build/libs/nibras-pim-1.3.3.war
 ```
 Everything (UI, `/api`, `/feeds`, Swagger) is then served from http://127.0.0.1:8081 on one port.
 Full instructions for a fresh Linux machine — incl. systemd and reverse-proxy — are in
@@ -155,9 +155,9 @@ The app binds to `server.address: 0.0.0.0` by default, so the LAN (and the phone
 To keep it on this machine only, or move the port, override at runtime:
 ```bash
 # WAR:
-java -jar build/libs/nibras-pim-1.3.2.war --server.address=127.0.0.1 --server.port=8081
+java -jar build/libs/nibras-pim-1.3.3.war --server.address=127.0.0.1 --server.port=8081
 # or via env vars (bootRun or WAR):
-SERVER_ADDRESS=127.0.0.1 SERVER_PORT=8081 java -jar build/libs/nibras-pim-1.3.2.war
+SERVER_ADDRESS=127.0.0.1 SERVER_PORT=8081 java -jar build/libs/nibras-pim-1.3.3.war
 ```
 JWT auth + role-based permissions gate every `/api` and `/sync` call (`ADMIN`, `DATA_ENTRY`,
 `PARAMETERS_DATA_ENTRY`, `READ_ONLY` — see `SecurityConfig`/`PermissionService`). For LAN/production
@@ -247,7 +247,7 @@ nginx, and a Caddy-based HTTPS setup.
   `timer-status.sh` prints `🟢 <task, 20 chars>` / `🔴` / `🔴 offline` for a status bar
   (creds in `~/.config/nibras/timer-probe.conf`, JWT cached).
 - **Version status-bar probe** (`/api/info`): the root-level `version-status.sh` prints
-  `v1.3.2 "Serenity"` / `offline` — same config file and cached JWT as `timer-status.sh`.
+  `v1.3.3 "Serenity"` / `offline` — same config file and cached JWT as `timer-status.sh`.
 - **Journal nudge (true desktop notification, no browser tab needed)**: the root-level
   `journal-nudge.sh`, run every 15 minutes by `systemd/journal-nudge.timer`
   (`systemd/install-journal-nudge.sh` installs it as a `systemctl --user` timer), checks — during
@@ -447,7 +447,7 @@ dist/           built artefacts, in a subfolder per type: war/ apk/ zip/ sql/ ap
 DEPLOY.md       fresh-machine deployment guide         (WAR, systemd, nginx, DB + network config)
 ```
 
-All components share one version and codename (1.3.2 "Serenity") — see the top of
+All components share one version and codename (1.3.3 "Serenity") — see the top of
 `backend/build.gradle`, `frontend/package.json`, `mobile/app/build.gradle.kts`, the `VERSION`
 constants in the three Python apps and `capture/VERSION`. `file-watch/` and `scr-annotator/` are
 separate small tools, each developed in its own git repo, carrying their tag in a plain `VERSION`

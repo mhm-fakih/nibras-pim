@@ -105,6 +105,19 @@ public class Book extends BaseEntity implements SyncMutable, Taggable, HasShortS
     @JoinColumn(name = "type_id")
     private ResourceType type;
 
+    /** Where it physically is — room, cabinet, shelf (each optional; a shelf implies the rest). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "storage_room_id")
+    private com.nibras.pim.domain.lookup.StorageRoom storageRoom;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "storage_cabinet_id")
+    private com.nibras.pim.domain.lookup.StorageCabinet storageCabinet;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "storage_shelf_id")
+    private com.nibras.pim.domain.lookup.StorageShelf storageShelf;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
     private Department department;

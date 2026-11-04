@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Checkbox,
+  Chip,
   FormControlLabel,
   IconButton,
   List,
@@ -29,6 +30,7 @@ import {
   createCustomDashboard,
   deleteCustomDashboard,
   getCustomDashboard,
+  getLookups,
   listCustomDashboards,
   updateCustomDashboard,
 } from '../api/client';
@@ -38,6 +40,7 @@ import {
   DashboardComponent,
   DEFAULT_TEXT_SCALE,
   TEXT_SCALES,
+  planTypesOf,
   regionZoom,
 } from '../components/DashboardComponents';
 
@@ -488,6 +491,24 @@ function RegionEditor({
         </Stack>
         </>
       )}
+      {region.componentType === 'plans' && <PlansOptions cfg={cfg} setCfg={setCfg} />}
+      {region.componentType === 'checklist' && (
+        <>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+            The phone's checklist with a tick box per day for the last few days, today last — to
+            compare ticks across days at a glance. Up to 7 days.
+          </Typography>
+          <TextField
+            size="small"
+            type="number"
+            label="Days shown"
+            value={(cfg.days as number) ?? 3}
+            onChange={(e) => setCfg({ days: Math.min(7, Math.max(1, Number(e.target.value) || 3)) })}
+            inputProps={{ min: 1, max: 7 }}
+            sx={{ width: 130 }}
+          />
+        </>
+      )}
       {region.componentType === 'localTasks' && (
         <>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
@@ -533,5 +554,61 @@ function RegionEditor({
         </Box>
       </Box>
     </Paper>
+  );
+}
+
+/** Options for the 'plans' component: which planner types, how many, and a heading. */
+function PlansOptions({
+  cfg,
+  setCfg,
+}: {
+  cfg: Record<string, unknown>;
+  setCfg: (patch: Record<string, unknown>) => void;
+}) {
+  const { data: lookups } = useQuery({ queryKey: ['lookups', 'planners'], queryFn: () => getLookups('planners') });
+  const chosen = planTypesOf(JSON.stringify(cfg));
+  const toggle = (code: string) => {
+    const c = code.toLowerCase();
+    const next = chosen.includes(c) ? chosen.filter((x) => x !== c) : [...chosen, c];
+    setCfg({ types: next.join(',') });
+  };
+  return (
+    <>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+        Bookmarked planner entries of the types picked here — this month&apos;s focus, standing policies — as a list,
+        newest first. Bookmark an entry to show it; unbookmark it to take it off. No type picked: every type.
+      </Typography>
+      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
+        {(lookups?.types ?? []).map((t) => (
+          <Chip
+            key={t.id}
+            label={t.name}
+            size="small"
+            color={chosen.includes(String(t.code ?? t.name).toLowerCase()) ? 'primary' : 'default'}
+            variant={chosen.includes(String(t.code ?? t.name).toLowerCase()) ? 'filled' : 'outlined'}
+            onClick={() => toggle(String(t.code ?? t.name))}
+          />
+        ))}
+      </Stack>
+      <Stack direction="row" spacing={2}>
+        <TextField
+          size="small"
+          label="Heading"
+          placeholder="Plans"
+          value={(cfg.title as string) ?? ''}
+          onChange={(e) => setCfg({ title: e.target.value })}
+          sx={{ width: 220 }}
+        />
+        <TextField
+          size="small"
+          type="number"
+          label="Show at most"
+          value={(cfg.limit as number) ?? 20}
+          onChange={(e) => setCfg({ limit: Math.max(1, Number(e.target.value) || 20) })}
+          inputProps={{ min: 1, max: 100 }}
+          sx={{ width: 130 }}
+        />
+      </Stack>
+    </>
   );
 }

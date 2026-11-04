@@ -96,7 +96,7 @@
     <string name="server_browser_mark_unread">تعليم كغير مقروء</string>
     <string name="server_browser_add_note_hint">أضف ملاحظة إلى هذا السجل…</string>
     <string name="server_browser_send_note">إرسال الملاحظة</string>
-    <string name="server_browser_fulltext_hint">النص الكامل — اضغط على عبارة لتمييزها</string>
+    <string name="server_browser_fulltext_hint">النص الكامل — اضغط على جملة لتمييزها</string>
     <string name="server_browser_offline_no_cache">غير متصل — لا توجد سجلات محفوظة لهذا النوع بعد</string>
     <string name="server_browser_bookmarked_again">أُعيد الحفظ</string>
     <string name="server_browser_unbookmarked_undo">أُزيل من المحفوظات — اضغط النجمة للتراجع</string>

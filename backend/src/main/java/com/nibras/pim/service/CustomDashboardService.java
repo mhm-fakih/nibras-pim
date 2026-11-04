@@ -110,17 +110,29 @@ public class CustomDashboardService {
         return toDto(d);
     }
 
+    /** Saves only the row heights: what dragging a row separator on the view page sends. */
+    @Transactional
+    public CustomDashboardDto setRowHeights(Long id, String heights) {
+        CustomDashboard d = load(id);
+        d.setRowHeights(normaliseWidths(heights, 24, "row heights"));
+        return toDto(d);
+    }
+
+    static String normaliseWidths(String widths) {
+        return normaliseWidths(widths, 12, "column widths");
+    }
+
     /**
      * "1, 2.5,1" → "1,2.5,1": each weight a positive number, rounded to two decimals. Blank means
      * equal columns (null); anything else that isn't a list of positive numbers is a 400.
      */
-    static String normaliseWidths(String widths) {
+    static String normaliseWidths(String widths, int max, String what) {
         if (widths == null || widths.isBlank()) {
             return null;
         }
         String[] parts = widths.split(",");
-        if (parts.length > 12) {
-            throw new ResponseStatusException(BAD_REQUEST, "Too many column widths.");
+        if (parts.length > max) {
+            throw new ResponseStatusException(BAD_REQUEST, "Too many " + what + ".");
         }
         StringBuilder out = new StringBuilder();
         for (String part : parts) {
@@ -128,10 +140,10 @@ public class CustomDashboardService {
             try {
                 w = Double.parseDouble(part.trim());
             } catch (NumberFormatException e) {
-                throw new ResponseStatusException(BAD_REQUEST, "Column widths are numbers separated by commas, like 1,2,1.");
+                throw new ResponseStatusException(BAD_REQUEST, "The " + what + " are numbers separated by commas, like 1,2,1.");
             }
             if (!(w > 0) || w > 1000) {
-                throw new ResponseStatusException(BAD_REQUEST, "Each column width must be a positive number.");
+                throw new ResponseStatusException(BAD_REQUEST, "Each of the " + what + " must be a positive number.");
             }
             if (out.length() > 0) {
                 out.append(',');
@@ -173,6 +185,6 @@ public class CustomDashboardService {
                         r.getId(), r.getOrderIndex(), r.getComponentType(), r.getConfig(), r.getColSpan(), r.getRowSpan()))
                 .toList();
         return new CustomDashboardDto(d.getId(), d.getName(), d.getColumnsCount(), d.getRefreshMinutes(),
-                d.getColumnWidths(), regions);
+                d.getColumnWidths(), d.getRowHeights(), regions);
     }
 }

@@ -146,4 +146,11 @@
     <string name="player_starred">Starred</string>
     <string name="player_unstar">Remove the star</string>
     <string name="player_starred_empty">No starred files yet. Tap ☆ Star under a file’s name on the Player tab to keep it here.</string>
+    <!-- AI_QUEUE play-next mode: tick recent AI narrations to play them next. -->
+    <string name="player_next_ai_queue">AI narrations</string>
+    <string name="player_next_caption_ai_queue">Lists the recent AI narrations (unbookmarked audio in the AI answers folder\'s note folders) on the player page, each with a tick box. The next file played is the first ticked one; with nothing ticked, nothing starts by itself.</string>
+    <string name="player_ai_queue_title">Play next — AI narrations (%1$d ticked)</string>
+    <string name="player_ai_queue_refresh">Refresh the list</string>
+    <string name="player_ai_queue_empty">No unbookmarked AI narrations found.</string>
+    <string name="player_notice_queue_empty">Nothing ticked — tick a narration in the list to play it next.</string>
 </resources>

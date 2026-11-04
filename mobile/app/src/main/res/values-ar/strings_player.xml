@@ -166,4 +166,11 @@
     <string name="player_starred">مميّز</string>
     <string name="player_unstar">إزالة التمييز</string>
     <string name="player_starred_empty">لا ملفات مميّزة بعد. اضغط ☆ تمييز تحت اسم الملف في تبويب المشغّل لإبقائه هنا.</string>
+    <!-- AI_QUEUE play-next mode: tick recent AI narrations to play them next. -->
+    <string name="player_next_ai_queue">قراءات الذكاء الاصطناعي</string>
+    <string name="player_next_caption_ai_queue">يعرض في صفحة المشغّل أحدث قراءات الذكاء الاصطناعي (ملفات صوتية بلا علامات في مجلدات ملاحظات مجلد إجابات الذكاء الاصطناعي)، ولكل منها مربع اختيار. الملف التالي هو أول ملف محدَّد؛ وإن لم يُحدَّد شيء فلا يبدأ شيء وحده.</string>
+    <string name="player_ai_queue_title">التالي — قراءات الذكاء الاصطناعي (%1$d محدَّدة)</string>
+    <string name="player_ai_queue_refresh">تحديث القائمة</string>
+    <string name="player_ai_queue_empty">لا توجد قراءات ذكاء اصطناعي بلا علامات.</string>
+    <string name="player_notice_queue_empty">لم يُحدَّد شيء — حدِّد قراءة في القائمة لتُشغَّل تاليًا.</string>
 </resources>
