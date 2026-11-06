@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from dataclasses import dataclass, field, asdict
 
@@ -173,6 +174,12 @@ class Settings:
     # Any Gdk-parseable colour string. The text on top is switched between black and white by
     # luminance, so a dark pick stays readable instead of vanishing into the theme's foreground.
     highlight_color: str = "#f2c744"
+    # Background of a card's "N highlights" count on its action row, by how much of the note has
+    # been worked through: none yet, one or two, three or more. Light tints, with dark text on them
+    # in both themes, so the count reads as a status pill at a glance.
+    highlights_none_color: str = "#f8d0d0"
+    highlights_few_color: str = "#fbe0b8"
+    highlights_many_color: str = "#cdeccd"
     # Idle time (ms) after the last keystroke before the pane writes the note. Long enough that a
     # normal typing burst is one write, short enough that a glance at the card shows the new text.
     editor_autosave_ms: int = 900
@@ -290,6 +297,12 @@ class Settings:
         s.quick_panels_visible = bool(raw.get("quick_panels_visible", s.quick_panels_visible))
         s.quick_panels_height = int(raw.get("quick_panels_height", s.quick_panels_height))
         s.highlight_color = str(raw.get("highlight_color", s.highlight_color))
+        for key in ("highlights_none_color", "highlights_few_color", "highlights_many_color"):
+            value = raw.get(key)
+            # Only a #rgb / #rrggbb spelling is taken: it goes straight into the CSS, where anything
+            # else would break the whole stylesheet rather than just this one colour.
+            if isinstance(value, str) and re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", value.strip()):
+                setattr(s, key, value.strip())
         s.tag_bank_path = str(raw.get("tag_bank_path", s.tag_bank_path))
         s.append_template = raw.get("append_template", s.append_template)
         s.append_date_format = raw.get("append_date_format", s.append_date_format)

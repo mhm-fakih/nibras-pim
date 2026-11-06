@@ -16,6 +16,7 @@ public record IndicatorDto(
         String extensions,
         String script,
         String usageApp,
+        String reportSource,
         String category,
         String color,
         Integer priority,

@@ -39,6 +39,7 @@ import { IndicatorsPage } from './pages/IndicatorsPage';
 import { InsightsPage } from './pages/InsightsPage';
 import { FlashCardsPage } from './pages/FlashCardsPage';
 import { HighlightsPage } from './pages/HighlightsPage';
+import { AllHighlightsPage } from './pages/AllHighlightsPage';
 import { LocalNotesPage } from './pages/LocalNotesPage';
 import { ReportPrintPage } from './pages/ReportPrintPage';
 import { ShelfMapPage } from './pages/ShelfMapPage';
@@ -122,6 +123,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                         <Route path="/reports/:id/print" element={<ReportPrintPage />} />
                         {/* Built-in report: where resources physically are. Print-ready like the above. */}
                         <Route path="/reports/shelf-map" element={<ShelfMapPage />} />
+                        {/* Built-in report: every ==marked== passage on one long page, with the count. */}
+                        <Route path="/reports/all-highlights" element={<AllHighlightsPage />} />
                         <Route
                           path="/admin"
                           element={

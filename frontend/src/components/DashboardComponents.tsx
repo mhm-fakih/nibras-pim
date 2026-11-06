@@ -31,6 +31,7 @@ import {
   setTaskCompleted,
 } from '../api/client';
 import { HabitHeatmap } from './HabitHeatmap';
+import { IndicatorTickerComponent } from './IndicatorTicker';
 import { RecordCard } from './RecordCard';
 import { dirOf } from '../util/rtl';
 import { lookupStyle } from './statusStyle';
@@ -46,6 +47,7 @@ export const DASHBOARD_COMPONENT_TYPES: { type: string; label: string }[] = [
   { type: 'plans', label: 'Plans (bookmarked planner entries)' },
   { type: 'tasks', label: 'Open tasks' },
   { type: 'localTasks', label: 'Local tasks (notes folder)' },
+  { type: 'indicatorTicker', label: 'Indicators ticker (monitored indicators, ▲▼ trend)' },
 ];
 
 function safeParse<T>(json: string | undefined, fallback: T): T {
@@ -103,6 +105,8 @@ export function DashboardComponent({ componentType, config }: { componentType: s
       return <LocalTasksComponent config={config} />;
     case 'plans':
       return <PlansComponent config={config} />;
+    case 'indicatorTicker':
+      return <IndicatorTickerComponent config={config} />;
     default:
       return <Typography color="text.secondary">Unknown component type "{componentType}".</Typography>;
   }
@@ -729,6 +733,8 @@ export function PublicDashboardComponent({ region }: { region: PublicDashboardRe
       return <PlansView plans={region.plans ?? []} config={region.config} />;
     case 'localTasks':
       return <LocalTasksView notes={region.localTasks ?? []} minPriority={localTasksConfig(region.config).minPriority} />;
+    case 'indicatorTicker':
+      return <Typography color="text.secondary">The indicators ticker shows on the signed-in dashboard only.</Typography>;
     default:
       return <Typography color="text.secondary">Unknown component type "{region.componentType}".</Typography>;
   }

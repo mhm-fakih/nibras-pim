@@ -108,6 +108,9 @@ export function ReportsPage() {
           <Button component={Link} to="/reports/shelf-map" variant="outlined" size="small">
             Shelf map
           </Button>
+          <Button component={Link} to="/reports/all-highlights" variant="outlined" size="small">
+            All highlights
+          </Button>
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 780 }}>
           Pick a record type, tick the columns you want to see, then say which records appear —

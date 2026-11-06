@@ -198,7 +198,7 @@ export function IndicatorsPage() {
           {[...all]
             .sort((a, b) => Number(Boolean(b.bookmarked)) - Number(Boolean(a.bookmarked)))
             .map((rec) => {
-              const kind = rec.usageApp ? 'USAGE' : rec.query ? 'QUERY' : rec.path ? 'FILE' : rec.script ? 'SCRIPT' : 'MANUAL';
+              const kind = rec.usageApp ? 'USAGE' : rec.reportSource ? 'REPORT' : rec.query ? 'QUERY' : rec.path ? 'FILE' : rec.script ? 'SCRIPT' : 'MANUAL';
               return (
                 <Box
                   component="li"

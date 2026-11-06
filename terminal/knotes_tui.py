@@ -186,7 +186,7 @@ class KnotesTUI(App):
     SUB_TITLE = f'v{VERSION} "{CODENAME}"'
     CSS = """
     #dashboard { dock: top; padding: 0 1; border: round $panel; }
-    #log { height: 1fr; border: round $panel; padding: 0 1; }
+    #log { height: 1fr; border: round $panel; padding: 0 1; overflow-x: hidden; }
     #bottombar { dock: bottom; height: auto; }
     /* Claude-Code-style command bar: a single-line field between a top and bottom grey rule. */
     /* Rules and prompt glyph track the theme — hardcoded grey/white vanished on a light background. */
@@ -247,7 +247,9 @@ class KnotesTUI(App):
     def compose(self) -> ComposeResult:
         yield Header()
         yield Static(id="dashboard")
-        yield RichLog(id="log", markup=True, wrap=True, highlight=False)
+        # min_width=1: RichLog wraps at max(width, min_width), and the default 78 made a narrower
+        # window scroll sideways instead of wrapping.
+        yield RichLog(id="log", markup=True, wrap=True, highlight=False, min_width=1)
         # Claude-Code-style bottom: a context line, the bordered input box, then a one-line status bar.
         with Vertical(id="bottombar"):
             with Horizontal(id="promptrow"):

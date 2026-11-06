@@ -16,4 +16,6 @@ public interface IndicatorDataRepository extends JpaRepository<IndicatorData, Lo
     boolean existsByIndicatorIdAndDateBetween(Long indicatorId, LocalDateTime from, LocalDateTime to);
 
     Optional<IndicatorData> findTopByIndicatorIdOrderByDateDesc(Long indicatorId);
+
+    List<IndicatorData> findTop2ByIndicatorIdOrderByDateDesc(Long indicatorId);
 }

@@ -809,3 +809,15 @@ headerbar > label {
 .sidebar-grip:hover {
     background-color: alpha(@chrome_fg, 0.35);
 }
+
+/* A card's "N highlights" count as a pill: red with none yet, orange with one or two, green with
+   three or more (colours in Settings → "Highlight count colours"). The tints are light in both
+   themes, so the text on them is dark in both. */
+.card-counts.hl-count {
+    color: #2b2b2b;
+    padding: 0 6px;
+    border-radius: 8px;
+}
+.card-counts.hl-none { background-color: @hl_none_bg; }
+.card-counts.hl-few  { background-color: @hl_few_bg; }
+.card-counts.hl-many { background-color: @hl_many_bg; }

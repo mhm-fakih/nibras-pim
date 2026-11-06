@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Box, IconButton, Stack, Typography } from '@mui/material';
+import { Box, Button, IconButton, Stack, Typography } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
 import Remove from '@mui/icons-material/Remove';
 import Add from '@mui/icons-material/Add';
 import { Highlight, getHighlights } from '../api/client';
@@ -56,6 +57,9 @@ export function HighlightsPage() {
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', p: 2 }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
           <Typography variant="h6">Highlights</Typography>
+          <Button component={RouterLink} to="/reports/all-highlights" size="small">
+            All ==marked== passages (one page)
+          </Button>
           <Box sx={{ flex: 1 }} />
           <Typography variant="caption" color="text.secondary">
             {grouped(count)} {count === 1 ? 'record' : 'records'} with highlights

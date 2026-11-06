@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
  * A monitored metric whose values over time live in {@code indicator_data}. Its kind is
  * inferred from which field is set: a non-blank {@code query} → DB-query indicator;
  * else a non-blank {@code usageApp} → app-usage indicator;
+ * else a non-blank {@code reportSource} → report-count indicator (e.g. "highlights");
  * else a non-blank {@code path} → file-count indicator; else manual entry. {@code frequency}
  * ("daily"/"weekly") drives the missing-data reminders. Bookmarked = actively monitored.
  * Optionally linked to a {@link Goal} — a daily-frequency indicator linked this way is how a
@@ -67,6 +68,11 @@ public class Indicator extends BaseEntity {
      *  or "backend" for records added/updated. See {@code AppUsageService}. */
     @Column(name = "usage_app")
     private String usageApp;
+
+    /** A report whose count this indicator collects (kind REPORT): "highlights" = the
+     *  All highlights report. See {@code HighlightsReportService}. */
+    @Column(name = "report_source")
+    private String reportSource;
 
     @Column(columnDefinition = "longtext")
     private String notes;

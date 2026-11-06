@@ -492,6 +492,35 @@ function RegionEditor({
         </>
       )}
       {region.componentType === 'plans' && <PlansOptions cfg={cfg} setCfg={setCfg} />}
+      {region.componentType === 'indicatorTicker' && (
+        <>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+            Every monitored (bookmarked) indicator, App usage ones included, with its latest value and a
+            market-style arrow against the value before it: ⇈ / ⇊ for a change of at least the threshold,
+            ↑ / ↓ for a smaller one, = for the same level.
+          </Typography>
+          <Stack direction="row" spacing={2} alignItems="flex-start" flexWrap="wrap" useFlexGap>
+            <TextField
+              size="small"
+              type="number"
+              label="Double arrow from (%)"
+              value={(cfg.threshold as number) ?? 10}
+              onChange={(e) => setCfg({ threshold: Math.max(1, Number(e.target.value) || 10) })}
+              inputProps={{ min: 1 }}
+              sx={{ width: 190 }}
+            />
+            <TextField
+              size="small"
+              label="Categories only"
+              placeholder="e.g. Apps, Highlights"
+              value={(cfg.categories as string) ?? ''}
+              onChange={(e) => setCfg({ categories: e.target.value })}
+              helperText="Comma-separated; blank shows all"
+              sx={{ width: 260 }}
+            />
+          </Stack>
+        </>
+      )}
       {region.componentType === 'checklist' && (
         <>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>

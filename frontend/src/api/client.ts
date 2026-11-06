@@ -2017,6 +2017,49 @@ export async function getHighlights(limit?: number, module?: string): Promise<Hi
   return data;
 }
 
+/** One ==marked== passage, from a resource (description / full text), a local note or an AI note. */
+export interface MarkedHighlight {
+  source: 'resourceDescription' | 'resourceFullText' | 'note' | 'aiNote';
+  /** "R123" for a resource, the file name for a note. */
+  ref: string;
+  title?: string;
+  date?: string;
+  text: string;
+}
+
+export interface AllHighlightsReport {
+  total: number;
+  counts: Record<string, number>;
+  notesDir?: string;
+  aiNotesDir?: string;
+  items: MarkedHighlight[];
+}
+
+/** The All highlights report: every ==marked== passage, newest first, with the count. */
+export async function getAllHighlights(): Promise<AllHighlightsReport> {
+  const { data } = await http.get('/highlights/all');
+  return data;
+}
+
+/** A monitored indicator's latest and previous values (the dashboard's trend ticker). */
+export interface IndicatorTrend {
+  id: number;
+  name: string;
+  category?: string;
+  scale?: string;
+  color?: string;
+  kind: string;
+  value?: number | null;
+  date?: string | null;
+  previous?: number | null;
+  previousDate?: string | null;
+}
+
+export async function getIndicatorTrends(): Promise<IndicatorTrend[]> {
+  const { data } = await http.get('/indicators/trends');
+  return data;
+}
+
 // ---- Local notes -------------------------------------------------------------------------
 // The markdown folder the desktop app keeps, read (and written) by the backend off its own disk.
 // These are FILES, not records: they have a file name where a record has an id, and only some of

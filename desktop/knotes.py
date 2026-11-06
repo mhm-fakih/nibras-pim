@@ -596,6 +596,25 @@ def repo_color(settings: Settings, code: str) -> str:
     return REPO_CHROME_DEFAULTS[index % len(REPO_CHROME_DEFAULTS)] if index > 0 else ""
 
 
+def highlight_count_class(count: int) -> str:
+    """The CSS class for a card's highlight count: none yet, one or two, three or more."""
+    if count <= 0:
+        return "hl-none"
+    return "hl-few" if count <= 2 else "hl-many"
+
+
+def highlight_count_css(settings: Settings) -> str:
+    """@define-colors for the three highlight-count pills, from Settings (fallback: the defaults)."""
+    out = ""
+    for name, key in (("hl_none_bg", "highlights_none_color"), ("hl_few_bg", "highlights_few_color"),
+                      ("hl_many_bg", "highlights_many_color")):
+        rgba = Gdk.RGBA()
+        if not rgba.parse(getattr(settings, key, "") or ""):
+            rgba.parse(getattr(Settings, key))
+        out += f"@define-color {name} {_rgba_hex(rgba)};\n"
+    return out
+
+
 def repo_chrome_css(colour: str) -> str:
     """@chrome_* overrides for a chrome painted [colour], or "" for none. The text colours follow
     the background's lightness, so a light pick gets dark text and a dark pick light text."""
@@ -3251,24 +3270,27 @@ class KnotesWindow(Gtk.ApplicationWindow):
             head, rest = note.card_preview(self.settings.preview_chars,
                                            self.settings.preview_tail_chars)
         wc = note.word_count()
-        parts = [f'{fmt_count(wc)} word{"" if wc == 1 else "s"}']
+        # (text, extra CSS class or "") — the highlight count gets a class of its own, so the row
+        # can paint it as a red / orange / green pill (Settings: "Highlight count colours").
+        parts: list[tuple[str, str]] = [(f'{fmt_count(wc)} word{"" if wc == 1 else "s"}', "")]
         # Past a length (Settings: "Counts shown from"), a card also reports how much of the note has
         # been worked through. The highlight count shows even at zero — on a long note that IS the
         # signal, "nothing marked yet" — but the time-mark count only appears when there are .tmk
         # files to count, since a note with no recording has no notion of one to be at zero of.
         if len(note.content) >= self.settings.card_counts_min_chars:
             hl = note.highlight_count()
-            parts.append(f'{fmt_count(hl)} highlight{"" if hl == 1 else "s"}')
+            parts.append((f'{fmt_count(hl)} highlight{"" if hl == 1 else "s"}',
+                          highlight_count_class(hl)))
             marks = note.time_mark_count()
             if marks:
-                parts.append(f'{fmt_count(marks)} time mark{"" if marks == 1 else "s"}')
+                parts.append((f'{fmt_count(marks)} time mark{"" if marks == 1 else "s"}', ""))
         # The attached files are listed in the pane's files panel; the card only says how many.
         if note.n_files:
-            parts.append(f'{fmt_count(note.n_files)} file{"" if note.n_files == 1 else "s"}')
+            parts.append((f'{fmt_count(note.n_files)} file{"" if note.n_files == 1 else "s"}', ""))
         # Rendered at the end of the action row rather than trailing the title: the title is what the
         # eye lands on when scanning the board, and a parenthetical of three numbers in front of the
         # note's own first words got in the way of reading it. Down with the actions it's a footer.
-        counts = " · ".join(parts)
+        counts = parts
 
         # The #hashtags are shown once, as tinted spans at the end of the text: taken out of the
         # preview where they stand (the tag line, mostly) and appended after its last line. They
@@ -3392,7 +3414,8 @@ class KnotesWindow(Gtk.ApplicationWindow):
         luminance = 0.299 * colour.red + 0.587 * colour.green + 0.114 * colour.blue
         return _rgba_hex(colour), "#101010" if luminance > 0.55 else "#f5f5f5"
 
-    def _build_card_actions(self, note: Note, counts: str = "") -> Gtk.Widget:
+    def _build_card_actions(self, note: Note,
+                            counts: list[tuple[str, str]] | None = None) -> Gtk.Widget:
         """The row of visible actions under a card: open folder · open note · copy name · copy path,
         with the note's counts (words, highlights, time marks) closing the row.
 
@@ -3482,11 +3505,23 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if counts:
             # No LTR isolate needed here, unlike when this rode on the title: the row itself is
             # forced LTR (above), so an Arabic note can't reverse "(4 words)" into "(words 4)".
-            label = Gtk.Label(label=counts, xalign=0)
-            label.get_style_context().add_class("card-counts")
-            label.get_style_context().add_class("card-counts-strong")
-            label.set_margin_start(8)
-            row.pack_start(label, False, False, 0)
+            box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+            box.set_valign(Gtk.Align.CENTER)
+            box.set_margin_start(8)
+            for i, (text, extra) in enumerate(counts):
+                if i:
+                    dot = Gtk.Label(label=" · ")
+                    dot.get_style_context().add_class("card-counts")
+                    box.pack_start(dot, False, False, 0)
+                label = Gtk.Label(label=text, xalign=0)
+                ctx = label.get_style_context()
+                ctx.add_class("card-counts")
+                ctx.add_class("card-counts-strong")
+                if extra:
+                    ctx.add_class("hl-count")
+                    ctx.add_class(extra)
+                box.pack_start(label, False, False, 0)
+            row.pack_start(box, False, False, 0)
         return row
 
     # ------------------------------------------------ card selection / navigation
@@ -5488,6 +5523,23 @@ class SettingsDialog(Gtk.Dialog):
             "to stay readable, so a dark colour works as well as a light one.")
         add("Highlight colour", self.highlight_button)
 
+        # The card's "N highlights" pill, coloured by how far the note has been worked through.
+        pills = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.hl_count_buttons: dict[str, Gtk.ColorButton] = {}
+        for key, caption, tip in (
+                ("highlights_none_color", "0", "No highlights yet"),
+                ("highlights_few_color", "1–2", "One or two highlights"),
+                ("highlights_many_color", "3+", "Three or more highlights")):
+            rgba = Gdk.RGBA()
+            if not rgba.parse(getattr(settings, key)):
+                rgba.parse(getattr(Settings, key))
+            button = Gtk.ColorButton.new_with_rgba(rgba)
+            button.set_tooltip_text(f"{tip}: background of the count on the card's action row")
+            self.hl_count_buttons[key] = button
+            pills.pack_start(Gtk.Label(label=caption), False, False, 0)
+            pills.pack_start(button, False, False, 0)
+        add("Highlight count colours", pills)
+
         self.append_template_entry = Gtk.Entry(text=settings.append_template)
         self.append_template_entry.set_tooltip_text(
             "Inserted between a note's existing content and text appended via Space (quick-append). "
@@ -5634,6 +5686,8 @@ class SettingsDialog(Gtk.Dialog):
         # Stored as #rrggbb rather than Gdk's "rgb(r,g,b)": Pango markup can't parse the latter (see
         # _highlight_colors), and hex is what a hand-edited config.json is expected to hold anyway.
         settings.highlight_color = _rgba_hex(self.highlight_button.get_rgba())
+        for key, button in self.hl_count_buttons.items():
+            setattr(settings, key, _rgba_hex(button.get_rgba()))
         settings.append_template = self.append_template_entry.get_text()
         settings.append_date_format = self.append_date_format_entry.get_text().strip() or settings.append_date_format
         settings.kanban_rows = int(self.rows_spin.get_value())
@@ -5719,7 +5773,8 @@ class KnotesApp(Gtk.Application):
         if gtk_settings is not None:
             gtk_settings.set_property("gtk-application-prefer-dark-theme", theme == "dark")
         if self._css_provider is not None:
-            css = THEMES[theme] + repo_chrome_css(chrome_colour) + self._structural_css
+            css = (THEMES[theme] + repo_chrome_css(chrome_colour)
+                   + highlight_count_css(self.settings) + self._structural_css)
             self._css_provider.load_from_data(css.encode("utf-8"))
 
 

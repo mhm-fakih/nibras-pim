@@ -50,7 +50,7 @@ public class IndicatorService extends AbstractCrudService<Indicator, IndicatorDt
                 ? i.getColor() : paletteColor(i.feedTitle());
         return new IndicatorDto(i.getId(), i.getVersion(), i.feedTitle(),
                 i.getCode(), i.getName(), i.getDescription(), i.getFrequency(), i.getScale(),
-                i.getQuery(), i.getPath(), i.getExtensions(), i.getScript(), i.getUsageApp(),
+                i.getQuery(), i.getPath(), i.getExtensions(), i.getScript(), i.getUsageApp(), i.getReportSource(),
                 i.getCategory(), color, i.getPriority(),
                 i.getBookmarked(), i.getAutoCollect(),
                 i.getGoal() == null ? null : i.getGoal().getId(),
@@ -79,6 +79,8 @@ public class IndicatorService extends AbstractCrudService<Indicator, IndicatorDt
         i.setExtensions(dto.extensions());
         i.setScript(dto.script());
         i.setUsageApp(dto.usageApp() == null || dto.usageApp().isBlank() ? null : dto.usageApp().trim());
+        i.setReportSource(dto.reportSource() == null || dto.reportSource().isBlank()
+                ? null : dto.reportSource().trim());
         i.setCategory(dto.category());
         // Persist the colour, filling a deterministic palette value when the user left it blank.
         i.setColor(dto.color() != null && !dto.color().isBlank() ? dto.color() : paletteColor(

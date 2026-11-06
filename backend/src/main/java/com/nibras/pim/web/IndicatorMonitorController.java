@@ -41,6 +41,12 @@ public class IndicatorMonitorController {
         return service.appUsage();
     }
 
+    /** Bookmarked indicators with their last two values (the dashboard's trend ticker). */
+    @GetMapping("/trends")
+    public List<IndicatorMonitorService.Trend> trends() {
+        return service.trends();
+    }
+
     /** Recompute the proposed value for one indicator (not saved). */
     @GetMapping("/{id}/propose")
     public Proposal propose(@PathVariable Long id) {

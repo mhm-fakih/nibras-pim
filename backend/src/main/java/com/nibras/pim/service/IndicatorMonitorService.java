@@ -42,16 +42,48 @@ public class IndicatorMonitorService {
     private final IndicatorDataRepository data;
     private final IndicatorQueryRunner queryRunner;
     private final AppUsageService usage;
+    private final HighlightsReportService highlights;
 
     public IndicatorMonitorService(IndicatorRepository indicators, IndicatorDataRepository data,
-                                   IndicatorQueryRunner queryRunner, AppUsageService usage) {
+                                   IndicatorQueryRunner queryRunner, AppUsageService usage,
+                                   HighlightsReportService highlights) {
         this.indicators = indicators;
         this.data = data;
         this.queryRunner = queryRunner;
         this.usage = usage;
+        this.highlights = highlights;
     }
 
-    public enum Kind { QUERY, FILE, SCRIPT, USAGE, MANUAL }
+    public enum Kind { QUERY, FILE, SCRIPT, USAGE, REPORT, MANUAL }
+
+    /**
+     * A bookmarked indicator's last two values, for the dashboard's market-style trend ticker
+     * (up / double up / same / down / double down — the thresholds are the component's to choose).
+     */
+    public record Trend(Long id, String name, String category, String scale, String color, String kind,
+                        Double value, LocalDateTime date, Double previous, LocalDateTime previousDate) {
+    }
+
+    /** Every bookmarked indicator with its latest and previous values, App usage ones included. */
+    @Transactional(readOnly = true)
+    public List<Trend> trends() {
+        List<Indicator> marked = new ArrayList<>(indicators.findByBookmarkedTrue());
+        marked.sort(java.util.Comparator
+                .comparing((Indicator i) -> i.getCategory() == null ? "" : i.getCategory())
+                .thenComparing(i -> i.getPriority() == null ? Integer.MAX_VALUE : i.getPriority())
+                .thenComparing(Indicator::getId));
+        List<Trend> out = new ArrayList<>();
+        for (Indicator i : marked) {
+            List<IndicatorData> last = data.findTop2ByIndicatorIdOrderByDateDesc(i.getId());
+            IndicatorData a = last.isEmpty() ? null : last.get(0);
+            IndicatorData b = last.size() < 2 ? null : last.get(1);
+            out.add(new Trend(i.getId(), i.feedTitle(), i.getCategory(), i.getScale(), i.getColor(),
+                    kindOf(i).name(),
+                    a == null ? null : a.getValue(), a == null ? null : a.getDate(),
+                    b == null ? null : b.getValue(), b == null ? null : b.getDate()));
+        }
+        return out;
+    }
 
     /** An app-usage indicator with its running count since its last value ("today so far"). */
     public record AppUsage(Long id, String app, String name, String scale, Double current,
@@ -187,6 +219,14 @@ public class IndicatorMonitorService {
         return usage.count(i.getUsageApp(), usageSince(last, now), now);
     }
 
+    private Double reportValue(Indicator i) {
+        if (HighlightsReportService.SOURCE.equalsIgnoreCase(i.getReportSource().trim())) {
+            return (double) highlights.count();
+        }
+        throw new ResponseStatusException(BAD_REQUEST, "Unknown report: " + i.getReportSource()
+                + " (known: " + HighlightsReportService.SOURCE + ")");
+    }
+
     // ---- proposal computation --------------------------------------------------------
 
     private Proposal computeProposal(Indicator i) {
@@ -197,6 +237,7 @@ public class IndicatorMonitorService {
                 case FILE -> new Proposal(i.getId(), (double) countFiles(i.getPath(), i.getExtensions()), null);
                 case SCRIPT -> new Proposal(i.getId(), runScript(i.getScript()), null);
                 case USAGE -> new Proposal(i.getId(), usageValue(i), null);
+                case REPORT -> new Proposal(i.getId(), reportValue(i), null);
                 case MANUAL -> new Proposal(i.getId(), null, null);   // user types the value
             };
         } catch (ResponseStatusException e) {
@@ -209,6 +250,9 @@ public class IndicatorMonitorService {
     static Kind kindOf(Indicator i) {
         if (notBlank(i.getUsageApp())) {
             return Kind.USAGE;
+        }
+        if (notBlank(i.getReportSource())) {
+            return Kind.REPORT;
         }
         if (notBlank(i.getQuery())) {
             return Kind.QUERY;
