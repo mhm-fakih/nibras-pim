@@ -61,7 +61,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from knotes_out import add_note_args, check_note_args, knotes_dir, new_note_path  # noqa: E402
+from knotes_out import add_note_args, check_note_args, knotes_dir, new_note_path, record_usage  # noqa: E402
 
 
 NOTE_TYPE = "R"   # bookmarks are Resources (the Import page asks for a resource type)
@@ -597,6 +597,7 @@ def main() -> int:
     except Exception as ex:
         eprint(f"ERROR writing Markdown: {ex}")
         return 1
+    record_usage("firefox", "bookmarks", len(bookmarks))
 
     print(f"Exported {len(bookmarks)} bookmarks to {export_path}")
 

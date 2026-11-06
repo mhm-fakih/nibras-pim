@@ -134,4 +134,39 @@
     <string name="server_calendar_batch_add">أضف %1$d</string>
     <string name="server_calendar_batch_saved">حُفظ %1$d من المدخلات</string>
     <string name="server_calendar_fetch_failed">تعذّر الوصول إلى الخادم — يُعرض التقويم كما حُمّل آخر مرة</string>
+
+    <!-- Payments page -->
+    <string name="notes_rail_payments">المدفوعات</string>
+    <string name="payments_title">المدفوعات</string>
+    <string name="payments_checking">جارٍ التحقق من الخادم…</string>
+    <string name="payments_online">متصل — تُرسل المدفوعات عند حفظها.</string>
+    <string name="payments_offline_saved">غير متصل — فئات محفوظة، %1$s؛ تُرسل المدفوعات حين يتوفر الخادم.</string>
+    <string name="payments_offline_no_categories">غير متصل، ولا فئات محفوظة بعد — اتصل مرة لجلبها. تُحفظ المدفوعات على أي حال وتُرسل لاحقًا.</string>
+    <string name="payments_amount">المبلغ</string>
+    <string name="payments_currency">العملة</string>
+    <string name="payments_category">الفئة</string>
+    <string name="payments_no_category">بلا فئة</string>
+    <string name="payments_today">اليوم</string>
+    <string name="payments_paid">مدفوع</string>
+    <string name="payments_to_be_paid">للدفع</string>
+    <string name="payments_summary">مقابل ماذا</string>
+    <string name="payments_notes">ملاحظات</string>
+    <string name="payments_save">حفظ الدفعة</string>
+    <string name="payments_saved">حُفظت الدفعة</string>
+    <string name="payments_send_now">أرسل الآن</string>
+    <string name="payments_not_reached">تعذّر الوصول إلى الخادم — ستُرسل لاحقًا</string>
+    <string name="payments_retry">أعد المحاولة</string>
+    <string name="payments_remove">احذف</string>
+    <string name="payments_remove_title">حذف هذه الدفعة؟</string>
+    <string name="payments_remove_text">لم تصل %1$s إلى الخادم ولن تُرسل.</string>
+    <string name="payments_refused">رفضها الخادم: %1$s</string>
+    <string name="payments_sent">أُرسلت</string>
+    <plurals name="payments_waiting">
+        <item quantity="zero">لا مدفوعات بانتظار الإرسال</item>
+        <item quantity="one">دفعة واحدة بانتظار الإرسال</item>
+        <item quantity="two">دفعتان بانتظار الإرسال</item>
+        <item quantity="few">%d دفعات بانتظار الإرسال</item>
+        <item quantity="many">%d دفعة بانتظار الإرسال</item>
+        <item quantity="other">%d دفعة بانتظار الإرسال</item>
+    </plurals>
 </resources>

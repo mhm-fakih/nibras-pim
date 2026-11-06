@@ -176,6 +176,10 @@ class Settings:
     # Idle time (ms) after the last keystroke before the pane writes the note. Long enough that a
     # normal typing burst is one write, short enough that a glance at the card shows the new text.
     editor_autosave_ms: int = 900
+    # Extra space (px) between lines in the side pane (read and edit), both between wrapped lines and
+    # between paragraphs, and on the note cards' text. 0 = GTK's tight default; a few pixels make a
+    # long note easier to read.
+    reader_line_spacing: int = 5
     # Quick-append (Space on a selected card) inserts this between the note's existing content and
     # the newly appended text. "$date" is substituted with now, formatted per append_date_format.
     # Literal "\n" (backslash-n, not an actual newline — this is a single-line settings field) is
@@ -280,6 +284,7 @@ class Settings:
         s.editor_pane_visible = bool(raw.get("editor_pane_visible", s.editor_pane_visible))
         s.editor_pane_width = int(raw.get("editor_pane_width", s.editor_pane_width))
         s.editor_autosave_ms = int(raw.get("editor_autosave_ms", s.editor_autosave_ms))
+        s.reader_line_spacing = max(0, min(40, int(raw.get("reader_line_spacing", s.reader_line_spacing))))
         mode = str(raw.get("editor_pane_mode", s.editor_pane_mode))
         s.editor_pane_mode = mode if mode in ("read", "edit") else "read"
         s.quick_panels_visible = bool(raw.get("quick_panels_visible", s.quick_panels_visible))

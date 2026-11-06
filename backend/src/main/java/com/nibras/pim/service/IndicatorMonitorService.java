@@ -41,15 +41,22 @@ public class IndicatorMonitorService {
     private final IndicatorRepository indicators;
     private final IndicatorDataRepository data;
     private final IndicatorQueryRunner queryRunner;
+    private final AppUsageService usage;
 
     public IndicatorMonitorService(IndicatorRepository indicators, IndicatorDataRepository data,
-                                   IndicatorQueryRunner queryRunner) {
+                                   IndicatorQueryRunner queryRunner, AppUsageService usage) {
         this.indicators = indicators;
         this.data = data;
         this.queryRunner = queryRunner;
+        this.usage = usage;
     }
 
-    public enum Kind { QUERY, FILE, SCRIPT, MANUAL }
+    public enum Kind { QUERY, FILE, SCRIPT, USAGE, MANUAL }
+
+    /** An app-usage indicator with its running count since its last value ("today so far"). */
+    public record AppUsage(Long id, String app, String name, String scale, Double current,
+                           String error, LocalDateTime since, Double lastValue, LocalDateTime lastDate) {
+    }
 
     public record DueItem(Long id, String name, String frequency, String kind,
                           Double proposed, String proposeError,
@@ -137,6 +144,49 @@ public class IndicatorMonitorService {
         return collected;
     }
 
+    /** Every app-usage indicator with what it would collect now (read-only). */
+    @Transactional(readOnly = true)
+    public List<AppUsage> appUsage() {
+        LocalDateTime now = LocalDateTime.now();
+        List<AppUsage> out = new ArrayList<>();
+        for (Indicator i : indicators.findByUsageAppIsNotNullOrderByPriorityAscIdAsc()) {
+            IndicatorData last = data.findTopByIndicatorIdOrderByDateDesc(i.getId()).orElse(null);
+            LocalDateTime since = usageSince(last == null ? null : last.getDate(), now);
+            Double current = null;
+            String error = null;
+            try {
+                current = usage.count(i.getUsageApp(), since, now);
+            } catch (Exception e) {
+                error = e.getMessage();
+            }
+            out.add(new AppUsage(i.getId(), i.getUsageApp(), i.feedTitle(), i.getScale(), current, error,
+                    since, last == null ? null : last.getValue(), last == null ? null : last.getDate()));
+        }
+        return out;
+    }
+
+    /**
+     * Where a usage count starts: just after the previous collected value, so an action made
+     * after one day's collection (say at 23:55, collection at 23:50) counts in the next day's
+     * value and nothing is counted twice. When the previous value is older than yesterday (a
+     * missed day, or none yet), the count starts at today's midnight rather than lumping several
+     * days into one value.
+     */
+    static LocalDateTime usageSince(LocalDateTime lastPoint, LocalDateTime now) {
+        LocalDateTime today = now.toLocalDate().atStartOfDay();
+        if (lastPoint != null && lastPoint.isBefore(now) && !lastPoint.isBefore(today.minusDays(1))) {
+            return lastPoint;
+        }
+        return today;
+    }
+
+    private Double usageValue(Indicator i) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime last = data.findTopByIndicatorIdOrderByDateDesc(i.getId())
+                .map(IndicatorData::getDate).orElse(null);
+        return usage.count(i.getUsageApp(), usageSince(last, now), now);
+    }
+
     // ---- proposal computation --------------------------------------------------------
 
     private Proposal computeProposal(Indicator i) {
@@ -146,6 +196,7 @@ public class IndicatorMonitorService {
                 case QUERY -> new Proposal(i.getId(), queryRunner.run(i.getQuery()), null);
                 case FILE -> new Proposal(i.getId(), (double) countFiles(i.getPath(), i.getExtensions()), null);
                 case SCRIPT -> new Proposal(i.getId(), runScript(i.getScript()), null);
+                case USAGE -> new Proposal(i.getId(), usageValue(i), null);
                 case MANUAL -> new Proposal(i.getId(), null, null);   // user types the value
             };
         } catch (ResponseStatusException e) {
@@ -156,6 +207,9 @@ public class IndicatorMonitorService {
     }
 
     static Kind kindOf(Indicator i) {
+        if (notBlank(i.getUsageApp())) {
+            return Kind.USAGE;
+        }
         if (notBlank(i.getQuery())) {
             return Kind.QUERY;
         }

@@ -76,7 +76,9 @@ class PrayerReceiver : BroadcastReceiver() {
     private fun act(context: Context, settings: PrayerSettings, event: PrayerEvent) {
         val at = event.atMillis
         when (event.kind) {
-            PrayerEventKind.REMINDER -> reminder(context, settings, event.prayer, at)
+            PrayerEventKind.REMINDER -> reminder(context, event.prayer, at, settings.reminderLeadMin)
+            PrayerEventKind.SUNRISE_REMINDER ->
+                reminder(context, event.prayer, at, settings.sunriseReminderLeadMin)
             PrayerEventKind.ATHAN -> athan(context, settings, event.prayer, at)
             PrayerEventKind.SILENCE_START -> {
                 val until = at + settings.silenceMinutes
@@ -91,8 +93,7 @@ class PrayerReceiver : BroadcastReceiver() {
 
     // ---- the four things that can happen ---------------------------------------------------
 
-    private fun reminder(context: Context, settings: PrayerSettings, prayer: Prayer, at: Long) {
-        val lead = settings.reminderLeadMin
+    private fun reminder(context: Context, prayer: Prayer, at: Long, lead: Int) {
         val due = at + lead * 60_000L
         ensureChannels(context)
         val builder = NotificationCompat.Builder(context, CHANNEL_REMINDER)

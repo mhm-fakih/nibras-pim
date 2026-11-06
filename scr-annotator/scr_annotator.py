@@ -190,6 +190,19 @@ HELP = """  keys
 
 # ── names ─────────────────────────────────────────────────────────────────
 
+def record_usage(action: str, count: int = 1) -> None:
+    """One line in the Nibras suite's usage log (~/.local/share/nibras/usage/scr-annotator.log,
+    or $NIBRAS_USAGE_DIR): local time, action, count. The Nibras backend adds these up daily as
+    an App usage indicator; without it the file is simply never read. Never raises."""
+    try:
+        folder = os.path.expanduser(os.environ.get("NIBRAS_USAGE_DIR") or "~/.local/share/nibras/usage")
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, "scr-annotator.log"), "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now():%Y-%m-%dT%H:%M:%S}\t{action}\t{count}\n")
+    except OSError:
+        pass
+
+
 def sanitize(label: str) -> str:
     """A label is going into a filename, so it cannot contain a separator."""
     label = re.sub(r"[/\x00-\x1f]", " ", label)
@@ -1105,6 +1118,7 @@ class Annotator(Gtk.Window):
             im.save(tmp, format=fmt)
         os.replace(tmp, src)            # never a half-written image
         self.cache.pop(basename, None)
+        record_usage("image")
 
     @staticmethod
     def _norm(box) -> tuple[float, float, float, float]:

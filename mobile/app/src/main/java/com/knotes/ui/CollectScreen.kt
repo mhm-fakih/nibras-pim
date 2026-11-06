@@ -1,5 +1,7 @@
 package com.knotes.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -143,7 +145,7 @@ fun CollectScreen(
             // folders; the WhatsApp one COPIES what WhatsApp received since its last run, so
             // WhatsApp's own chats keep their media.
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 FilterChip(
@@ -161,8 +163,12 @@ fun CollectScreen(
             }
             // WhatsApp: how far back to look — since the last copy normally; further for one run.
             if (whatsApp && (status == CollectStatus.Ready || status == CollectStatus.Scanning)) {
-                androidx.compose.foundation.layout.FlowRow(
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                // One line that scrolls sideways: wrapped, these rows took half the screen and
+                // left the files they choose barely visible.
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(start = 16.dp, end = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     WhatsAppCollect.Range.entries.forEach { r ->
@@ -177,8 +183,12 @@ fun CollectScreen(
             }
             // WhatsApp: which kinds of file to copy, each with how many new ones it has.
             if (whatsApp && (status == CollectStatus.Ready || status == CollectStatus.Scanning)) {
-                androidx.compose.foundation.layout.FlowRow(
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                // One line that scrolls sideways: wrapped, these rows took half the screen and
+                // left the files they choose barely visible.
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(start = 16.dp, end = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     WhatsAppCollect.Kind.entries.forEach { k ->
@@ -191,47 +201,51 @@ fun CollectScreen(
                     }
                 }
             }
-            // Status banner
-            Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                when (status) {
-                    CollectStatus.Scanning -> Text(stringResource(R.string.widgets_collect_scanning), style = MaterialTheme.typography.titleMedium)
-                    CollectStatus.Ready -> {
-                        Text(pluralStringResource(R.plurals.widgets_collect_found, found.size, found.size), style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            if (whatsApp) stringResource(
-                                R.string.widgets_collect_will_copy_whatsapp,
-                                DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(whatsAppSince)),
-                                whatsAppDir?.absolutePath.orEmpty(),
-                                WhatsAppCollect.NOTE_TITLE,
-                            ) else stringResource(R.string.widgets_collect_will_move, newDir),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        if (whatsApp && whatsAppDir?.isDirectory == false) {
-                            Text(
-                                stringResource(R.string.widgets_collect_whatsapp_missing),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    }
-                    CollectStatus.Collecting -> Text(stringResource(if (whatsApp) R.string.widgets_collect_copying else R.string.widgets_collect_moving), style = MaterialTheme.typography.titleMedium)
-                    CollectStatus.Done -> {
-                        val ok = results.count { it.ok }
-                        Text(pluralStringResource(if (whatsApp) R.plurals.widgets_collect_copied else R.plurals.widgets_collect_moved, results.size, ok, results.size), style = MaterialTheme.typography.titleMedium)
-                        targetPath?.let {
-                            Text("→ $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    CollectStatus.Idle -> {}
-                }
-            }
             if (status == CollectStatus.Scanning || status == CollectStatus.Collecting) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
             HorizontalDivider()
 
             LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    // The status and what will happen scroll away with the files, so the list gets
+                    // the screen.
+                    item {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    when (status) {
+                        CollectStatus.Scanning -> Text(stringResource(R.string.widgets_collect_scanning), style = MaterialTheme.typography.titleMedium)
+                        CollectStatus.Ready -> {
+                            Text(pluralStringResource(R.plurals.widgets_collect_found, found.size, found.size), style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                if (whatsApp) stringResource(
+                                    R.string.widgets_collect_will_copy_whatsapp,
+                                    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(whatsAppSince)),
+                                    whatsAppDir?.absolutePath.orEmpty(),
+                                    WhatsAppCollect.NOTE_TITLE,
+                                ) else stringResource(R.string.widgets_collect_will_move, newDir),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (whatsApp && whatsAppDir?.isDirectory == false) {
+                                Text(
+                                    stringResource(R.string.widgets_collect_whatsapp_missing),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
+                        CollectStatus.Collecting -> Text(stringResource(if (whatsApp) R.string.widgets_collect_copying else R.string.widgets_collect_moving), style = MaterialTheme.typography.titleMedium)
+                        CollectStatus.Done -> {
+                            val ok = results.count { it.ok }
+                            Text(pluralStringResource(if (whatsApp) R.plurals.widgets_collect_copied else R.plurals.widgets_collect_moved, results.size, ok, results.size), style = MaterialTheme.typography.titleMedium)
+                            targetPath?.let {
+                                Text("→ $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        CollectStatus.Idle -> {}
+                    }
+                }
+                    HorizontalDivider()
+                }
                 if (status == CollectStatus.Done) {
                     items(results) { r ->
                         FileRow(

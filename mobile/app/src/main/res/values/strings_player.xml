@@ -153,4 +153,7 @@
     <string name="player_ai_queue_refresh">Refresh the list</string>
     <string name="player_ai_queue_empty">No unbookmarked AI narrations found.</string>
     <string name="player_notice_queue_empty">Nothing ticked — tick a narration in the list to play it next.</string>
+    <string name="player_tab_playlist">Playlist (%1$d)</string>
+    <string name="player_playlist_inactive">Ticked files play next only when Play next is set to AI narrations.</string>
+    <string name="player_playlist_use">Use it</string>
 </resources>

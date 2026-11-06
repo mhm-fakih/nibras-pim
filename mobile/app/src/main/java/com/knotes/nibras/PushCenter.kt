@@ -3,6 +3,7 @@ package com.knotes.nibras
 import android.content.Context
 import com.knotes.Note
 import com.knotes.SettingsStore
+import com.knotes.expenses.PaymentOutbox
 import com.knotes.flash.FlashOutbox
 import com.knotes.reminder.PlansRepository
 import kotlinx.coroutines.CoroutineScope
@@ -68,12 +69,13 @@ object PushCenter {
     private suspend fun drain(context: Context) = drainLock.withLock {
         RecordOutbox.seed(context)
         FlashOutbox.seed(context)
+        PaymentOutbox.seed(context)
         val settings = SettingsStore(context).value
         val base = settings.nibrasBaseUrl.trim()
         val calendar = CalendarStore(context)
         if (base.isEmpty() ||
             (RecordOutbox.pending.value.isEmpty() && calendar.pending.value.isEmpty() &&
-                FlashOutbox.pending.value.isEmpty())
+                FlashOutbox.pending.value.isEmpty() && PaymentOutbox.sendable().isEmpty())
         ) {
             return
         }
@@ -86,6 +88,17 @@ object PushCenter {
             if (ok) {
                 RecordOutbox.remove(context, item)
                 RecordOutbox.markPushed(context, item.key)
+            }
+        }
+
+        // Payments typed in offline. Each carries its own ref, so one whose reply was lost is
+        // sent again without being recorded twice; one the server refuses keeps its reason and
+        // waits for the user rather than being retried forever or dropped.
+        PaymentOutbox.sendable().forEach { item ->
+            when (val r = api.sendPayment(base, item)) {
+                is NibrasApi.PaymentSend.Recorded -> PaymentOutbox.markSent(context, item.ref, r.serverId)
+                is NibrasApi.PaymentSend.Refused -> PaymentOutbox.markRefused(context, item.ref, r.reason)
+                NibrasApi.PaymentSend.Later -> Unit
             }
         }
 

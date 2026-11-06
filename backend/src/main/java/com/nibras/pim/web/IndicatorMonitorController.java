@@ -35,6 +35,12 @@ public class IndicatorMonitorController {
         return service.due();
     }
 
+    /** The app-usage indicators with their running counts since the last collection. */
+    @GetMapping("/app-usage")
+    public List<IndicatorMonitorService.AppUsage> appUsage() {
+        return service.appUsage();
+    }
+
     /** Recompute the proposed value for one indicator (not saved). */
     @GetMapping("/{id}/propose")
     public Proposal propose(@PathVariable Long id) {

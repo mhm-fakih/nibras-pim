@@ -1,5 +1,8 @@
 package com.knotes.ui
 
+import androidx.compose.runtime.remember
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +31,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.Mosque
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -76,6 +80,7 @@ const val HIGHLIGHTS_DEST = "highlights"
 const val COLLECT_DEST = "collect"
 const val SEARCH_DEST = "search"
 const val CONTACTS_DEST = "contacts"
+const val PAYMENTS_DEST = "payments"
 const val SETTINGS_DEST = "settings"
 
 /** Which band of the rail a destination belongs to. Settings belongs to neither — see [AppRail]. */
@@ -132,6 +137,7 @@ fun AppRail(
     onFlashcards: () -> Unit,
     onHighlights: () -> Unit,
     onContacts: () -> Unit,
+    onPayments: () -> Unit = {},
     /** Re-fetch every server-backed page — the band's own refresh. */
     onRefreshServer: () -> Unit,
     onCollect: () -> Unit,
@@ -144,17 +150,35 @@ fun AppRail(
     // a notification, a link out of another page — should leave the rail showing where you are.
     LaunchedEffect(selected) { bandOf(selected)?.let { open = it.name } }
     // A band's heading toggles it; with both shut, only the two headings and Settings remain.
-    val toggle = { band: RailBand -> open = if (open == band.name) NONE_OPEN else band.name }
     val scroll = rememberScrollState()
     val scope = rememberCoroutineScope()
+    // Where the server band starts inside the scrolling rail, so opening it can bring its heading
+    // to the top. Without this the rail kept its old scroll offset: on a short screen the band
+    // opened part-way down, and the next tap landed on whatever had slid under the finger.
+    var serverTop by remember { mutableStateOf(0) }
+    var pendingScroll by remember { mutableStateOf<RailBand?>(null) }
+    val toggle = { band: RailBand ->
+        open = if (open == band.name) NONE_OPEN else band.name
+        if (open == band.name) pendingScroll = band
+    }
+    LaunchedEffect(pendingScroll, serverTop) {
+        when (pendingScroll) {
+            RailBand.LOCAL -> scroll.animateScrollTo(0)
+            RailBand.SERVER -> scroll.animateScrollTo(serverTop)
+            null -> return@LaunchedEffect
+        }
+        pendingScroll = null
+    }
 
-    Box(modifier = Modifier.width(56.dp).fillMaxHeight()) {
+    Column(
+        modifier = Modifier.width(56.dp).fillMaxHeight().statusBarsPadding(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+    Box(modifier = Modifier.width(56.dp).weight(1f)) {
     Column(
         modifier = Modifier
             .width(56.dp)
-            .fillMaxHeight()
-            .verticalScroll(scroll)
-            .statusBarsPadding(),
+            .verticalScroll(scroll),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         RailSection(
@@ -278,6 +302,7 @@ fun AppRail(
         // Switched off in Settings, the server is not in the app at all: no band, no pages.
         if (serverEnabled) {
             RailSection(
+                modifier = Modifier.onGloballyPositioned { serverTop = it.positionInParent().y.toInt() },
                 icon = Icons.Filled.CloudQueue,
                 label = stringResource(R.string.notes_rail_from_the_server),
                 tint = MaterialTheme.colorScheme.primary,
@@ -334,6 +359,15 @@ fun AppRail(
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                // Payments: entered here, offline or not, and sent when the server is reachable.
+                RailCell(selected == PAYMENTS_DEST, onPayments) {
+                    Icon(
+                        Icons.Filled.Payments,
+                        contentDescription = stringResource(R.string.notes_rail_payments),
+                        tint = if (selected == PAYMENTS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 // Last in the band, and deliberately so: it searches the SERVER, over everything there,
                 // where every cell above it browses what sync already pulled down. Ending the section
                 // with the widest-reaching thing reads as "and if it is not up there, look here".
@@ -358,16 +392,6 @@ fun AppRail(
             }
         }
 
-        // Outside both bands, and never collapsed.
-        HorizontalDivider(modifier = Modifier.width(36.dp))
-        RailCell(selected == SETTINGS_DEST, onSettings) {
-            Icon(
-                Icons.Filled.Settings,
-                contentDescription = stringResource(R.string.notes_rail_settings),
-                tint = if (selected == SETTINGS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
     }
     // More rail below the screen's edge: without a cue, a short phone showed the local band and
     // nothing said the server band and Settings were under it. Tapping scrolls to the end.
@@ -389,6 +413,17 @@ fun AppRail(
         }
     }
     }
+        // Outside both bands, and never collapsed.
+        HorizontalDivider(modifier = Modifier.width(36.dp))
+        RailCell(selected == SETTINGS_DEST, onSettings) {
+            Icon(
+                Icons.Filled.Settings,
+                contentDescription = stringResource(R.string.notes_rail_settings),
+                tint = if (selected == SETTINGS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 /** [AppRail]'s open band when both are shut. */
@@ -409,6 +444,7 @@ private const val NONE_OPEN = "none"
  */
 @Composable
 private fun RailSection(
+    modifier: Modifier = Modifier,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     tint: Color,
@@ -418,7 +454,7 @@ private fun RailSection(
     content: @Composable () -> Unit,
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 3.dp, vertical = 4.dp)
             .background(tint.copy(alpha = alpha), RoundedCornerShape(12.dp)),

@@ -54,7 +54,7 @@ from datetime import datetime, timedelta, timezone
 from telethon import TelegramClient, errors, utils
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from knotes_out import add_note_args, check_note_args, knotes_dir, new_note_path  # noqa: E402
+from knotes_out import add_note_args, check_note_args, knotes_dir, new_note_path, record_usage  # noqa: E402
 
 # ---- Config -----------------------------------------------------------------
 # Never hard-code these: the repo is published. run.sh loads them from ../config.env.
@@ -517,6 +517,7 @@ async def export_messages(dialog, limit: int, skip_media: bool = False,
             md.write("---\n\n")
             exported_ids.append(message.id)
 
+    record_usage("telegram", "messages", len(exported_ids))
     summary = f"\nDone. {len(exported_ids)} messages, {media_count} media files"
     if reused_count:
         summary += f" ({reused_count} already on disk, not re-downloaded)"

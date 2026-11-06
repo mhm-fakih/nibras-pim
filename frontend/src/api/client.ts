@@ -1454,7 +1454,7 @@ export interface DueIndicator {
   id: number;
   name: string;
   frequency?: string;
-  kind: 'QUERY' | 'FILE' | 'MANUAL';
+  kind: 'QUERY' | 'FILE' | 'SCRIPT' | 'USAGE' | 'MANUAL';
   proposed?: number;
   proposeError?: string;
   lastValue?: number;
@@ -1489,6 +1489,25 @@ export async function saveIndicatorData(
 
 export async function getIndicatorSeries(id: number): Promise<SeriesPoint[]> {
   const { data } = await http.get(`/indicators/${id}/series`);
+  return data;
+}
+
+/** An app-usage indicator with what it has counted since its last collected value. */
+export interface AppUsage {
+  id: number;
+  app: string;
+  name: string;
+  scale?: string;
+  /** Counted since `since` (the last collection, or today's midnight); null on error. */
+  current?: number | null;
+  error?: string | null;
+  since: string;
+  lastValue?: number | null;
+  lastDate?: string | null;
+}
+
+export async function getAppUsage(): Promise<AppUsage[]> {
+  const { data } = await http.get('/indicators/app-usage');
   return data;
 }
 
@@ -2450,7 +2469,13 @@ export interface Expense {
   notes?: string | null;
   /** In the default currency at the rate of its date; null when no rate reaches it. */
   converted?: number | null;
+  /** False = to be paid: a budgeted payment, not yet spent. */
+  paid: boolean;
+  paidOn?: string | null;
+  /** What this payment taught. */
+  lesson?: string | null;
 }
+export type ExpenseStatus = 'ALL' | 'PAID' | 'PLANNED';
 export interface ExpenseInput {
   amount: number;
   currency: string;
@@ -2459,6 +2484,9 @@ export interface ExpenseInput {
   summary?: string;
   description?: string;
   notes?: string;
+  /** Omitted = decided by the date (ahead = to be paid). */
+  paid?: boolean;
+  lesson?: string;
 }
 export interface Currency {
   id: number;
@@ -2492,6 +2520,9 @@ export interface ExpenseYearReport {
   total: number;
   categories: CategorySeries[];
   unconverted: Unconverted[];
+  /** Still to be paid, by the month planned for; not in the totals above. */
+  monthBudgeted: number[];
+  budgetedTotal: number;
 }
 export interface ExpenseYearsReport {
   currency: string;
@@ -2499,9 +2530,16 @@ export interface ExpenseYearsReport {
   yearTotals: number[];
   categories: CategorySeries[];
   unconverted: Unconverted[];
+  yearBudgeted: number[];
 }
 
-export async function listExpenses(params: { from?: string; to?: string; categoryId?: number | null; q?: string }): Promise<Expense[]> {
+export async function listExpenses(params: {
+  from?: string;
+  to?: string;
+  categoryId?: number | null;
+  q?: string;
+  status?: ExpenseStatus;
+}): Promise<Expense[]> {
   const { data } = await http.get('/expenses', { params: { ...params, categoryId: params.categoryId ?? undefined } });
   return data;
 }
@@ -2511,6 +2549,14 @@ export async function createExpense(input: ExpenseInput): Promise<Expense> {
 }
 export async function updateExpense(id: number, input: ExpenseInput): Promise<Expense> {
   const { data } = await http.put(`/expenses/${id}`, input);
+  return data;
+}
+export async function markExpensePaid(id: number): Promise<Expense> {
+  const { data } = await http.post(`/expenses/${id}/paid`);
+  return data;
+}
+export async function listExpenseLessons(params: { categoryId?: number | null; q?: string }): Promise<Expense[]> {
+  const { data } = await http.get('/expenses/lessons', { params: { ...params, categoryId: params.categoryId ?? undefined } });
   return data;
 }
 export async function deleteExpense(id: number): Promise<void> {

@@ -128,6 +128,8 @@ data class AppSettings(
     /** Daily/weekly checklists page. Blank folder = [SettingsStore.checklistsDirFor] the notes folder. */
     val checklistsEnabled: Boolean = true,
     val checklistsDir: String = "",
+    /** Sound played once when a checklist reminder appears: a ringtone or file URI; blank = silent. */
+    val checklistSoundUri: String = "",
     /** Reminder lead times in minutes before a plan starts, e.g. [60, 5]. */
     val reminderOffsetsMin: List<Int>,
     /** Sound URI played for reminders (blank = system default). */
@@ -279,6 +281,7 @@ class SettingsStore(context: Context) {
         serverEnabled = prefs.getBoolean(K_SERVER_ENABLED, true),
         checklistsEnabled = prefs.getBoolean(K_CHECKLISTS_ENABLED, true),
         checklistsDir = prefs.getString(K_CHECKLISTS_DIR, "") ?: "",
+        checklistSoundUri = prefs.getString(K_CHECKLIST_SOUND, "") ?: "",
         collectEnabled = prefs.getBoolean(K_COLLECT_ENABLED, true),
         feedDays = prefs.getInt(K_FEED_DAYS, 3),
         feedWords = prefs.getInt(K_FEED_WORDS, 40),
@@ -365,6 +368,7 @@ class SettingsStore(context: Context) {
             .putBoolean(K_SERVER_ENABLED, settings.serverEnabled)
             .putBoolean(K_CHECKLISTS_ENABLED, settings.checklistsEnabled)
             .putString(K_CHECKLISTS_DIR, settings.checklistsDir.trim().trimEnd('/'))
+            .putString(K_CHECKLIST_SOUND, settings.checklistSoundUri.trim())
             .putBoolean(K_COLLECT_ENABLED, settings.collectEnabled)
             .putInt(K_FEED_DAYS, settings.feedDays.coerceIn(1, 60))
             .putInt(K_FEED_WORDS, settings.feedWords.coerceIn(10, 400))
@@ -440,6 +444,7 @@ class SettingsStore(context: Context) {
         private const val K_SERVER_ENABLED = "server_enabled"
         private const val K_CHECKLISTS_ENABLED = "checklists_enabled"
         private const val K_CHECKLISTS_DIR = "checklists_dir"
+        private const val K_CHECKLIST_SOUND = "checklist_sound_uri"
         private const val K_COLLECT_ENABLED = "collect_enabled"
         private const val K_FEED_DAYS = "feed_days"
         private const val K_FEED_WORDS = "feed_words"

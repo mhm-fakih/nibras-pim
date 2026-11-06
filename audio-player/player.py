@@ -31,6 +31,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GLib, Pango, Gio  # noqa: E402
 
 import tmk  # noqa: E402
+from usage_log import record_usage  # noqa: E402
 import library  # noqa: E402
 import lyrics  # noqa: E402
 import subtitles  # noqa: E402
@@ -1556,6 +1557,7 @@ class PlayerWindow(Gtk.ApplicationWindow):
         self.bookmarks.append(tmk.Bookmark(pos, note))
         self.bookmarks.sort()
         tmk.save(self.audio.current_path, self.bookmarks)
+        record_usage("bookmark")
         self.note_entry.set_text("")
         self._refresh_bookmarks()
         self._note_bookmarked(self.audio.current_path)

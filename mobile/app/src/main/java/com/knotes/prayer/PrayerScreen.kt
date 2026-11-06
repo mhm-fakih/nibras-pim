@@ -795,6 +795,20 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
                 1f,
             ) { v -> update { it.copy(reminderLeadMin = v.toInt()) } }
         }
+        ToggleRow(
+            stringResource(R.string.prayer_sunrise_reminder),
+            stringResource(R.string.prayer_sunrise_reminder_note),
+            settings.sunriseReminderEnabled,
+        ) { on -> update { it.copy(sunriseReminderEnabled = on) } }
+        if (settings.sunriseReminderEnabled) {
+            StepSlider(
+                stringResource(R.string.prayer_min_before, settings.sunriseReminderLeadMin),
+                settings.sunriseReminderLeadMin.toFloat(),
+                PrayerSettings.MIN_LEAD.toFloat(),
+                PrayerSettings.MAX_LEAD.toFloat(),
+                1f,
+            ) { v -> update { it.copy(sunriseReminderLeadMin = v.toInt()) } }
+        }
 
         Spacer(Modifier.height(16.dp))
         HorizontalDivider()

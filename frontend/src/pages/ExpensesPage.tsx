@@ -6,11 +6,13 @@ import {
   Autocomplete,
   Box,
   Button,
+  Checkbox,
   Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   IconButton,
   MenuItem,
   Paper,
@@ -32,6 +34,8 @@ import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import Edit from '@mui/icons-material/Edit';
 import ChevronLeft from '@mui/icons-material/ChevronLeft';
 import ChevronRight from '@mui/icons-material/ChevronRight';
+import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
+import LightbulbOutlined from '@mui/icons-material/LightbulbOutlined';
 import {
   Bar,
   BarChart,
@@ -47,6 +51,7 @@ import {
   Expense,
   ExpenseCategory,
   ExpenseInput,
+  ExpenseStatus,
   addCurrency,
   addCurrencyRate,
   createExpense,
@@ -60,7 +65,9 @@ import {
   listCurrencies,
   listCurrencyRates,
   listExpenseCategories,
+  listExpenseLessons,
   listExpenses,
+  markExpensePaid,
   setDefaultCurrency,
   updateExpense,
   updateExpenseCategory,
@@ -69,10 +76,11 @@ import { SideNav } from '../components/SideNav';
 import { errorDetail } from '../util/errors';
 import { isRtlText } from '../util/rtl';
 
-type ExpTab = 'expenses' | 'report' | 'categories' | 'currencies';
+type ExpTab = 'expenses' | 'report' | 'lessons' | 'categories' | 'currencies';
 const TABS: { key: ExpTab; label: string }[] = [
   { key: 'expenses', label: 'Expenses' },
   { key: 'report', label: 'Report' },
+  { key: 'lessons', label: 'Lessons learned' },
   { key: 'categories', label: 'Categories' },
   { key: 'currencies', label: 'Currencies & rates' },
 ];
@@ -122,6 +130,7 @@ export function ExpensesPage() {
         </Tabs>
         {tab === 'expenses' && <ExpensesTab />}
         {tab === 'report' && <ReportTab />}
+        {tab === 'lessons' && <LessonsTab />}
         {tab === 'categories' && <CategoriesTab />}
         {tab === 'currencies' && <CurrenciesTab />}
       </Box>
@@ -142,6 +151,7 @@ function ExpensesTab() {
   const [month, setMonth] = useState<{ y: number; m: number } | null>({ y: now.getFullYear(), m: now.getMonth() });
   const [categoryId, setCategoryId] = useState<number | ''>('');
   const [q, setQ] = useState('');
+  const [status, setStatus] = useState<ExpenseStatus>('ALL');
   const [editing, setEditing] = useState<Expense | 'new' | null>(null);
   const { data: cur } = useCurrencies();
   const { data: categories = [] } = useQuery({ queryKey: ['expense-categories'], queryFn: listExpenseCategories });
@@ -149,15 +159,26 @@ function ExpensesTab() {
     ? { from: ymd(new Date(month.y, month.m, 1)), to: ymd(new Date(month.y, month.m + 1, 0)) }
     : {};
   const { data: rows = [], isLoading } = useQuery({
-    queryKey: ['expenses', range, categoryId, q],
-    queryFn: () => listExpenses({ ...range, categoryId: categoryId === '' ? null : categoryId, q: q || undefined }),
+    queryKey: ['expenses', range, categoryId, q, status],
+    queryFn: () => listExpenses({ ...range, categoryId: categoryId === '' ? null : categoryId, q: q || undefined, status }),
   });
+  const paidNow = useMutation({
+    mutationFn: markExpensePaid,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['expense-report'] });
+    },
+  });
+  const today = ymd(new Date());
   const remove = useMutation({
     mutationFn: deleteExpense,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['expenses'] }),
   });
   const def = cur?.defaultCurrency ?? '';
-  const total = rows.reduce((s, r) => s + (r.converted ?? 0), 0);
+  // What was spent and what is still to be paid are summed apart: a budget is not spending.
+  const total = rows.filter((r) => r.paid).reduce((s, r) => s + (r.converted ?? 0), 0);
+  const planned = rows.filter((r) => !r.paid);
+  const plannedTotal = planned.reduce((s, r) => s + (r.converted ?? 0), 0);
   const unconverted = rows.filter((r) => r.converted == null).length;
   const step = (d: number) => month && setMonth(((x) => ({ y: x.getFullYear(), m: x.getMonth() }))(new Date(month.y, month.m + d, 1)));
 
@@ -191,6 +212,18 @@ function ExpensesTab() {
             </MenuItem>
           ))}
         </TextField>
+        <TextField
+          select
+          size="small"
+          label="Status"
+          value={status}
+          onChange={(e) => setStatus(e.target.value as ExpenseStatus)}
+          sx={{ minWidth: 130 }}
+        >
+          <MenuItem value="ALL">All</MenuItem>
+          <MenuItem value="PAID">Paid</MenuItem>
+          <MenuItem value="PLANNED">To be paid</MenuItem>
+        </TextField>
         <TextField size="small" label="Search" value={q} onChange={(e) => setQ(e.target.value)} sx={{ width: 180 }} />
         <Box sx={{ flex: 1 }} />
         <Button variant="contained" startIcon={<Add />} onClick={() => setEditing('new')}>
@@ -201,10 +234,18 @@ function ExpensesTab() {
       <Stack direction="row" spacing={3} sx={{ mb: 2 }}>
         <Box>
           <Typography variant="caption" color="text.secondary">
-            Total shown
+            Paid
           </Typography>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>
             {money(total, def)}
+          </Typography>
+        </Box>
+        <Box>
+          <Typography variant="caption" color="text.secondary">
+            To be paid ({planned.length})
+          </Typography>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: planned.length ? 'warning.main' : undefined }}>
+            {money(plannedTotal, def)}
           </Typography>
         </Box>
         <Box>
@@ -228,6 +269,7 @@ function ExpensesTab() {
           <TableHead>
             <TableRow>
               <TableCell>Date</TableCell>
+              <TableCell>Status</TableCell>
               <TableCell>Category</TableCell>
               <TableCell>What</TableCell>
               <TableCell align="right">Amount</TableCell>
@@ -238,7 +280,7 @@ function ExpensesTab() {
           <TableBody>
             {!isLoading && rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6}>
+                <TableCell colSpan={7}>
                   <Typography variant="body2" color="text.secondary">
                     No expenses {month ? 'this month' : 'found'}.
                   </Typography>
@@ -250,9 +292,35 @@ function ExpensesTab() {
               return (
                 <TableRow key={r.id} hover>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{new Date(r.date).toLocaleDateString()}</TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                    {r.paid ? (
+                      <Typography variant="body2" color="text.secondary">
+                        Paid
+                      </Typography>
+                    ) : (
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <Chip
+                          size="small"
+                          label={r.date.slice(0, 10) < today ? 'Overdue' : 'To be paid'}
+                          color={r.date.slice(0, 10) < today ? 'error' : 'warning'}
+                          variant="outlined"
+                        />
+                        <Tooltip title="Paid today">
+                          <IconButton size="small" color="success" onClick={() => paidNow.mutate(r.id)} aria-label="Mark paid today">
+                            <CheckCircleOutline fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    )}
+                  </TableCell>
                   <TableCell dir="auto">{r.categoryName ?? '—'}</TableCell>
                   <TableCell dir={isRtlText(what) ? 'rtl' : 'ltr'} sx={{ maxWidth: 420, textAlign: 'start' }}>
                     {what || '—'}
+                    {r.lesson && (
+                      <Tooltip title={<span style={{ whiteSpace: 'pre-wrap' }} dir="auto">{r.lesson}</span>}>
+                        <LightbulbOutlined fontSize="small" color="warning" sx={{ ml: 0.5, verticalAlign: 'middle' }} aria-label="Has a lesson" />
+                      </Tooltip>
+                    )}
                   </TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                     {money(r.amount, r.currency)}
@@ -314,6 +382,11 @@ function ExpenseDialog({
   );
   const [summary, setSummary] = useState(expense?.summary ?? '');
   const [description, setDescription] = useState(expense?.description ?? '');
+  const [notes, setNotes] = useState(expense?.notes ?? '');
+  const [lesson, setLesson] = useState(expense?.lesson ?? '');
+  // null = follow the date (ahead = to be paid) until ticked or unticked by hand.
+  const [paidChoice, setPaidChoice] = useState<boolean | null>(expense ? expense.paid : null);
+  const paid = paidChoice ?? date <= ymd(new Date());
   const [error, setError] = useState<string | null>(null);
 
   const save = useMutation({
@@ -332,7 +405,9 @@ function ExpenseDialog({
         categoryId,
         summary,
         description,
-        notes: expense?.notes ?? undefined,
+        notes,
+        lesson,
+        paid,
       };
       return expense ? updateExpense(expense.id, input) : createExpense(input);
     },
@@ -340,6 +415,7 @@ function ExpenseDialog({
       qc.invalidateQueries({ queryKey: ['expenses'] });
       qc.invalidateQueries({ queryKey: ['expense-categories'] });
       qc.invalidateQueries({ queryKey: ['expense-report'] });
+      qc.invalidateQueries({ queryKey: ['expense-lessons'] });
       onClose();
     },
     onError: (e) => setError(errorDetail(e, 'Could not save the expense.')),
@@ -395,6 +471,33 @@ function ExpenseDialog({
             onChange={(e) => setDescription(e.target.value)}
             multiline
             minRows={2}
+            inputProps={{ dir: 'auto' }}
+          />
+          <Box>
+            <FormControlLabel
+              control={<Checkbox checked={paid} onChange={(e) => setPaidChoice(e.target.checked)} />}
+              label={paid ? 'Paid' : 'To be paid (budgeted)'}
+            />
+            <Typography variant="caption" color="text.secondary" display="block">
+              A payment still to be paid is budgeted: counted apart from what was spent until it is marked paid. A date
+              ahead makes it one unless ticked.
+            </Typography>
+          </Box>
+          <TextField
+            label="Notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            multiline
+            minRows={2}
+            inputProps={{ dir: 'auto' }}
+          />
+          <TextField
+            label="Lesson learned"
+            value={lesson}
+            onChange={(e) => setLesson(e.target.value)}
+            multiline
+            minRows={2}
+            helperText="What this payment taught — listed under Lessons learned."
             inputProps={{ dir: 'auto' }}
           />
         </Stack>
@@ -634,6 +737,7 @@ function ReportTab() {
           <Stack direction="row" spacing={4} sx={{ mb: 3 }} flexWrap="wrap" useFlexGap>
             {[
               ['Spent in ' + year, money(report.total, target)],
+              ['To be paid in ' + year, money(report.budgetedTotal, target)],
               ['Monthly average', money(report.total / monthsCounted, target)],
               ['Biggest category', report.categories[0] ? `${report.categories[0].name}` : '—'],
             ].map(([k, v]) => (
@@ -711,6 +815,19 @@ function ReportTab() {
                     {money(report.total)}
                   </TableCell>
                 </TableRow>
+                {report.budgetedTotal > 0 && (
+                  <TableRow>
+                    <TableCell sx={{ color: 'warning.main', whiteSpace: 'nowrap' }}>To be paid</TableCell>
+                    {report.monthBudgeted.map((v, i) => (
+                      <TableCell key={i} align="right" sx={{ color: v ? 'warning.main' : 'text.disabled' }}>
+                        {v ? money(v) : '·'}
+                      </TableCell>
+                    ))}
+                    <TableCell align="right" sx={{ fontWeight: 700, color: 'warning.main' }}>
+                      {money(report.budgetedTotal)}
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </Paper>
@@ -727,11 +844,104 @@ function ReportTab() {
           </Paper>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {years.years.map((y, i) => (
-              <Chip key={y} label={`${y}: ${money(years.yearTotals[i], target)}`} variant={y === year ? 'filled' : 'outlined'} onClick={() => setYearPick(y)} />
+              <Chip
+                key={y}
+                label={`${y}: ${money(years.yearTotals[i], target)}${years.yearBudgeted?.[i] ? ` + ${money(years.yearBudgeted[i])} to be paid` : ''}`} variant={y === year ? 'filled' : 'outlined'} onClick={() => setYearPick(y)} />
             ))}
           </Stack>
         </>
       )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- lessons learned
+
+/** Every payment with a lesson written down, grouped by category, newest first in each. */
+function LessonsTab() {
+  const [categoryId, setCategoryId] = useState<number | ''>('');
+  const [q, setQ] = useState('');
+  const { data: categories = [] } = useQuery({ queryKey: ['expense-categories'], queryFn: listExpenseCategories });
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ['expense-lessons', categoryId, q],
+    queryFn: () => listExpenseLessons({ categoryId: categoryId === '' ? null : categoryId, q: q || undefined }),
+  });
+  const groups = useMemo(() => {
+    const m = new Map<string, Expense[]>();
+    for (const r of rows) {
+      const k = r.categoryName ?? 'Uncategorised';
+      m.set(k, [...(m.get(k) ?? []), r]);
+    }
+    return [...m.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  }, [rows]);
+
+  return (
+    <>
+      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
+        <TextField
+          select
+          size="small"
+          label="Category"
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value === '' ? '' : Number(e.target.value))}
+          sx={{ minWidth: 170 }}
+        >
+          <MenuItem value="">All categories</MenuItem>
+          {categories.map((c) => (
+            <MenuItem key={c.id} value={c.id} dir="auto">
+              {c.name}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField size="small" label="Search" value={q} onChange={(e) => setQ(e.target.value)} sx={{ width: 220 }} />
+        <Typography variant="body2" color="text.secondary">
+          {rows.length} lesson{rows.length === 1 ? '' : 's'}
+        </Typography>
+      </Stack>
+      {!isLoading && rows.length === 0 && (
+        <Typography color="text.secondary">
+          No lessons yet. Write one in an expense's "Lesson learned" field and it shows up here.
+        </Typography>
+      )}
+      {groups.map(([name, list]) => (
+        <Box key={name} sx={{ mb: 3 }}>
+          <Typography variant="h6" dir="auto" sx={{ mb: 1 }}>
+            {name} <Typography component="span" color="text.secondary">({list.length})</Typography>
+          </Typography>
+          <Stack spacing={1}>
+            {list.map((r) => {
+              const what = [r.summary, r.description].filter(Boolean).join(' — ');
+              return (
+                <Paper key={r.id} variant="outlined" sx={{ p: 1.5 }}>
+                  <Stack direction="row" spacing={1} alignItems="baseline" flexWrap="wrap" useFlexGap>
+                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                      {new Date(r.date).toLocaleDateString()}
+                    </Typography>
+                    <Typography variant="body2" dir="auto" sx={{ fontWeight: 600, flex: 1 }}>
+                      {what || '—'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
+                      {money(r.amount, r.currency)}
+                      {!r.paid && ' · to be paid'}
+                    </Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ mt: 0.5 }}>
+                    <LightbulbOutlined fontSize="small" color="warning" />
+                    <Typography dir="auto" sx={{ whiteSpace: 'pre-wrap', textAlign: 'start', flex: 1 }}>
+                      {r.lesson}
+                    </Typography>
+                  </Stack>
+                  {r.notes && (
+                    <Typography variant="body2" color="text.secondary" dir="auto" sx={{ mt: 0.5, whiteSpace: 'pre-wrap', textAlign: 'start' }}>
+                      {r.notes}
+                    </Typography>
+                  )}
+                </Paper>
+              );
+            })}
+          </Stack>
+        </Box>
+      ))}
     </>
   );
 }

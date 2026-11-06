@@ -125,6 +125,8 @@
     <string name="prayer_widget_countdown_note">La barre de l’écran d’accueil n’affiche son compte à rebours que lorsque le prochain horaire est aussi proche. Affiché toute la journée, il indiquait « 5:31:23 » — un nombre dont personne ne fait rien, dans la seule ligne libre de la barre.</string>
     <string name="prayer_remind_before">Me rappeler avant chaque horaire</string>
     <string name="prayer_remind_before_note">Une notification discrète avant chaque horaire que vous avez choisi d’afficher.</string>
+    <string name="prayer_sunrise_reminder">Dernier rappel avant le Chourouq</string>
+    <string name="prayer_sunrise_reminder_note">Une seconde notification juste avant le lever du soleil, quand le temps du Fajr va finir. Indépendante des lignes affichées.</string>
     <string name="prayer_min_before">%1$d min avant</string>
     <string name="prayer_hours_before">%1$d h avant</string>
     <string name="prayer_hours_minutes_before">%1$d h %2$d min avant</string>

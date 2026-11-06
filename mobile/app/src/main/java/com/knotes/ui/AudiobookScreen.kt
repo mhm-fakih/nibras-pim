@@ -1,5 +1,7 @@
 package com.knotes.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -142,25 +144,27 @@ fun AudiobookScreen(roots: List<String>, lastPlayedPath: String?, onPlayMedia: (
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
             )
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 FilterChip(
                     selected = mode == LibraryMode.LIBRARY,
                     onClick = { mode = LibraryMode.LIBRARY },
-                    label = { Text(stringResource(R.string.player_media_tab_library)) },
+                    label = { Text(stringResource(R.string.player_media_tab_library), maxLines = 1, softWrap = false) },
                     leadingIcon = { Icon(Icons.Filled.LibraryMusic, null, modifier = Modifier.width(18.dp)) },
                 )
                 FilterChip(
                     selected = mode == LibraryMode.FOLDERS,
                     onClick = { mode = LibraryMode.FOLDERS },
-                    label = { Text(stringResource(R.string.player_media_tab_folders)) },
+                    label = { Text(stringResource(R.string.player_media_tab_folders), maxLines = 1, softWrap = false) },
                     leadingIcon = { Icon(Icons.Filled.Folder, null, modifier = Modifier.width(18.dp)) },
                 )
                 FilterChip(
                     selected = mode == LibraryMode.BOOKMARKED,
                     onClick = { mode = LibraryMode.BOOKMARKED },
-                    label = { Text(stringResource(R.string.player_media_tab_bookmarked)) },
+                    label = { Text(stringResource(R.string.player_media_tab_bookmarked), maxLines = 1, softWrap = false) },
                     leadingIcon = { Icon(Icons.Filled.Bookmark, null, modifier = Modifier.width(18.dp)) },
                 )
             }

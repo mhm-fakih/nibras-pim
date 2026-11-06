@@ -197,29 +197,59 @@ public class ExpenseService {
     public record Expense(long id, double amount, String currency, LocalDateTime date, Long categoryId, String categoryName,
                           String summary, String description, String notes,
                           /** In the default currency at the rate of its date; null when no rate reaches it. */
-                          Double converted) {
+                          Double converted,
+                          /** False = to be paid: budgeted, not yet spent ({@code paid_on} is NULL). */
+                          boolean paid, LocalDateTime paidOn, String lesson) {
     }
 
+    /**
+     * {@code paid} null = decided by the date: paid when it is today or earlier, to be paid when it
+     * is in the future.
+     */
     public record ExpenseInput(Double amount, String currency, LocalDateTime date, Long categoryId,
-                               String summary, String description, String notes) {
+                               String summary, String description, String notes, Boolean paid, String lesson,
+                               /**
+                                * The sender's own id for this payment (the phone's offline outbox). A
+                                * create repeated with the same one returns the payment already made.
+                                */
+                               String clientRef) {
+        public ExpenseInput(Double amount, String currency, LocalDateTime date, Long categoryId,
+                            String summary, String description, String notes, Boolean paid, String lesson) {
+            this(amount, currency, date, categoryId, summary, description, notes, paid, lesson, null);
+        }
     }
+
+    /** Which expenses a list shows: all, only those paid, or only those still to be paid. */
+    public enum Status { ALL, PAID, PLANNED }
 
     private static final String EXPENSE_SELECT = """
-            select p.id, p.amount, p.currency, coalesce(p.paid_on, p.date, p.date_created) as d, p.category_id,
-                   c.name as cname, c.code as ccode, p.summary, p.description, p.notes
+            select p.id, p.amount, p.currency, coalesce(p.date, p.date_created) as d, p.category_id,
+                   c.name as cname, c.code as ccode, p.summary, p.description, p.notes, p.paid_on, p.lesson
               from payment p left join payment_category c on c.id = p.category_id
              where p.deleted_on is null""";
 
     /** Expenses between {@code from} and {@code to} (inclusive dates, either open), newest first. */
     public List<Expense> expenses(LocalDate from, LocalDate to, Long categoryId, String q, int limit) {
+        return expenses(from, to, categoryId, q, limit, Status.ALL, false);
+    }
+
+    /**
+     * As above, narrowed to paid or to-be-paid expenses, and, with {@code withLesson}, to those that
+     * have a lesson written down.
+     */
+    public List<Expense> expenses(LocalDate from, LocalDate to, Long categoryId, String q, int limit,
+                                  Status status, boolean withLesson) {
         StringBuilder sql = new StringBuilder(EXPENSE_SELECT);
         List<Object> args = new ArrayList<>();
+        if (status == Status.PAID) sql.append(" and p.paid_on is not null");
+        if (status == Status.PLANNED) sql.append(" and p.paid_on is null");
+        if (withLesson) sql.append(" and p.lesson is not null and trim(p.lesson) <> ''");
         if (from != null) {
-            sql.append(" and coalesce(p.paid_on, p.date, p.date_created) >= ?");
+            sql.append(" and coalesce(p.date, p.date_created) >= ?");
             args.add(Timestamp.valueOf(from.atStartOfDay()));
         }
         if (to != null) {
-            sql.append(" and coalesce(p.paid_on, p.date, p.date_created) < ?");
+            sql.append(" and coalesce(p.date, p.date_created) < ?");
             args.add(Timestamp.valueOf(to.plusDays(1).atStartOfDay()));
         }
         if (categoryId != null) {
@@ -227,8 +257,9 @@ public class ExpenseService {
             args.add(categoryId);
         }
         if (q != null && !q.isBlank()) {
-            sql.append(" and (p.summary like ? or p.description like ? or p.notes like ?)");
+            sql.append(" and (p.summary like ? or p.description like ? or p.notes like ? or p.lesson like ?)");
             String like = "%" + q.trim() + "%";
+            args.add(like);
             args.add(like);
             args.add(like);
             args.add(like);
@@ -250,32 +281,86 @@ public class ExpenseService {
             return new Expense(rs.getLong("id"), amount, c, d, cat,
                     cat == null ? null : label(rs.getString("cname"), rs.getString("ccode"), cat),
                     rs.getString("summary"), rs.getString("description"), rs.getString("notes"),
-                    conv.isPresent() ? conv.getAsDouble() : null);
+                    conv.isPresent() ? conv.getAsDouble() : null,
+                    rs.getTimestamp("paid_on") != null,
+                    rs.getTimestamp("paid_on") == null ? null : rs.getTimestamp("paid_on").toLocalDateTime(),
+                    rs.getString("lesson"));
         }, args);
     }
 
     @Transactional
     public Expense createExpense(ExpenseInput in) {
+        String ref = blankToNull(in.clientRef());
+        if (ref != null && ref.length() > 64) throw new ResponseStatusException(BAD_REQUEST, "clientRef is too long.");
+        Long made = ref == null ? null : madeFor(ref);
+        if (made != null) {
+            return madeExpense(made);
+        }
         Valid v = validate(in);
-        jdbc.update("insert into payment (version, amount, currency, date, category_id, summary, description, notes, date_created, last_updated) "
-                        + "values (0,?,?,?,?,?,?,?,now(),now())",
-                v.amount, v.currency, Timestamp.valueOf(v.date), v.categoryId, blankToNull(in.summary()),
-                blankToNull(in.description()), blankToNull(in.notes()));
+        try {
+            jdbc.update("insert into payment (version, amount, currency, date, paid_on, category_id, summary, description, notes, lesson, "
+                            + "client_ref, date_created, last_updated) values (0,?,?,?,?,?,?,?,?,?,?,now(),now())",
+                    v.amount, v.currency, Timestamp.valueOf(v.date), v.paid ? Timestamp.valueOf(paidStamp(v.date)) : null,
+                    v.categoryId, blankToNull(in.summary()), blankToNull(in.description()), blankToNull(in.notes()),
+                    blankToNull(in.lesson()), ref);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // The same payment sent twice at once: the other request made it.
+            Long other = madeFor(ref);
+            if (other == null) throw e;
+            return madeExpense(other);
+        }
         Long id = jdbc.queryForObject("select last_insert_id()", Long.class);
         return expense(id);
+    }
+
+    /** The payment already made for a client ref — deleted ones included, so a resend never revives it. */
+    private Long madeFor(String ref) {
+        return jdbc.query("select id from payment where client_ref = ?", (rs, i) -> rs.getLong(1), ref)
+                .stream().findFirst().orElse(null);
+    }
+
+    /** The payment a repeated create refers to; one deleted since is reported as it was. */
+    private Expense madeExpense(long id) {
+        return queryExpenses(EXPENSE_SELECT.replace("where p.deleted_on is null", "where 1 = 1") + " and p.id = ?", id)
+                .stream().findFirst()
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No expense " + id));
     }
 
     @Transactional
     public Expense updateExpense(long id, ExpenseInput in) {
         Valid v = validate(in);
-        // paid_on is cleared: the one date edited here is the expense's date, and a stale paid_on
-        // would otherwise keep winning in coalesce(paid_on, date).
-        int n = jdbc.update("update payment set amount=?, currency=?, date=?, paid_on=null, category_id=?, summary=?, description=?, notes=?, "
+        // A paid expense keeps the day it was paid; one marked paid now gets its date (or today, for
+        // a date still ahead); one set back to "to be paid" loses it.
+        int n = jdbc.update("update payment set amount=?, currency=?, date=?, "
+                        + "paid_on = case when ? then coalesce(paid_on, ?) else null end, "
+                        + "category_id=?, summary=?, description=?, notes=?, lesson=?, "
                         + "last_updated=now(), version=version+1 where id=? and deleted_on is null",
-                v.amount, v.currency, Timestamp.valueOf(v.date), v.categoryId, blankToNull(in.summary()),
-                blankToNull(in.description()), blankToNull(in.notes()), id);
+                v.amount, v.currency, Timestamp.valueOf(v.date), v.paid, Timestamp.valueOf(paidStamp(v.date)),
+                v.categoryId, blankToNull(in.summary()), blankToNull(in.description()), blankToNull(in.notes()),
+                blankToNull(in.lesson()), id);
         if (n == 0) throw new ResponseStatusException(NOT_FOUND, "No expense " + id);
         return expense(id);
+    }
+
+    /**
+     * A to-be-paid expense paid today: its date becomes today, so it counts in the month the money
+     * actually went out, not the month it was budgeted for.
+     */
+    @Transactional
+    public Expense markPaid(long id) {
+        int n = jdbc.update("update payment set paid_on = now(), date = now(), last_updated = now(), version = version + 1 "
+                + "where id = ? and deleted_on is null and paid_on is null", id);
+        if (n == 0) {
+            Integer exists = jdbc.queryForObject("select count(*) from payment where id = ? and deleted_on is null", Integer.class, id);
+            if (exists == null || exists == 0) throw new ResponseStatusException(NOT_FOUND, "No expense " + id);
+        }
+        return expense(id);
+    }
+
+    /** When a payment marked paid was paid: its date, unless that is still ahead — then now. */
+    private static LocalDateTime paidStamp(LocalDateTime date) {
+        LocalDateTime now = LocalDateTime.now();
+        return date.isAfter(now) ? now : date;
     }
 
     @Transactional
@@ -288,7 +373,7 @@ public class ExpenseService {
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No expense " + id));
     }
 
-    private record Valid(double amount, String currency, LocalDateTime date, Long categoryId) {
+    private record Valid(double amount, String currency, LocalDateTime date, Long categoryId, boolean paid) {
     }
 
     private Valid validate(ExpenseInput in) {
@@ -299,7 +384,10 @@ public class ExpenseService {
             Integer n = jdbc.queryForObject("select count(*) from payment_category where id = ? and deleted_on is null", Integer.class, in.categoryId());
             if (n == null || n == 0) throw new ResponseStatusException(BAD_REQUEST, "No such category.");
         }
-        return new Valid(in.amount(), cur, in.date() == null ? LocalDateTime.now() : in.date(), in.categoryId());
+        LocalDateTime date = in.date() == null ? LocalDateTime.now() : in.date();
+        // Not said: a date ahead is a budgeted payment, anything else was paid.
+        boolean paid = in.paid() != null ? in.paid() : !date.toLocalDate().isAfter(LocalDate.now());
+        return new Valid(in.amount(), cur, date, in.categoryId(), paid);
     }
 
     // ---------------------------------------------------------------- reports
@@ -312,15 +400,21 @@ public class ExpenseService {
     public record Unconverted(String currency, int count, double amount) {
     }
 
+    /**
+     * Totals and categories count what was PAID; {@code monthBudgeted} / {@code budgetedTotal} are the
+     * payments still to be paid, by the month they are planned for, kept apart from what was spent.
+     */
     public record YearReport(int year, String currency, double[] monthTotals, double total,
-                             List<CategorySeries> categories, List<Unconverted> unconverted) {
+                             List<CategorySeries> categories, List<Unconverted> unconverted,
+                             double[] monthBudgeted, double budgetedTotal) {
     }
 
     public record YearsReport(String currency, int[] years, double[] yearTotals, List<CategorySeries> categories,
-                              List<Unconverted> unconverted) {
+                              List<Unconverted> unconverted, double[] yearBudgeted) {
     }
 
-    private record Row(long id, double amount, String currency, LocalDate date, Long categoryId, String categoryName) {
+    private record Row(long id, double amount, String currency, LocalDate date, Long categoryId, String categoryName,
+                       boolean paid) {
     }
 
     private List<Row> rows(LocalDate from, LocalDate toExclusive) {
@@ -328,7 +422,7 @@ public class ExpenseService {
         List<Object> args = new ArrayList<>();
         String where = "";
         if (from != null) {
-            where = " and coalesce(p.paid_on, p.date, p.date_created) >= ? and coalesce(p.paid_on, p.date, p.date_created) < ?";
+            where = " and coalesce(p.date, p.date_created) >= ? and coalesce(p.date, p.date_created) < ?";
             args.add(Timestamp.valueOf(from.atStartOfDay()));
             args.add(Timestamp.valueOf(toExclusive.atStartOfDay()));
         }
@@ -337,7 +431,8 @@ public class ExpenseService {
             Long cat = (Long) rs.getObject("category_id", Long.class);
             return new Row(rs.getLong("id"), rs.getDouble("amount"), cur == null || cur.isBlank() ? def : cur.toUpperCase(),
                     rs.getTimestamp("d").toLocalDateTime().toLocalDate(), cat,
-                    cat == null ? "Uncategorised" : label(rs.getString("cname"), rs.getString("ccode"), cat));
+                    cat == null ? "Uncategorised" : label(rs.getString("cname"), rs.getString("ccode"), cat),
+                    rs.getTimestamp("paid_on") != null);
         }, args.toArray());
     }
 
@@ -346,6 +441,7 @@ public class ExpenseService {
         String target = currency == null || currency.isBlank() ? defaultCurrency() : normCode(currency);
         FxConverter fx = converter();
         double[] months = new double[12];
+        double[] budgeted = new double[12];
         Map<Long, double[]> perCat = new LinkedHashMap<>();
         Map<Long, String> names = new LinkedHashMap<>();
         Map<String, Unconverted> missing = new LinkedHashMap<>();
@@ -357,6 +453,10 @@ public class ExpenseService {
                 continue;
             }
             int m = r.date().getMonthValue() - 1;
+            if (!r.paid()) {
+                budgeted[m] += v.getAsDouble();
+                continue;
+            }
             months[m] += v.getAsDouble();
             long key = r.categoryId() == null ? -1 : r.categoryId();
             perCat.computeIfAbsent(key, k -> new double[12])[m] += v.getAsDouble();
@@ -365,7 +465,8 @@ public class ExpenseService {
         List<CategorySeries> cats = perCat.entrySet().stream()
                 .map(e -> new CategorySeries(e.getKey() < 0 ? null : e.getKey(), names.get(e.getKey()), e.getValue(), sum(e.getValue())))
                 .sorted(Comparator.comparingDouble(CategorySeries::total).reversed()).toList();
-        return new YearReport(year, target, months, sum(months), cats, new ArrayList<>(missing.values()));
+        return new YearReport(year, target, months, sum(months), cats, new ArrayList<>(missing.values()),
+                budgeted, sum(budgeted));
     }
 
     /** Year by year, per category, across every year with expenses. */
@@ -379,6 +480,7 @@ public class ExpenseService {
         int[] years = new int[n];
         for (int i = 0; i < n; i++) years[i] = first + i;
         double[] totals = new double[n];
+        double[] budgeted = new double[n];
         Map<Long, double[]> perCat = new LinkedHashMap<>();
         Map<Long, String> names = new LinkedHashMap<>();
         Map<String, Unconverted> missing = new LinkedHashMap<>();
@@ -390,6 +492,10 @@ public class ExpenseService {
                 continue;
             }
             int y = r.date().getYear() - first;
+            if (!r.paid()) {
+                budgeted[y] += v.getAsDouble();
+                continue;
+            }
             totals[y] += v.getAsDouble();
             long key = r.categoryId() == null ? -1 : r.categoryId();
             perCat.computeIfAbsent(key, k -> new double[n])[y] += v.getAsDouble();
@@ -398,7 +504,7 @@ public class ExpenseService {
         List<CategorySeries> cats = perCat.entrySet().stream()
                 .map(e -> new CategorySeries(e.getKey() < 0 ? null : e.getKey(), names.get(e.getKey()), e.getValue(), sum(e.getValue())))
                 .sorted(Comparator.comparingDouble(CategorySeries::total).reversed()).toList();
-        return new YearsReport(target, years, totals, cats, new ArrayList<>(missing.values()));
+        return new YearsReport(target, years, totals, cats, new ArrayList<>(missing.values()), budgeted);
     }
 
     private static double sum(double[] v) {

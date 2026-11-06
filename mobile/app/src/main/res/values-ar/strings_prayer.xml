@@ -125,6 +125,8 @@
     <string name="prayer_widget_countdown_note">لا يظهر العدّ التنازلي في شريط الشاشة الرئيسية إلا حين يقترب الوقت التالي إلى هذا الحد. لو ظهر طوال اليوم لقرأتَ «5:31:23» — رقمًا لا يفيد أحدًا، في السطر الوحيد المتاح في الشريط.</string>
     <string name="prayer_remind_before">ذكّرني قبل كل وقت</string>
     <string name="prayer_remind_before_note">إشعار هادئ قبل كل وقت اخترت عرضه.</string>
+    <string name="prayer_sunrise_reminder">تذكير أخير قبل الشروق</string>
+    <string name="prayer_sunrise_reminder_note">إشعار ثانٍ قبيل الشروق، حين يوشك وقت الفجر على الانتهاء. مستقل عن الأوقات المعروضة.</string>
     <string name="prayer_min_before">قبل %1$d د</string>
     <string name="prayer_hours_before">قبل %1$d س</string>
     <string name="prayer_hours_minutes_before">قبل %1$d س %2$d د</string>

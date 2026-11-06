@@ -34,6 +34,12 @@
     <string name="checklists_mark_none">not done</string>
     <string name="settings_feature_checklists_desc">Daily and weekly checklists, ticked per day and kept one file per week. Separate from the tasks list. Off: the page leaves the rail.</string>
     <string name="settings_checklists_folder_label">Checklists folder</string>
+    <string name="settings_checklist_sound_title">Reminder sound</string>
+    <string name="settings_checklist_sound_desc">Played once when a checklist reminder appears. Silent unless you choose a sound.</string>
+    <string name="settings_checklist_sound_silent">Silent</string>
+    <string name="settings_checklist_sound_ringtone">Ringtone…</string>
+    <string name="settings_checklist_sound_file">A file…</string>
+    <string name="settings_checklist_sound_test">Test</string>
     <string name="settings_checklists_folder_hint">One .md file per week. Blank = %1$s</string>
     <string name="checklists_edit_text">Edit as text</string>
     <string name="checklists_save">Save</string>

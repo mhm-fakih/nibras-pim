@@ -8,6 +8,9 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -28,8 +31,9 @@ import java.time.ZoneId
  * desktop and synced over is picked up by the next arming — app start, a checklist edit, or the
  * previous reminder.
  *
- * Silent on purpose — a notification with the group's name and nothing else, no sound or buzz —
- * and skipped when the group is already filled in for the day.
+ * The notification itself is silent (no buzz); a sound is played once alongside it only when one
+ * is chosen in Settings → Checklists ([com.knotes.Settings.checklistSoundUri]). Skipped when the
+ * group is already filled in for the day.
  */
 object ChecklistReminders {
 
@@ -84,9 +88,11 @@ object ChecklistReminders {
             val store = ChecklistStore(File(settings.checklistsFolder()))
             weekFor(store, at.toLocalDate())?.let { week ->
                 val day = at.dayOfWeek.value - 1
-                ChecklistTimes.dueOn(week, at.toLocalDate())
+                val due = ChecklistTimes.dueOn(week, at.toLocalDate())
                     .filter { it.at == at && !ChecklistTimes.filledIn(week, it.sectionCode, day) }
-                    .forEach { notify(app, it) }
+                due.forEach { notify(app, it) }
+                // One sound however many groups are due at the same minute.
+                if (due.isNotEmpty()) playSound(app, settings.checklistSoundUri)
             }
             app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong(K_HANDLED, atMillis).apply()
         }
@@ -117,6 +123,37 @@ object ChecklistReminders {
             .setContentIntent(open)
             .rtlIfArabic(context).build()
         runCatching { NotificationManagerCompat.from(context).notify(NOTIF_BASE + due.sectionCode, n) }
+    }
+
+    /** Kept so playback is not cut short by garbage collection; one sound at a time. */
+    @Volatile private var player: MediaPlayer? = null
+
+    /**
+     * Play [soundUri] once on the notification stream (so it follows the notification volume and
+     * the phone's silent mode). Blank = silent: nothing is played. Also the Settings "Test" button.
+     */
+    fun playSound(context: Context, soundUri: String) {
+        if (soundUri.isBlank()) return
+        stopSound()
+        runCatching {
+            player = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                )
+                setDataSource(context.applicationContext, Uri.parse(soundUri))
+                setOnCompletionListener { stopSound() }
+                prepare()
+                start()
+            }
+        }.onFailure { stopSound() }
+    }
+
+    fun stopSound() {
+        player?.let { runCatching { it.release() } }
+        player = null
     }
 
     private fun lastHandled(context: Context) =

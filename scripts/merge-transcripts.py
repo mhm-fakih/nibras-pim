@@ -78,6 +78,21 @@ def build_note(recordings: list[tuple[str, list[Path]]]) -> str:
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
+def record_usage(action: str, count: int) -> None:
+    """One line in the suite's usage log (~/.local/share/nibras/usage/recorder.log, or
+    $NIBRAS_USAGE_DIR), added up daily by the backend's App usage indicators. Inline rather than
+    imported: this script travels on the recorder. Never raises."""
+    if count <= 0:
+        return
+    try:
+        folder = Path(os.path.expanduser(os.environ.get("NIBRAS_USAGE_DIR") or "~/.local/share/nibras/usage"))
+        folder.mkdir(parents=True, exist_ok=True)
+        with open(folder / "recorder.log", "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now():%Y-%m-%dT%H:%M:%S}\t{action}\t{count}\n")
+    except OSError:
+        pass
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--knotes", default=DEFAULT_KNOTES)
@@ -117,6 +132,7 @@ def main() -> int:
         fh.write(text)
     SOURCE.rename(archive)
     SOURCE.mkdir()  # the recorder records into FOLDER01; don't leave it missing
+    record_usage("recordings", len(recordings))
     print("done.")
     return 0
 

@@ -73,6 +73,24 @@ def new_note_path(folder: Path, note_type: str = "N", priority: int | None = Non
         when += timedelta(seconds=1)
 
 
+def record_usage(app: str, action: str, count: int = 1) -> None:
+    """
+    Append one line to the suite's usage log, ~/.local/share/nibras/usage/<app>.log (or
+    $NIBRAS_USAGE_DIR): local time, action, count. The backend's App usage indicators add these
+    up once a day. Never raises — counting must not break a capture.
+    """
+    if count <= 0:
+        return
+    try:
+        folder = Path(os.path.expanduser(
+            os.environ.get("NIBRAS_USAGE_DIR") or "~/.local/share/nibras/usage"))
+        folder.mkdir(parents=True, exist_ok=True)
+        with open(folder / f"{app}.log", "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now():%Y-%m-%dT%H:%M:%S}\t{action}\t{count}\n")
+    except OSError:
+        pass
+
+
 def companion_dir(note: Path) -> Path:
     """The note's ".d" folder (not created here)."""
     return note.with_name(note.name[:-3] + ".d")

@@ -34,6 +34,12 @@
     <string name="checklists_mark_none">pas fait</string>
     <string name="settings_feature_checklists_desc">Listes de contrôle quotidiennes et hebdomadaires, cochées par jour, un fichier par semaine. Séparées de la liste des tâches. Désactivé : la page quitte la barre.</string>
     <string name="settings_checklists_folder_label">Dossier des listes</string>
+    <string name="settings_checklist_sound_title">Son du rappel</string>
+    <string name="settings_checklist_sound_desc">Joué une fois quand un rappel de liste apparaît. Silencieux tant qu’aucun son n’est choisi.</string>
+    <string name="settings_checklist_sound_silent">Silencieux</string>
+    <string name="settings_checklist_sound_ringtone">Sonnerie…</string>
+    <string name="settings_checklist_sound_file">Un fichier…</string>
+    <string name="settings_checklist_sound_test">Tester</string>
     <string name="settings_checklists_folder_hint">Un fichier .md par semaine. Vide = %1$s</string>
     <string name="checklists_edit_text">Modifier en texte</string>
     <string name="checklists_save">Enregistrer</string>

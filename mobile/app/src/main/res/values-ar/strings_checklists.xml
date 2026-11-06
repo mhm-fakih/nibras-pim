@@ -34,6 +34,12 @@
     <string name="checklists_mark_none">غير منجز</string>
     <string name="settings_feature_checklists_desc">قوائم تحقق يومية وأسبوعية، تُعلَّم لكل يوم وتُحفظ في ملف لكل أسبوع. منفصلة عن قائمة المهام. عند الإيقاف: تختفي الصفحة من الشريط.</string>
     <string name="settings_checklists_folder_label">مجلد قوائم التحقق</string>
+    <string name="settings_checklist_sound_title">صوت التذكير</string>
+    <string name="settings_checklist_sound_desc">يُشغَّل مرة واحدة عند ظهور تذكير القائمة. صامت ما لم تختر صوتًا.</string>
+    <string name="settings_checklist_sound_silent">صامت</string>
+    <string name="settings_checklist_sound_ringtone">نغمة…</string>
+    <string name="settings_checklist_sound_file">ملف…</string>
+    <string name="settings_checklist_sound_test">تجربة</string>
     <string name="settings_checklists_folder_hint">ملف ‎.md‎ لكل أسبوع. فارغ = %1$s</string>
     <string name="checklists_edit_text">تعديل كنص</string>
     <string name="checklists_save">حفظ</string>

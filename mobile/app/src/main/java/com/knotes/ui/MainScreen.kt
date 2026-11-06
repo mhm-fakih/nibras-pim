@@ -1,5 +1,6 @@
 package com.knotes.ui
 
+import com.knotes.util.submitOnEnterCombo
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Tune
@@ -969,7 +970,7 @@ private fun InputBar(
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         maxLines = if (fullPage) 16 else 6,
                         minLines = if (fullPage) 6 else 1,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().submitOnEnterCombo(input.isNotBlank(), onSend),
                         decorationBox = { inner ->
                             if (input.isEmpty()) {
                                 Text(
@@ -1036,7 +1037,7 @@ private fun QuickAddBar(
                     ),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     maxLines = 6,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().submitOnEnterCombo(text.isNotBlank(), onSend),
                     decorationBox = { inner ->
                         if (text.isEmpty()) {
                             Text(

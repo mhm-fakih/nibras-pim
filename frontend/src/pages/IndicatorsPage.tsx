@@ -17,6 +17,8 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
   Legend,
   Line,
@@ -27,9 +29,12 @@ import {
   YAxis,
 } from 'recharts';
 import {
+  AppUsage,
   DueIndicator,
   EntityRecord,
+  getAppUsage,
   getIndicatorSeries,
+  getSetting,
   getIndicatorsDue,
   getKpis,
   listEntities,
@@ -44,6 +49,7 @@ const KIND_COLOR: Record<string, 'primary' | 'secondary' | 'success' | 'default'
   QUERY: 'primary',
   FILE: 'secondary',
   SCRIPT: 'success',
+  USAGE: 'primary',
   MANUAL: 'default',
 };
 
@@ -60,6 +66,15 @@ export function IndicatorsPage() {
     queryFn: () => listEntities('indicators', { size: 500 }),
   });
   const all = allPage?.content ?? [];
+  const { data: appUsage } = useQuery({
+    queryKey: ['app-usage'],
+    queryFn: getAppUsage,
+    refetchInterval: 60_000,
+  });
+  const { data: collectTime } = useQuery({
+    queryKey: ['setting', 'indicator.autoCollect.time'],
+    queryFn: () => getSetting('indicator.autoCollect.time', '23:50'),
+  });
   const [editor, setEditor] = useState<{ open: boolean; id?: number }>({ open: false });
 
   // Group monitored indicators: those sharing a `category` overlay on one chart; the rest stand alone.
@@ -80,6 +95,7 @@ export function IndicatorsPage() {
     qc.invalidateQueries({ queryKey: ['indicators-due'] });
     qc.invalidateQueries({ queryKey: ['indicators-all'] });
     qc.invalidateQueries({ queryKey: ['kpis'] });
+    qc.invalidateQueries({ queryKey: ['app-usage'] });
     closeEditor();
   };
 
@@ -155,6 +171,23 @@ export function IndicatorsPage() {
           ))}
         </Box>
 
+        {appUsage && appUsage.length > 0 && (
+          <>
+            <Typography variant="h6" sx={{ mt: 4, mb: 0.5 }}>
+              App usage
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              One indicator per program, collected automatically every day at {collectTime || '23:50'}{' '}
+              (change it in Settings). The big number is what has been counted since the last collection.
+            </Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 2 }}>
+              {appUsage.map((u) => (
+                <AppUsageCard key={u.id} usage={u} onEdit={() => setEditor({ open: true, id: u.id })} />
+              ))}
+            </Box>
+          </>
+        )}
+
         <Typography variant="h6" sx={{ mt: 4, mb: 1 }}>
           All indicators ({all.length})
         </Typography>
@@ -165,7 +198,7 @@ export function IndicatorsPage() {
           {[...all]
             .sort((a, b) => Number(Boolean(b.bookmarked)) - Number(Boolean(a.bookmarked)))
             .map((rec) => {
-              const kind = rec.query ? 'QUERY' : rec.path ? 'FILE' : rec.script ? 'SCRIPT' : 'MANUAL';
+              const kind = rec.usageApp ? 'USAGE' : rec.query ? 'QUERY' : rec.path ? 'FILE' : rec.script ? 'SCRIPT' : 'MANUAL';
               return (
                 <Box
                   component="li"
@@ -264,6 +297,69 @@ function DueCard({ due, onEdit }: { due: DueIndicator; onEdit: () => void }) {
             Confirm
           </Button>
         </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** One program's usage: the running count since the last collection, and its daily values. */
+function AppUsageCard({ usage, onEdit }: { usage: AppUsage; onEdit: () => void }) {
+  const { data: series } = useQuery({
+    queryKey: ['indicator-series', usage.id],
+    queryFn: () => getIndicatorSeries(usage.id),
+  });
+  const points = (series ?? []).slice(-30).map((p) => ({
+    date: new Date(p.date).toLocaleDateString(),
+    value: p.value,
+  }));
+  const since = new Date(usage.since);
+  const sinceMidnight = since.getHours() === 0 && since.getMinutes() === 0;
+  const sinceLabel = sinceMidnight
+    ? 'today so far'
+    : `since ${since.toLocaleDateString()} ${since.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+  return (
+    <Card variant="outlined">
+      <CardContent sx={{ pb: 1, '&:last-child': { pb: 1 } }}>
+        <Stack direction="row" alignItems="flex-start" spacing={1}>
+          <Typography variant="body2" sx={{ fontWeight: 600, flex: 1 }}>
+            {usage.name}
+          </Typography>
+          <MuiTooltip title="Edit indicator">
+            <IconButton size="small" onClick={onEdit} sx={{ mt: -0.5 }}>
+              <EditIcon fontSize="small" />
+            </IconButton>
+          </MuiTooltip>
+        </Stack>
+        {usage.error ? (
+          <Alert severity="warning" sx={{ my: 1, py: 0, fontSize: 12 }}>
+            {usage.error}
+          </Alert>
+        ) : (
+          <Stack direction="row" alignItems="baseline" spacing={1}>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
+              {usage.current ?? 0}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {usage.scale ? `${usage.scale} ` : ''}
+              {sinceLabel}
+            </Typography>
+          </Stack>
+        )}
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+          {usage.lastValue != null && usage.lastDate
+            ? `Last collected: ${usage.lastValue} on ${new Date(usage.lastDate).toLocaleDateString()}`
+            : 'Not collected yet'}
+        </Typography>
+        {points.length > 1 && (
+          <ResponsiveContainer width="100%" height={70}>
+            <BarChart data={points} margin={{ top: 6, right: 0, bottom: 0, left: 0 }}>
+              <XAxis dataKey="date" hide />
+              <Tooltip />
+              <Bar dataKey="value" name={usage.scale || 'value'} fill="#0078d4" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </CardContent>
     </Card>
   );

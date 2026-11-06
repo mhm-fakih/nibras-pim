@@ -159,6 +159,59 @@ class NibrasApi {
     suspend fun fetchContactsRaw(base: String): String =
         withContext(Dispatchers.IO) { get("${base.trimEnd('/')}$PATH_CONTACTS/with-tasks") }
 
+    /** Payment categories, verbatim, for the offline cache ([com.knotes.expenses.PaymentCache]). */
+    @Throws(ApiException::class)
+    suspend fun fetchPaymentCategoriesRaw(base: String): String =
+        withContext(Dispatchers.IO) { get("${base.trimEnd('/')}$PATH_EXPENSES/categories") }
+
+    /** Currencies and the default one, verbatim, for the same cache. */
+    @Throws(ApiException::class)
+    suspend fun fetchCurrenciesRaw(base: String): String =
+        withContext(Dispatchers.IO) { get("${base.trimEnd('/')}$PATH_EXPENSES/currencies") }
+
+    /** How one payment send ended. */
+    sealed interface PaymentSend {
+        data class Recorded(val serverId: Long) : PaymentSend
+        /** The server looked at it and said no — sending it again unchanged will not help. */
+        data class Refused(val reason: String) : PaymentSend
+        /** Not reached, not signed in, or a server error: try again later. */
+        data object Later : PaymentSend
+    }
+
+    /**
+     * Records a payment. Safe to repeat: the payment's `clientRef` makes the server return the one
+     * it already made instead of a second.
+     */
+    suspend fun sendPayment(base: String, p: com.knotes.expenses.PendingPayment): PaymentSend =
+        withContext(Dispatchers.IO) {
+            val url = "${base.trimEnd('/')}$PATH_EXPENSES"
+            fun build(): Request {
+                val b = Request.Builder().url(url).header("Accept", "application/json")
+                    .post(p.toRequest().toString().toRequestBody(jsonMedia))
+                token?.let { b.header("Authorization", "Bearer $it") }
+                return b.build()
+            }
+            runCatching {
+                var resp = client.newCall(build()).execute()
+                if (resp.code == 401 && doLogin()) {
+                    resp.close()
+                    resp = client.newCall(build()).execute()
+                }
+                resp.use { r ->
+                    val body = r.body?.string().orEmpty()
+                    when {
+                        r.isSuccessful -> JSONObject(body).optLong("id").takeIf { it > 0 }
+                            ?.let { PaymentSend.Recorded(it) } ?: PaymentSend.Later
+                        r.code in REFUSED -> PaymentSend.Refused(
+                            runCatching { JSONObject(body).optString("detail") }.getOrNull()
+                                ?.takeIf { it.isNotBlank() && it != "null" } ?: "HTTP ${r.code}",
+                        )
+                        else -> PaymentSend.Later
+                    }
+                }
+            }.getOrDefault(PaymentSend.Later)
+        }
+
     /** Record a decision. The same call puts a card back, by sending NEW. */
     suspend fun pushFlashcardState(base: String, id: Long, state: String): Boolean =
         withContext(Dispatchers.IO) {
@@ -494,5 +547,9 @@ class NibrasApi {
         const val PATH_HIGHLIGHTS = "/api/highlights"
         // The base path is the CRUD list now; the grouped view this page wants is a sub-path.
         const val PATH_CONTACTS = "/api/contacts"
+        const val PATH_EXPENSES = "/api/expenses"
+
+        /** Statuses that mean "this payment, as it is, will not be accepted". */
+        private val REFUSED = setOf(400, 404, 409, 422)
     }
 }

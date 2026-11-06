@@ -1,5 +1,7 @@
 package com.knotes.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import android.content.Context
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Canvas
@@ -219,7 +221,11 @@ fun GalleryScreen(dir: String) {
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .statusBarsPadding()
-                .padding(start = 8.dp, top = 34.dp),
+                .fillMaxWidth()
+                // Sideways scroll rather than squeezing: on a narrow screen the last chip was
+                // crushed to one letter per line.
+                .horizontalScroll(rememberScrollState())
+                .padding(start = 8.dp, end = 8.dp, top = 34.dp),
         ) {
             Tool.entries.forEach { t ->
                 FilterChip(
@@ -233,7 +239,7 @@ fun GalleryScreen(dir: String) {
                         }
                         tool = t
                     },
-                    label = { Text(stringResource(t.labelRes), style = MaterialTheme.typography.labelSmall) },
+                    label = { Text(stringResource(t.labelRes), style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false) },
                     leadingIcon = {
                         Icon(
                             when (t) {

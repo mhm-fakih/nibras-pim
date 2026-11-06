@@ -27,6 +27,25 @@ from datetime import datetime
 _RTL = re.compile(r"[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]")
 _PRIORITY = re.compile(r"^p(\d+)$")
 
+# Which program is saving notes ("desktop", "terminal"), for its usage count; None = not counted.
+USAGE_APP: str | None = None
+
+
+def record_usage(app: str, action: str, count: int = 1) -> None:
+    """Append one line to the suite's usage log, ~/.local/share/nibras/usage/<app>.log (or
+    $NIBRAS_USAGE_DIR): local time, action, count. The backend's App usage indicators add these
+    up once a day. Never raises — counting must not get in the way of the program."""
+    if not app or count <= 0:
+        return
+    try:
+        folder = os.path.expanduser(os.environ.get("NIBRAS_USAGE_DIR") or "~/.local/share/nibras/usage")
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, f"{app}.log"), "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now():%Y-%m-%dT%H:%M:%S}\t{action}\t{count}\n")
+    except OSError:
+        pass
+
+
 # Canonical note-file name — the single rule for *counting* notes, shared across desktop/terminal/
 # mobile/backend: <timestamp>~<type>~p<priority>~<subject>.md (type/subject may be empty; an optional
 # -N de-dup suffix is allowed). Only these .md files count; foreign .md and legacy files are ignored,
@@ -1003,6 +1022,8 @@ class NoteRepository:
             counter += 1
         with open(path, "w", encoding="utf-8") as f:
             f.write(_with_trailing_newline(text))
+        if USAGE_APP:
+            record_usage(USAGE_APP, "note")
         return path
 
     def update(self, note: Note, text: str, type_: str | None, priority: int,

@@ -158,4 +158,7 @@
     <string name="player_ai_queue_refresh">Actualiser la liste</string>
     <string name="player_ai_queue_empty">Aucune narration IA sans signet trouvée.</string>
     <string name="player_notice_queue_empty">Rien de coché — cochez une narration dans la liste pour la lire ensuite.</string>
+    <string name="player_tab_playlist">Liste de lecture (%1$d)</string>
+    <string name="player_playlist_inactive">Les fichiers cochés ne passent ensuite que si « À suivre » est réglé sur Narrations IA.</string>
+    <string name="player_playlist_use">L’activer</string>
 </resources>

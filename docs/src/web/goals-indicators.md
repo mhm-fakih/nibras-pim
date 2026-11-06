@@ -36,7 +36,7 @@ orange for a little, greens for more — with a day-by-day log underneath.
 
 ## Indicators
 
-Open **Indicators** from the sidebar (or **g i**). The page has four parts:
+Open **Indicators** from the sidebar (or **g i**). The page has five parts:
 
 1. **KPI cards** — standard at-a-glance figures across your records.
 2. **Needs data** — monitored indicators that have no value yet for the current period (day, week…).
@@ -44,7 +44,8 @@ Open **Indicators** from the sidebar (or **g i**). The page has four parts:
    **Confirm**.
 3. **Monitored indicators** — a line chart per indicator. Indicators that share a **Category** are
    drawn together on one chart.
-4. **All indicators** — every defined indicator; ★ marks monitored ones. Click any of them to edit.
+4. **App usage** — one card per program of the suite (see [App usage](#app-usage) below).
+5. **All indicators** — every defined indicator; ★ marks monitored ones. Click any of them to edit.
 
 ### Creating an indicator
 
@@ -60,7 +61,7 @@ Click **New indicator** and fill in:
 | **Actively monitored** | Watch it on this page and in **Needs data** |
 | **Goal** | Link it to a goal to use it as a habit tracker |
 
-An indicator gets its numbers in one of four ways, shown as a chip on each card:
+An indicator gets its numbers in one of five ways, shown as a chip on each card:
 
 | Kind | Where the value comes from |
 |---|---|
@@ -68,6 +69,7 @@ An indicator gets its numbers in one of four ways, shown as a chip on each card:
 | **QUERY** | A query over your records, set in the **Query** field. |
 | **FILE** | A count of files in a server folder (**Folder path**, filtered by **Extensions**). |
 | **SCRIPT** | A small shell command on the server that prints a number. |
+| **USAGE** | How much one program was used (the **App usage** field) — see below. |
 
 For QUERY, FILE and SCRIPT indicators the app **proposes** a value and waits for you to confirm it.
 Switch on **Auto-collect** to have the server compute and save the value by itself once a day, at
@@ -76,3 +78,27 @@ the time set in [Settings → Indicator auto-collection](settings.md#indicator-a
 !!! note
     Query, folder and script indicators run on the server, so they are usually set up by whoever
     looks after it.
+
+### App usage
+
+Eight indicators, in the category **Apps**, count how much each program is used. They are
+collected automatically every day at the auto-collection time, and shown in their own **App usage**
+section: the big number on each card is what has been counted since the last collection, the bars
+below are the daily values.
+
+| Program | Counts |
+|---|---|
+| Terminal | notes saved |
+| Desktop | notes added |
+| Audio player | time marks (bookmarks) added |
+| Screen annotator | images annotated (saved with marks) |
+| Telegram capture | messages captured |
+| Firefox capture | bookmarks captured |
+| Recorder | recordings merged into a note |
+| Backend | records added or updated, in any module |
+
+Each program writes one line per action to `~/.local/share/nibras/usage/<program>.log`; the server
+reads those files, so the programs and the server must run on the same computer (or share that
+folder — point both at it with `NIBRAS_USAGE_DIR`). A day's value starts just after the previous
+day's collection, so nothing done late in the evening is lost or counted twice.
+

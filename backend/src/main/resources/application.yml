@@ -71,6 +71,11 @@ nibras:
     # and the source for the import page (imported files move to <dir>/imported/).
     # Blank means $HOME/new/knotes. Settings → Local notes overrides this per installation.
     notes-dir: ${NIBRAS_KNOTES_DIR:}
+  usage:
+    # Folder of the programs' usage logs (<app>.log), counted by the app-usage indicators.
+    # Blank means $HOME/.local/share/nibras/usage — where the programs write unless
+    # NIBRAS_USAGE_DIR points them elsewhere.
+    dir: ${NIBRAS_USAGE_DIR:}
   cors:
     allowed-origins: "http://localhost:5173,http://127.0.0.1:5173,https://nibras-prod"
   security:

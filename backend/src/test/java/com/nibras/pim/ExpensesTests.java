@@ -39,10 +39,10 @@ class ExpensesTests extends AuthTestSupport {
         expenses.addRate(base, local, 100.0, LocalDate.of(year, 1, 1), null);
         expenses.addRate(base, local, 1000.0, LocalDate.of(year, 6, 1), null);
 
-        expenses.createExpense(new ExpenseInput(10.0, base, LocalDateTime.of(year, 1, 5, 10, 0), food.id(), "bread", null, null));
-        expenses.createExpense(new ExpenseInput(500.0, local, LocalDateTime.of(year, 1, 20, 10, 0), food.id(), "fruit", null, null)); // 5 ZZB
-        expenses.createExpense(new ExpenseInput(2000.0, local, LocalDateTime.of(year, 7, 1, 10, 0), car.id(), "fuel", null, null));  // 2 ZZB
-        expenses.createExpense(new ExpenseInput(7.0, norate, LocalDateTime.of(year, 7, 2, 10, 0), car.id(), "no rate", null, null));
+        expenses.createExpense(new ExpenseInput(10.0, base, LocalDateTime.of(year, 1, 5, 10, 0), food.id(), "bread", null, null, true, null));
+        expenses.createExpense(new ExpenseInput(500.0, local, LocalDateTime.of(year, 1, 20, 10, 0), food.id(), "fruit", null, null, true, null)); // 5 ZZB
+        expenses.createExpense(new ExpenseInput(2000.0, local, LocalDateTime.of(year, 7, 1, 10, 0), car.id(), "fuel", null, null, true, null));  // 2 ZZB
+        expenses.createExpense(new ExpenseInput(7.0, norate, LocalDateTime.of(year, 7, 2, 10, 0), car.id(), "no rate", null, null, true, null));
 
         var r = expenses.yearReport(year, base);
         assertThat(r.currency()).isEqualTo(base);
@@ -67,15 +67,56 @@ class ExpensesTests extends AuthTestSupport {
 
         // Editing an expense moves it.
         var e = expenses.expenses(LocalDate.of(year, 1, 1), LocalDate.of(year, 1, 31), food.id(), "bread", 10).get(0);
-        expenses.updateExpense(e.id(), new ExpenseInput(10.0, base, LocalDateTime.of(year, 2, 1, 9, 0), car.id(), "bread", null, null));
+        expenses.updateExpense(e.id(), new ExpenseInput(10.0, base, LocalDateTime.of(year, 2, 1, 9, 0), car.id(), "bread", null, null, true, null));
         assertThat(expenses.yearReport(year, base).monthTotals()[1]).isCloseTo(10.0, within(1e-9));
     }
 
     @Test
+    void budgetedPaymentsCountApartUntilPaidAndLessonsAreListed() {
+        long n = System.nanoTime();
+        String tag = "b" + n % 100000;
+        String cur = ("C" + Long.toString(n, 36)).toUpperCase().substring(0, 7);
+        expenses.addCurrency(cur, "Budget test", null);
+        var cat = expenses.createCategory(new CategoryInput("Budget " + tag, null, null, null));
+        // Paid not said: a date ahead means "to be paid", today means paid.
+        LocalDateTime ahead = LocalDateTime.now().plusYears(1).withMonth(3).withDayOfMonth(10);
+        var planned = expenses.createExpense(new ExpenseInput(40.0, cur, ahead, cat.id(), "rent " + tag, null, null, null, null));
+        assertThat(planned.paid()).isFalse();
+        var today = expenses.createExpense(new ExpenseInput(5.0, cur, LocalDateTime.now(), cat.id(), "tea " + tag, null,
+                "a note", null, "Buy in bulk " + tag));
+        assertThat(today.paid()).isTrue();
+        assertThat(today.lesson()).isEqualTo("Buy in bulk " + tag);
+
+        var r = expenses.yearReport(ahead.getYear(), cur);
+        assertThat(r.total()).isCloseTo(0.0, within(1e-9));
+        assertThat(r.monthBudgeted()[2]).isCloseTo(40.0, within(1e-9));
+        assertThat(r.budgetedTotal()).isCloseTo(40.0, within(1e-9));
+        assertThat(expenses.expenses(null, null, cat.id(), null, 10, ExpenseService.Status.PLANNED, false))
+                .extracting(ExpenseService.Expense::id).containsExactly(planned.id());
+
+        // Paid today: it leaves the budget and counts as spent, this month.
+        var paid = expenses.markPaid(planned.id());
+        assertThat(paid.paid()).isTrue();
+        assertThat(paid.date().toLocalDate()).isEqualTo(LocalDate.now());
+        assertThat(expenses.yearReport(ahead.getYear(), cur).budgetedTotal()).isCloseTo(0.0, within(1e-9));
+        assertThat(expenses.yearReport(LocalDate.now().getYear(), cur).total()).isCloseTo(45.0, within(1e-9));
+
+        // Lessons: only expenses with one, and searchable by its text.
+        assertThat(expenses.expenses(null, null, cat.id(), null, 10, ExpenseService.Status.ALL, true))
+                .extracting(ExpenseService.Expense::id).containsExactly(today.id());
+        assertThat(expenses.expenses(null, null, null, "bulk " + tag, 10, ExpenseService.Status.ALL, true)).hasSize(1);
+
+        // Set back to "to be paid" by an edit: paid_on is cleared.
+        var back = expenses.updateExpense(today.id(), new ExpenseInput(5.0, cur, LocalDateTime.now(), cat.id(), "tea " + tag,
+                null, "a note", false, "Buy in bulk " + tag));
+        assertThat(back.paid()).isFalse();
+    }
+
+    @Test
     void validation() {
-        assertThatThrownBy(() -> expenses.createExpense(new ExpenseInput(-1.0, null, null, null, null, null, null)))
+        assertThatThrownBy(() -> expenses.createExpense(new ExpenseInput(-1.0, null, null, null, null, null, null, true, null)))
                 .isInstanceOf(ResponseStatusException.class);
-        assertThatThrownBy(() -> expenses.createExpense(new ExpenseInput(1.0, "QQQQ", null, null, null, null, null)))
+        assertThatThrownBy(() -> expenses.createExpense(new ExpenseInput(1.0, "QQQQ", null, null, null, null, null, true, null)))
                 .isInstanceOf(ResponseStatusException.class);
         assertThatThrownBy(() -> expenses.addRate("USD", "USD", 1.0, null, null)).isInstanceOf(ResponseStatusException.class);
     }

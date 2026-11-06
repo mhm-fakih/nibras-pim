@@ -71,6 +71,14 @@ object SyncCenter {
             if (ok) local.removeBookmarks(listOf(item))
         }
 
+        // The payment page's category and currency lists, so it can be used with no network
+        // even if it was never opened while online.
+        runCatching {
+            val pay = com.knotes.expenses.PaymentCache(context)
+            pay.saveCategories(api.fetchPaymentCategoriesRaw(base))
+            pay.saveCurrencies(api.fetchCurrenciesRaw(base))
+        }
+
         val cache = NibrasCache(context)
         // Count what actually landed. Every per-type failure used to be swallowed by getOrNull()
         // and the enclosing runCatching therefore always succeeded — so a wrong password (which the

@@ -46,6 +46,14 @@ data class PrayerSettings(
     val reminderLeadMin: Int = 10,
 
     /**
+     * A second, last-call reminder before Shurooq, on its own switch and lead (default 2 minutes).
+     * The general reminder comes early enough to get up; this one says the window for Fajr is
+     * about to close. Independent of the shown rows and of the general reminder.
+     */
+    val sunriseReminderEnabled: Boolean = true,
+    val sunriseReminderLeadMin: Int = 2,
+
+    /**
      * How close the next time has to be before the widget's countdown appears, in minutes.
      *
      * The countdown used to be drawn whatever the gap, so most of the day it read "فجر بعد 5:31:23"
@@ -218,6 +226,8 @@ class PrayerSettingsStore(context: Context) {
             hijriDayStartsAtMaghrib = prefs.getBoolean(K_HIJRI_MAGHRIB, d.hijriDayStartsAtMaghrib),
             reminderEnabled = prefs.getBoolean(K_REM_ON, d.reminderEnabled),
             reminderLeadMin = prefs.getInt(K_REM_LEAD, d.reminderLeadMin),
+            sunriseReminderEnabled = prefs.getBoolean(K_SUNRISE_REM_ON, d.sunriseReminderEnabled),
+            sunriseReminderLeadMin = prefs.getInt(K_SUNRISE_REM_LEAD, d.sunriseReminderLeadMin),
             countdownWithinMin = prefs.getInt(K_COUNTDOWN_WITHIN, d.countdownWithinMin),
             elapsedForMin = prefs.getInt(K_ELAPSED_FOR, d.elapsedForMin),
             athanPrayers = decodePrayers(prefs.getString(K_ATHAN, null)) ?: d.athanPrayers,
@@ -261,6 +271,8 @@ class PrayerSettingsStore(context: Context) {
             .putBoolean(K_HIJRI_MAGHRIB, s.hijriDayStartsAtMaghrib)
             .putBoolean(K_REM_ON, s.reminderEnabled)
             .putInt(K_REM_LEAD, s.reminderLeadMin.coerceIn(PrayerSettings.MIN_LEAD, PrayerSettings.MAX_LEAD))
+            .putBoolean(K_SUNRISE_REM_ON, s.sunriseReminderEnabled)
+            .putInt(K_SUNRISE_REM_LEAD, s.sunriseReminderLeadMin.coerceIn(PrayerSettings.MIN_LEAD, PrayerSettings.MAX_LEAD))
             .putInt(
                 K_COUNTDOWN_WITHIN,
                 s.countdownWithinMin.coerceIn(PrayerSettings.MIN_COUNTDOWN, PrayerSettings.MAX_COUNTDOWN),
@@ -297,6 +309,8 @@ class PrayerSettingsStore(context: Context) {
         private const val K_HIJRI_MAGHRIB = "hijri_day_starts_maghrib"
         private const val K_REM_ON = "reminder_enabled"
         private const val K_REM_LEAD = "reminder_lead_min"
+        private const val K_SUNRISE_REM_ON = "sunrise_reminder_enabled"
+        private const val K_SUNRISE_REM_LEAD = "sunrise_reminder_lead_min"
         private const val K_COUNTDOWN_WITHIN = "countdown_within_min"
         private const val K_ELAPSED_FOR = "elapsed_for_min"
         private const val K_ATHAN = "athan_prayers"

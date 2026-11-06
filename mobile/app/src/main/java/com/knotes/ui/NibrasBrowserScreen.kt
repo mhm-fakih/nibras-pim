@@ -1,5 +1,6 @@
 package com.knotes.ui
 
+import com.knotes.util.submitOnEnterCombo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.border
@@ -786,7 +787,7 @@ private fun NoteAdder(onAddNote: (String) -> Unit) {
                 ),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 maxLines = 4,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().submitOnEnterCombo(note.isNotBlank()) { onAddNote(note.trim()); note = "" },
                 decorationBox = { inner ->
                     if (note.isEmpty()) {
                         Text(

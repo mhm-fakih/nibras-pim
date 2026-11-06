@@ -21,6 +21,9 @@ enum class PrayerEventKind {
     /** A short countdown of beeps before sunrise closes the window for Fajr. */
     BEEPS,
 
+    /** The second, last-call reminder before Shurooq ([PrayerSettings.sunriseReminderLeadMin]). */
+    SUNRISE_REMINDER,
+
     /**
      * Nothing happens — this exists ONLY to wake the widget so its countdown can appear.
      *
@@ -107,6 +110,13 @@ object PrayerEvents {
 
         // Sunrise ends the time in which Fajr can still be prayed, which is why it gets a countdown
         // of its own rather than sharing the pre-prayer reminder.
+        if (settings.sunriseReminderEnabled) {
+            day.timeOf(Prayer.SUNRISE)?.let { sunrise ->
+                val lead = settings.sunriseReminderLeadMin
+                    .coerceIn(PrayerSettings.MIN_LEAD, PrayerSettings.MAX_LEAD)
+                events += PrayerEvent(PrayerEventKind.SUNRISE_REMINDER, Prayer.SUNRISE, sunrise - lead * 60_000L)
+            }
+        }
         if (settings.beepsEnabled) {
             day.timeOf(Prayer.SUNRISE)?.let { sunrise ->
                 val lead = settings.beepsLeadMin.coerceIn(PrayerSettings.MIN_LEAD, PrayerSettings.MAX_LEAD)

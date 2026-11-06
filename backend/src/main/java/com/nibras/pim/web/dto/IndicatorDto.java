@@ -15,6 +15,7 @@ public record IndicatorDto(
         String path,
         String extensions,
         String script,
+        String usageApp,
         String category,
         String color,
         Integer priority,

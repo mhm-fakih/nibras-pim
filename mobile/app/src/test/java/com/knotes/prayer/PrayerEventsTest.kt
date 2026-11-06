@@ -16,6 +16,7 @@ class PrayerEventsTest {
     private fun base() = PrayerSettings(
         latitude = 33.8938, longitude = 35.5018,
         reminderEnabled = false, silenceEnabled = false, beepsEnabled = false,
+        sunriseReminderEnabled = false,
         athanPrayers = emptySet(),
     )
 
@@ -132,6 +133,7 @@ class PrayerEventsTest {
         val s = PrayerSettings(
             latitude = 48.8566, longitude = 2.3522, method = CalcMethod.MWL,
             reminderEnabled = false, silenceEnabled = false, beepsEnabled = false,
+            sunriseReminderEnabled = false,
             athanPrayers = setOf(Prayer.ISHA),
         )
         val day = PrayerCalendar.dayOf(s, LocalDate.of(2026, 6, 21), zone)
@@ -154,6 +156,20 @@ class PrayerEventsTest {
         assertEquals(1, beeps.size)
         assertEquals(Prayer.SUNRISE, beeps[0].prayer)
         assertEquals(day.timeOf(Prayer.SUNRISE)!! - 15 * 60_000L, beeps[0].atMillis)
+    }
+
+    @Test
+    fun theSecondShurooqReminderSitsItsOwnLeadBeforeSunriseByDefault() {
+        val s = base().copy(sunriseReminderEnabled = true, visible = setOf(Prayer.DHUHR))
+        val day = PrayerCalendar.dayOf(s, date, beirut)
+        val last = events(s).filter { it.kind == PrayerEventKind.SUNRISE_REMINDER }
+        assertEquals(1, last.size)
+        assertEquals(PrayerSettings().sunriseReminderLeadMin, 2)
+        assertEquals(day.timeOf(Prayer.SUNRISE)!! - 2 * 60_000L, last[0].atMillis)
+        // Alongside the general reminder, not instead of it.
+        val both = events(s.copy(reminderEnabled = true, visible = setOf(Prayer.SUNRISE), sunriseReminderLeadMin = 5))
+        assertEquals(day.timeOf(Prayer.SUNRISE)!! - 10 * 60_000L, both.single { it.kind == PrayerEventKind.REMINDER }.atMillis)
+        assertEquals(day.timeOf(Prayer.SUNRISE)!! - 5 * 60_000L, both.single { it.kind == PrayerEventKind.SUNRISE_REMINDER }.atMillis)
     }
 
     @Test
@@ -203,6 +219,7 @@ class PrayerEventsTest {
         val s = PrayerSettings(
             latitude = 51.5074, longitude = -0.1278, method = CalcMethod.MWL,
             reminderEnabled = false, silenceEnabled = false, beepsEnabled = false,
+            sunriseReminderEnabled = false,
             athanPrayers = setOf(Prayer.ISHA),
         )
         val zone = ZoneId.of("Europe/London")

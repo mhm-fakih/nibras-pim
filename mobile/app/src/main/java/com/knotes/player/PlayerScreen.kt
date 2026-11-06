@@ -133,6 +133,9 @@ import kotlinx.coroutines.withContext
  * The player's full-page tabs. [PLAYER] holds the picture and the transport; every other tab gets
  * the whole page to itself instead of a short box squeezed in under the controls.
  */
+/** The two tabs under the transport: the file's bookmarks, and the play-next playlist. */
+private enum class UnderTab { BOOKMARKS, PLAYLIST }
+
 private enum class PlayerTab { PLAYER, STARRED, FOLDER, RECENT_FOLDERS, RECENTS, SETTINGS }
 
 /** Dark theme shared by the player, whether shown full-screen or as part of the app shell. */
@@ -253,6 +256,10 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
     // Which tab is showing. Persisted (under the old panel key) so the player reopens where it was
     // left — someone working through bookmarks comes back to the bookmarks. Player is the default.
     var tab by remember { mutableStateOf(tabFromName(UiStateStore.playerPanel(panelContext))) }
+    // Opens on the playlist when it is what plays next, else on the bookmarks.
+    var underTab by rememberSaveable {
+        mutableStateOf(if (controller.playNextMode == PlayNextMode.AI_QUEUE) UnderTab.PLAYLIST else UnderTab.BOOKMARKS)
+    }
     // One effect rather than a write at each switch — the state IS the setting.
     LaunchedEffect(tab) { UiStateStore.setPlayerPanel(panelContext, tab.name) }
     // Other media in the same folder ("what's next") and the recent-files list, plus any sidecar
@@ -558,33 +565,59 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                                 }
                             }
                         }
-                        // "Play next" queue: the recent AI narrations with a tick box each; the
-                        // next file played is the first ticked one. Here, under the transport,
-                        // because it is chosen while listening, not set up once in Settings.
-                        if (controller.playNextMode == PlayNextMode.AI_QUEUE) {
-                            Spacer(Modifier.height(12.dp))
-                            AiQueuePanel(controller, currentFile)
-                        }
-
-                        // The file's bookmarks, newest first, right under its controls: where you
-                        // are and where you marked are read together, with no tab to switch to.
+                        // Under the transport, two tabs: the file's bookmarks, and the playlist —
+                        // the recent AI narrations, ticked to play next. Both are chosen while
+                        // listening, so they sit here rather than on a page of their own.
                         Spacer(Modifier.height(12.dp))
-                        Text(
-                            stringResource(R.string.player_panel_bookmarks_count, bookmarks.size),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        if (bookmarks.isEmpty()) {
-                            Text("—", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF888888))
+                        TabRow(
+                            selectedTabIndex = if (underTab == UnderTab.PLAYLIST) 1 else 0,
+                            containerColor = Color.Transparent,
+                        ) {
+                            Tab(
+                                selected = underTab == UnderTab.BOOKMARKS,
+                                onClick = { underTab = UnderTab.BOOKMARKS },
+                                text = { Text(stringResource(R.string.player_panel_bookmarks_count, bookmarks.size)) },
+                            )
+                            Tab(
+                                selected = underTab == UnderTab.PLAYLIST,
+                                onClick = { underTab = UnderTab.PLAYLIST },
+                                text = { Text(stringResource(R.string.player_tab_playlist, controller.aiQueue.size)) },
+                            )
                         }
-                        bookmarks.sortedByDescending { it.positionMs }.forEach { b ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth().clickable { seekTo(b.positionMs) }.padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(formatTime(b.positionMs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.width(64.dp))
-                                Text(b.text.ifBlank { "—" }, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                                IconButton(onClick = { deleteBookmark(b) }) { Icon(Icons.Filled.Delete, stringResource(R.string.player_delete), modifier = Modifier.size(20.dp)) }
+                        Spacer(Modifier.height(8.dp))
+                        when (underTab) {
+                            UnderTab.PLAYLIST -> {
+                                // The ticks are kept whatever the mode, but only AI-narrations
+                                // mode plays them: say so, with the switch one tap away.
+                                if (controller.playNextMode != PlayNextMode.AI_QUEUE) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            stringResource(R.string.player_playlist_inactive),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFF888888),
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        TextButton(onClick = { controller.changePlayNextMode(PlayNextMode.AI_QUEUE) }) {
+                                            Text(stringResource(R.string.player_playlist_use))
+                                        }
+                                    }
+                                }
+                                AiQueuePanel(controller, currentFile)
+                            }
+                            UnderTab.BOOKMARKS -> {
+                                if (bookmarks.isEmpty()) {
+                                    Text("—", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF888888))
+                                }
+                                bookmarks.sortedByDescending { it.positionMs }.forEach { b ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().clickable { seekTo(b.positionMs) }.padding(vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(formatTime(b.positionMs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.width(64.dp))
+                                        Text(b.text.ifBlank { "—" }, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                                        IconButton(onClick = { deleteBookmark(b) }) { Icon(Icons.Filled.Delete, stringResource(R.string.player_delete), modifier = Modifier.size(20.dp)) }
+                                    }
+                                }
                             }
                         }
                         Spacer(Modifier.height(24.dp))

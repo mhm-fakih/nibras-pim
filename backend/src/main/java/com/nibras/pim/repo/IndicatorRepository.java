@@ -13,4 +13,7 @@ public interface IndicatorRepository extends BaseRepository<Indicator> {
 
     /** Indicators flagged for scheduled auto-collection (see IndicatorAutoCollectScheduler). */
     List<Indicator> findByAutoCollectTrue();
+
+    /** App-usage indicators (kind USAGE), in their display order. */
+    List<Indicator> findByUsageAppIsNotNullOrderByPriorityAscIdAsc();
 }

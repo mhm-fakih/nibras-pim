@@ -43,6 +43,8 @@ import json
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "desktop"))
 try:
     from notes import NoteRepository, is_rtl  # noqa: E402
+    import notes as _notes  # noqa: E402
+    _notes.USAGE_APP = "terminal"   # notes saved here count as the terminal's usage
 except ImportError:
     sys.stderr.write(
         "knotes_tui: cannot find the 'notes' module.\n"

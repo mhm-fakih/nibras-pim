@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 /**
  * A monitored metric whose values over time live in {@code indicator_data}. Its kind is
  * inferred from which field is set: a non-blank {@code query} → DB-query indicator;
+ * else a non-blank {@code usageApp} → app-usage indicator;
  * else a non-blank {@code path} → file-count indicator; else manual entry. {@code frequency}
  * ("daily"/"weekly") drives the missing-data reminders. Bookmarked = actively monitored.
  * Optionally linked to a {@link Goal} — a daily-frequency indicator linked this way is how a
@@ -61,6 +62,11 @@ public class Indicator extends BaseEntity {
      *  on the Indicators page. No effect on a MANUAL-kind indicator (nothing to compute). */
     @Column(name = "auto_collect")
     private Boolean autoCollect;
+
+    /** The program whose usage this indicator counts (kind USAGE): "terminal", "desktop", …,
+     *  or "backend" for records added/updated. See {@code AppUsageService}. */
+    @Column(name = "usage_app")
+    private String usageApp;
 
     @Column(columnDefinition = "longtext")
     private String notes;

@@ -130,4 +130,35 @@
     <string name="server_calendar_batch_add">Add %1$d</string>
     <string name="server_calendar_batch_saved">%1$d entries saved</string>
     <string name="server_calendar_fetch_failed">Couldn\'t reach the server — showing the calendar as last loaded</string>
+
+    <!-- Payments page -->
+    <string name="notes_rail_payments">Payments</string>
+    <string name="payments_title">Payments</string>
+    <string name="payments_checking">Checking the server…</string>
+    <string name="payments_online">Online — payments are sent as you save them.</string>
+    <string name="payments_offline_saved">Offline — categories saved %1$s; payments are sent when the server is reachable.</string>
+    <string name="payments_offline_no_categories">Offline, and no categories saved yet — connect once to fetch them. Payments still save and are sent later.</string>
+    <string name="payments_amount">Amount</string>
+    <string name="payments_currency">Currency</string>
+    <string name="payments_category">Category</string>
+    <string name="payments_no_category">No category</string>
+    <string name="payments_today">Today</string>
+    <string name="payments_paid">Paid</string>
+    <string name="payments_to_be_paid">To be paid</string>
+    <string name="payments_summary">What for</string>
+    <string name="payments_notes">Notes</string>
+    <string name="payments_save">Save payment</string>
+    <string name="payments_saved">Payment saved</string>
+    <string name="payments_send_now">Send now</string>
+    <string name="payments_not_reached">Server not reached — will send later</string>
+    <string name="payments_retry">Retry</string>
+    <string name="payments_remove">Remove</string>
+    <string name="payments_remove_title">Remove this payment?</string>
+    <string name="payments_remove_text">%1$s has not reached the server and will not be sent.</string>
+    <string name="payments_refused">Refused by the server: %1$s</string>
+    <string name="payments_sent">Sent</string>
+    <plurals name="payments_waiting">
+        <item quantity="one">%d payment waiting to be sent</item>
+        <item quantity="other">%d payments waiting to be sent</item>
+    </plurals>
 </resources>

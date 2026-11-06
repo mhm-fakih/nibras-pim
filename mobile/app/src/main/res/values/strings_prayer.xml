@@ -125,6 +125,8 @@
     <string name="prayer_widget_countdown_note">The home-screen strip shows its countdown only once the next time is this close. Drawn all day it read \"5:31:23\" — a number nobody acts on, in the one spare line the strip has.</string>
     <string name="prayer_remind_before">Remind me before each time</string>
     <string name="prayer_remind_before_note">A quiet notification ahead of every time you have chosen to show.</string>
+    <string name="prayer_sunrise_reminder">Last reminder before Shurooq</string>
+    <string name="prayer_sunrise_reminder_note">A second notification just before sunrise, when the time for Fajr is about to end. On its own, whatever rows are shown.</string>
     <string name="prayer_min_before">%1$d min before</string>
     <string name="prayer_hours_before">%1$dh before</string>
     <string name="prayer_hours_minutes_before">%1$dh %2$dm before</string>

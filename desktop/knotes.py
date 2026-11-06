@@ -35,9 +35,12 @@ from notes import (NoteRepository, Note, is_rtl, reads_rtl, companion_dir, compa
                    fmt_count, split_highlights, apply_highlights, sentence_bounds,
                    toggle_highlight,
                    parse as parse_name)
+import notes as _notes  # noqa: E402
 from backend import fetch_taxonomy, import_note  # noqa: E402
 from filters import FilterState, Taxonomy, default_filter, BY_CREATED, NS_INCLUDE, NS_ONLY, TX_INCLUDE, TX_ONLY  # noqa: E402
 import tagbank  # noqa: E402
+
+_notes.USAGE_APP = "desktop"   # notes added here count as the desktop app's usage
 from sidebar import FilterSidebar, set_rtl  # noqa: E402
 
 # A development copy (run-dev.sh sets KNOTES_DEV=1) registers its own application ID. GTK apps are
@@ -130,6 +133,9 @@ def _hashtags(text: str) -> list[str]:
 # column occupies, so _column_count has to account for it or the last column won't fit. BOARD_BORDER
 # is the board's own inset, which _column_count subtracts for the same reason.
 COLUMN_GAP = 8
+
+# How long the "Just added" strip shows a new note on the board before it hides itself.
+JUST_ADDED_SECONDS = 5
 BOARD_BORDER = 8
 # Width held back for the board's vertical scrollbar when working out how many columns fit. A
 # constant, not the scrollbar's measured width: the scrollbar only exists once the content
@@ -523,6 +529,10 @@ THEMES = {
         @define-color bg        #002b36;
         @define-color bg_alt    #073642;
         @define-color card_bg   #073642;
+        /* The note cards themselves, their line-1 band and their action labels. */
+        @define-color note_bg       #073642;
+        @define-color note_title_bg #0a4a59;
+        @define-color note_action_fg #fdf6e3;
         @define-color fg        #93a1a1;
         @define-color fg_strong #fdf6e3;
         @define-color fg_muted  #657b83;
@@ -547,6 +557,11 @@ THEMES = {
         @define-color bg        #fdf6e3;
         @define-color bg_alt    #eee8d5;
         @define-color card_bg   #fdf6e3;
+        /* Note cards are plain white on the parchment board, line 1 on a very light beige band, and the
+           action labels a soft black — the card is for reading, so it gets the most contrast. */
+        @define-color note_bg       #ffffff;
+        @define-color note_title_bg #efe9db;
+        @define-color note_action_fg #3a3a3a;
         @define-color fg        #586e75;
         @define-color fg_strong #002b36;
         @define-color fg_muted  #93a1a1;
@@ -732,6 +747,11 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self._minimal_card_selected = False                     # the lone minimal-mode card is selected
         self._last_note: Note | None = None                     # the "just added" note (minimal card)
         self._last_note_card: Gtk.Widget | None = None          # its card widget
+        # The "Just added" strip shows a new note for JUST_ADDED_SECONDS, then goes. These remember
+        # which note has had its turn (so a reload doesn't bring it back) and whether a timer is out.
+        self._just_added_done: str | None = None
+        self._just_added_timer: int | None = None
+        self._just_added_first = True                           # the newest note at start isn't "just added"
         self._merge_marks: list[str] = []                       # paths marked to merge, in mark order
         self._unrecognized_paths: set[str] = set()               # non-conforming items, "needs metadata"
         self._append_entry: Gtk.Entry | None = None             # inline "quick append" field (Space)
@@ -867,6 +887,14 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.refresh_button.set_tooltip_text("Refresh from disk (Ctrl+R) — pick up notes synced from another machine")
         self.refresh_button.connect("clicked", lambda b: self.reload_notes())
         self.toolbar.pack_start(self.refresh_button, False, False, 0)
+
+        # Restart the whole program — for picking up a new version of the app itself (a pull, a
+        # style change) without hunting for the window's close button and the launcher.
+        self.restart_button = Gtk.Button()
+        self.restart_button.add(Gtk.Image.new_from_icon_name("system-reboot-symbolic", Gtk.IconSize.BUTTON))
+        self.restart_button.set_tooltip_text("Restart the app — saves first, then reopens (picks up app updates)")
+        self.restart_button.connect("clicked", lambda b: self._restart_app())
+        self.toolbar.pack_start(self.restart_button, False, False, 0)
 
         # Card ordering — also switched often, so it's a toolbar dropdown. "Date created" is stable
         # across metadata-only edits (its sort key never changes), unlike "Last updated" — pick it
@@ -1077,6 +1105,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.editor_view.set_right_margin(12)
         self.editor_view.set_top_margin(8)
         self.editor_view.set_bottom_margin(8)
+        self._apply_reader_spacing()
         self.editor_buffer = self.editor_view.get_buffer()
         self.editor_buffer.connect("changed", self._on_editor_changed)
         self.editor_view.connect("button-release-event", self._on_editor_click)
@@ -1835,6 +1864,11 @@ class KnotesWindow(Gtk.ApplicationWindow):
         # canonical format — a silent promotion, from nothing but a keystroke or a stray click.
         settled = note.path not in self._unrecognized_paths
         self.editor_view.set_editable(settled and not reading)
+        # Reading is for reading: paragraphs justified to both edges (the last line of each stays
+        # at its natural side, right for Arabic, left for English). Editing keeps ragged lines,
+        # where the cursor and the word being typed don't jump about as spaces stretch.
+        self.editor_view.set_justification(
+            Gtk.Justification.FILL if reading else Gtk.Justification.LEFT)
         self.editor_view.set_cursor_visible(settled and not reading)
         if not settled:
             self._editor_say("Read-only — needs metadata. Settle it with Ctrl+Shift+<key> first.")
@@ -3182,10 +3216,10 @@ class KnotesWindow(Gtk.ApplicationWindow):
         card.set_can_focus(True)
         card.connect("button-press-event", lambda w, e, n=note: self._on_card_click(n, e))
 
-        # Title on top, then any #hashtags from the body as chips beneath it. border_width (not CSS
-        # padding) does the insetting — a GtkEventBox ignores CSS padding when allocating its child.
-        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        outer.set_border_width(12)
+        # Line 1 sits in a tinted band across the top of the card (with the meta tags), the rest of the
+        # preview and the actions below it on the card's own white. Insetting is border_width, not
+        # CSS padding — a GtkEventBox ignores CSS padding when allocating its child.
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 
         tags = []
         if note.type:
@@ -3244,40 +3278,61 @@ class KnotesWindow(Gtk.ApplicationWindow):
             head, rest = _split_first_line(_without_hashtags(
                 head + ([("\n", False)] + rest if rest else [])))
 
-        # Line 1 bold, the rest beneath it at normal weight — see Note.card_preview for why the
-        # note's own line breaks are worth keeping.
-        markup = f"<b>{self._runs_markup(head)}</b>" if head else ""
-        if rest:
-            markup += "\n" + self._runs_markup(rest)
+        # Line 1 bold in the band, the rest beneath it at normal weight — see Note.card_preview for
+        # why the note's own line breaks are worth keeping. The #hashtags close the body (or the
+        # band, when line 1 is all there is).
+        head_markup = f"<b>{self._runs_markup(head)}</b>" if head else ""
+        body_markup = self._runs_markup(rest) if rest else ""
         if hashtags:
             spans = " ".join(_tag_span("#" + h, TAG_COLOR_HASH) for h in hashtags)
-            markup = f"{markup} {spans}" if markup else spans
+            if body_markup:
+                body_markup = f"{body_markup} {spans}"
+            else:
+                head_markup = f"{head_markup} {spans}" if head_markup else spans
 
-        title = Gtk.Label(xalign=0)
-        title.set_line_wrap(True)
-        title.set_lines(4)
-        title.set_ellipsize(3)  # END — ellipsize after the wrap cap
-        title.set_valign(Gtk.Align.START)
-        # Direction is per LINE, not per note: an Arabic line reads from the right and an English
-        # one from the left, even inside the same note. Pango resolves each paragraph's direction
-        # from its first strong letter and MIRRORS the alignment of an RTL one, so asking for LEFT
-        # lands every Arabic line on the right and leaves every English line on the left. xalign
-        # only matters when the text is narrower than the column (a short single line), and then
-        # follows the direction the text opens in.
-        title.set_justify(Gtk.Justification.LEFT)
-        title.set_xalign(1.0 if _opens_rtl(markup) else 0.0)
-        title.set_markup(markup)
-        title.get_style_context().add_class("title")
+        def preview_label(markup: str, lines: int, css: str) -> Gtk.Label:
+            label = Gtk.Label(xalign=0)
+            label.set_line_wrap(True)
+            label.set_lines(lines)
+            label.set_ellipsize(3)  # END — ellipsize after the wrap cap
+            label.set_valign(Gtk.Align.START)
+            # Direction is per LINE, not per note: an Arabic line reads from the right and an
+            # English one from the left, even inside the same note. Pango resolves each paragraph's
+            # direction from its first strong letter and MIRRORS the alignment of an RTL one, so
+            # asking for LEFT lands every Arabic line on the right and leaves every English line on
+            # the left. xalign only matters when the text is narrower than the column (a short
+            # single line), and then follows the direction the text opens in.
+            label.set_justify(Gtk.Justification.LEFT)
+            label.set_xalign(1.0 if _opens_rtl(markup) else 0.0)
+            # The same line spacing as the reading pane (Settings), as a Pango line-height factor.
+            factor = self._card_line_height()
+            if factor > 1.0:
+                markup = f'<span line_height="{factor:.3f}">{markup}</span>'
+            label.set_markup(markup)
+            label.get_style_context().add_class(css)
+            return label
 
         # LTR on the row too: widget direction comes from the locale, and under an RTL one
         # pack_start would fill from the right and put the gutter on the wrong side of every card.
         title_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         title_row.set_direction(Gtk.TextDirection.LTR)
+        title_row.set_border_width(8)
+        title_row.set_margin_start(4)
+        title_row.set_margin_end(4)
         title_row.pack_start(tag_label, False, False, 0)
-        title_row.pack_start(title, True, True, 0)
-        outer.pack_start(title_row, False, False, 0)
+        if head_markup:
+            title_row.pack_start(preview_label(head_markup, 2, "title"), True, True, 0)
+        band = Gtk.EventBox()
+        band.get_style_context().add_class("card-title-band")
+        band.add(title_row)
+        outer.pack_start(band, False, False, 0)
 
-        outer.pack_start(self._build_card_actions(note, counts), False, False, 0)
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        body.set_border_width(12)
+        if body_markup:
+            body.pack_start(preview_label(body_markup, 3, "title"), False, False, 0)
+        body.pack_start(self._build_card_actions(note, counts), False, False, 0)
+        outer.pack_start(body, False, False, 0)
 
         card.add(outer)
         return card
@@ -4086,6 +4141,27 @@ class KnotesWindow(Gtk.ApplicationWindow):
                                self.selected_category, self.settings.timestamp_format)
             self.buffer.set_text("")
 
+    def _restart_app(self) -> None:
+        """Save everything the window holds (as closing does), then replace this process with a
+        fresh copy of the program: same interpreter, same script, same arguments and environment
+        (so a dev build restarts as the dev build). exec keeps the PID and drops the old window
+        and its D-Bus name with the old process image."""
+        self._on_delete_event(None, None)
+        self.settings.save()
+        for stream in (sys.stdout, sys.stderr):
+            try:
+                stream.flush()
+            except Exception:
+                pass
+        if getattr(sys, "frozen", False):        # a PyInstaller build: the executable IS the app
+            argv = [sys.executable] + sys.argv[1:]
+        else:
+            argv = [sys.executable, os.path.abspath(sys.argv[0])] + sys.argv[1:]
+        try:
+            os.execv(argv[0], argv)
+        except OSError as e:
+            self._flash_status(f"Couldn't restart: {e}")
+
     def _on_delete_event(self, _widget, _event) -> bool:
         self._save_draft()
         # The strip's height is only knowable while it's on screen, so read it now rather than
@@ -4104,6 +4180,19 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self.last_note_bar.hide()
             self._minimal_card_selected = False
             return
+        # On the board the strip is a brief confirmation: a new note shows for a few seconds and
+        # then the strip goes, and it stays gone for that note across reloads. In minimal mode the
+        # strip IS the window's content, so it always stays.
+        if self._just_added_first:
+            self._just_added_first = False
+            self._just_added_done = note.path   # already there when the app opened: not "just added"
+        if not self.minimal_mode:
+            if note.path == self._just_added_done:
+                self.last_note_bar.hide()
+                return
+            if self._just_added_timer is None:
+                self._just_added_timer = GLib.timeout_add_seconds(
+                    JUST_ADDED_SECONDS, self._expire_just_added, note.path)
         card = Gtk.EventBox()
         card.set_can_focus(True)  # so it can take focus off the text field (F12 select in minimal mode)
         card.get_style_context().add_class("last-note")
@@ -4138,6 +4227,39 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self.selected_note = note
             card.get_style_context().add_class("selected")
             card.grab_focus()
+
+    def _card_line_height(self) -> float:
+        """The reading pane's line spacing (px) as a factor on a card label's natural line height.
+        A Gtk.Label has no pixel line spacing, only Pango's line_height multiplier, so the pixels
+        are converted using the UI font's size (a line is ~1.2 × the font's pixel size)."""
+        px = max(0, self.settings.reader_line_spacing)
+        if px == 0:
+            return 1.0
+        desc = self.get_pango_context().get_font_description()
+        size = desc.get_size() / Pango.SCALE if desc is not None else 0
+        if size <= 0:
+            size = 10.0
+        font_px = size if desc.get_size_is_absolute() else size * 96 / 72
+        return 1.0 + px / (font_px * 1.2)
+
+    def _apply_reader_spacing(self) -> None:
+        """Line spacing of the side pane, from Settings. GTK 3 has no CSS line-height for a
+        TextView, so it is pixels: the same gap between the lines of a wrapped paragraph and
+        between paragraphs, so a note reads evenly whether its lines are long or short."""
+        px = max(0, self.settings.reader_line_spacing)
+        self.editor_view.set_pixels_inside_wrap(px)
+        self.editor_view.set_pixels_below_lines(px)
+
+    def _expire_just_added(self, path: str) -> bool:
+        """The new note's few seconds are up: hide the strip (unless minimal mode needs it)."""
+        self._just_added_timer = None
+        self._just_added_done = path
+        if self._last_note is not None and self._last_note.path != path:
+            # Another note arrived meanwhile: give it its own few seconds.
+            self._render_last_note(self._last_note)
+        elif not self.minimal_mode:
+            self.last_note_bar.hide()
+        return False  # one-shot
 
     def _open_and_stop(self, note: Note) -> bool:
         self._open_external(note)
@@ -5113,6 +5235,7 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if dialog.run() == Gtk.ResponseType.OK:
             edited_repo_path = self.settings.active_repo_path()
             dialog.apply_to(self.settings, self.repo_cfg)
+            self._apply_reader_spacing()
             self.settings.save()
             self.repo_cfg.save(edited_repo_path)
             # The dialog may have switched the active repo — reload that folder's own tag config.
@@ -5285,6 +5408,14 @@ class SettingsDialog(Gtk.Dialog):
             "(and their time-mark count, if the companion folder holds any .tmk files). Short "
             "captures don't need it — the whole note is already on the card. 0 = every card.")
         add("Counts shown from", self.counts_min_spin)
+
+        self.line_spacing_spin = Gtk.SpinButton.new_with_range(0, 40, 1)
+        self.line_spacing_spin.set_value(settings.reader_line_spacing)
+        self.line_spacing_spin.set_tooltip_text(
+            "Extra space between lines, in pixels: in the reading / editing pane (between the "
+            "lines of a wrapped paragraph and between paragraphs) and in the note cards' text. "
+            "0 = tight.")
+        add("Line spacing: reading pane and cards (px)", self.line_spacing_spin)
 
         # The side pane opens in whichever mode it was last switched to; this is what a fresh
         # window (and a fresh install) starts in, for people who always want one or the other.
@@ -5490,6 +5621,7 @@ class SettingsDialog(Gtk.Dialog):
                                  if ln.strip()]
         settings.opener = self.opener_entry.get_text().strip()
         settings.preview_chars = int(self.preview_spin.get_value())
+        settings.reader_line_spacing = int(self.line_spacing_spin.get_value())
         settings.preview_tail_chars = int(self.preview_tail_spin.get_value())
         settings.card_counts_min_chars = int(self.counts_min_spin.get_value())
         settings.editor_pane_mode = self.pane_mode_combo.get_active_id() or "read"

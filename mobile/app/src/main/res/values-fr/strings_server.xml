@@ -131,4 +131,35 @@
     <string name="server_calendar_batch_add">Ajouter %1$d</string>
     <string name="server_calendar_batch_saved">%1$d entrées enregistrées</string>
     <string name="server_calendar_fetch_failed">Serveur injoignable — le calendrier affiché est le dernier chargé</string>
+
+    <!-- Payments page -->
+    <string name="notes_rail_payments">Paiements</string>
+    <string name="payments_title">Paiements</string>
+    <string name="payments_checking">Vérification du serveur…</string>
+    <string name="payments_online">En ligne — les paiements sont envoyés dès l’enregistrement.</string>
+    <string name="payments_offline_saved">Hors ligne — catégories enregistrées, %1$s ; les paiements partiront quand le serveur sera joignable.</string>
+    <string name="payments_offline_no_categories">Hors ligne, aucune catégorie enregistrée — connectez-vous une fois pour les récupérer. Les paiements s’enregistrent quand même et partiront plus tard.</string>
+    <string name="payments_amount">Montant</string>
+    <string name="payments_currency">Devise</string>
+    <string name="payments_category">Catégorie</string>
+    <string name="payments_no_category">Sans catégorie</string>
+    <string name="payments_today">Aujourd’hui</string>
+    <string name="payments_paid">Payé</string>
+    <string name="payments_to_be_paid">À payer</string>
+    <string name="payments_summary">Pour quoi</string>
+    <string name="payments_notes">Notes</string>
+    <string name="payments_save">Enregistrer le paiement</string>
+    <string name="payments_saved">Paiement enregistré</string>
+    <string name="payments_send_now">Envoyer</string>
+    <string name="payments_not_reached">Serveur injoignable — envoi plus tard</string>
+    <string name="payments_retry">Réessayer</string>
+    <string name="payments_remove">Supprimer</string>
+    <string name="payments_remove_title">Supprimer ce paiement ?</string>
+    <string name="payments_remove_text">%1$s n’a pas atteint le serveur et ne sera pas envoyé.</string>
+    <string name="payments_refused">Refusé par le serveur : %1$s</string>
+    <string name="payments_sent">Envoyés</string>
+    <plurals name="payments_waiting">
+        <item quantity="one">%d paiement en attente d’envoi</item>
+        <item quantity="other">%d paiements en attente d’envoi</item>
+    </plurals>
 </resources>

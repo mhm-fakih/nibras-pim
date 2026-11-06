@@ -96,6 +96,7 @@ import com.knotes.ui.NoteReadScreen
 import com.knotes.ui.HOME_DEST
 import com.knotes.ui.FLASHCARDS_DEST
 import com.knotes.ui.CONTACTS_DEST
+import com.knotes.ui.PAYMENTS_DEST
 import com.knotes.ui.ContactsScreen
 import com.knotes.ui.HIGHLIGHTS_DEST
 import com.knotes.ui.HighlightsScreen
@@ -529,6 +530,7 @@ private fun AppShell(
                 onFlashcards = { onDest(FLASHCARDS_DEST) },
                 onHighlights = { onDest(HIGHLIGHTS_DEST) },
                 onContacts = { onDest(CONTACTS_DEST) },
+                onPayments = { onDest(PAYMENTS_DEST) },
                 // The same full sync the record pages' own refresh runs (push the outbox, pull every
                 // type), plus the signal the flash card / highlight / contact pages watch. The bump
                 // alone left T/P/R… untouched, so the button looked like it did nothing there.
@@ -658,6 +660,7 @@ private fun AppShell(
                         FLASHCARDS_DEST -> FlashcardsScreen(store = flashStore, baseUrl = settings.nibrasBaseUrl)
                         HIGHLIGHTS_DEST -> HighlightsScreen(store = flashStore, baseUrl = settings.nibrasBaseUrl)
                         CONTACTS_DEST -> ContactsScreen(baseUrl = settings.nibrasBaseUrl)
+                        PAYMENTS_DEST -> com.knotes.ui.PaymentsScreen(baseUrl = settings.nibrasBaseUrl)
                         CALENDAR_DEST -> CalendarScreen(
                             startHour = settings.calendarStartHour,
                             endHour = settings.calendarEndHour,

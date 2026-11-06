@@ -38,8 +38,22 @@ public class ExpenseController {
                               @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
                               @RequestParam(required = false) Long categoryId,
                               @RequestParam(required = false) String q,
-                              @RequestParam(defaultValue = "1000") int limit) {
-        return service.expenses(from, to, categoryId, q, limit);
+                              @RequestParam(defaultValue = "1000") int limit,
+                              @RequestParam(defaultValue = "ALL") ExpenseService.Status status) {
+        return service.expenses(from, to, categoryId, q, limit, status, false);
+    }
+
+    /** Lessons learned: every expense with a lesson written down, newest first. */
+    @GetMapping("/lessons")
+    public List<Expense> lessons(@RequestParam(required = false) Long categoryId,
+                                 @RequestParam(required = false) String q) {
+        return service.expenses(null, null, categoryId, q, 5000, ExpenseService.Status.ALL, true);
+    }
+
+    /** A to-be-paid expense paid today. */
+    @PostMapping("/{id}/paid")
+    public Expense markPaid(@PathVariable long id) {
+        return service.markPaid(id);
     }
 
     @PostMapping

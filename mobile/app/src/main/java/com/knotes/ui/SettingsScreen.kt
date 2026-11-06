@@ -122,6 +122,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
     var serverEnabled by remember { mutableStateOf(current.serverEnabled) }
     var checklistsEnabled by remember { mutableStateOf(current.checklistsEnabled) }
     var checklistsDir by remember { mutableStateOf(current.checklistsDir) }
+    var checklistSound by remember { mutableStateOf(current.checklistSoundUri) }
     var tab by rememberSaveable { mutableStateOf(SettingsTab.GENERAL) }
     var feedDays by remember { mutableStateOf(current.feedDays) }
     var feedWords by remember { mutableStateOf(current.feedWords) }
@@ -160,6 +161,27 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             @Suppress("DEPRECATION")
             val uri = result.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             reminderSound = uri?.toString() ?: ""
+        }
+    }
+    // The checklist reminder's sound: a ringtone, or any audio file (with a persistable grant so
+    // the reminder can still open it after a reboot).
+    val checklistRingtonePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            @Suppress("DEPRECATION")
+            val uri = result.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            checklistSound = uri?.toString() ?: ""
+        }
+    }
+    val checklistFilePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            checklistSound = uri.toString()
         }
     }
     // Chime sound is picked from the phone's files (any audio file), not the ringtone list. We take
@@ -257,6 +279,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 serverEnabled = serverEnabled,
                 checklistsEnabled = checklistsEnabled,
                 checklistsDir = checklistsDir,
+                checklistSoundUri = checklistSound,
                 feedDays = feedDays,
                 feedWords = feedWords,
                 feedTextSp = feedTextSp,
@@ -847,6 +870,45 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                             ),
                             onPick = { pickFolder { path -> checklistsDir = path } },
                         )
+                        HorizontalDivider()
+                        Text(stringResource(R.string.settings_checklist_sound_title), style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            stringResource(R.string.settings_checklist_sound_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            if (checklistSound.isBlank()) stringResource(R.string.settings_checklist_sound_silent)
+                            else fileLabel(checklistSound),
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 2,
+                        )
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = {
+                                val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                                    putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALL)
+                                    putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, context.getString(R.string.settings_checklist_sound_title))
+                                    putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                                    putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                                    if (checklistSound.isNotBlank()) {
+                                        putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(checklistSound))
+                                    }
+                                }
+                                checklistRingtonePicker.launch(intent)
+                            }) { Text(stringResource(R.string.settings_checklist_sound_ringtone)) }
+                            OutlinedButton(onClick = { checklistFilePicker.launch(arrayOf("audio/*")) }) {
+                                Text(stringResource(R.string.settings_checklist_sound_file))
+                            }
+                            if (checklistSound.isNotBlank()) {
+                                TextButton(onClick = {
+                                    com.knotes.checklist.ChecklistReminders.playSound(context, checklistSound)
+                                }) { Text(stringResource(R.string.settings_checklist_sound_test)) }
+                                TextButton(onClick = {
+                                    com.knotes.checklist.ChecklistReminders.stopSound()
+                                    checklistSound = ""
+                                }) { Text(stringResource(R.string.settings_checklist_sound_silent)) }
+                            }
+                        }
                     }
                 }
 

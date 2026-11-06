@@ -173,4 +173,7 @@
     <string name="player_ai_queue_refresh">تحديث القائمة</string>
     <string name="player_ai_queue_empty">لا توجد قراءات ذكاء اصطناعي بلا علامات.</string>
     <string name="player_notice_queue_empty">لم يُحدَّد شيء — حدِّد قراءة في القائمة لتُشغَّل تاليًا.</string>
+    <string name="player_tab_playlist">قائمة التشغيل (%1$d)</string>
+    <string name="player_playlist_inactive">لا تُشغَّل الملفات المحدَّدة تاليًا إلا إذا ضُبط «التالي» على قراءات الذكاء الاصطناعي.</string>
+    <string name="player_playlist_use">تفعيلها</string>
 </resources>
