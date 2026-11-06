@@ -135,6 +135,7 @@
         <item quantity="many">%1$d ملاحظة</item>
         <item quantity="other">%1$d ملاحظة</item>
     </plurals>
+    <string name="notes_card_fewer_files">عرض ملفات أقل</string>
     <plurals name="notes_card_more_files">
         <item quantity="zero">… +%1$d أخرى (%2$d ملف)</item>
         <item quantity="one">… +%1$d أخرى (ملف واحد)</item>

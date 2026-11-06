@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -91,6 +92,10 @@ import com.knotes.ui.ChecklistsScreen
 import com.knotes.ui.AI_NOTES_DEST
 import com.knotes.ui.ALARMS_DEST
 import com.knotes.ui.AiNotesScreen
+import com.knotes.ui.CompactTabs
+import com.knotes.ui.FileViewerHost
+import com.knotes.ui.InAppViewer
+import com.knotes.ui.HomeworksScreen
 import com.knotes.ui.AlarmsScreen
 import com.knotes.ui.NoteReadScreen
 import com.knotes.ui.HOME_DEST
@@ -132,14 +137,19 @@ class MainActivity : ComponentActivity() {
         requestedMedia.value = extractMediaFile(this, intent)
         setContent {
             KnotesTheme {
-                AppRoot(
-                    sharedText = sharedText.value,
-                    onSharedTextConsumed = { sharedText.value = null },
-                    requestedDest = requestedDest.value,
-                    onRequestedDestConsumed = { requestedDest.value = null },
-                    requestedMedia = requestedMedia.value,
-                    onRequestedMediaConsumed = { requestedMedia.value = null },
-                )
+                Box(Modifier.fillMaxSize()) {
+                    AppRoot(
+                        sharedText = sharedText.value,
+                        onSharedTextConsumed = { sharedText.value = null },
+                        requestedDest = requestedDest.value,
+                        onRequestedDestConsumed = { requestedDest.value = null },
+                        requestedMedia = requestedMedia.value,
+                        onRequestedMediaConsumed = { requestedMedia.value = null },
+                    )
+                    // Images, PDFs and text files opened from anywhere in the app, drawn over it
+                    // (see openFileInApp).
+                    FileViewerHost()
+                }
             }
         }
     }
@@ -261,6 +271,10 @@ private fun AppRoot(
 ) {
     val context = LocalContext.current
     val vm: MainViewModel = viewModel()
+    // A file renamed or deleted in the image viewer: the cards list their folders' files.
+    LaunchedEffect(InAppViewer.changed) {
+        if (InAppViewer.changed > 0) { vm.refresh(); vm.refreshHomeworks() }
+    }
     val nibrasVm: NibrasViewModel = viewModel()
     val playerVm: PlayerController = viewModel()
     val settings by vm.settingsStore.state.collectAsState()
@@ -596,19 +610,25 @@ private fun AppShell(
                         // callback, and no way to write. The reader it opens is told readOnly too.
                         AI_NOTES_DEST -> {
                             val aiNotes by vm.aiNotes.collectAsState()
+                            val hwNotes by vm.hwNotes.collectAsState()
                             var reading by remember { mutableStateOf<Note?>(null) }
+                            // Homeworks is a tab of the AI page: its assignments are set by the AI
+                            // tutor, and they open in the same reader — but a writable one, since
+                            // the highlighted option letter is the answer.
+                            var homeworkTab by rememberSaveable { mutableStateOf(false) }
+                            var readingHw by remember { mutableStateOf<Note?>(null) }
                             val open = reading
-                            if (open == null) {
-                                AiNotesScreen(
-                                    notes = aiNotes,
+                            val openHw = readingHw
+                            if (openHw != null) {
+                                NoteReadScreen(
+                                    note = openHw,
                                     settings = settings,
-                                    dirPath = vm.aiDirPath(),
-                                    dirExists = vm.aiDirExists(),
-                                    onOpen = { reading = it },
-                                    onPlayMedia = onPlayMedia,
-                                    onRefresh = { vm.refreshAiNotes() },
+                                    onSave = { body -> vm.saveHomework(openHw, body) },
+                                    onTags = { _, _, _, _ -> },
+                                    onBack = { readingHw = null; vm.refreshHomeworks() },
+                                    showTags = false,
                                 )
-                            } else {
+                            } else if (open != null) {
                                 NoteReadScreen(
                                     note = open,
                                     settings = settings,
@@ -617,6 +637,39 @@ private fun AppShell(
                                     onBack = { reading = null },
                                     readOnly = true,
                                 )
+                            } else {
+                                Column(Modifier.fillMaxSize().statusBarsPadding()) {
+                                    CompactTabs(
+                                        labels = listOf(
+                                            stringResource(R.string.player_ai_title),
+                                            stringResource(R.string.hw_title),
+                                        ),
+                                        selected = if (homeworkTab) 1 else 0,
+                                        onSelect = { homeworkTab = it == 1 },
+                                        fill = true,
+                                    )
+                                    if (homeworkTab) {
+                                        HomeworksScreen(
+                                            notes = hwNotes,
+                                            settings = settings,
+                                            dirPath = vm.hwDirPath(),
+                                            dirExists = vm.hwDirExists(),
+                                            onOpen = { readingHw = it },
+                                            onPlayMedia = onPlayMedia,
+                                            onRefresh = { vm.refreshHomeworks() },
+                                        )
+                                    } else {
+                                        AiNotesScreen(
+                                            notes = aiNotes,
+                                            settings = settings,
+                                            dirPath = vm.aiDirPath(),
+                                            dirExists = vm.aiDirExists(),
+                                            onOpen = { reading = it },
+                                            onPlayMedia = onPlayMedia,
+                                            onRefresh = { vm.refreshAiNotes() },
+                                        )
+                                    }
+                                }
                             }
                         }
                         COLLECT_DEST -> CollectScreen(

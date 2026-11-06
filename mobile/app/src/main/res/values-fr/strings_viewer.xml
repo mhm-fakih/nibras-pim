@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- In-app viewer for images and PDFs (ui/FileViewer.kt). -->
+    <string name="viewer_close">Fermer</string>
+    <string name="viewer_share">Partager</string>
+    <string name="viewer_open_with">Ouvrir avec…</string>
+    <string name="viewer_pdf_failed">Ce PDF ne peut pas être affiché ici (%1$s).</string>
+    <string name="viewer_delete_title">Supprimer ce fichier ?</string>
+    <string name="viewer_delete">Supprimer</string>
+    <string name="viewer_saving">Enregistrement des marques…</string>
+    <string name="viewer_pdf_save_failed">Les marques n’ont pas pu être enregistrées (%1$s). Elles sont toujours là.</string>
+    <plurals name="viewer_pages">
+        <item quantity="one">%d page</item>
+        <item quantity="other">%d pages</item>
+    </plurals>
+</resources>

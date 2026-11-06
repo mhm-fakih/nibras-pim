@@ -93,6 +93,11 @@ fun NoteReadScreen(
      * appear to work and silently do nothing.
      */
     readOnly: Boolean = false,
+    /**
+     * Show the type/priority/category bar. Off for homeworks: the file name is the assignment's
+     * identity in the homework folder, and the bar took a third of the screen.
+     */
+    showTags: Boolean = true,
 ) {
     // Read and edit are two views of one screen, as on the desktop's side pane: the same note, the
     // same full height, one tap apart. Editing in a six-line bar at the bottom of the list was the
@@ -174,7 +179,7 @@ fun NoteReadScreen(
         },
         bottomBar = {
             // The tag bar renames the file. Nothing on a synced folder may do that from here.
-            if (!readOnly) {
+            if (!readOnly && showTags) {
                 NoteTagBar(
                     settings = settings,
                     type = note.type,
@@ -215,7 +220,7 @@ fun NoteReadScreen(
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(
+                if (showTags) Text(
                     stringResource(R.string.notes_read_edit_tags_hint),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -323,8 +328,9 @@ private fun NoteEditor(
         modifier = modifier,
         textStyle = MaterialTheme.typography.bodyLarge.copy(
             lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 1.5f,
-            textDirection = if (com.knotes.NoteFiles.isRtl(source)) androidx.compose.ui.text.style.TextDirection.Rtl
-            else androidx.compose.ui.text.style.TextDirection.Ltr,
+            // Each line (paragraph) takes its own direction from its first strong letter.
+            textDirection = androidx.compose.ui.text.style.TextDirection.Content,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Start,
         ),
         placeholder = { Text(stringResource(R.string.notes_read_empty_start_typing)) },
     )

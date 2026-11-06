@@ -1191,8 +1191,6 @@ private fun TranscriptPanel(
     onDelete: (Transcript) -> Unit,
     onToggle: () -> Unit,
 ) {
-    val rtl = transcripts.firstOrNull { it.lang == selectedLang }
-        ?.let { Transcripts.isRtl(it.lang, text) } ?: false
 
     Column(
         modifier = Modifier
@@ -1272,9 +1270,10 @@ private fun TranscriptPanel(
                 SelectionContainer {
                     Text(
                         text = text.ifBlank { stringResource(R.string.player_transcript_empty) },
-                        style = MaterialTheme.typography.bodyMedium,
+                        // Per line: a transcript mixing languages puts each line on its own side.
+                        style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Content),
                         color = if (text.isBlank()) Color(0xFF888888) else Color(0xFFDDDDDD),
-                        textAlign = if (rtl) TextAlign.Right else TextAlign.Left,
+                        textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }

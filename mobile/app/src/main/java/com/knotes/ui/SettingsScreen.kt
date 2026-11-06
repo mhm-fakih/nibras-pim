@@ -86,6 +86,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
 
     var dir by remember { mutableStateOf(current.notesDir) }
     var aiDir by remember { mutableStateOf(current.aiNotesDir) }
+    var hwDir by remember { mutableStateOf(current.hwNotesDir) }
     var format by remember { mutableStateOf(current.timestampFormat) }
     var previewLines by remember { mutableStateOf(current.previewLines.toString()) }
     var priorityMin by remember { mutableStateOf(current.priorityMin.toString()) }
@@ -247,6 +248,7 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
             AppSettings(
                 notesDir = dir,
                 aiNotesDir = aiDir,
+                hwNotesDir = hwDir,
                 timestampFormat = format,
                 previewLines = previewLines.toIntOrNull() ?: 3,
                 priorityMin = priorityMin.toIntOrNull() ?: 1,
@@ -463,6 +465,17 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                         SettingsStore.aiDirFor(dir.ifBlank { current.notesDir }),
                     ),
                     onPick = { pickFolder { path -> aiDir = path } },
+                )
+
+                FolderField(
+                    value = hwDir,
+                    onValueChange = { hwDir = it },
+                    label = stringResource(R.string.settings_hw_dir_label),
+                    supportingText = stringResource(
+                        R.string.settings_hw_dir_hint,
+                        SettingsStore.hwDirFor(dir.ifBlank { current.notesDir }),
+                    ),
+                    onPick = { pickFolder { path -> hwDir = path } },
                 )
 
                 OutlinedTextField(

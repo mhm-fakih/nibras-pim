@@ -1,5 +1,7 @@
 package com.knotes.ui
 
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
@@ -54,7 +56,13 @@ import com.knotes.util.fileKind
  * of which one you are about to get.
  */
 @Composable
-fun AttachmentRow(name: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun AttachmentRow(
+    name: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** Not reviewed yet (see [com.knotes.util.Review]): the strip is light red until it is. */
+    pending: Boolean = false,
+) {
     val playable = isMediaFile(name)
     // The whole row takes the name's direction: an Arabic name starts at the right edge with its
     // icon before it, as it would in an Arabic file manager, not left-packed after an LTR icon.
@@ -64,8 +72,8 @@ fun AttachmentRow(name: String, onClick: () -> Unit, modifier: Modifier = Modifi
             verticalAlignment = Alignment.CenterVertically,
             modifier = modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(6.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (pending) pendingColor() else MaterialTheme.colorScheme.surfaceVariant)
                 .clickable(onClick = onClick)
                 .padding(horizontal = 8.dp, vertical = 5.dp),
         ) {
@@ -92,6 +100,11 @@ fun AttachmentRow(name: String, onClick: () -> Unit, modifier: Modifier = Modifi
         }
     }
 }
+
+/** Light red, the desktop's "nothing marked yet" colour; a dark red on a dark theme. */
+@Composable
+private fun pendingColor(): Color =
+    if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) Color(0xFF5A2E2E) else Color(0xFFF8D0D0)
 
 /** The glyph for a [FileKind]. [FileKind.OTHER] gets the blank-page icon — an honest "a file". */
 fun fileKindIcon(kind: FileKind): ImageVector = when (kind) {

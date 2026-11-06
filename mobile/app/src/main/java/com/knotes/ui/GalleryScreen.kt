@@ -1,5 +1,6 @@
 package com.knotes.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import android.content.Context
@@ -27,10 +28,13 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FormatColorFill
 import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -75,6 +79,9 @@ import com.knotes.gallery.uprightSize
 import com.knotes.player.isImageFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.mutableIntStateOf
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -105,10 +112,24 @@ private enum class Tool(@StringRes val labelRes: Int) {
  * disappears.
  */
 @Composable
-fun GalleryScreen(dir: String) {
+fun GalleryScreen(
+    dir: String,
+    /**
+     * Opened on one file, from a note's attachments or a server record's files (see
+     * [openFileInApp]) rather than as the Gallery page. Then the pages are that folder's own
+     * images only (not its subfolders, where the backups go), the start is [startFile], and the
+     * delete asks first (a note's file is not a photo to cull). A rename or delete is reported
+     * through [InAppViewer.changed] so the note list re-reads the folder.
+     */
+    startFile: File? = null,
+    /** Shows a close button and takes Back; the pending marks are saved first. */
+    onClose: (() -> Unit)? = null,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var images by remember(dir) { mutableStateOf(listImages(dir)) }
+    val attachments = startFile != null
+    fun list() = if (attachments) listFolderImages(dir) else listImages(dir)
+    var images by remember(dir) { mutableStateOf(list()) }
 
     if (images.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -126,14 +147,16 @@ fun GalleryScreen(dir: String) {
     // by photos added/removed since, and survives navigating away and a full app restart.
     val pagerState = rememberPagerState(
         initialPage = remember(dir) {
-            lastViewedPath(context, dir)
+            (if (attachments) startFile?.absolutePath else lastViewedPath(context, dir))
                 ?.let { saved -> images.indexOfFirst { it.absolutePath == saved } }
                 ?.takeIf { it >= 0 } ?: 0
         },
         pageCount = { images.size },
     )
 
-    var tool by remember { mutableStateOf(Tool.NONE) }
+    // A file opened from a note is opened to be marked: the pen is ready. The Gallery page starts
+    // in View, where a swipe turns the page.
+    var tool by remember { mutableStateOf(if (startFile != null) Tool.PEN else Tool.NONE) }
     var label by remember { mutableStateOf("") }
     val marks = remember { mutableStateListOf<Mark>() }
     var error by remember { mutableStateOf<String?>(null) }
@@ -141,41 +164,100 @@ fun GalleryScreen(dir: String) {
     // The image the pending marks belong to. Held separately from pagerState.currentPage because
     // the save happens AFTER the page has already moved on.
     var markedFile by remember { mutableStateOf<File?>(null) }
+    var closeAction: (() -> Unit)? = null
+    var confirmDelete by remember { mutableStateOf<String?>(null) }
+
+    // Autosave. The picture as it was when marking began is copied aside (sessionBase); every save
+    // draws ALL the marks so far onto that copy and writes the result over the file. So a JPEG is
+    // re-encoded from the same base each time (no loss piling up stroke after stroke), and an undo
+    // after a save takes the stroke out of the file too. burnedCount = marks already in the file.
+    var sessionBase by remember { mutableStateOf<File?>(null) }
+    var burnedCount by remember { mutableIntStateOf(0) }
+
+    suspend fun startSession(file: File) {
+        if (sessionBase != null) return
+        sessionBase = withContext(Dispatchers.IO) {
+            runCatching {
+                File(context.cacheDir, "annot-base").apply { mkdirs() }
+                    .let { File(it, file.name) }
+                    .also { file.copyTo(it, overwrite = true) }
+            }.getOrNull()
+        }
+    }
+
+    /** Writes the marks in hand into the file now; true when the file matches them. */
+    suspend fun burnNow(): Boolean {
+        val file = markedFile ?: return true
+        val base = sessionBase ?: return marks.isEmpty()
+        val now = marks.toList()
+        if (now.size == burnedCount) return true
+        val ok = withContext(Dispatchers.IO) {
+            runCatching {
+                // Every stroke undone after a save: put the picture back as it was.
+                if (now.isEmpty()) { base.copyTo(file, overwrite = true); true }
+                else AnnotationBurner.burn(file, now, source = base)
+            }.getOrDefault(false)
+        }
+        if (ok) {
+            burnedCount = now.size
+            if (now.isNotEmpty()) InAppViewer.reviewed++
+        }
+        return ok
+    }
+
+    LaunchedEffect(Unit) {
+        snapshotFlow { marks.size }.collectLatest { n ->
+            if (n != burnedCount) {
+                delay(1500)
+                if (!burnNow()) error = context.getString(R.string.widgets_gallery_save_failed_marks_kept)
+            }
+        }
+    }
 
     suspend fun commit(): Boolean {
         val file = markedFile ?: return true
-        val pendingMarks = marks.toList()
         val pendingLabel = label
-        if (pendingMarks.isEmpty() && pendingLabel.isBlank()) return true
+        if (marks.isEmpty() && burnedCount == 0 && pendingLabel.isBlank()) return true
 
+        // Marks before the rename: they are burnt into the file the label is about to move, so
+        // the other order would write to a path that no longer exists.
+        if (!burnNow()) return false
         val ok = withContext(Dispatchers.IO) {
             runCatching {
-                // Marks before the rename: they are burnt into the file the label is about to move,
-                // so the other order would write to a path that no longer exists.
-                if (pendingMarks.isNotEmpty() && !AnnotationBurner.burn(file, pendingMarks)) {
-                    return@runCatching false
-                }
                 Renamer.rename(file, file.name.substringBeforeLast('.'), pendingLabel)
                 true
             }.getOrDefault(false)
         }
         if (ok) {
+            if (attachments && pendingLabel.isNotBlank()) InAppViewer.changed++
             marks.clear()
+            burnedCount = 0
+            sessionBase?.delete()
+            sessionBase = null
             label = ""
             markedFile = null
-            images = listImages(dir)
+            images = list()
         }
         return ok
     }
 
     LaunchedEffect(dir) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
-            images.getOrNull(page)?.let { saveLastViewedPath(context, dir, it.absolutePath) }
+            if (!attachments) images.getOrNull(page)?.let { saveLastViewedPath(context, dir, it.absolutePath) }
             // Arriving at a new page: whatever is in hand belongs to the one just left.
-            if (marks.isNotEmpty() || label.isNotBlank()) {
+            if (marks.isNotEmpty() || burnedCount > 0 || label.isNotBlank()) {
                 error = if (commit()) null else context.getString(R.string.widgets_gallery_save_failed_marks_kept)
             }
         }
+    }
+    if (onClose != null) {
+        val close: () -> Unit = {
+            scope.launch {
+                if (commit()) onClose() else error = context.getString(R.string.widgets_gallery_save_failed_marks_kept)
+            }
+        }
+        BackHandler(onBack = close)
+        closeAction = close
     }
     DisposableEffect(dir) {
         onDispose {
@@ -196,14 +278,19 @@ fun GalleryScreen(dir: String) {
             val file = images.getOrNull(page)
             Box(Modifier.fillMaxSize()) {
                 AsyncImage(
-                    model = file,
+                    // While marking, the picture as it was before the session: the marks are drawn
+                    // over it live, and the file itself already has them burnt in by the autosave.
+                    model = sessionBase?.takeIf { file != null && file == markedFile } ?: file,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize(),
                 )
                 // Only the visible page is drawable, so a mark can't land on a neighbour mid-swipe.
                 if (file != null && page == pagerState.currentPage && tool != Tool.NONE) {
-                    MarkingLayer(file, tool, marks) { markedFile = file }
+                    MarkingLayer(file, tool, marks) {
+                        if (markedFile == null) markedFile = file
+                        scope.launch { startSession(file) }
+                    }
                 }
             }
         }
@@ -299,6 +386,20 @@ fun GalleryScreen(dir: String) {
             },
         )
 
+        closeAction?.let { close ->
+            IconButton(
+                onClick = close,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(end = 4.dp)
+                    .size(36.dp)
+                    .background(Color.Black.copy(alpha = 0.45f), CircleShape),
+            ) {
+                Icon(Icons.Filled.Close, stringResource(R.string.viewer_close), tint = Color.White)
+            }
+        }
+
         OutlinedTextField(
             value = label,
             onValueChange = {
@@ -331,18 +432,48 @@ fun GalleryScreen(dir: String) {
             )
         }
 
-        FloatingActionButton(
-            onClick = {
-                val idx = pagerState.currentPage
-                images.getOrNull(idx)?.let { file ->
-                    file.delete()
-                    // Anything pending belonged to the file just deleted.
-                    marks.clear()
-                    markedFile = null
-                    images = images.toMutableList().also { it.removeAt(idx) }
+        fun deleteCurrent() {
+            val idx = pagerState.currentPage
+            images.getOrNull(idx)?.let { file ->
+                file.delete()
+                // Anything pending belonged to the file just deleted.
+                marks.clear()
+                burnedCount = 0
+                sessionBase?.delete()
+                sessionBase = null
+                markedFile = null
+                images = images.toMutableList().also { it.removeAt(idx) }
+                if (attachments) {
+                    InAppViewer.changed++
+                    // The folder's last image gone: nothing left to show.
+                    if (images.isEmpty()) onClose?.invoke()
+                } else {
                     images.getOrNull(idx.coerceAtMost(images.lastIndex))
                         ?.let { next -> saveLastViewedPath(context, dir, next.absolutePath) }
                 }
+            }
+        }
+        confirmDelete?.let { name ->
+            AlertDialog(
+                onDismissRequest = { confirmDelete = null },
+                title = { Text(stringResource(R.string.viewer_delete_title)) },
+                text = { Text(name) },
+                confirmButton = {
+                    TextButton(onClick = { confirmDelete = null; deleteCurrent() }) {
+                        Text(stringResource(R.string.viewer_delete), color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmDelete = null }) { Text(stringResource(android.R.string.cancel)) }
+                },
+            )
+        }
+
+        FloatingActionButton(
+            onClick = {
+                // The Gallery page culls on one tap; a note's file asks first.
+                if (attachments) confirmDelete = images.getOrNull(pagerState.currentPage)?.name
+                else deleteCurrent()
             },
             containerColor = MaterialTheme.colorScheme.errorContainer,
             contentColor = MaterialTheme.colorScheme.onErrorContainer,
@@ -535,6 +666,13 @@ private fun listImages(dir: String): List<File> =
         .filter { it.isFile && isImageFile(it.name) }
         .sortedBy { it.absolutePath.lowercase() }
         .toList()
+
+/** The images directly in [dir], by name: a note's or record's files, without the backups below. */
+private fun listFolderImages(dir: String): List<File> =
+    File(dir).listFiles()
+        ?.filter { it.isFile && !it.name.startsWith(".") && isImageFile(it.name) }
+        ?.sortedBy { it.name.lowercase() }
+        .orEmpty()
 
 // Last-viewed image per gallery folder, keyed by [dir] so switching the configured folder in
 // Settings doesn't clobber where you were in a previous one.

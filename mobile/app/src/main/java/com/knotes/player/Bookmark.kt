@@ -63,6 +63,8 @@ object Bookmarks {
             } else emptyList()
             val lines = list.sortedBy { it.positionMs }.map { line(it) } + kept
             target.writeText(if (lines.isEmpty()) "" else lines.joinToString("\n") + "\n")
+            // Time marks are what makes a note's media file count as reviewed: recolour its row.
+            com.knotes.ui.InAppViewer.reviewed++
         }
     }
 

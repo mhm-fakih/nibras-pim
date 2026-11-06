@@ -124,13 +124,18 @@ object AnnotationBurner {
     /**
      * Burns [marks] into [file], keeping its format and backing the original up first.
      *
+     * [source] is the picture the marks are drawn on — by default the file itself. The annotator
+     * passes the image as it was when marking began, with ALL of that session's marks, so each
+     * autosave redraws from the same base: a JPEG is re-encoded once per session's result, not
+     * once per stroke, and an undo after a save really takes the stroke out.
+     *
      * @return true when the file was rewritten.
      */
-    fun burn(file: File, marks: List<Mark>): Boolean {
+    fun burn(file: File, marks: List<Mark>, source: File = file): Boolean {
         if (marks.isEmpty()) return false
-        val source = decodeUpright(file) ?: return false
-        val result = render(source, marks)
-        if (result != source) source.recycle()
+        val base = decodeUpright(source) ?: return false
+        val result = render(base, marks)
+        if (result != base) base.recycle()
 
         backup(file)
 

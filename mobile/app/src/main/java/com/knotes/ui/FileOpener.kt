@@ -11,7 +11,6 @@ import com.knotes.FolderLayout
 import com.knotes.R
 import com.knotes.nibras.NibrasRecord
 import com.knotes.nibras.RESOURCES_CODE
-import com.knotes.player.isMediaFile
 import com.knotes.util.FileNames
 import java.io.File
 
@@ -93,11 +92,7 @@ fun openRecordFile(
         Toast.makeText(context, context.getString(R.string.notes_open_not_found_in, filename, dir.path, detail), Toast.LENGTH_LONG).show()
         return
     }
-    if (isMediaFile(file.name)) {
-        onPlayMedia(file)
-        return
-    }
-    openLocalFile(context, file)
+    openFileInApp(context, file, onPlayMedia)
 }
 
 /** Opens any on-disk file in another app via a FileProvider content URI (note attachments etc.). */

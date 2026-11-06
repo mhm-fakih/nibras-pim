@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hw_title">الواجبات</string>
+    <string name="hw_solved">محلولة</string>
+    <string name="hw_partial">محلولة جزئيًا</string>
+    <string name="hw_unsolved">غير محلولة</string>
+    <string name="hw_no_folder">مجلد الواجبات غير موجود: %1$s</string>
+    <string name="hw_empty">لا واجبات بعد.</string>
+    <string name="hw_answered">%1$d/%2$d أُجيب عنها</string>
+    <string name="hw_ambiguous">أكثر من خيار في السؤال %1$s</string>
+    <string name="hw_marked">مُصحَّح</string>
+    <string name="hw_marked_score">مُصحَّح: %1$s</string>
+    <string name="settings_hw_dir_label">مجلد الواجبات</string>
+    <string name="settings_hw_dir_hint">أجب بلمس حرف الخيار في القارئ. فارغ = %1$s</string>
+</resources>

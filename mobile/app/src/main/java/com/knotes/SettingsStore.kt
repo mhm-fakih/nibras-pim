@@ -42,6 +42,8 @@ data class AppSettings(
      * keeps the two together wherever the notes folder has been moved to.
      */
     val aiNotesDir: String = "",
+    /** The homework folder (Homeworks tab of the AI page); blank = the notes folder with "-hw" appended. */
+    val hwNotesDir: String = "",
     val timestampFormat: String,
     val previewLines: Int,
     val priorityMin: Int,
@@ -186,6 +188,9 @@ data class AppSettings(
     /** The AI-answers folder, with the blank-means-derive rule applied. Never blank. */
     fun aiDir(): String = aiNotesDir.trim().ifBlank { SettingsStore.aiDirFor(notesDir) }
 
+    /** The homework folder, with the blank-means-derive rule applied. Never blank. */
+    fun hwDir(): String = hwNotesDir.trim().ifBlank { SettingsStore.hwDirFor(notesDir) }
+
     val priorities: IntRange get() = priorityMin..priorityMax.coerceAtLeast(priorityMin)
 
     /** Background sync actually runs: the server feature is on AND its sync switch is. */
@@ -244,6 +249,7 @@ class SettingsStore(context: Context) {
     private fun load(): AppSettings = AppSettings(
         notesDir = prefs.getString(K_DIR, defaultDir()) ?: defaultDir(),
         aiNotesDir = prefs.getString(K_AI_DIR, "") ?: "",
+        hwNotesDir = prefs.getString(K_HW_DIR, "") ?: "",
         timestampFormat = prefs.getString(K_FMT, DEFAULT_FORMAT) ?: DEFAULT_FORMAT,
         previewLines = prefs.getInt(K_PREVIEW, 3),
         topPriority = prefs.getInt(K_TOP_PRIORITY, 4),
@@ -332,6 +338,7 @@ class SettingsStore(context: Context) {
             .putString(K_DIR, settings.notesDir.trim().ifBlank { defaultDir() })
             // Blank is meaningful here: it means "derive it", so it is stored as typed.
             .putString(K_AI_DIR, settings.aiNotesDir.trim())
+            .putString(K_HW_DIR, settings.hwNotesDir.trim())
             .putString(K_FMT, settings.timestampFormat.trim().ifBlank { DEFAULT_FORMAT })
             .putInt(K_PREVIEW, settings.previewLines.coerceIn(1, 20))
             .putInt(K_TOP_PRIORITY, settings.topPriority.coerceIn(1, 99))
@@ -407,6 +414,7 @@ class SettingsStore(context: Context) {
         private const val K_FOLDER_LAYOUTS = "folder_layouts"
         private const val K_DIR = "notes_dir"
         private const val K_AI_DIR = "ai_notes_dir"
+        private const val K_HW_DIR = "hw_notes_dir"
         private const val K_FMT = "timestamp_format"
         private const val K_PREVIEW = "preview_lines"
         private const val K_TOP_PRIORITY = "top_priority"
@@ -495,7 +503,7 @@ class SettingsStore(context: Context) {
          * layouts, which the server re-sends on the next sync — plus the player's settings tab.
          */
         val BACKUP_KEYS: Set<String> = setOf(
-            K_STAR_ACTION, K_DIR, K_AI_DIR, K_FMT, K_PREVIEW, K_TOP_PRIORITY, K_PMIN, K_PMAX,
+            K_STAR_ACTION, K_DIR, K_AI_DIR, K_HW_DIR, K_FMT, K_PREVIEW, K_TOP_PRIORITY, K_PMIN, K_PMAX,
             K_TYPES, K_CATEGORIES, K_NIBRAS_URL, K_NIBRAS_USER, K_NIBRAS_FILES, K_COLLECT_SRC, K_WA_AUTO, K_WA_AUTO_KINDS,
             K_COLLECT_NEW, K_COLLECT_AUTO, K_COLLECT_AUTO_HOUR, K_COLLECT_AUTO_MIN,
             K_FULLTEXT_SCALE, K_AUDIO_ROOTS, K_GALLERY, K_VIDEOS, K_CAL_START, K_CAL_END,
@@ -544,6 +552,9 @@ class SettingsStore(context: Context) {
          * a blank one falls through to this, which is why blank is stored rather than replaced.
          */
         fun aiDirFor(notesDir: String): String = notesDir.trimEnd('/') + "-ai"
+
+        /** The homework folder beside the notes folder: ~/new/knotes → ~/new/knotes-hw. */
+        fun hwDirFor(notesDir: String): String = notesDir.trimEnd('/') + "-hw"
 
         /**
          * Where the week files go by default: a `checklists` subfolder of the notes folder, so they

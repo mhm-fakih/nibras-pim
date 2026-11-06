@@ -1,5 +1,9 @@
 package com.knotes.ui
 
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import com.knotes.util.Review
+import androidx.compose.runtime.produceState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,7 +56,6 @@ import com.knotes.Note
 import com.knotes.R
 import com.knotes.companionFileNames
 import com.knotes.companionHasContent
-import com.knotes.player.isMediaFile
 import java.io.File
 
 /**
@@ -141,35 +145,44 @@ internal fun NoteCard(
                 modifier = Modifier.fillMaxWidth(),
             )
             // Attached files (companion .d folder) — same overview as the desktop cards: up to 5
-            // names, tap one to open it; the "+N more" row (and the ⋮ menu) opens the whole folder.
+            // names, tap one to open it. "+N more" lists the rest here on the card, so every file
+            // still opens in the app (player, image annotator, PDF viewer); only the ⋮ menu hands
+            // the folder to the system file manager.
             if (note.fileNames.isNotEmpty()) {
                 val context = LocalContext.current
+                var showAllFiles by rememberSaveable(note.file.absolutePath) { mutableStateOf(false) }
+                // Which files still want reviewing — read off the main thread (a PDF is scanned for
+                // annotations, once per change), redone when a file gains marks or the list changes.
+                val review by produceState(emptyMap<String, Review.Status>(), note.fileNames, note.lastModified, InAppViewer.reviewed, InAppViewer.changed) {
+                    value = withContext(Dispatchers.IO) {
+                        note.fileNames.associateWith { Review.status(File(note.companionDir(), it)) }
+                    }
+                }
                 Spacer(Modifier.size(2.dp))
-                note.fileNames.take(5).forEach { name ->
+                (if (showAllFiles) note.fileNames else note.fileNames.take(5)).forEach { name ->
                     AttachmentRow(
                         name = name,
+                        pending = review[name] == Review.Status.PENDING,
                         onClick = {
-                            // Media plays in the app's own player; anything else goes out to
-                            // whatever app handles it. This row used to send EVERYTHING to the
-                            // external chooser, which is why a note's audio would open in some
-                            // other player but never in this one — there was no in-app path
-                            // from a note at all.
+                            // Media plays in the app's own player, images and PDFs open in its
+                            // viewer, anything else goes out to whatever app handles it.
                             val f = File(note.companionDir(), name)
-                            if (isMediaFile(f.name)) onPlayMedia(f) else openLocalFile(context, f)
+                            openFileInApp(context, f, onPlayMedia)
                         },
                         modifier = Modifier.padding(bottom = 3.dp),
                     )
                 }
                 if (note.fileNames.size > 5) {
                     Text(
-                        text = pluralStringResource(
+                        text = if (showAllFiles) stringResource(R.string.notes_card_fewer_files)
+                        else pluralStringResource(
                             R.plurals.notes_card_more_files, note.fileNames.size,
                             note.fileNames.size - 5, note.fileNames.size,
                         ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
-                            .clickable { openFolder(context, note.companionDir()) }
+                            .clickable { showAllFiles = !showAllFiles }
                             .padding(vertical = 1.dp),
                     )
                 }

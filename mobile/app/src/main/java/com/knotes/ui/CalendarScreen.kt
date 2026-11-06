@@ -811,29 +811,27 @@ private fun AddEntryDialog(
                 TextButton(onClick = { pickTime(end) { end = it } }) { Text(end.format(HHMM)) }
             }
 
-            // Auto-align by content: Arabic flips the field to right-to-left, English stays left.
-            val rtl = NoteFiles.isRtl(summary)
+            // Direction per line, from each line's first strong letter: Arabic lines right, English left.
             OutlinedTextField(
                 value = summary,
                 onValueChange = { summary = it },
                 label = { Text(stringResource(R.string.server_calendar_summary)) },
                 keyboardOptions = KeyboardOptions(),
                 textStyle = MaterialTheme.typography.bodyLarge.copy(
-                    textAlign = if (rtl) TextAlign.Right else TextAlign.Start,
-                    textDirection = if (rtl) TextDirection.Rtl else TextDirection.Ltr,
+                    textAlign = TextAlign.Start,
+                    textDirection = TextDirection.Content,
                 ),
                 modifier = Modifier.fillMaxWidth().focusRequester(summaryFocus),
                 minLines = 2,
             )
 
-            val descRtl = NoteFiles.isRtl(description)
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
                 label = { Text(stringResource(R.string.server_calendar_description)) },
                 textStyle = MaterialTheme.typography.bodyLarge.copy(
-                    textAlign = if (descRtl) TextAlign.Right else TextAlign.Start,
-                    textDirection = if (descRtl) TextDirection.Rtl else TextDirection.Ltr,
+                    textAlign = TextAlign.Start,
+                    textDirection = TextDirection.Content,
                 ),
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 3,

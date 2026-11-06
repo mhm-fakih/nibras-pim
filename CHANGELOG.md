@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+- **Mobile — files stay in the app:** a note's images open in the gallery annotator (pen ready,
+  highlighter, crop, rename, delete after a confirm), PDFs in a PDF viewer, text and markdown in
+  the note reader (tap to highlight); "+N more" lists every file on the card.
+- **Mobile — PDF marking:** pen and highlighter on PDFs, written into the file as standard
+  annotations (PdfBox-Android) that any reader shows; highlights snap to the text lines on
+  Android 15+; the original is kept in `.scr-backup/`.
+- **Mobile — autosave:** PDF and image marks are saved about 1.5 s after the last stroke; an
+  image is redrawn from the picture as it was when marking began (one re-encode, JPEG quality
+  100) and undo still works after a save.
+- **Mobile — review colouring:** a note's file not yet reviewed has a light-red strip — media
+  without time marks, images never annotated, PDFs without markup annotations, text without a
+  `==highlight==`.
+- **Mobile — Homeworks:** a tab on the AI page lists the homework folder's assignments and
+  quizzes per course, grouped solved / partially solved / unsolved; an answer is the highlighted
+  option letter (tap "A."); the answer key is hidden; no tag bar in the homework reader.
+- **Mobile:** text direction is decided per line wherever a record or note is shown or edited;
+  shorter tab rows; a Payments page that works offline; a last reminder before Shurooq; a sound
+  for checklist reminders; player Bookmarks and Playlist tabs.
+- **Dashboards:** an indicators ticker (▲▲ ▲ = ▼ ▼▼ trends of bookmarked indicators); app-usage
+  indicators, one per program.
+- **Reports:** All highlights — every `==marked==` passage in resource descriptions and full
+  texts, local notes and AI notes, as one page with a count, feeding the "Nb. of highlights"
+  indicator.
+- **Web:** a compact Kanban board (smaller, regular-weight cards, narrower columns); expenses get
+  budgeted payments, notes and lessons learned; browsers on a Tailscale HTTPS address may sign in.
+- **Desktop:** the card's highlight count is a coloured pill (red 0, orange 1–2, green 3+);
+  white cards with a beige title band; justified reading pane with configurable line spacing; a
+  restart button.
+- **Terminal:** log lines wrap to the window instead of scrolling sideways.
+
 ## 2026-11-04 — 1.3.3 "Serenity"
 
 - **Highlighting:** a tap highlights the whole sentence, on the phone, the web and the desktop

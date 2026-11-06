@@ -33,7 +33,9 @@ object AnnotationStyle {
     const val HL_COLOR = 0xFFFFEB33.toInt()       // yellow (HL_RGB)
     const val HL_ALPHA = 0.35f
     const val HL_HEIGHT_PX = 26f
-    const val JPEG_QUALITY = 95
+    // 100: the photo is re-encoded when marks are burnt in; at full quality that costs no visible
+    // detail, where 95 softened it a little more with every session.
+    const val JPEG_QUALITY = 100
 }
 
 /** Normalised (x0,y0,x1,y1) with x0<=x1 and y0<=y1 — a drag may go in any direction. */

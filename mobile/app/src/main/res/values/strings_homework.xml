@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hw_title">Homeworks</string>
+    <string name="hw_solved">Solved</string>
+    <string name="hw_partial">Partially solved</string>
+    <string name="hw_unsolved">Unsolved</string>
+    <string name="hw_no_folder">Homework folder not found: %1$s</string>
+    <string name="hw_empty">No homework yet.</string>
+    <string name="hw_answered">%1$d/%2$d answered</string>
+    <string name="hw_ambiguous">more than one option on question %1$s</string>
+    <string name="hw_marked">marked</string>
+    <string name="hw_marked_score">marked: %1$s</string>
+    <string name="settings_hw_dir_label">Homework directory</string>
+    <string name="settings_hw_dir_hint">Answer by tapping an option\'s letter in the reader. Blank = %1$s</string>
+</resources>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- In-app viewer for images and PDFs (ui/FileViewer.kt). -->
+    <string name="viewer_close">إغلاق</string>
+    <string name="viewer_share">مشاركة</string>
+    <string name="viewer_open_with">فتح باستخدام…</string>
+    <string name="viewer_pdf_failed">لا يمكن عرض ملف PDF هذا هنا (%1$s).</string>
+    <string name="viewer_delete_title">حذف هذا الملف؟</string>
+    <string name="viewer_delete">حذف</string>
+    <string name="viewer_saving">جارٍ حفظ العلامات…</string>
+    <string name="viewer_pdf_save_failed">تعذّر حفظ العلامات (%1$s). لا تزال هنا.</string>
+    <plurals name="viewer_pages">
+        <item quantity="zero">%d صفحة</item>
+        <item quantity="one">صفحة واحدة</item>
+        <item quantity="two">صفحتان</item>
+        <item quantity="few">%d صفحات</item>
+        <item quantity="many">%d صفحة</item>
+        <item quantity="other">%d صفحة</item>
+    </plurals>
+</resources>

@@ -131,6 +131,7 @@
         <item quantity="one">%1$d note</item>
         <item quantity="other">%1$d notes</item>
     </plurals>
+    <string name="notes_card_fewer_files">Show fewer files</string>
     <plurals name="notes_card_more_files">
         <item quantity="one">… +%1$d more (%2$d file)</item>
         <item quantity="other">… +%1$d more (%2$d files)</item>

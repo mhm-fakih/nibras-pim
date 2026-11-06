@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hw_title">Devoirs</string>
+    <string name="hw_solved">Faits</string>
+    <string name="hw_partial">Commencés</string>
+    <string name="hw_unsolved">Pas commencés</string>
+    <string name="hw_no_folder">Dossier des devoirs introuvable : %1$s</string>
+    <string name="hw_empty">Pas encore de devoir.</string>
+    <string name="hw_answered">%1$d/%2$d répondues</string>
+    <string name="hw_ambiguous">plusieurs options à la question %1$s</string>
+    <string name="hw_marked">corrigé</string>
+    <string name="hw_marked_score">corrigé : %1$s</string>
+    <string name="settings_hw_dir_label">Dossier des devoirs</string>
+    <string name="settings_hw_dir_hint">Répondez en touchant la lettre d’une option dans le lecteur. Vide = %1$s</string>
+</resources>

@@ -88,11 +88,11 @@ export function KanbanPage() {
     <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <SideNav />
       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, p: 2, pb: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 400, px: 2, pt: 1.5, pb: 1 }}>
           Kanban — goals &amp; their tasks
         </Typography>
         <Box sx={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', px: 2, pb: 2 }}>
-          <Stack direction="row" spacing={2} sx={{ height: '100%' }}>
+          <Stack direction="row" spacing={1} sx={{ height: '100%' }}>
             {columns.length === 0 && (
               <Typography color="text.secondary" sx={{ p: 2 }}>
                 No bookmarked goals or tasks. Star some records to see them here.
@@ -102,11 +102,12 @@ export function KanbanPage() {
               <Paper
                 key={col.code}
                 variant="outlined"
-                sx={{ width: 360, flexShrink: 0, height: '100%', overflow: 'auto', bgcolor: '#fafafa' }}
+                sx={{ width: 280, flexShrink: 0, height: '100%', overflow: 'auto', bgcolor: '#fafafa' }}
               >
                 <Box
                   sx={{
-                    p: 1.5,
+                    px: 1,
+                    py: 0.75,
                     position: 'sticky',
                     top: 0,
                     bgcolor: '#fafafa',
@@ -115,25 +116,26 @@ export function KanbanPage() {
                     borderColor: 'divider',
                   }}
                 >
-                  <Typography sx={{ fontWeight: 700 }} dir="auto">
+                  <Typography sx={{ fontWeight: 500, fontSize: '0.88rem' }} dir="auto">
                     <code>{col.code}</code> {col.name}
                   </Typography>
                 </Box>
-                <Box sx={{ p: 1 }}>
+                <Box sx={{ p: 0.5 }}>
                   {col.goals.length > 0 && (
                     <SectionTitle icon={<Flag fontSize="small" />} title="Goals" />
                   )}
-                  <Stack spacing={1.5}>
+                  <Stack spacing={0.75}>
                     {col.goals.map((g) => (
                       <Box key={g.id}>
-                        <RecordCard module="goals" record={g} onClick={() => navigate('/goals')} />
+                        <RecordCard dense module="goals" record={g} onClick={() => navigate('/goals')} />
                         {(tasksByGoal.get(g.id) ?? []).length > 0 && (
                           <Stack
-                            spacing={0.5}
-                            sx={{ mt: 0.5, ml: 1.5, pl: 1, borderLeft: 2, borderColor: 'divider' }}
+                            spacing={0.25}
+                            sx={{ mt: 0.25, ml: 1, pl: 0.75, borderLeft: 2, borderColor: 'divider' }}
                           >
                             {tasksByGoal.get(g.id)!.map((t) => (
                               <RecordCard
+                                dense
                                 key={t.id}
                                 module="tasks"
                                 record={t}
@@ -153,9 +155,10 @@ export function KanbanPage() {
                         icon={<CheckCircleOutline fontSize="small" />}
                         title="Tasks — no goal"
                       />
-                      <Stack spacing={0.5}>
+                      <Stack spacing={0.25}>
                         {col.looseTasks.map((t) => (
                           <RecordCard
+                            dense
                             key={t.id}
                             module="tasks"
                             record={t}
@@ -178,9 +181,9 @@ export function KanbanPage() {
 
 function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
-    <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5, color: 'text.secondary' }}>
+    <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.25, color: 'text.secondary' }}>
       {icon}
-      <Typography variant="overline">{title}</Typography>
+      <Typography variant="overline" sx={{ fontSize: '0.62rem', lineHeight: 1.6 }}>{title}</Typography>
     </Stack>
   );
 }

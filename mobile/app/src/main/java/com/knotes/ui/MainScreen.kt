@@ -964,8 +964,9 @@ private fun InputBar(
                         onValueChange = onInput,
                         textStyle = MaterialTheme.typography.bodyLarge.copy(
                             color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = if (NoteFiles.isRtl(input)) TextAlign.Right else TextAlign.Start,
-                            textDirection = if (NoteFiles.isRtl(input)) TextDirection.Rtl else TextDirection.Ltr,
+                            // Per line: each paragraph takes the direction of its first strong letter.
+                            textAlign = TextAlign.Start,
+                            textDirection = TextDirection.Content,
                         ),
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         maxLines = if (fullPage) 16 else 6,
@@ -1032,8 +1033,8 @@ private fun QuickAddBar(
                     onValueChange = onText,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(
                         color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = if (NoteFiles.isRtl(text)) TextAlign.Right else TextAlign.Start,
-                        textDirection = if (NoteFiles.isRtl(text)) TextDirection.Rtl else TextDirection.Ltr,
+                        textAlign = TextAlign.Start,
+                        textDirection = TextDirection.Content,
                     ),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     maxLines = 6,

@@ -174,6 +174,8 @@ dependencies {
     // Async image loading for the Gallery page, and video-frame thumbnails for the Videos page.
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.coil-kt:coil-video:2.7.0")
+    // Writing PDF annotations (highlight, ink) from the in-app PDF viewer; Apache-2.0.
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
     // EXIF orientation, for the gallery's annotation editor. Coil rotates images for display, so
     // marks are drawn against the upright picture — burning them onto a bitmap decoded without the

@@ -11,17 +11,22 @@ import { statusStyle } from './statusStyle';
  * outside the detail pane (just-saved feedback, batch add, etc.). Leftmost coloured bar = the entity
  * (module code/colour, same as the list rows). Shows summary, a description preview, and the
  * status / type / department / course / bookmarked fields.
+ *
+ * `dense`: a board's card (the Kanban page) — regular-weight title, one preview line, small chips
+ * and tight padding, so a column holds many records.
  */
 export function RecordCard({
   module,
   record,
   sx,
   onClick,
+  dense = false,
 }: {
   module: string;
   record: EntityRecord;
   sx?: SxProps<Theme>;
   onClick?: () => void;
+  dense?: boolean;
 }) {
   const { modules } = useModules();
   const meta = modules.find((m) => m.moduleKey === module);
@@ -30,6 +35,7 @@ export function RecordCard({
   const preview = desc.replace(/\s+/g, ' ').trim().slice(0, 220);
   const dept = record.department;
   const course = record.course;
+  const chipSx = dense ? { height: 16, fontSize: '0.66rem', '& .MuiChip-label': { px: 0.75 } } : { height: 20 };
 
   return (
     <Card
@@ -38,19 +44,23 @@ export function RecordCard({
       sx={{
         display: 'flex',
         alignItems: 'stretch',
-        p: 1,
-        gap: 1,
+        p: dense ? 0.5 : 1,
+        gap: dense ? 0.75 : 1,
         ...(onClick ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } } : {}),
         ...sx,
       }}
     >
       <ModuleBar code={meta?.code} color={meta?.color} title={module} />
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: preview ? 0.5 : 0 }}>
-          <Typography dir="auto" sx={{ fontWeight: 700, flex: 1, minWidth: 0 }} noWrap>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: preview ? (dense ? 0.25 : 0.5) : 0 }}>
+          <Typography
+            dir="auto"
+            sx={dense ? { fontWeight: 400, fontSize: '0.82rem', lineHeight: 1.3, flex: 1, minWidth: 0 } : { fontWeight: 700, flex: 1, minWidth: 0 }}
+            noWrap
+          >
             {record.displayTitle || (record.summary as string) || '(untitled)'}
           </Typography>
-          {record.bookmarked && <Star fontSize="small" color="primary" />}
+          {record.bookmarked && <Star fontSize="small" color="primary" sx={dense ? { fontSize: 14 } : undefined} />}
         </Stack>
 
         {preview && (
@@ -59,9 +69,10 @@ export function RecordCard({
             variant="body2"
             color="text.secondary"
             sx={{
-              mb: 1,
+              mb: dense ? 0.25 : 1,
+              ...(dense ? { fontSize: '0.72rem', lineHeight: 1.3 } : {}),
               display: '-webkit-box',
-              WebkitLineClamp: 2,
+              WebkitLineClamp: dense ? 1 : 2,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
             }}
@@ -72,16 +83,16 @@ export function RecordCard({
 
         <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
           {record.status && (
-            <Chip size="small" label={record.status.name} sx={{ height: 20, ...statusStyle(record.status) }} />
+            <Chip size="small" label={record.status.name} sx={{ ...chipSx, ...statusStyle(record.status) }} />
           )}
           {record.type && (
-            <Chip size="small" label={record.type.name} sx={{ height: 20, ...statusStyle(record.type) }} />
+            <Chip size="small" label={record.type.name} sx={{ ...chipSx, ...statusStyle(record.type) }} />
           )}
           {dept && (
             <Chip
               size="small"
               variant="outlined"
-              sx={{ height: 20 }}
+              sx={chipSx}
               label={[dept.code, dept.name].filter(Boolean).join(' · ')}
             />
           )}
@@ -89,7 +100,7 @@ export function RecordCard({
             <Chip
               size="small"
               variant="outlined"
-              sx={{ height: 20 }}
+              sx={chipSx}
               label={`📚 ${[course.code, course.name].filter(Boolean).join(' · ')}`}
             />
           )}

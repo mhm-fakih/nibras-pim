@@ -41,6 +41,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _aiNotes.value = if (aiRepo.dirExists()) aiRepo.listNotes() else emptyList()
         }
     }
+
+    /**
+     * The homework folder (~/new/knotes-hw, synced): one note per assignment, answered on the phone
+     * by highlighting the chosen option's letter. Unlike the AI answers it is written to — the
+     * highlight IS the answer — so its reader saves, like the notes page's.
+     */
+    private val hwRepo = NoteRepository(settingsStore) { settingsStore.value.hwDir() }
+
+    private val _hwNotes = MutableStateFlow<List<Note>>(emptyList())
+    val hwNotes: StateFlow<List<Note>> = _hwNotes.asStateFlow()
+
+    fun hwDirPath(): String = hwRepo.dirPath()
+    fun hwDirExists(): Boolean = hwRepo.dirExists()
+
+    fun refreshHomeworks() {
+        viewModelScope.launch(Dispatchers.IO) {
+            // The tutor's answer key sits in each assignment's .d folder; listing it as an
+            // attachment would put the answers one tap away, so the homework cards leave it out.
+            _hwNotes.value = if (hwRepo.dirExists()) {
+                hwRepo.listNotes().map { n -> n.copy(fileNames = n.fileNames.filterNot { it.equals(HW_KEY_FILE, true) }) }
+            } else emptyList()
+        }
+    }
+
+    /** Save a homework's body (a highlight toggled), keeping its file name. */
+    fun saveHomework(note: Note, text: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (!note.file.exists()) return@launch
+            hwRepo.update(note, text, note.type, note.priority ?: 0, note.category)
+            _hwNotes.value = hwRepo.listNotes()
+        }
+    }
     private val nibras = com.knotes.nibras.NibrasApi()
 
     private val _notes = MutableStateFlow<List<Note>>(emptyList())
@@ -194,3 +226,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 }
+
+/** The answer key's name in a homework's companion folder (knotes-hw CLAUDE.md). */
+private const val HW_KEY_FILE = "key.md"

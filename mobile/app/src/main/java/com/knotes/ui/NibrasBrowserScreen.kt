@@ -528,13 +528,13 @@ private fun NibrasRow(
     // The record's files as they are on THIS phone (see recordFiles), re-read whenever the card is
     // recomposed for a different record or opened/closed — not the server's stale files_list.
     val files = remember(record, folders, isExpanded) { recordFiles(folders, record) }
-    val align = if (record.isRtl) TextAlign.Right else TextAlign.Start
-    val textDir = if (record.isRtl) TextDirection.Rtl else TextDirection.Ltr
-    // Body/notes below use Bidi.directional: one Arabic word must not flip an English record.
+    // Direction per LINE (each paragraph from its first strong letter, aligned to its own start):
+    // an Arabic title over an English description, or the reverse, each reads on its own side.
+    val align = TextAlign.Start
     // Scale the record's body text (title + description) by the font-size setting.
     val body = MaterialTheme.typography.bodyMedium
     val bodyScaled = body.copy(
-        textDirection = textDir,
+        textDirection = TextDirection.Content,
         fontSize = body.fontSize * textScale,
         lineHeight = body.fontSize * textScale * 1.4f,
     )
@@ -638,7 +638,7 @@ private fun NibrasRow(
                 if (metaLine.isNotBlank()) {
                     Text(
                         text = metaLine,
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.copy(textDirection = TextDirection.Content),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = align,
                         modifier = Modifier.fillMaxWidth(),
@@ -825,7 +825,6 @@ private fun ResourcesHighlighter(vm: NibrasViewModel, record: NibrasRecord, base
     // untouched; a tap on their sentence folds them into one sentence highlight.
     val legacyClauses = remember(plain) { Clauses.clauseSpans(plain) }
     if (sentences.isEmpty()) return
-    val textDir = if (record.isRtl) TextDirection.Rtl else TextDirection.Ltr
     val base = MaterialTheme.typography.bodyMedium
     val fullStyle = base.copy(
         fontSize = base.fontSize * fulltextScale,
