@@ -1,0 +1,16 @@
+[Unit]
+Description=Check for a recent journal entry every 15 minutes during work hours
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=15min
+
+# Catch up one check after a suspend/resume; harmless if it lands outside work hours — the
+# script's own gate exits immediately in that case.
+Persistent=true
+
+# Avoid every timer on the machine firing on the same second.
+RandomizedDelaySec=20
+
+[Install]
+WantedBy=timers.target

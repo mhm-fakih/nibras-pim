@@ -1,0 +1,36 @@
+[Unit]
+Description=Active window time tracker
+Documentation=file://%h/prj/window-tracker/DASHBOARD-PROPOSAL.md
+
+# NOTE: deliberately NOT anchored to graphical-session.target. On this Cinnamon
+# session that target is never activated (`systemctl --user is-active
+# graphical-session.target` reports inactive), so a unit wanted by it would
+# simply never start. default.target is reached, so that is the anchor.
+
+[Service]
+Type=simple
+ExecStart=%h/prj/window-tracker/window_tracker.py
+
+# xdotool / xprintidle / wmctrl all need to reach the X display. Lingering is
+# enabled for this user, so default.target is reached at boot — possibly before
+# X exists. xprintidle exits 1 when it cannot open the display, which makes it a
+# cheap readiness gate: systemd keeps retrying every RestartSec until X is up,
+# instead of the tracker running blind and silently logging nothing.
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=%h/.Xauthority
+ExecStartPre=/usr/bin/xprintidle
+
+Restart=always
+RestartSec=10
+
+# The tracker traps SIGTERM to flush the session in progress before exiting;
+# give it room to finish that write rather than being killed mid-flush.
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+# journalctl --user -u window-tracker -f
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

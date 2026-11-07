@@ -1,0 +1,11 @@
+[Unit]
+Description=Journal nudge check (one pass)
+
+[Service]
+Type=oneshot
+ExecStart=%h/sys2/shell/journal-nudge.sh
+
+# Needs the desktop session bus for notify-send — runs as a systemd --user unit under the
+# graphical session, which inherits it automatically (unlike file-watch's headless scanner).
+StandardOutput=journal
+StandardError=journal
