@@ -42,19 +42,17 @@ reviewed seconds after it is taken.
 
 ### From the Print key
 
-`~/prj/screenshots/sch.sh` is bound to Shift+Print in Cinnamon (`sch-region.sh` to Print). It captures, copies the new
-file's path to the clipboard, and brings the reviewer up:
+`shell/screenshot.sh` in the nibras-pkm repo is bound to Print in Cinnamon. It
+lets you select a region, saves it to `~/new`, and opens the new file here:
 
 ```bash
-flameshot screen -p /home/akil/new      # `screen`, not `full` — see below
-sleep 1                                 # flameshot returns before the file lands
-… newest file → xclip …
-… raise the running reviewer, or launch one …
+flameshot gui -p "$HOME/new"            # returns non-zero if the selection is cancelled
+… wait up to 2 s for a new image in ~/new …
+exec scr_annotator.py "$shot"           # hands off to the running window, if any
 ```
 
-`flameshot full` grabs the whole X canvas, which across two monitors is one
-3600×1200 image containing both screens. `flameshot screen` with no `-n` takes
-the screen the cursor is on.
+Cancelling, or copying to the clipboard without saving, writes no file and opens
+nothing.
 
 The app **watches the folder**, so pressing Print while it is already open
 makes it jump straight to the new shot — no relaunch, no rescan.

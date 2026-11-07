@@ -2,8 +2,8 @@
 Type=Application
 Name=Nibras Image Annotator
 Comment=Review, label and mark up a folder of images
-Exec=/home/akil/prj/scr-annotator/scr_annotator.py %f
-Icon=/home/akil/prj/scr-annotator/icon.png
+Exec=/home/akil/prj/nibras-pkm/scr-annotator/scr_annotator.py %f
+Icon=/home/akil/prj/nibras-pkm/scr-annotator/icon.png
 Terminal=false
 Categories=Graphics;Photography;
 MimeType=image/png;image/jpeg;image/webp;image/bmp;image/gif;
