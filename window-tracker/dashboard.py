@@ -31,7 +31,8 @@ import window_tracker as wt
 COL_W = 104                      # each column
 WIDTH = COL_W * 2 + 4            # both columns plus the gutter
 
-FILE_SNAPSHOT = os.path.expanduser("~/prj/file-watch/data/snapshot.json")
+REPO_DIR      = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FILE_SNAPSHOT = os.path.join(REPO_DIR, "file-watch", "data", "snapshot.json")
 
 # ── top notes ─────────────────────────────────────────────────────────────
 # knotes filenames carry their own metadata:
@@ -530,7 +531,7 @@ def file_column():
             s = json.load(f)["summary"]
     except (OSError, KeyError, json.JSONDecodeError):
         return Panel(Text("no snapshot yet — run:\n"
-                          "  python3 ~/prj/file-watch/file_watch.py --once",
+                          f"  python3 {REPO_DIR}/file-watch/file_watch.py --once",
                           style="grey50"),
                      title="[bold]FILES[/]", title_align="left",
                      border_style="grey30", box=box.ROUNDED, padding=(1, 2))

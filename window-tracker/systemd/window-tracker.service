@@ -1,6 +1,6 @@
 [Unit]
 Description=Active window time tracker
-Documentation=file://%h/prj/window-tracker/DASHBOARD-PROPOSAL.md
+Documentation=file://%h/prj/nibras-pkm/window-tracker/README.md
 
 # NOTE: deliberately NOT anchored to graphical-session.target. On this Cinnamon
 # session that target is never activated (`systemctl --user is-active
@@ -9,7 +9,7 @@ Documentation=file://%h/prj/window-tracker/DASHBOARD-PROPOSAL.md
 
 [Service]
 Type=simple
-ExecStart=%h/prj/window-tracker/window_tracker.py
+ExecStart=%h/prj/nibras-pkm/window-tracker/window_tracker.py
 
 # xdotool / xprintidle / wmctrl all need to reach the X display. Lingering is
 # enabled for this user, so default.target is reached at boot — possibly before

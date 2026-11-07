@@ -29,8 +29,8 @@ from datetime import date, datetime
 
 # ── config ────────────────────────────────────────────────────────────────────
 
-WATCH_DIR     = "/home/akil/new/knotes"
-DATA_DIR      = "/home/akil/prj/file-watch/data"
+WATCH_DIR     = os.path.expanduser("~/new/knotes")
+DATA_DIR      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 SCAN_INTERVAL = 120          # seconds (daemon mode; the timer is what runs in practice)
 
 # Files this small carry no content — an empty note, a stray newline, a

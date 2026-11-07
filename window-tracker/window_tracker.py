@@ -2,7 +2,7 @@
 
 """
 Active Window Time Tracker for Linux Mint Cinnamon (X11)
-Logs daily window usage to ~/shr/dev-test/scr-logs/YYYY-MM-DD.csv
+Logs daily window usage to ~/.local/share/nibras/window-tracker/YYYY-MM-DD.csv
 
 Features:
   - Tracks active window (app name + title) with time spent
@@ -23,7 +23,7 @@ from datetime import datetime, date
 
 import psutil
 
-LOG_DIR          = os.path.expanduser("~/shr/dev-test/scr-logs")
+LOG_DIR          = os.path.expanduser("~/.local/share/nibras/window-tracker")
 POLL_INTERVAL    = 1        # seconds between checks
 IDLE_TIMEOUT_SEC = 5 * 60   # 5 minutes of inactivity → break
 

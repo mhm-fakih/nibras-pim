@@ -1,6 +1,6 @@
 [Unit]
 Description=Run the file review scanner every 2 minutes
-Documentation=file:///home/akil/prj/file-watch/README.md
+Documentation=file://%h/prj/nibras-pkm/file-watch/README.md
 
 [Timer]
 OnBootSec=2min

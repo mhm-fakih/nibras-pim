@@ -38,7 +38,7 @@ up, since lingering is enabled and `default.target` is reached at boot.
 
 ## Output
 
-One CSV per day in `~/shr/dev-test/scr-logs/YYYY-MM-DD.csv`:
+One CSV per day in `~/.local/share/nibras/window-tracker/YYYY-MM-DD.csv`:
 
 ```
 date,start,end,duration_sec,duration_hms,app,title,windows_open
@@ -139,7 +139,7 @@ At the top of `window_tracker.py`:
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `LOG_DIR` | `~/shr/dev-test/scr-logs` | where CSVs go |
+| `LOG_DIR` | `~/.local/share/nibras/window-tracker` | where CSVs go |
 | `POLL_INTERVAL` | `1` | seconds between checks |
 | `IDLE_TIMEOUT_SEC` | `300` | idle before a break is recorded |
 | `MINIMIZE_ON_IDLE` | `False` | minimise all windows on idle — off; destructive during calls |

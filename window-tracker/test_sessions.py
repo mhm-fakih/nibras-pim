@@ -7,11 +7,13 @@ attributed to exactly one session — no gaps, no double counting — while
 sub-threshold glances do not produce rows of their own.
 """
 import sys
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 
 import window_tracker as wt
 
-BASE = datetime(2026, 7, 22, 10, 0, 0)
+# Today, because main() starts its day from the real date.today(): any other date
+# looks like a midnight rollover and splits the first session there.
+BASE = datetime.combine(date.today(), time(10, 0))
 CLOCK = [0.0]
 
 
