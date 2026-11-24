@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="quran_title">القرآن</string>
+    <string name="quran_rail">القرآن</string>
+    <string name="quran_filter">اسم السورة أو رقمها</string>
+    <string name="quran_order_mushaf">المصحف</string>
+    <string name="quran_order_revelation">النزول</string>
+    <string name="quran_only_bookmarked">المعلَّمة</string>
+    <string name="quran_ayat">%1$d آية</string>
+    <string name="quran_bookmark_surah">علّم هذه السورة</string>
+    <string name="quran_unbookmark_surah">أزل علامة السورة</string>
+    <string name="quran_bookmark_aya">علّم هذه الآية</string>
+    <string name="quran_unbookmark_aya">أزل علامة الآية</string>
+    <string name="quran_add_note">أضف ملاحظة</string>
+    <string name="quran_note_hint">ملاحظتك — تُضاف بعد ملاحظات الآية</string>
+    <string name="quran_note_save">أضف</string>
+    <string name="quran_cancel">إلغاء</string>
+    <string name="quran_exegesis">التفسير</string>
+    <string name="quran_notes">ملاحظات</string>
+    <string name="quran_waiting">بانتظار الإرسال</string>
+    <string name="quran_linked">ملاحظات مرتبطة (%1$d)</string>
+    <string name="quran_show_all">اعرض الكل</string>
+    <string name="quran_show_less">اعرض أقل</string>
+    <string name="quran_back">العودة إلى السور</string>
+    <string name="quran_offline">دون اتصال — النسخة المحفوظة %1$s</string>
+    <string name="quran_not_saved">لم تُفتح هذه السورة متصلًا بعد، فليست على الهاتف.</string>
+    <string name="quran_off">وحدة القرآن معطّلة على الخادم (Settings → Modules على الويب).</string>
+    <string name="quran_empty">وحدة القرآن فارغة بعد: اضغط Copy في صفحة القرآن على الويب.</string>
+    <string name="quran_unreachable">تعذّر الوصول إلى الخادم ولا شيء محفوظ بعد.</string>
+    <string name="quran_pending">%1$d تغييرات بانتظار الإرسال</string>
+    <string name="quran_refused">%1$d تغييرات رفضها الخادم</string>
+    <string name="quran_discard">تجاهل</string>
+    <string name="quran_save_all">احفظ كل السور للقراءة دون اتصال</string>
+    <string name="quran_saving">حفظ %1$d من %2$d…</string>
+    <string name="quran_saved_count">%1$d من %2$d سورة محفوظة على الهاتف</string>
+</resources>

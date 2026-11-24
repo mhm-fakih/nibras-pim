@@ -161,4 +161,27 @@
     <string name="player_tab_playlist">Liste de lecture (%1$d)</string>
     <string name="player_playlist_inactive">Les fichiers cochés ne passent ensuite que si « À suivre » est réglé sur Narrations IA.</string>
     <string name="player_playlist_use">L’activer</string>
+    <string name="player_next_playlist">Playlist</string>
+    <string name="player_next_caption_playlist">Lit « %1$s » dans l\'ordre, à partir du fichier en cours (ou du début). Les fichiers restent dans la liste après lecture.</string>
+    <string name="player_next_caption_playlist_none">Choisissez une playlist dans l\'onglet Playlist du lecteur.</string>
+    <string name="player_notice_no_playlist">Aucune playlist choisie — choisissez-en une dans l\'onglet Playlist.</string>
+    <string name="player_notice_playlist_end">Fin de la playlist.</string>
+    <string name="player_playlists_ai">Narrations IA</string>
+    <string name="player_playlist_new">Nouvelle playlist</string>
+    <string name="player_playlist_name">Nom de la playlist</string>
+    <string name="player_playlist_create">Créer</string>
+    <string name="player_playlist_rename">Renommer</string>
+    <string name="player_playlist_delete">Supprimer la playlist</string>
+    <string name="player_playlist_delete_title">Supprimer la playlist « %1$s » ?</string>
+    <string name="player_playlist_delete_body">Seule la liste disparaît ; ses fichiers restent en place.</string>
+    <string name="player_playlist_name_taken">Ce nom est vide ou déjà pris.</string>
+    <string name="player_playlist_add_this">Ajouter ce fichier</string>
+    <string name="player_playlist_remove_this">Retirer ce fichier</string>
+    <string name="player_playlist_add_to">Ajouter à une playlist</string>
+    <string name="player_playlist_empty">Rien dans cette playlist — ajoutez des fichiers avec le bouton playlist de chaque fichier.</string>
+    <string name="player_playlist_not_active">Cette liste n\'est lue ensuite que si « Lecture suivante » y est réglée.</string>
+    <string name="player_playlist_move_up">Monter</string>
+    <string name="player_playlist_move_down">Descendre</string>
+    <string name="player_playlist_remove">Retirer de la playlist</string>
+    <string name="player_playlist_count">%1$s (%2$d)</string>
 </resources>

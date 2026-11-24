@@ -7,6 +7,8 @@ export type FieldType =
   | 'number'
   | 'switch'
   | 'datetime'
+  /** A calendar day, no time (sent as that day's midnight). */
+  | 'date'
   | 'status'
   | 'type'
   | 'department'
@@ -168,6 +170,7 @@ export const ENTITIES: EntityConfig[] = [
       { name: 'url', label: 'URL', type: 'url', feature: 'resourceExtras' },
       { name: 'status', label: 'Status', type: 'status' },
       { name: 'resourceYear', label: 'Year', type: 'text' },
+      { name: 'publishedOn', label: 'Published on', type: 'date' },
       { name: 'pages', label: 'Pages', type: 'text' },
       { name: 'storagePlace', label: 'Where it is', type: 'storagePlace' },
       { name: 'isRead', label: 'Read', type: 'switch' },

@@ -137,9 +137,10 @@ private class PlansFactory(
     }
 
     /**
-     * Today's journal entries, newest first, led by the time each was written.
+     * Today's journal log — the entries of the day's first journal note — newest first, led by
+     * the time each was written.
      *
-     * Null priority, unlike [todayTaskRows]: every entry of the day belongs on this list. Same
+     * Null priority, unlike [todayTaskRows]: whatever priority the log note has, it is the log. Same
      * absence of a placeholder row — the widget sets a real `setEmptyView`, and a fake row would
      * keep the adapter non-empty and stop that view ever showing.
      */
@@ -148,12 +149,16 @@ private class PlansFactory(
             NoteRepository(SettingsStore(context))
                 .listTasksSince(TodayJournalWidget.JOURNAL_TYPE, null, startOfToday())
         }.getOrDefault(emptyList())
-        return entries.map { n ->
-            ItemRow(
-                SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(n.createdMillis)),
-                widgetRowText(n.content),
-            )
-        }
+        // The day's FIRST journal note is its log, like the web's board journal: the widget appends
+        // to it under time stamps, and lists its entries, newest first. Other journal notes of the
+        // day, written in the app, are notes of their own and stay off this list. Text before the
+        // first stamp is a row at the note's own time.
+        val day = entries.minByOrNull { it.createdMillis } ?: return emptyList()
+        val noteTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(day.createdMillis))
+        return com.knotes.util.JournalLog.entries(day.content)
+            .ifEmpty { listOf(com.knotes.util.JournalLog.Entry(null, day.content)) }
+            .map { e -> ItemRow(e.time ?: noteTime, widgetRowText(e.text)) }
+            .asReversed()
     }
 
     /**

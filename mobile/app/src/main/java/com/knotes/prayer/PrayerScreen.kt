@@ -32,6 +32,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Remove
@@ -79,7 +80,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** The settings groups the page can open under its list of times. */
-private enum class PrayerPanel { TIMES, METHOD, SOUND, SILENCE, HIJRI }
+private enum class PrayerPanel { TIMES, METHOD, SOUND, SILENCE, HIJRI, SHAMSI }
 
 /**
  * Today's prayer times, with every knob that shapes them on the same page.
@@ -176,6 +177,9 @@ fun PrayerScreen(store: PrayerSettingsStore) {
             PanelChip(Icons.Filled.CalendarMonth, stringResource(R.string.prayer_panel_hijri), panel == PrayerPanel.HIJRI) {
                 panel = if (panel == PrayerPanel.HIJRI) null else PrayerPanel.HIJRI
             }
+            PanelChip(Icons.Filled.DateRange, stringResource(R.string.prayer_panel_shamsi), panel == PrayerPanel.SHAMSI) {
+                panel = if (panel == PrayerPanel.SHAMSI) null else PrayerPanel.SHAMSI
+            }
         }
 
         Spacer(Modifier.height(10.dp))
@@ -185,6 +189,7 @@ fun PrayerScreen(store: PrayerSettingsStore) {
             PrayerPanel.SOUND -> SoundPanel(settings, ::update)
             PrayerPanel.SILENCE -> SilencePanel(settings, ::update)
             PrayerPanel.HIJRI -> HijriPanel(settings, hijri, ::update)
+            PrayerPanel.SHAMSI -> com.knotes.calendar.ShamsiMonth(settings.hijriOffsetDays)
             null -> {}
         }
 
@@ -726,6 +731,38 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
                     5f,
                     labelWidth = 132.dp,
                 ) { nv -> update { s -> s.withAthanVolume(p, nv.toInt()) } }
+            }
+            // The whole athan quieter, in the player — below what the lowest step allows.
+            StepSlider(
+                if (settings.athanGainDb == 0) stringResource(R.string.prayer_athan_gain_off)
+                else stringResource(R.string.prayer_athan_gain, -settings.athanGainDb),
+                settings.athanGainDb.toFloat(),
+                com.knotes.alarm.SoundGain.MIN_DB.toFloat(),
+                0f,
+                1f,
+                labelWidth = 132.dp,
+            ) { nv -> update { s -> s.copy(athanGainDb = nv.toInt()) } }
+            Note(stringResource(R.string.prayer_athan_gain_note))
+            // Rises to that volume rather than starting at it. Heard on the buttons below too.
+            StepSlider(
+                if (settings.athanRiseSeconds == 0) stringResource(R.string.prayer_athan_rise_off)
+                else stringResource(R.string.prayer_athan_rise, settings.athanRiseSeconds),
+                settings.athanRiseSeconds.toFloat(),
+                PrayerSettings.MIN_ATHAN_RISE.toFloat(),
+                PrayerSettings.MAX_ATHAN_RISE.toFloat(),
+                5f,
+                labelWidth = 132.dp,
+            ) { nv -> update { s -> s.copy(athanRiseSeconds = nv.toInt()) } }
+            if (settings.athanRiseSeconds > 0) {
+                StepSlider(
+                    stringResource(R.string.prayer_athan_rise_from, -settings.athanRiseFromDb),
+                    settings.athanRiseFromDb.toFloat(),
+                    PrayerSettings.MIN_ATHAN_RISE_FROM_DB.toFloat(),
+                    PrayerSettings.MAX_ATHAN_RISE_FROM_DB.toFloat(),
+                    1f,
+                    labelWidth = 132.dp,
+                ) { nv -> update { s -> s.copy(athanRiseFromDb = nv.toInt()) } }
+                Note(stringResource(R.string.prayer_athan_rise_note))
             }
             // A percentage does not tell you how loud a room will be at 4am. These play the athan
             // at exactly the volume that prayer would use, so the number can be judged by ear.

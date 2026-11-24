@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="quran_title">Quran</string>
+    <string name="quran_rail">Quran</string>
+    <string name="quran_filter">Surah name or number</string>
+    <string name="quran_order_mushaf">Mushaf</string>
+    <string name="quran_order_revelation">Revelation</string>
+    <string name="quran_only_bookmarked">Bookmarked</string>
+    <string name="quran_ayat">%1$d ayat</string>
+    <string name="quran_bookmark_surah">Bookmark this surah</string>
+    <string name="quran_unbookmark_surah">Remove the surah bookmark</string>
+    <string name="quran_bookmark_aya">Bookmark this aya</string>
+    <string name="quran_unbookmark_aya">Remove the aya bookmark</string>
+    <string name="quran_add_note">Add a note</string>
+    <string name="quran_note_hint">Your note — added after the aya\'s notes</string>
+    <string name="quran_note_save">Add</string>
+    <string name="quran_cancel">Cancel</string>
+    <string name="quran_exegesis">Exegesis</string>
+    <string name="quran_notes">Notes</string>
+    <string name="quran_waiting">Waiting to be sent</string>
+    <string name="quran_linked">Linked notes (%1$d)</string>
+    <string name="quran_show_all">Show all</string>
+    <string name="quran_show_less">Show less</string>
+    <string name="quran_back">Back to the surahs</string>
+    <string name="quran_offline">Offline — the copy saved %1$s</string>
+    <string name="quran_not_saved">This surah has not been opened online yet, so it is not on the phone.</string>
+    <string name="quran_off">The Quran module is off on the server (Settings → Modules on the web).</string>
+    <string name="quran_empty">Nothing in the Quran module yet: press Copy on the web\'s Quran page.</string>
+    <string name="quran_unreachable">The server cannot be reached and nothing is saved yet.</string>
+    <string name="quran_pending">%1$d changes waiting to be sent</string>
+    <string name="quran_refused">%1$d changes the server refused</string>
+    <string name="quran_discard">Discard</string>
+    <string name="quran_save_all">Save every surah for offline</string>
+    <string name="quran_saving">Saving %1$d of %2$d…</string>
+    <string name="quran_saved_count">%1$d of %2$d surahs saved on the phone</string>
+</resources>

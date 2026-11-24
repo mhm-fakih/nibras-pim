@@ -14,6 +14,7 @@ import {
   Typography,
 } from '@mui/material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import {
   createEntity,
   getEntity,
@@ -251,6 +252,15 @@ function FieldInput({
             <Switch checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
           }
           label={field.label}
+        />
+      );
+    case 'date':
+      return (
+        <DatePicker
+          label={field.label}
+          value={(value as Date) ?? null}
+          onChange={(d) => onChange(d)}
+          slotProps={{ textField: { sx: { maxWidth: 220 } }, field: { clearable: true } }}
         />
       );
     case 'datetime':
@@ -615,6 +625,7 @@ function initForm(fields: FieldDef[], record?: EntityRecord): FormState {
         f.recurrenceCount = (record?.recurrenceCount as number) ?? '';
         break;
       case 'datetime':
+      case 'date':
         f[field.name] = raw ? new Date(String(raw)) : null;
         break;
       case 'switch':
@@ -687,6 +698,13 @@ function buildPayload(fields: FieldDef[], form: FormState): Record<string, unkno
       case 'datetime':
         body[field.name] = v ? toLocalIso(v as Date) : null;
         break;
+      case 'date': {
+        // The day picked, at midnight local time — no time of day is implied.
+        const d = v ? new Date(v as Date) : null;
+        if (d) d.setHours(0, 0, 0, 0);
+        body[field.name] = d ? toLocalIso(d) : null;
+        break;
+      }
       case 'switch':
         body[field.name] = Boolean(v);
         break;

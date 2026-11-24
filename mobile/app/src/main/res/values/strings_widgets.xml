@@ -79,6 +79,8 @@
     <string name="widgets_gallery_next">Next image</string>
     <string name="widgets_gallery_label_hint">Label (renames the file)</string>
     <string name="widgets_gallery_delete_photo">Delete photo</string>
+    <string name="widgets_gallery_deleted">Deleted %1$s</string>
+    <string name="widgets_gallery_undo_delete">Undo</string>
     <string name="widgets_bookmarks_title">Bookmarked records</string>
     <string name="widgets_bookmarks_empty">No bookmarks</string>
     <string name="widgets_no_title">(no title)</string>
@@ -180,4 +182,5 @@
     <string name="widgets_collect_range_7">Last 7 days</string>
     <string name="widgets_collect_range_30">Last 30 days</string>
     <string name="widgets_collect_range_all">Everything</string>
+    <string name="widgets_label_dates">Today in three calendars</string>
 </resources>

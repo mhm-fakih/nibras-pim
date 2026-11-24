@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="quran_title">Coran</string>
+    <string name="quran_rail">Coran</string>
+    <string name="quran_filter">Nom ou numéro de sourate</string>
+    <string name="quran_order_mushaf">Mushaf</string>
+    <string name="quran_order_revelation">Révélation</string>
+    <string name="quran_only_bookmarked">Favoris</string>
+    <string name="quran_ayat">%1$d versets</string>
+    <string name="quran_bookmark_surah">Mettre cette sourate en favori</string>
+    <string name="quran_unbookmark_surah">Retirer la sourate des favoris</string>
+    <string name="quran_bookmark_aya">Mettre ce verset en favori</string>
+    <string name="quran_unbookmark_aya">Retirer le verset des favoris</string>
+    <string name="quran_add_note">Ajouter une note</string>
+    <string name="quran_note_hint">Votre note — ajoutée après les notes du verset</string>
+    <string name="quran_note_save">Ajouter</string>
+    <string name="quran_cancel">Annuler</string>
+    <string name="quran_exegesis">Exégèse</string>
+    <string name="quran_notes">Notes</string>
+    <string name="quran_waiting">En attente d\'envoi</string>
+    <string name="quran_linked">Notes liées (%1$d)</string>
+    <string name="quran_show_all">Tout afficher</string>
+    <string name="quran_show_less">Réduire</string>
+    <string name="quran_back">Retour aux sourates</string>
+    <string name="quran_offline">Hors ligne — copie enregistrée %1$s</string>
+    <string name="quran_not_saved">Cette sourate n\'a pas encore été ouverte en ligne ; elle n\'est donc pas sur le téléphone.</string>
+    <string name="quran_off">Le module Coran est désactivé sur le serveur (Settings → Modules sur le web).</string>
+    <string name="quran_empty">Le module Coran est encore vide : appuyez sur Copy dans la page Coran du web.</string>
+    <string name="quran_unreachable">Le serveur est injoignable et rien n\'est encore enregistré.</string>
+    <string name="quran_pending">%1$d changements en attente d\'envoi</string>
+    <string name="quran_refused">%1$d changements refusés par le serveur</string>
+    <string name="quran_discard">Abandonner</string>
+    <string name="quran_save_all">Enregistrer toutes les sourates hors ligne</string>
+    <string name="quran_saving">Enregistrement %1$d sur %2$d…</string>
+    <string name="quran_saved_count">%1$d sourates sur %2$d enregistrées sur le téléphone</string>
+</resources>

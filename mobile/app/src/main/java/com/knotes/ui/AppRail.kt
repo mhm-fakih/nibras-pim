@@ -26,11 +26,13 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.DriveFolderUpload
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.FormatQuote
-import androidx.compose.material.icons.filled.Groups
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.Mosque
@@ -80,7 +82,9 @@ const val HIGHLIGHTS_DEST = "highlights"
 const val COLLECT_DEST = "collect"
 const val SEARCH_DEST = "search"
 const val CONTACTS_DEST = "contacts"
+const val QURAN_DEST = "quran"
 const val PAYMENTS_DEST = "payments"
+const val EXCERPT_LIBRARY_DEST = "excerpt_library"
 const val SETTINGS_DEST = "settings"
 
 /** Which band of the rail a destination belongs to. Settings belongs to neither — see [AppRail]. */
@@ -137,7 +141,14 @@ fun AppRail(
     onFlashcards: () -> Unit,
     onHighlights: () -> Unit,
     onContacts: () -> Unit,
+    /** People on the Contacts page, shown as "K (n)" after the letter modules; null = unknown yet. */
+    contactsCount: Int? = null,
+    /** The server's Quran module is on: "A (n)" heads the server band, n = its surahs. */
+    quranEnabled: Boolean = false,
+    quranCount: Int? = null,
+    onQuran: () -> Unit = {},
     onPayments: () -> Unit = {},
+    onExcerptLibrary: () -> Unit = {},
     /** Re-fetch every server-backed page — the band's own refresh. */
     onRefreshServer: () -> Unit,
     onCollect: () -> Unit,
@@ -310,6 +321,33 @@ fun AppRail(
                 expanded = open == RailBand.SERVER.name,
                 onToggle = { toggle(RailBand.SERVER) },
             ) {
+                // The Quran first, as on the web's module list, when the module is on there.
+                if (quranEnabled) {
+                    val quranSel = selected == QURAN_DEST
+                    val quranLabel = stringResource(R.string.quran_rail)
+                    RailCell(quranSel, onQuran, height = 38.dp) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = quranLabel },
+                        ) {
+                            Text(
+                                "A",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (quranSel) MaterialTheme.colorScheme.onPrimaryContainer
+                                else MaterialTheme.colorScheme.onSurface,
+                            )
+                            quranCount?.let { c ->
+                                Text(
+                                    text = " ($c)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    HorizontalDivider(modifier = Modifier.width(36.dp))
+                }
                 NIBRAS_TYPES.forEach { type ->
                     val sel = type.code == selected
                     // Letter + count on one line, e.g. "T (12)", so the cell stays short.
@@ -333,6 +371,33 @@ fun AppRail(
                     }
                     HorizontalDivider(modifier = Modifier.width(36.dp))
                 }
+                // Contacts, the last of the modules, as on the web: its letter K and how many people
+                // the page lists. Tasks are tagged by contact as well as by tag, and this is the page
+                // that reads that back.
+                val contactsSel = selected == CONTACTS_DEST
+                val contactsLabel = stringResource(R.string.notes_rail_contacts)
+                RailCell(contactsSel, onContacts, height = 38.dp) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = contactsLabel },
+                    ) {
+                        Text(
+                            "K",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (contactsSel) MaterialTheme.colorScheme.onPrimaryContainer
+                            else MaterialTheme.colorScheme.onSurface,
+                        )
+                        contactsCount?.let { c ->
+                            Text(
+                                text = " ($c)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.width(36.dp))
                 RailCell(selected == FLASHCARDS_DEST, onFlashcards) {
                     Icon(
                         Icons.Filled.Style,
@@ -349,13 +414,12 @@ fun AppRail(
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                // The people this work is with — tasks are tagged by contact as well as by tag, and
-                // this is the page that reads that back.
-                RailCell(selected == CONTACTS_DEST, onContacts) {
+                // The Excerpt library: random pages of the ebooks to summarize (the server makes them).
+                RailCell(selected == EXCERPT_LIBRARY_DEST, onExcerptLibrary) {
                     Icon(
-                        Icons.Filled.Groups,
-                        contentDescription = stringResource(R.string.notes_rail_contacts),
-                        tint = if (selected == CONTACTS_DEST) MaterialTheme.colorScheme.onPrimaryContainer
+                        Icons.Filled.AutoStories,
+                        contentDescription = stringResource(R.string.excerpts_rail),
+                        tint = if (selected == EXCERPT_LIBRARY_DEST) MaterialTheme.colorScheme.onPrimaryContainer
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

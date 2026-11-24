@@ -87,6 +87,7 @@ fun ContactsScreen(baseUrl: String) {
                 .onSuccess { raw ->
                     cache.saveRaw(FlashCache.CONTACTS, raw)
                     val fresh = cache.contacts().orEmpty()
+                    com.knotes.nibras.ContactsCount.set(fresh.size)
                     withContext(Dispatchers.Main) {
                         people = fresh; error = null; offlineSince = null
                     }

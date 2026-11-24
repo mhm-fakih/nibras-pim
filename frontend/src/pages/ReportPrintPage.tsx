@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Box, Button, CircularProgress, Stack, Typography } from '@mui/material';
@@ -65,9 +66,7 @@ export function ReportPrintPage() {
   const covers = useCovers(report?.moduleKey, report?.columns, all?.rows);
 
   const title = report?.name ?? 'Report';
-  useEffect(() => {
-    document.title = title;
-  }, [title]);
+  useDocumentTitle(title);
 
   if (reportFailed || runFailed) {
     return (

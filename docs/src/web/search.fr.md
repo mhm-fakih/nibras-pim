@@ -124,6 +124,9 @@ lorsque seul le nom correspond), ainsi qu'un extrait du texte autour de la corre
   ouvrir cet enregistrement.
 - Les deux icônes **Open the file** (Ouvrir le fichier) et **Open its folder** (Ouvrir son dossier) les ouvrent sur
   l'ordinateur qui fait tourner le serveur.
+- **Download** (Télécharger) enregistre le fichier lui-même sur l'ordinateur depuis lequel vous
+  naviguez — utile quand ce n'est pas le serveur (accès à distance). L'infobulle donne sa taille.
+  Le fichier est récupéré en entier avant l'enregistrement : une grande vidéo prend un moment.
 
 Les dossiers parcourus, et les types de fichiers dont le contenu est lu, se règlent dans
 [Settings → File search](settings.md#file-search). Seuls les mots libres sont cherchés dans les fichiers ; les codes et

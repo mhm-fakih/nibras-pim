@@ -26,6 +26,8 @@ public record BookDto(
         Boolean isRead,
         /** When it was finished. Column existed on the table long before it was ever exposed here. */
         LocalDateTime readOn,
+        /** When it was published (a day; the year alone is resourceYear). RSS imports fill it. */
+        LocalDateTime publishedOn,
         Integer percentCompleted,
         String resourceYear,
         String pages,

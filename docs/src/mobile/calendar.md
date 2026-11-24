@@ -21,6 +21,14 @@ When **Mini calendar** is on in Settings → **Calendar & widgets** (it is by de
 
 To see further ahead, tap the small arrow at the end of the second row (**Show the whole month**). The strip unfolds into the whole month, with arrows to page to the previous or next month; days outside the month are drawn paler. Tap the arrow at the end of the month's title row (**Back to two weeks**) to fold it again.
 
+## Shamsi and Hijri dates, and official occasions
+
+Under each day's number, the header shows its Shamsi date (Persian) and Hijri date (Arabic), then
+up to two of the day's occasions from Iran's official calendar; a holiday is in red. Tap a day's
+header for all its occasions, each in Persian with the Arabic translation. The occasions are kept
+on the phone, so they show offline too (a week back and two months ahead, refreshed when the app
+starts).
+
 ## Add an entry
 
 Any of these opens the **New entry** form:

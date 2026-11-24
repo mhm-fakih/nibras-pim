@@ -63,6 +63,11 @@ You can rearrange the layout to suit you; each of these is remembered by your br
     Click the **logo** at the top of the sidebar (**Open in a new tab**) to open the app again in a
     new browser tab — already signed in — for working on two things side by side.
 
+    Every entry in the sidebar, every row in a module's list, related records, search results and
+    Kanban or dashboard cards are real links: **Ctrl/⌘-click**, middle-click or the browser's
+    **Open link in new tab** opens that page or record in a new tab, while a plain click stays in
+    this one.
+
 !!! tip "On a phone or narrow window"
     The sidebar becomes a drawer behind a **☰** menu button in the top-left corner, and the module
     view shows either the list or the record — never both. Use **Back to list** to return.
@@ -75,7 +80,9 @@ You can rearrange the layout to suit you; each of these is remembered by your br
     Writings, Departments, Courses, …) open each record type. They sit two to a row, and the number
     in brackets after each name is how many records the module holds. Which modules appear, in what
     order, and with which short code (shown at the right of the button, e.g. `T`) is set in
-    [Settings → Modules](settings.md#modules).
+    [Settings → Modules](settings.md#modules). **Payments** (the Expenses page, code `Q`, with
+    its number of expenses) follows the modules when that page is enabled. **Quran** (code `A`), when
+    switched on, comes first — see [Quran](reading-review.md#quran).
 
 === "Tool pages"
 
@@ -86,8 +93,8 @@ You can rearrange the layout to suit you; each of these is remembered by your br
     | Group | Pages |
     |---|---|
     | **Views** | Today, Calendar, Kanban, Dashboards, Insights, Sprints, Reports |
-    | **Library** | All bookmarks, Flash cards, Highlights, Local notes, Checklists (week) |
-    | **Import & export** | Batch entry, Import files, Import notes, Image renamer, Static website |
+    | **Library** | All bookmarks, Flash cards, Highlights, Local notes, Videos, Excerpt library, Checklists, Checklists (week) |
+    | **Import & export** | Batch entry, Import files, Import notes, YouTube download, File processor, Image renamer, Static website |
     | **Admin** | Parameters, Admin, Maintenance, Audit log, Trash, Settings, Users, Roles & permissions |
     | **Help & shortcuts** | Opens the help page directly |
 

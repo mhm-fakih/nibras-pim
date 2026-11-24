@@ -165,6 +165,21 @@ object AnnotationBurner {
      * The folder is dot-prefixed so the gallery's own listing skips it and backups never show up
      * as images to annotate.
      */
+    /**
+     * Moves the backup of [old] to follow its file to [new], so a renamed photo still counts as
+     * annotated (see [com.knotes.util.Review]) and its original is still found. A backup already
+     * at the new name is left alone.
+     */
+    fun followRename(old: File, new: File) {
+        if (old.absolutePath == new.absolutePath) return
+        val from = File(File(old.parentFile, BACKUP_DIR), old.name)
+        if (!from.isFile) return
+        val dir = File(new.parentFile, BACKUP_DIR)
+        val to = File(dir, new.name)
+        if (to.exists()) return
+        runCatching { dir.mkdirs(); if (!from.renameTo(to)) { from.copyTo(to); from.delete() } }
+    }
+
     private fun backup(file: File) {
         val dir = File(file.parentFile, BACKUP_DIR)
         val target = File(dir, file.name)

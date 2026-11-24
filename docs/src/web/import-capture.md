@@ -13,6 +13,7 @@ There are four ways in:
 | **Desktop app / notes folder** | As Markdown files in the notes folder the server reads | **Local notes** and **Import notes** |
 | **Capture tools** — Telegram, Firefox bookmarks, online videos | As notes written into the same notes folder | **Local notes** and **Import notes** |
 | **Any files** | Dropped into a folder on the server, named as a command | **Import files** |
+| **Any files**, one by one | In a folder on the server (`~/new`), looked at before filing | **File processor** |
 
 ## From the phone
 
@@ -37,6 +38,23 @@ department, the notes get department **X**, so they are never left without one. 
 real department while classifying, or at import. Remember that **R** notes need a resource type —
 see the tip under [Import notes](#import-notes). The tools themselves are set up on the computer
 that runs them; see the `capture/` folder of the Nibras source.
+
+**YouTube download** (sidebar → **Import & export**, for admins) runs the Media tool from the web,
+on the server, when the capture tools are set up there. Paste one or more YouTube ids or links
+(other sites yt-dlp reads work too), then choose:
+
+- **Both** (an MP4 and an MP3 of each), **Video** (the MP4 only) or **Audio** (the MP3 only);
+  **Voice quality** makes the MP3 mono 64 kbps.
+- **Subtitles** on or off: an `.srt` in the spoken language, the uploader's if there are any, else
+  the automatic ones, cleaned of their repeated lines; **Inside the video** also embeds them in the
+  MP4.
+- An optional **note text**; empty uses the video's title.
+
+**Download** starts it in the background; the page shows its progress and log, and **Stop** ends
+it. **Recent downloads** lists the last 50 with their logs, kept across server restarts; one a
+restart cut short shows as *interrupted*, and any failed one has **Retry**. When it is done, the note's path is shown with **Import as a record**, which imports it at once
+(an **R** note still needs its resource type — use **Import notes** to set one). The tools' folder
+is the setting `capture.dir` (default `~/prj/nibras-pkm/capture`).
 
 ## Local notes
 
@@ -140,6 +158,37 @@ name**, works like this:
 A **file** is moved into the new record's repository-1 folder and renamed to its title; a **folder**
 becomes the record's folder. Imported items stay on the page with a ✓ line naming the new record and
 where its files went, until you scan again.
+
+## File processor
+
+**File processor** settles a folder one entry at a time — the files you haven't named as commands,
+each looked at before it becomes a record.
+
+- **Folder to settle** is `~/new` at first; type another folder and press Enter (it's remembered).
+  The list shows one level of it, folders first; click a folder to open it, **↑** or the path to go
+  back. Hidden entries and the `DELETED` folder aren't listed.
+- Click a file to see it: an image, a text file (Markdown, plain text, CSV…), a PDF, or a recording
+  plays in the page. **‹ ›** step through the folder's files.
+- On the right, say what record to make of it:
+  - **Module** and **Title** — the title starts as the file name without its extension.
+  - **Its text into** (text files) — which field the file's text goes to: **Full text** for a
+    resource, **Description** otherwise, or any other long field.
+  - **Day** and **Goes to** — the day the file name holds (`IMG_20261114_…`, `scan 20261114….pdf`,
+    `2026-11-14`), else the day the file was last changed, and the date field it goes to
+    (**Published on** for a resource), or **Nowhere**.
+  - **Then the file** moves into the new record's repository-1 folder, or — an image — becomes its
+    cover (`cover.jpg`), or stays where it is.
+- **Create record** makes it and moves on to the next file; the green line links to the record.
+  **Skip** leaves the file for later; **Put aside** moves it into `DELETED/` in the folder being
+  settled — nothing is deleted.
+- **Delete** asks first, then moves the file (or folder) to the desktop's trash, where the file
+  manager can restore it until the trash is emptied.
+- **A whole folder as one record:** the ✓ button on a folder's row selects it instead of opening
+  it. Its contents are listed, the title is the folder name, the day comes from that name, and
+  **Text from** can take the text of one of its text files. Creating the record moves everything
+  in the folder into the record's repository-1 folder, and the emptied folder goes.
+
+The module, and per module the text and date fields you chose, are remembered in this browser.
 
 ## Image renamer
 

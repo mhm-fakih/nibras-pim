@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { linkProps } from '../util/links';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
@@ -53,7 +54,7 @@ function RecordLink({ moduleKey, id, title, exists }: { moduleKey: string; id: n
   const label = `${ENTITY_BY_KEY[moduleKey]?.label ?? moduleKey} #${id}`;
   return (
     <Box>
-      <MuiLink component="button" type="button" onClick={() => navigate(`/${moduleKey}?select=${id}`)} sx={{ fontWeight: 600 }}>
+      <MuiLink {...linkProps(`/${moduleKey}?select=${id}`, () => navigate(`/${moduleKey}?select=${id}`))} sx={{ fontWeight: 600 }}>
         {label}
       </MuiLink>
       {title ? (

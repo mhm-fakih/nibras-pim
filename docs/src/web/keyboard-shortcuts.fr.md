@@ -45,6 +45,7 @@ Appuyez sur **g**, puis sur la seconde touche dans un délai d'environ une secon
 |---|---|
 | **e** | Modifier la fiche |
 | **f** puis **1** / **2** / **3** | Ouvrir le dossier de la fiche dans le dépôt 1 / 2 / 3 (sur le bureau du serveur) |
+| **l** | Lier : sur une note, choisir la fiche à laquelle elle est liée ; sur toute autre fiche, choisir des notes à y lier (tapez des mots, un id ou une lettre et un id comme `W802`) — voir [Fiches → Liens](records.md) |
 
 ### Modification rapide { #quick-edit }
 

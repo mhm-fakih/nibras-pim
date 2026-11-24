@@ -40,8 +40,9 @@
     <string name="settings_checklist_sound_ringtone">Sonnerie…</string>
     <string name="settings_checklist_sound_file">Un fichier…</string>
     <string name="settings_checklist_sound_test">Tester</string>
-    <string name="settings_checklists_folder_hint">Un fichier .md par semaine. Vide = %1$s</string>
+    <string name="settings_checklists_folder_hint">Où les anciens fichiers de semaine (.md) sont lus, une fois. Vide = %1$s</string>
     <string name="checklists_edit_text">Modifier en texte</string>
+    <string name="checklists_note">Note</string>
     <string name="checklists_save">Enregistrer</string>
     <string name="checklists_edit_text_help">Un élément par ligne, sous un titre « ## Groupe » ; ajoutez « [weekly] » après le nom d’un groupe pour des éléments hebdomadaires. Collez, réordonnez ou supprimez librement — un élément garde ses coches tant que son texte ne change pas.</string>
 </resources>

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Box, Button, CircularProgress, IconButton, Menu, MenuItem, Stack, Tooltip, Typography } from '@mui/material';
@@ -22,10 +23,11 @@ import { dirOf } from '../util/rtl';
  *
  * Built to be glanced at on a 16:9 screen: the groups flow into as many columns as the width
  * holds, and the whole page is fitted to the window — the font steps down until nothing overflows
- * — so it never scrolls. The data is the week file the phone saves (synced into the notes folder).
+ * — so it never scrolls. The data is the checklists in the database, which the phone syncs and
+ * the Checklists page edits.
  *
- * Hands-off: it watches the files (the backend reports when they last changed; asked every few
- * seconds) and re-reads the week as soon as the phone's edit arrives, and it reloads itself every
+ * Hands-off: it watches for changes (the backend reports when anything last changed; asked every
+ * few seconds) and re-reads the week as soon as an edit arrives, and it reloads itself every
  * few minutes — a setting, changed from the header — which also brings in a new deploy and moves
  * the today shading past midnight. `?reload=N` overrides the setting for one screen.
  */
@@ -340,19 +342,17 @@ export function ChecklistDashboardPage() {
     : index?.reloadMinutes;
   useFullReload(reloadMinutes);
 
-  useEffect(() => {
-    document.title = week ? `Checklists · Week ${week.week}` : 'Checklists';
-  }, [week]);
+  useDocumentTitle(week ? `Checklists · Week ${week.week}` : 'Checklists');
 
   const at = weekId ? weeks.indexOf(weekId) : -1;
   const go = (id: string | undefined) => id && setParams({ week: id });
 
   // A failed refetch keeps what is on the wall; only a page with nothing to show says so.
   if ((indexError && !index) || (weekId && isError && !week)) {
-    return <Message text={weekId ? `No checklist file for ${weekId}.` : 'Could not read the checklists.'} />;
+    return <Message text={weekId ? `No checklists for ${weekId}.` : 'Could not read the checklists.'} />;
   }
   if (index && !weekId) {
-    return <Message text={`No checklists yet — the phone writes them to ${index.dir}.`} />;
+    return <Message text="No checklists yet — add them on the Checklists page or sync them from the phone." />;
   }
   if (isLoading || !week) {
     return (

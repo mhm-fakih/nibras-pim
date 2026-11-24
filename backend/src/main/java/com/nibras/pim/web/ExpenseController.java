@@ -43,6 +43,12 @@ public class ExpenseController {
         return service.expenses(from, to, categoryId, q, limit, status, false);
     }
 
+    /** The number of expenses, for the side menu's Payments entry. */
+    @GetMapping("/count")
+    public java.util.Map<String, Long> count() {
+        return java.util.Map.of("count", service.count());
+    }
+
     /** Lessons learned: every expense with a lesson written down, newest first. */
     @GetMapping("/lessons")
     public List<Expense> lessons(@RequestParam(required = false) Long categoryId,

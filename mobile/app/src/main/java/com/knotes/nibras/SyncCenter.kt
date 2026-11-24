@@ -60,6 +60,9 @@ object SyncCenter {
 
         PushCenter.drainAll(context)
 
+        // Checklists: rows changed here go up, rows changed on the web come down.
+        runCatching { com.knotes.checklist.ChecklistSync.sync(context) }
+
         // Bookmark flags taken offline (the star in StarAction.BACKEND_UNBOOKMARK mode). Pushed
         // BEFORE the pull, so a record un-bookmarked while offline is already off the server's list
         // by the time this same sync fetches it — one round trip, not two.

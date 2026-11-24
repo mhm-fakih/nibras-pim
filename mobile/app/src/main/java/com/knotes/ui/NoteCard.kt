@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BorderColor
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -42,6 +43,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -110,6 +121,11 @@ internal fun NoteCard(
      * date every answer to the moment it landed on the phone.
      */
     whenText: String = note.timeText(),
+    /**
+     * The list's search, when one is active: the card then shows where in the note it matched —
+     * a few excerpts with the match marked — since the preview shows only the note's start.
+     */
+    searchQuery: String = "",
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -144,6 +160,7 @@ internal fun NoteCard(
                 style = MaterialTheme.typography.bodyLarge.merge(PREVIEW_DIRECTION),
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (searchQuery.isNotBlank()) SearchContext(note, searchQuery, settings.previewLines)
             // Attached files (companion .d folder) — same overview as the desktop cards: up to 5
             // names, tap one to open it. "+N more" lists the rest here on the card, so every file
             // still opens in the app (player, image annotator, PDF viewer); only the ⋮ menu hands
@@ -200,8 +217,44 @@ internal fun NoteCard(
                 }
                 note.category?.let {
                     NoteBadge(it, MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
+                    Spacer(Modifier.width(4.dp))
                 }
-                Spacer(Modifier.weight(1f))
+                // As on the desktop card: from a length on, how much of the note has been worked
+                // through — shown even at zero, which on a long note is the signal. Red-ish none,
+                // orange one or two, green three or more (the desktop's default pill colours).
+                if (note.content.length >= HIGHLIGHT_COUNT_MIN_CHARS) {
+                    val hl = remember(note.content) { com.knotes.util.Highlights.count(note.content) }
+                    // Highlighter + number, not the words: the footer row is shared with the
+                    // badges, the date and Edit, and on a narrow phone the words pushed Edit to wrap.
+                    val hlLabel = pluralStringResource(R.plurals.notes_card_highlights, hl, hl)
+                    Surface(
+                        color = when {
+                            hl <= 0 -> Color(0xFFF8D0D0)
+                            hl <= 2 -> Color(0xFFFBE0B8)
+                            else -> Color(0xFFCDECCD)
+                        },
+                        contentColor = Color(0xFF2B2B2B),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = hlLabel },
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        ) {
+                            Icon(Icons.Filled.BorderColor, contentDescription = null, modifier = Modifier.size(12.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text(hl.toString(), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                        }
+                    }
+                }
+                // The status and date take what's left and give way first (the date ellipsizes), so
+                // Edit, delete and ⋮ always fit on a narrow phone.
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                Spacer(Modifier.width(4.dp))
                 // Backend-push status: outlined up-cloud while queued, filled done-cloud once synced.
                 when (pushState) {
                     PushState.QUEUED -> Icon(
@@ -219,7 +272,10 @@ internal fun NoteCard(
                     text = whenText,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
+                }
                 if (readOnly) {
                     // Nothing to write, so the only thing worth a control is the files folder —
                     // and only when there is one. Otherwise the row ends at the timestamp.
@@ -249,7 +305,7 @@ internal fun NoteCard(
                 ) {
                     Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.notes_edit), style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.notes_edit), style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
                 }
                 // Delete sits on the card rather than only in the ⋮ menu, but never deletes on the
                 // tap: it opens a dialog that either confirms or explains why it can't.
@@ -382,6 +438,8 @@ private fun DeleteNoteDialog(note: Note, onDismiss: () -> Unit, onConfirm: () ->
     )
 }
 
+/** The desktop's default "Counts shown from": shorter notes are whole on the card already. */
+private const val HIGHLIGHT_COUNT_MIN_CHARS = 120
 
 @Composable
 internal fun NoteBadge(text: String, container: Color, content: Color) {
@@ -396,3 +454,54 @@ internal fun NoteBadge(text: String, container: Color, content: Color) {
 
 /** Backend-push status of a note: queued in the outbox, or already created on the server. */
 internal enum class PushState { QUEUED, PUSHED }
+
+/** The marker behind a match: the desktop's search-excerpt yellow. */
+private val SEARCH_MATCH_BG = Color(0xFFFFD54F)
+
+/**
+ * Where [query] occurs in [note]: "N matches", then up to three excerpts with the match marked,
+ * under a yellow rule as on the desktop. Not drawn when the match is only in the tags, or when the
+ * note is short enough that the preview already shows all of it.
+ */
+@Composable
+private fun SearchContext(note: Note, query: String, previewLines: Int) {
+    val result = remember(note.content, query) { com.knotes.util.SearchSnippets.find(note.content, query) }
+    if (result.snippets.isEmpty()) return
+    val fits = remember(note.content, previewLines) {
+        val plain = note.searchText()
+        plain.length <= previewLines * SEARCH_CONTEXT_CHARS_PER_LINE && plain.count { it == '\n' } < previewLines
+    }
+    if (fits) return
+    val rule = SEARCH_MATCH_BG
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 8.dp).height(IntrinsicSize.Min)) {
+        Box(Modifier.width(3.dp).fillMaxHeight().background(rule))
+        Spacer(Modifier.width(6.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                pluralStringResource(R.plurals.notes_card_search_matches, result.total, result.total),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            result.snippets.forEach { s ->
+                Text(
+                    text = buildAnnotatedString {
+                        append(s.before)
+                        withStyle(SpanStyle(background = SEARCH_MATCH_BG, color = Color(0xFF101010), fontWeight = FontWeight.Bold)) {
+                            append(s.match)
+                        }
+                        append(s.after)
+                    },
+                    // Direction from the excerpt's first strong letter: an Arabic excerpt reads
+                    // from the right, its leading "…" included.
+                    style = MaterialTheme.typography.bodySmall.merge(PREVIEW_DIRECTION),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Roughly what a preview line holds on a phone; a note within its preview needs no excerpts. */
+private const val SEARCH_CONTEXT_CHARS_PER_LINE = 40

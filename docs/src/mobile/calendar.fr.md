@@ -21,6 +21,14 @@ Lorsque **Mini-calendrier** est activé dans Paramètres → **Calendrier et wid
 
 Pour voir plus loin, touchez la petite flèche au bout de la deuxième ligne (**Afficher le mois entier**). La bande se déplie en un mois complet, avec des flèches pour passer au mois précédent ou suivant ; les jours hors du mois sont plus pâles. Touchez la flèche au bout de la ligne du titre du mois (**Revenir à deux semaines**) pour la replier.
 
+## Dates solaires et hégiriennes, et occasions officielles { #shamsi-and-hijri-dates }
+
+Sous le numéro de chaque jour, l'en-tête montre sa date solaire (en persan) et sa date hégirienne (en arabe), puis
+jusqu'à deux occasions du jour selon le calendrier officiel de l'Iran ; un jour férié est en rouge. Touchez l'en-tête
+d'un jour pour toutes ses occasions, chacune en persan avec sa traduction arabe. Les occasions sont gardées sur le
+téléphone et s'affichent donc aussi hors ligne (une semaine en arrière et deux mois en avant, rafraîchies au
+démarrage de l'application).
+
 ## Ajouter une entrée { #add-an-entry }
 
 Chacune de ces actions ouvre le formulaire **Nouvelle entrée** :

@@ -93,7 +93,7 @@ public class AttachmentService {
     }
 
     /** {@code <stem>.<yyyyMMdd-HHmmss>[.n]<ext>} next to {@code target}, not yet existing. */
-    private static Path withDateStamp(Path target) {
+    static Path withDateStamp(Path target) {
         String name = target.getFileName().toString();
         int dot = name.lastIndexOf('.');
         // A dot at position 0 (dotfile, e.g. ".gitignore") isn't an extension separator.
@@ -107,6 +107,93 @@ public class AttachmentService {
             candidate = target.resolveSibling(stem + "." + ts + "." + n++ + ext);
         }
         return candidate;
+    }
+
+    /**
+     * Moves (or copies) one of the record's files from repository {@code from} to the same record's
+     * folder in repository {@code to} — e.g. from repo 2 into repo 1, which Syncthing carries to the
+     * phone. A name already taken there gets the same date-stamped suffix as an upload, so nothing
+     * is overwritten.
+     *
+     * <p>A symbolic link (repo 2 holds many, into an external drive) is copied as the file it points
+     * to, not as the link: a link to a drive the phone doesn't have would sync as nothing. Moving
+     * one then removes the link only; the file on the drive stays. A link whose drive isn't attached
+     * is refused, since there is nothing to copy.
+     *
+     * @return the name the file has in repository {@code to}
+     */
+    public String transfer(String module, long id, int from, int to, String relative, boolean move) {
+        if (from == to) throw new ResponseStatusException(BAD_REQUEST, "Pick another repository.");
+        Path source = resolveInRepo(module, id, from, relative);
+        boolean link = Files.isSymbolicLink(source);
+        if (Files.isDirectory(source)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Folders can't be moved from here.");
+        }
+        if (!Files.isRegularFile(source)) {
+            throw new ResponseStatusException(BAD_REQUEST, link
+                    ? "It links to a file on a drive that isn't attached." : "File not found.");
+        }
+        Path target = resolveInRepo(module, id, to, source.getFileName().toString());
+        if (Files.exists(target, java.nio.file.LinkOption.NOFOLLOW_LINKS)) target = withDateStamp(target);
+        try {
+            Files.createDirectories(target.getParent());
+            if (move && !link) {
+                // A rename within one disk, copy-then-delete across disks (the JDK decides).
+                Files.move(source, target);
+            } else {
+                Files.copy(source, target, java.nio.file.StandardCopyOption.COPY_ATTRIBUTES);
+                if (move) Files.delete(source);   // the link itself; the file it pointed to stays
+            }
+        } catch (java.io.IOException e) {
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Could not " + (move ? "move" : "copy") + " the file: " + e.getMessage(), e);
+        }
+        return target.getFileName().toString();
+    }
+
+    /**
+     * Moves a file or folder from outside the repositories into the record's repo-1 folder, under
+     * its own name — date-stamped, never overwriting, when the name is taken there.
+     *
+     * @return where it now is
+     */
+    public Path moveIn(String module, long id, Path source) {
+        Path target = resolveInRepo(module, id, 1, source.getFileName().toString());
+        if (Files.exists(target, java.nio.file.LinkOption.NOFOLLOW_LINKS)) target = withDateStamp(target);
+        return moveTo(source, target);
+    }
+
+    /** The record's repo-1 folder (not created). */
+    public Path folderInRepo1(String module, long id) {
+        return resolveInRepo(module, id, 1, "x").getParent();
+    }
+
+    /**
+     * Moves an image in as the record's cover, renamed {@code cover.<ext>} (lower-case extension).
+     * Refused when the record already has a cover, like {@link #storeCover}.
+     */
+    public Path moveInAsCover(String module, long id, Path source) {
+        String name = source.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        String ext = dot > 0 ? name.substring(dot + 1).toLowerCase(java.util.Locale.ROOT) : "";
+        if (!COVER_EXTS.contains(ext)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Not an image a cover can be made of: " + name);
+        }
+        if (cover(module, id).isPresent()) {
+            throw new ResponseStatusException(BAD_REQUEST, "This record already has a cover image.");
+        }
+        return moveTo(source, resolveInRepo(module, id, 1, "cover." + ext));
+    }
+
+    private static Path moveTo(Path source, Path target) {
+        try {
+            Files.createDirectories(target.getParent());
+            // A rename on one disk, copy-then-delete across disks (the JDK decides).
+            return Files.move(source, target);
+        } catch (java.io.IOException e) {
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Could not move " + source.getFileName() + ": " + e.getMessage(), e);
+        }
     }
 
     /** Delete a file (not a folder) from the record's folder in repository {@code repo}. */
@@ -139,7 +226,12 @@ public class AttachmentService {
         } catch (RuntimeException notResolvable) {
             return Optional.empty();   // module not in repo config etc. -> just no cover
         }
-        if (!Files.isDirectory(dir)) {
+        return coverIn(dir);
+    }
+
+    /** The {@code cover.<ext>} image in {@code dir}, the preferred extension first. */
+    public static Optional<Path> coverIn(Path dir) {
+        if (dir == null || !Files.isDirectory(dir)) {
             return Optional.empty();
         }
         try (var stream = Files.list(dir)) {

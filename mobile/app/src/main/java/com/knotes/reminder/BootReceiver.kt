@@ -41,6 +41,7 @@ class BootReceiver : BroadcastReceiver() {
         // that silently stops existing after a restart is the worst failure this feature has.
         AlarmScheduler.rearm(context)
         PrayerWidget.refresh(context)
+        runCatching { DatesWidget.refresh(context) }
         // The daily collection alarm, which the reboot also cleared.
         CollectScheduler.sync(context)
     }

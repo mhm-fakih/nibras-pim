@@ -7,6 +7,9 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -138,11 +141,14 @@ fun CalendarScreen(
 
     var dayCount by rememberSaveable { mutableStateOf(3) }
     var slotMin by rememberSaveable { mutableStateOf(30) }
+    val context = LocalContext.current
     var anchorEpochDay by rememberSaveable { mutableStateOf(LocalDate.now().toEpochDay()) }
     val anchor = LocalDate.ofEpochDay(anchorEpochDay)
     val days = (0 until dayCount).map { anchor.plusDays(it.toLong()) }
 
     var addFor by remember { mutableStateOf<Triple<LocalDate, LocalTime, LocalTime>?>(null) }
+    // The day whose three dates and official occasions are shown in a dialog (tap a day header).
+    var dayInfo by remember { mutableStateOf<LocalDate?>(null) }
     // Non-null while the edit dialog is open for an existing (already-synced) event.
     var editing by remember { mutableStateOf<CalendarEvent?>(null) }
     var batchOpen by rememberSaveable { mutableStateOf(false) }
@@ -190,16 +196,45 @@ fun CalendarScreen(
                 Spacer(Modifier.width(4.dp))
                 FilterChip(selected = dayCount == 3, onClick = { dayCount = 3 }, label = { Text(stringResource(R.string.server_calendar_days_short, 3)) })
             }
-            // Day-of-week / date header, aligned with the grid columns.
+            // Day-of-week / date header, aligned with the grid columns — with each day's Shamsi and
+            // Hijri dates, and the occasions of Iran's official calendar (tap for the full list).
+            val official by com.knotes.calendar.IranCalendar.days.collectAsState()
+            val hijriOffset = remember { com.knotes.prayer.PrayerSettingsStore(context).value.hijriOffsetDays }
             Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
                 Spacer(Modifier.width(TIME_COL))
                 days.forEach { d ->
                     val isToday = d == LocalDate.now()
-                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    val off = official[d]
+                    val holiday = off?.holiday == true || d.dayOfWeek == java.time.DayOfWeek.FRIDAY
+                    val sh = com.knotes.calendar.Shamsi.of(d)
+                    val hj = com.knotes.prayer.Hijri.fromGregorian(d.year, d.monthValue, d.dayOfMonth, hijriOffset)
+                    Column(
+                        modifier = Modifier.weight(1f).clickable { dayInfo = d },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
                         Text(d.format(DOW), style = MaterialTheme.typography.labelSmall,
                             color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(d.format(DAY), style = MaterialTheme.typography.labelMedium,
-                            color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                            color = if (holiday) Color(0xFFD32F2F) else if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                        Text(
+                            "${com.knotes.calendar.Shamsi.faDigits(sh.day)} ${sh.monthFa} · ${com.knotes.calendar.Shamsi.arDigits(hj.day)} ${hj.monthArabic}",
+                            style = MaterialTheme.typography.labelSmall.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Rtl),
+                            fontSize = 10.sp, maxLines = 1,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        off?.occasions?.take(2)?.forEach { o ->
+                            Text(
+                                o.fa,
+                                style = MaterialTheme.typography.labelSmall.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Rtl),
+                                fontSize = 10.sp, maxLines = 2, lineHeight = 12.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Right,
+                                color = if (o.holiday) Color(0xFFD32F2F) else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                            )
+                        }
+                        if ((off?.occasions?.size ?: 0) > 2) {
+                            Text("+${off!!.occasions.size - 2}", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+                        }
                     }
                 }
             }
@@ -233,6 +268,19 @@ fun CalendarScreen(
                 }
             }
         }
+    }
+
+    dayInfo?.let { d ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { dayInfo = null },
+            confirmButton = { TextButton(onClick = { dayInfo = null }) { Text("OK") } },
+            text = {
+                androidx.compose.foundation.layout.Box(Modifier.verticalScroll(rememberScrollState())) {
+                    com.knotes.calendar.DayDetails(d, com.knotes.prayer.PrayerSettingsStore(context).value.hijriOffsetDays,
+                        com.knotes.calendar.IranCalendar.days.value[d])
+                }
+            },
+        )
     }
 
     addFor?.let { (date, start, end) ->

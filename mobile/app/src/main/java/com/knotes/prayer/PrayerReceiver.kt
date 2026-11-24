@@ -223,6 +223,11 @@ class PrayerReceiver : BroadcastReceiver() {
                 // so with no file chosen this is the phone's default alarm sound.
                 startNow = startNow,
                 alarmLevel = setDeviceLevel,
+                // Hearing the file itself plays it as it is; the athan rises.
+                riseSeconds = if (setDeviceLevel) settings.athanRiseSeconds else 0,
+                riseFromDb = settings.athanRiseFromDb,
+                // "Hear the chosen file" plays it as it is.
+                gainDb = if (setDeviceLevel) settings.athanGainDb else 0,
             )
         }
 
@@ -416,6 +421,7 @@ class PrayerReceiver : BroadcastReceiver() {
             runCatching { player?.stop() }
             runCatching { player?.release() }
             player = null
+            shaper = null
             releaseVolumeKeys()
             // An athan that set the alarm volume puts it back the moment it stops — ended, Stop,
             // or replaced by another sound (which sets its own level again if it needs one).
@@ -463,6 +469,19 @@ class PrayerReceiver : BroadcastReceiver() {
             }
         }
 
+        /**
+         * The athan's rise, as a [android.media.VolumeShaper]: run by the media server, not by this
+         * process, so it keeps rising when Android freezes the app after the alarm broadcast — a
+         * timer here would stall at a whisper. It scales the player's own gain, so the athan still
+         * ends at its configured loudness. Android 8+; before that the athan starts at its volume.
+         */
+        private fun rise(mp: MediaPlayer, seconds: Int, fromDb: Int) {
+            shaper = com.knotes.alarm.SoundGain.rise(mp, seconds, fromDb, TAG)
+        }
+
+        /** Held while the athan plays, so the shaper is not collected mid-rise. */
+        private var shaper: Any? = null
+
         /** Plays left in a beep sequence; only meaningful while one is running. */
         private var beepsRemaining = 0
 
@@ -492,6 +511,12 @@ class PrayerReceiver : BroadcastReceiver() {
             startNow: Boolean = false,
             /** Set the alarm stream to [volumePercent] instead of scaling within it — the athan. */
             alarmLevel: Boolean = false,
+            /** Rise from far below to the volume over this long; 0 starts at it. */
+            riseSeconds: Int = 0,
+            /** How far below the volume the rise starts, in dB. */
+            riseFromDb: Int = PrayerSettings.DEFAULT_ATHAN_RISE_FROM_DB,
+            /** The whole sound this many dB quieter, in the player (the athan's "quieter by"). */
+            gainDb: Int = 0,
         ) {
             stopAthan()
             // A muted athan is a decision, not a reason to fall back to the default sound.
@@ -500,7 +525,9 @@ class PrayerReceiver : BroadcastReceiver() {
                 ?: fallback
                 ?: RingtoneManager.getDefaultUri(defaultType)
                 ?: return
-            val gain = if (alarmLevel) applyAlarmLevel(context.applicationContext, volumePercent) else 1f
+            val gain = (if (alarmLevel) applyAlarmLevel(context.applicationContext, volumePercent) else 1f) *
+                com.knotes.alarm.SoundGain.toGain(gainDb)
+            Log.i(TAG, "player gain $gain ($gainDb dB), rise ${riseSeconds}s from $riseFromDb dB")
             runCatching {
                 player = MediaPlayer().apply {
                     setAudioAttributes(
@@ -517,9 +544,10 @@ class PrayerReceiver : BroadcastReceiver() {
                     setOnCompletionListener { stopAthan() }
                     if (startNow) {
                         prepare()
+                        rise(this, riseSeconds, riseFromDb)
                         start()
                     } else {
-                        setOnPreparedListener { start() }
+                        setOnPreparedListener { rise(it, riseSeconds, riseFromDb); start() }
                         prepareAsync()
                     }
                 }

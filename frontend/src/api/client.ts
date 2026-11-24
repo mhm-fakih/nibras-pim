@@ -421,6 +421,55 @@ export async function getRelated(module: string, id: number): Promise<RelatedGro
   return data;
 }
 
+// ---- Note ↔ record links (index_card.entity_code + record_id) ---------------------------------
+
+export interface LinkTarget {
+  module: string;
+  id: number;
+  title: string | null;
+  /** False when the record is gone (deleted, or never existed under that id). */
+  exists: boolean;
+}
+export interface LinkedNote {
+  id: number;
+  title: string;
+  /** Its place among the record's notes (a verse number), when it has one. */
+  order: number | null;
+}
+export interface RecordLinks {
+  /** What this record (a note) is linked to. */
+  target: LinkTarget | null;
+  count: number;
+  notes: LinkedNote[];
+}
+
+export async function getRecordLinks(module: string, id: number): Promise<RecordLinks> {
+  const { data } = await http.get(`/links/${module}/${id}`);
+  return data;
+}
+
+/** The modules a note can be linked to. */
+export async function getLinkableModules(): Promise<string[]> {
+  const { data } = await http.get('/links/modules');
+  return data;
+}
+
+/** Links the note to a record, replacing any link it had. */
+export async function linkNote(noteId: number, module: string, id: number): Promise<LinkTarget> {
+  const { data } = await http.put(`/links/notes/${noteId}`, { module, id });
+  return data;
+}
+
+export async function unlinkNote(noteId: number): Promise<void> {
+  await http.delete(`/links/notes/${noteId}`);
+}
+
+/** Links several notes to one record at once, numbered from {@code firstOrder} on when it is given. */
+export async function linkNotes(module: string, id: number, noteIds: number[], firstOrder?: number): Promise<number> {
+  const { data } = await http.post(`/links/${module}/${id}`, { noteIds, firstOrder });
+  return data.linked;
+}
+
 /** Set (or clear, when targetId omitted) a ManyToOne link by id. */
 export async function linkRecord(
   module: string,
@@ -761,6 +810,24 @@ export async function deleteRepoFile(
   await http.delete(`/attachments/${module}/${id}/file`, { params: { repo, path: name } });
 }
 
+/**
+ * Move (or copy, with move=false) a file from repository `repo` to repository `to`, into the same
+ * record's folder there. Resolves to the name it has there (date-stamped if the name was taken).
+ */
+export async function transferRepoFile(
+  module: string,
+  id: number,
+  repo: number,
+  to: number,
+  name: string,
+  move: boolean,
+): Promise<string> {
+  const { data } = await http.post(`/attachments/${module}/${id}/transfer`, null, {
+    params: { repo, to, path: name, move },
+  });
+  return data.name;
+}
+
 /** Direct URL for an anchor/img (bypasses the axios `/api` baseURL). */
 export function repoFileUrl(module: string, id: number, repo: number, name: string): string {
   return `${BASE}api/attachments/${module}/${id}/file?repo=${repo}&path=${encodeURIComponent(name)}`;
@@ -861,6 +928,20 @@ export interface DayJournal {
   module: string;
   id: number;
   created: boolean;
+}
+
+export interface BoardAppend {
+  id: number;
+  summary: string;
+  created: boolean;
+  typeCreated: boolean;
+}
+
+/** Quick board: append text (stamped [HH:mm]) to today's 'board' journal, creating it (and the
+ * type) when missing. */
+export async function appendToBoard(text: string): Promise<BoardAppend> {
+  const { data } = await http.post('/journals/board', { text });
+  return data;
 }
 
 /** Get-or-create the day's summary ('smm') journal + its repo-1 symlinks. date = YYYY-MM-DD. */
@@ -1713,6 +1794,12 @@ export interface DashboardFileContent {
   truncated: boolean;
 }
 
+/** The desktop's quick-tasks.md without its ticked tasks; null when the notes folder has none. */
+export async function getQuickTasks(): Promise<DashboardFileContent | null> {
+  const { data, status } = await http.get('/custom-dashboards/quick-tasks');
+  return status === 204 || !data ? null : data;
+}
+
 /** Reads a file's plain-text content under repo 1/2/3, for the "file" component. */
 export async function getDashboardFileContent(repo: number, path: string): Promise<DashboardFileContent> {
   const { data } = await http.get('/custom-dashboards/file-content', { params: { repo, path } });
@@ -1756,6 +1843,8 @@ export interface PublicDashboardRegion {
   plans?: EntityRecord[] | null;
   /** 'tasks' regions: files in each task's repository-1 folder, by task id. */
   taskFiles?: Record<string, number> | null;
+  /** 'indicatorTicker' regions: the bookmarked indicators' latest and previous values. */
+  indicatorTrends?: IndicatorTrend[] | null;
 }
 
 export interface PublicDashboardSnapshot {
@@ -2220,6 +2309,11 @@ export interface FileSearchConfig {
   maxMb: number;
 }
 
+/** Download a file found by the file search to this browser's machine (indexed files only). */
+export async function downloadFoundFile(path: string, name: string): Promise<void> {
+  await downloadFile(`${BASE}api/search/files/download?path=${encodeURIComponent(path)}`, name);
+}
+
 export async function getFileSearchConfig(): Promise<FileSearchConfig> {
   const { data } = await http.get('/search/files/config');
   return data;
@@ -2303,7 +2397,7 @@ export async function updateLocalNotesConfig(body: {
   return data;
 }
 
-// ---------------------------------------------------------------- checklists (read-only)
+// ---------------------------------------------------------------- checklists
 
 /** One mark of a checklist item: per day for a daily group, one for the week for a weekly one. */
 export type ChecklistMark = 'DONE' | 'PARTIAL' | 'NONE';
@@ -2312,6 +2406,10 @@ export interface ChecklistItem {
   code: number;
   text: string;
   marks: ChecklistMark[];
+  /** The item's id in the database. */
+  uid: string;
+  /** Each mark's note, null where there is none (same length as marks). */
+  notes: (string | null)[];
 }
 
 export interface ChecklistGroup {
@@ -2319,6 +2417,7 @@ export interface ChecklistGroup {
   title: string;
   weekly: boolean;
   items: ChecklistItem[];
+  uid: string;
 }
 
 export interface ChecklistWeek {
@@ -2340,6 +2439,8 @@ export interface ChecklistIndex {
   changed: number;
   /** Minutes between the dashboard's full reloads; 0 = never. */
   reloadMinutes: number;
+  /** Whose change stands when the phone and the web changed the same thing between two syncs. */
+  winner: 'mobile' | 'web';
 }
 
 /** Which weeks the phone has written, and which week it is now. */
@@ -2348,9 +2449,81 @@ export async function getChecklistIndex(): Promise<ChecklistIndex> {
   return data;
 }
 
-/** One week of the phone's checklists, as the phone last saved it. */
+/** One week of the checklists: the groups and items active in it, with each day's mark and note. */
 export async function getChecklistWeek(id: string): Promise<ChecklistWeek> {
   const { data } = await http.get(`/checklists/${encodeURIComponent(id)}`);
+  return data;
+}
+
+export interface ChecklistCheck {
+  uid: string;
+  item: string;
+  day: string;
+  mark: ChecklistMark;
+  note: string | null;
+}
+
+/** Sets one day's mark and note (a weekly item's go on its week's Monday). */
+export async function setChecklistCheck(item: string, day: string, mark: ChecklistMark, note: string | null): Promise<ChecklistCheck> {
+  const { data } = await http.put('/checklists/checks', { item, day, mark, note });
+  return data;
+}
+
+export interface ChecklistItemRow {
+  uid: string;
+  category: string;
+  code: number;
+  name: string;
+  start: string;
+  end: string | null;
+}
+
+/** A new group, starting with week `week`. */
+export async function createChecklistGroup(name: string, weekly: boolean, week: string): Promise<void> {
+  await http.post('/checklists/categories', { name, weekly, week });
+}
+
+/** Rename, daily/weekly, or end (active=false: gone from `week` on) / reopen a group. */
+export async function updateChecklistGroup(
+  uid: string,
+  change: { name?: string; weekly?: boolean; active?: boolean; week?: string },
+): Promise<void> {
+  await http.patch(`/checklists/categories/${encodeURIComponent(uid)}`, change);
+}
+
+export async function createChecklistItem(category: string, name: string, week: string): Promise<void> {
+  await http.post('/checklists/items', { category, name, week });
+}
+
+export async function updateChecklistItem(uid: string, change: { name?: string; active?: boolean; week?: string }): Promise<void> {
+  await http.patch(`/checklists/items/${encodeURIComponent(uid)}`, change);
+}
+
+export interface ChecklistHistoryEntry {
+  day: string;
+  mark: ChecklistMark;
+  note: string | null;
+}
+
+/** Every day of one item with a mark or a note, newest first. */
+export async function getChecklistHistory(uid: string): Promise<ChecklistHistoryEntry[]> {
+  const { data } = await http.get(`/checklists/items/${encodeURIComponent(uid)}/history`);
+  return data;
+}
+
+/** Items not on the list in week `week` — ended before it or starting after it — to reopen. */
+export async function getInactiveChecklistItems(week: string): Promise<ChecklistItemRow[]> {
+  const { data } = await http.get('/checklists/inactive', { params: { week } });
+  return data;
+}
+
+export async function setChecklistWinner(winner: 'mobile' | 'web'): Promise<void> {
+  await http.put('/checklists/winner', { winner });
+}
+
+/** Reads the week files in the notes folder again, adding only what the database lacks. */
+export async function importChecklistFiles(): Promise<{ added: number }> {
+  const { data } = await http.post('/checklists/import');
   return data;
 }
 
@@ -2586,6 +2759,11 @@ export async function listExpenses(params: {
   const { data } = await http.get('/expenses', { params: { ...params, categoryId: params.categoryId ?? undefined } });
   return data;
 }
+/** How many expenses there are, for the side menu. */
+export async function countExpenses(): Promise<number> {
+  const { data } = await http.get('/expenses/count');
+  return data.count as number;
+}
 export async function createExpense(input: ExpenseInput): Promise<Expense> {
   const { data } = await http.post('/expenses', input);
   return data;
@@ -2657,5 +2835,420 @@ export async function getExpenseYearsReport(currency?: string): Promise<ExpenseY
 /** Files in each task's repository-1 folder, by task id (the dashboard's open tasks). */
 export async function getTaskRepo1FileCounts(ids: number[]): Promise<Record<string, number>> {
   const { data } = await http.get('/tasks/repo1-file-counts', { params: { ids: ids.join(',') } });
+  return data;
+}
+
+// ---- File processor: settle a folder one entry at a time ------------------------------------
+
+export interface SettleEntry {
+  name: string;
+  directory: boolean;
+  size: number;
+  modified: string | null;
+  /** image, text, pdf, audio, video, folder or other. */
+  kind: string;
+}
+
+export interface SettleListing {
+  /** The folder being settled (absolute). */
+  dir: string;
+  /** The subfolder shown, relative to `dir`; "" for the folder itself. */
+  path: string;
+  entries: SettleEntry[];
+}
+
+export async function getSettleListing(path: string, dir?: string): Promise<SettleListing> {
+  const { data } = await http.get('/file-settle', { params: { path, dir: dir || undefined } });
+  return data;
+}
+
+export async function getSettleText(path: string): Promise<{ text: string; truncated: boolean }> {
+  const { data } = await http.get('/file-settle/text', { params: { path } });
+  return data;
+}
+
+/** The file itself, for an image/PDF/audio/video preview (the API needs the auth header). */
+export async function getSettleBlob(path: string): Promise<Blob> {
+  const { data } = await http.get('/file-settle/raw', { params: { path }, responseType: 'blob' });
+  return data;
+}
+
+/** Moves the entry into the record just made of it (an image optionally in as its cover). */
+export async function attachSettled(body: {
+  path: string;
+  module: string;
+  id: number;
+  asCover: boolean;
+}): Promise<{ movedTo: string }> {
+  const { data } = await http.post('/file-settle/attach', body);
+  return data;
+}
+
+/** Puts the entry aside in DELETED/ of the folder being settled. */
+export async function discardSettled(path: string): Promise<{ movedTo: string }> {
+  const { data } = await http.post('/file-settle/discard', { path });
+  return data;
+}
+
+/** Moves a File-processor entry to the desktop's trash (restorable from the file manager). */
+export async function trashSettled(path: string): Promise<{ movedTo: string }> {
+  const { data } = await http.post('/file-settle/trash', { path });
+  return data;
+}
+
+// ---- Videos page (the phone's, on the web) ------------------------------------------------------
+
+/** One video under the videos folder. `src`/`thumb` are signed links (relative to BASE), good for hours. */
+export interface VideoItem {
+  path: string;
+  name: string;
+  folder: string;
+  size: number;
+  modified: string;
+  durationMs: number | null;
+  bookmarks: number;
+  src: string;
+  thumb: string;
+}
+
+export interface VideoMark {
+  ms: number;
+  text: string;
+}
+
+export async function listVideos(): Promise<{ root: string; videos: VideoItem[] }> {
+  const { data } = await http.get('/videos');
+  return data;
+}
+
+export async function getVideoMarks(path: string): Promise<VideoMark[]> {
+  const { data } = await http.get('/videos/marks', { params: { path } });
+  return data;
+}
+
+/** Adds a bookmark to the video's `.tmk` (the phone player's file; syncs both ways). */
+export async function addVideoMark(path: string, ms: number, text: string): Promise<VideoMark[]> {
+  const { data } = await http.post('/videos/marks', { path, ms, text });
+  return data;
+}
+
+// ---- slide preview of a record's document --------------------------------------------------------
+
+/** `page` is a signed link to append `&n=<page>&w=<width>` to; `file` the document itself. */
+export interface SlideDeck {
+  name: string;
+  pages: number;
+  page: string;
+  file: string;
+}
+
+export async function getSlides(module: string, id: number, repo: number, path: string): Promise<SlideDeck> {
+  const { data } = await http.get(`/attachments/${module}/${id}/slides`, { params: { repo, path } });
+  return data;
+}
+
+/** Documents the slide viewer can show (PDF, or converted by LibreOffice on the server). */
+export const SLIDE_EXT = new Set(['pdf', 'ppt', 'pptx', 'pps', 'ppsx', 'odp', 'key', 'doc', 'docx', 'odt', 'rtf', 'xls', 'xlsx', 'ods', 'epub']);
+
+export const isSlideDoc = (name: string) => SLIDE_EXT.has(name.split('.').pop()?.toLowerCase() ?? '');
+
+/** A signed media link (as the server returns it, relative) as a URL the browser can load. */
+export const mediaUrl = (link: string) => `${BASE}${link}`;
+
+// ---- media download (the capture tools' media-dl.sh) -------------------------------------------
+
+export type MediaCaptureMode = 'BOTH' | 'VIDEO' | 'AUDIO';
+
+export interface MediaCaptureJob {
+  id: string;
+  started: string;
+  finished: string | null;
+  status: 'QUEUED' | 'RUNNING' | 'DONE' | 'FAILED';
+  links: string[];
+  mode: MediaCaptureMode;
+  subtitles: boolean;
+  /** The Resource note written, full path; set once the run has saved something. */
+  note: string | null;
+  noteDir: string | null;
+  noteFile: string | null;
+  /** Cut short by a server restart. */
+  interrupted: boolean;
+  log: string[];
+}
+
+export interface MediaCaptureState {
+  dir: string;
+  problem: string | null;
+  jobs: MediaCaptureJob[];
+}
+
+export interface MediaCaptureRequest {
+  links: string[];
+  mode: MediaCaptureMode;
+  subtitles: boolean;
+  embedSubtitles: boolean;
+  voice: boolean;
+  text: string;
+}
+
+export async function getMediaCapture(): Promise<MediaCaptureState> {
+  const { data } = await http.get('/admin/media-capture');
+  return data;
+}
+
+export async function startMediaCapture(req: MediaCaptureRequest): Promise<MediaCaptureJob> {
+  const { data } = await http.post('/admin/media-capture', req);
+  return data;
+}
+
+export async function retryMediaCapture(id: string): Promise<MediaCaptureJob> {
+  const { data } = await http.post(`/admin/media-capture/${encodeURIComponent(id)}/retry`);
+  return data;
+}
+
+export async function cancelMediaCapture(id: string): Promise<MediaCaptureJob> {
+  const { data } = await http.post(`/admin/media-capture/${encodeURIComponent(id)}/cancel`);
+  return data;
+}
+
+/** Imports a note from a given folder (not the import folder setting) as a record. */
+export async function importNoteFrom(filename: string, dir: string): Promise<ImportResult> {
+  const { data } = await http.post('/import/notes', { filename, dir });
+  return data;
+}
+
+// ---- Quran exegesis and notes ----------------------------------------------------------------
+
+export interface QuranSurahRow {
+  id: number;
+  number: number;
+  name: string;
+  revelationOrder: number | null;
+  ayaCount: number;
+  withNotes: number;
+  linked: number;
+  /** Bookmarked ayat in it. */
+  bookmarked: number;
+  /** The surah itself bookmarked. */
+  surahBookmarked: boolean;
+}
+
+export interface QuranOverview {
+  enabled: boolean;
+  surahs: number;
+  ayat: number;
+  sourceSurahs: number;
+  sourceAyat: number;
+  copiedOn: string | null;
+  list: QuranSurahRow[];
+}
+
+/** A note linked to an aya (or to another such note) the old way: entity code N + record id. */
+export interface QuranLinkedNote {
+  id: number;
+  title: string | null;
+  text: string | null;
+  notes: string | null;
+  type: string | null;
+  created: string | null;
+  children: QuranLinkedNote[];
+}
+
+export interface QuranAya {
+  id: number;
+  number: number;
+  text: string | null;
+  /** The aya fully vocalized (the source card's short description). */
+  vocalized: string | null;
+  /** The short exegesis (the source card's description). */
+  exegesis: string | null;
+  notes: string | null;
+  bookmarked: boolean;
+  sourceCardId: number | null;
+  linked: QuranLinkedNote[];
+}
+
+export interface QuranSurah {
+  id: number;
+  number: number;
+  name: string;
+  revelationOrder: number | null;
+  ayaCount: number;
+  text: string | null;
+  notes: string | null;
+  sourceWritingId: number | null;
+  bookmarked: boolean;
+  ayat: QuranAya[];
+}
+
+export interface QuranHit {
+  surah: number;
+  surahName: string;
+  aya: number;
+  vocalized: string | null;
+  field: 'text' | 'exegesis' | 'notes';
+  snippet: string;
+}
+
+export async function getQuran(): Promise<QuranOverview> {
+  const { data } = await http.get('/quran');
+  return data;
+}
+export async function countQuran(): Promise<number> {
+  const { data } = await http.get('/quran/count');
+  return data.count as number;
+}
+export async function getQuranSurah(n: number): Promise<QuranSurah> {
+  const { data } = await http.get(`/quran/surahs/${n}`);
+  return data;
+}
+export async function copyQuran(): Promise<{ surahs: number; ayat: number; skipped: number }> {
+  const { data } = await http.post('/quran/copy');
+  return data;
+}
+export async function editQuranAya(id: number, edit: { notes?: string; bookmarked?: boolean }): Promise<void> {
+  await http.put(`/quran/ayat/${id}`, edit);
+}
+export async function editQuranSurah(n: number, notes: string): Promise<void> {
+  await http.put(`/quran/surahs/${n}`, { notes });
+}
+export async function bookmarkQuranSurah(n: number, bookmarked: boolean): Promise<void> {
+  await http.put(`/quran/surahs/${n}/bookmark`, { bookmarked });
+}
+export async function searchQuran(q: string): Promise<QuranHit[]> {
+  const { data } = await http.get('/quran/search', { params: { q } });
+  return data;
+}
+/** Downloads one surah as Markdown, HTML or EPUB (through the token-carrying client). */
+export async function downloadQuranSurah(n: number, format: 'md' | 'html' | 'epub'): Promise<void> {
+  const res = await http.get(`/quran/surahs/${n}/export`, { params: { format }, responseType: 'blob' });
+  const cd = String(res.headers['content-disposition'] ?? '');
+  const m = /filename\*=UTF-8''([^;]+)/i.exec(cd) ?? /filename="?([^";]+)"?/i.exec(cd);
+  const name = m ? decodeURIComponent(m[1]) : `surah-${n}.${format}`;
+  const url = URL.createObjectURL(res.data as Blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+// ---- excerpt library (random samples of the ebk books) ----------------------------------------
+
+export type SampleStatus = 'new' | 'summarized' | 'promoted' | 'skipped';
+
+export interface SampleRow {
+  id: number;
+  bookId: number;
+  book: string | null;
+  author: string | null;
+  language: string | null;
+  status: SampleStatus;
+  format: string;
+  pageFrom: number | null;
+  pageTo: number | null;
+  /** Pages in the book; 1000 for an ebook, whose from/to are then per-mille of its text. */
+  totalPages: number | null;
+  hasText: boolean;
+  summary: string | null;
+  excerptId: number | null;
+  created: string;
+  preview: string | null;
+  /** Signed link to the book's cover (its own, or one made from its first page), when there is one. */
+  coverLink: string | null;
+}
+
+export interface SampleDetail {
+  row: SampleRow;
+  text: string | null;
+  description: string | null;
+  sourceFile: string | null;
+  sourceRepo: number | null;
+  /** Signed link to the sample's own PDF (PDF and DjVu books). */
+  pdfLink: string | null;
+  /** Signed link for its page images: append &n=<page>&w=<width>. */
+  pageLink: string | null;
+  pages: number;
+  /** Signed link to the whole book file (a PDF opens at the sample's first page). */
+  sourceLink: string | null;
+  error: string | null;
+}
+
+export interface SampleJob {
+  running: boolean;
+  wanted: number;
+  made: number;
+  tried: number;
+  failed: number;
+  current: string | null;
+  started: string | null;
+  finished: string | null;
+  log: string[];
+}
+
+export interface SampleOverview {
+  counts: { total: number; fresh: number; summarized: number; promoted: number; skipped: number; failed: number; books: number; sampledBooks: number };
+  job: SampleJob;
+}
+
+export async function getSampleOverview(): Promise<SampleOverview> {
+  const { data } = await http.get('/excerpt-library/overview');
+  return data;
+}
+export async function listSamples(status: string, q: string): Promise<SampleRow[]> {
+  const { data } = await http.get('/excerpt-library', { params: { status, q: q || undefined } });
+  return data;
+}
+export async function getSample(id: number): Promise<SampleDetail> {
+  const { data } = await http.get(`/excerpt-library/${id}`);
+  return data;
+}
+export async function saveSample(id: number, summary: string, description: string): Promise<SampleDetail> {
+  const { data } = await http.put(`/excerpt-library/${id}`, { summary, description });
+  return data;
+}
+export async function sampleAction(id: number, action: 'skip' | 'restore' | 'another' | 'promote'): Promise<SampleDetail> {
+  const { data } = await http.post(`/excerpt-library/${id}/${action}`);
+  return data;
+}
+export async function generateSamples(count: number): Promise<SampleJob> {
+  const { data } = await http.post('/excerpt-library/generate', { count });
+  return data;
+}
+
+// ---- the three calendars (Gregorian, Shamsi, Hijri) and Iran's official occasions --------------
+
+export interface CalNamed {
+  year: number;
+  month: number;
+  day: number;
+  monthName: string;
+  /** Persian for Shamsi, Arabic for Hijri. */
+  monthNative: string;
+}
+
+export interface CalOccasion {
+  fa: string;
+  ar: string | null;
+  holiday: boolean;
+}
+
+export interface CalDay {
+  date: string;
+  weekday: string;
+  shamsi: CalNamed;
+  /** The arithmetic Hijri date, with the calendar's day offset — as on the phone's prayer page. */
+  hijri: CalNamed;
+  /** The official (sighted) Hijri date, for the days the official calendar covers. */
+  hijriOfficial: CalNamed | null;
+  holiday: boolean;
+  friday: boolean;
+  occasions: CalOccasion[];
+}
+
+export async function getCalendarDays(from: string, to: string): Promise<{ coveredUntil: string | null; hijriOffset: number; days: CalDay[] }> {
+  const { data } = await http.get('/calendar-days', { params: { from, to } });
   return data;
 }

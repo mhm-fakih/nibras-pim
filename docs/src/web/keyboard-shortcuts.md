@@ -45,6 +45,7 @@ Press **g**, then the second key within about a second and a half.
 |---|---|
 | **e** | Edit the record |
 | **f** then **1** / **2** / **3** | Open the record's folder in repository 1 / 2 / 3 (on the server's desktop) |
+| **l** | Link: on a note, pick the record it is linked to; on any other record, pick notes to link to it (type words, an id or a letter and id such as `W802`) — see [Records → Links](records.md) |
 
 ### Quick edit
 

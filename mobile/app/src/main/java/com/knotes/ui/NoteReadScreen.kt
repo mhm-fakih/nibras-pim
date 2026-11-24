@@ -3,6 +3,12 @@ package com.knotes.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.filled.BorderColor
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material3.IconToggleButton
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -87,7 +93,8 @@ fun NoteReadScreen(
     /** Reports a Read⇄Edit switch, so the caller can reopen in the same mode after a rename. */
     onModeChange: (Boolean) -> Unit = {},
     /**
-     * Hide every control that writes. Used by the AI-answers page, whose folder is Syncthing's:
+     * Hide the edit and tag controls. Tap-to-highlight still calls [onSave]. Used by the
+     * AI-answers page, whose folder is Syncthing's:
      * an edit made here would be overwritten on the next sync, or worse, would win and diverge from
      * the desktop. Passing no-op save/tag callbacks alone is not enough — that leaves buttons that
      * appear to work and silently do nothing.
@@ -138,6 +145,15 @@ fun NoteReadScreen(
     }
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
 
+    // Highlighting is a mode, switched on with the highlighter button, as on the web: while it is
+    // off the text is selectable (long-press, drag, Copy) and a tap does nothing to the note. With
+    // taps always highlighting, selecting a passage to copy was impossible — the gesture that starts
+    // a selection is the same press a tap is made of — and a stray touch while scrolling marked a
+    // sentence in a file that syncs everywhere.
+    var highlighting by remember(note.file.absolutePath) { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     // No direction/alignment on the base style: each line carries its own (see Bidi), and a style
     // set here would be the one that wins for lines the paragraph styles don't cover.
     val base = MaterialTheme.typography.bodyLarge
@@ -158,6 +174,28 @@ fun NoteReadScreen(
                     )
                 },
                 actions = {
+                    if (!editing) {
+                        // The reading text without the ==markers==: what was read, not its markup.
+                        IconButton(onClick = {
+                            clipboard.setText(AnnotatedString(plain))
+                            // Android 13+ confirms a copy itself; older versions say nothing.
+                            if (android.os.Build.VERSION.SDK_INT < 33) {
+                                android.widget.Toast.makeText(context, context.getString(R.string.notes_read_copied), android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }) {
+                            Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.notes_read_copy_all))
+                        }
+                        IconToggleButton(checked = highlighting, onCheckedChange = { highlighting = it }) {
+                            Icon(
+                                Icons.Filled.BorderColor,
+                                contentDescription = stringResource(
+                                    if (highlighting) R.string.notes_read_highlight_off else R.string.notes_read_highlight_on,
+                                ),
+                                tint = if (highlighting) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                     if (!readOnly) {
                         FilterChip(
                             selected = !editing,
@@ -214,24 +252,33 @@ fun NoteReadScreen(
                 .padding(horizontal = 14.dp, vertical = 8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(R.string.notes_read_tap_clause_hint),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(Modifier.width(8.dp))
-                if (showTags) Text(
-                    stringResource(R.string.notes_read_edit_tags_hint),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.width(8.dp))
+                // The hints give way (and wrap) before the count does: squeezed, the count used to
+                // break one letter per line.
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(if (highlighting) R.string.notes_read_tap_clause_hint else R.string.notes_read_select_hint),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (highlighting) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    // Read-only (an AI answer) has neither the edit button nor the tags.
+                    if (showTags && !readOnly) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            stringResource(R.string.notes_read_edit_tags_hint),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 val n = runs.size
                 if (n > 0) {
+                    Spacer(Modifier.width(8.dp))
                     Text(
                         pluralStringResource(R.plurals.notes_read_highlighted_count, n, n),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false,
                     )
                 }
             }
@@ -239,7 +286,16 @@ fun NoteReadScreen(
             HorizontalDivider()
             Spacer(Modifier.size(10.dp))
 
-            Text(
+            if (!highlighting) {
+                SelectionContainer {
+                    Text(
+                        text = annotated,
+                        style = style,
+                        onTextLayout = { layout = it },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            } else Text(
                 text = annotated,
                 style = style,
                 onTextLayout = { layout = it },

@@ -156,4 +156,27 @@
     <string name="player_tab_playlist">Playlist (%1$d)</string>
     <string name="player_playlist_inactive">Ticked files play next only when Play next is set to AI narrations.</string>
     <string name="player_playlist_use">Use it</string>
+    <string name="player_next_playlist">Playlist</string>
+    <string name="player_next_caption_playlist">Plays “%1$s” in order, from the file playing (or from its top). Files stay on the list after they play.</string>
+    <string name="player_next_caption_playlist_none">Choose a playlist on the player\'s Playlist tab.</string>
+    <string name="player_notice_no_playlist">No playlist chosen — pick one on the Playlist tab.</string>
+    <string name="player_notice_playlist_end">End of the playlist.</string>
+    <string name="player_playlists_ai">AI narrations</string>
+    <string name="player_playlist_new">New playlist</string>
+    <string name="player_playlist_name">Playlist name</string>
+    <string name="player_playlist_create">Create</string>
+    <string name="player_playlist_rename">Rename</string>
+    <string name="player_playlist_delete">Delete playlist</string>
+    <string name="player_playlist_delete_title">Delete the playlist “%1$s”?</string>
+    <string name="player_playlist_delete_body">Only the list goes; its files stay where they are.</string>
+    <string name="player_playlist_name_taken">That name is blank or already used.</string>
+    <string name="player_playlist_add_this">Add this file</string>
+    <string name="player_playlist_remove_this">Remove this file</string>
+    <string name="player_playlist_add_to">Add to playlist</string>
+    <string name="player_playlist_empty">Nothing on this playlist yet — add files with the playlist button on any file.</string>
+    <string name="player_playlist_not_active">This list plays next only when Play next is set to it.</string>
+    <string name="player_playlist_move_up">Move up</string>
+    <string name="player_playlist_move_down">Move down</string>
+    <string name="player_playlist_remove">Remove from playlist</string>
+    <string name="player_playlist_count">%1$s (%2$d)</string>
 </resources>

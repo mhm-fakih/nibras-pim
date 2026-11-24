@@ -35,10 +35,12 @@ public class IndexCard extends BaseEntity implements SyncMutable, Taggable, HasS
     @Column(name = "review_count", insertable = false, updatable = false)
     private Integer reviewCount;
     @JsonIgnore
-    @Column(name = "record_id", insertable = false, updatable = false)
+    @Column(name = "record_id")
     private String recordId;
+    // The record this note is linked to: entity_code (G, W, R…) + record_id. Written only by
+    // RecordLinkService; out of the JSON, which has its own /api/links for it.
     @JsonIgnore
-    @Column(name = "entity_code", insertable = false, updatable = false)
+    @Column(name = "entity_code")
     private String entityCode;
     @JsonIgnore
     @Column(name = "blog_id", insertable = false, updatable = false)

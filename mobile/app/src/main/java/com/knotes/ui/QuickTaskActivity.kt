@@ -144,14 +144,14 @@ private fun QuickCaptureBar(type: String, onClose: () -> Unit) {
         // Written on the calling thread: it is one small file, and the alternative — finishing
         // before the write lands — is how a task gets typed and silently lost.
         val saved = runCatching {
-            NoteRepository(settings).saveNew(
-                text = body,
-                type = type,
-                priority = priority,
-                // The same category a quick note gets, so a task captured here is filed like
-                // anything else captured on the phone rather than under its own scheme.
-                category = settings.value.effectiveDefaultCategory,
-            )
+            val repo = NoteRepository(settings)
+            // The same category a quick note gets, so a task captured here is filed like
+            // anything else captured on the phone rather than under its own scheme.
+            val category = settings.value.effectiveDefaultCategory
+            // A journal entry joins the day's one journal note, under its time; a task is a note
+            // of its own.
+            if (journal) repo.appendToTodayJournal(body, type, priority, category)
+            else repo.saveNew(text = body, type = type, priority = priority, category = category)
         }
         saved.onSuccess {
             // Order matters: stop accepting draft writes BEFORE clearing, or a trailing

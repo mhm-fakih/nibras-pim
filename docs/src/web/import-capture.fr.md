@@ -40,6 +40,24 @@ Donnez-leur leur vrai département au moment du classement ou de l'import. N'oub
 d'un type de ressource — voir l'astuce sous [Importer des notes](#import-notes). Les outils eux-mêmes s'installent sur
 l'ordinateur qui les exécute ; voir le dossier `capture/` des sources de Nibras.
 
+**YouTube download** (Téléchargement YouTube ; barre latérale → **Import & export**, pour les administrateurs) lance
+l'outil Média depuis le web, sur le serveur, lorsque les outils de capture y sont installés. Collez un ou plusieurs
+identifiants ou liens YouTube (les autres sites lus par yt-dlp marchent aussi), puis choisissez :
+
+- **Both** (les deux : un MP4 et un MP3 de chacun), **Video** (le MP4 seul) ou **Audio** (le MP3 seul) ; **Voice
+  quality** (qualité voix) rend le MP3 mono à 64 kbit/s.
+- **Subtitles** (sous-titres) activés ou non : un `.srt` dans la langue parlée, celui de l'auteur s'il existe, sinon
+  les sous-titres automatiques, débarrassés de leurs lignes répétées ; **Inside the video** (dans la vidéo) les
+  intègre aussi au MP4.
+- Un **texte de note** facultatif ; vide, c'est le titre de la vidéo.
+
+**Download** (Télécharger) le lance en arrière-plan ; la page en montre l'avancement et le journal, et **Stop**
+l'arrête. **Recent downloads** (téléchargements récents) liste les 50 derniers avec leur journal, conservés après un
+redémarrage du serveur ; celui qu'un redémarrage a coupé apparaît comme *interrupted* (interrompu), et tout échec
+propose **Retry** (Réessayer). Une fois terminé, le chemin de la note s'affiche avec **Import as a record** (Importer comme fiche), qui
+l'importe aussitôt (une note **R** a toujours besoin de son type de ressource — passez par **Import notes** pour le
+choisir). Le dossier des outils est le réglage `capture.dir` (par défaut `~/prj/nibras-pkm/capture`).
+
 ## Notes locales { #local-notes }
 
 **Local notes** affiche le dossier de notes Markdown en texte brut qu'écrit l'application de
@@ -156,6 +174,39 @@ Un **fichier** est déplacé dans le dossier repository-1 du nouvel enregistreme
 son titre ; un **dossier** devient le dossier de l'enregistrement. Les éléments importés restent sur
 la page, avec une ligne ✓ indiquant le nouvel enregistrement et l'endroit où sont allés ses fichiers,
 jusqu'à la prochaine analyse.
+
+## Traitement des fichiers { #file-processor }
+
+**File processor** (traitement des fichiers) règle un dossier une entrée à la fois — les fichiers
+que vous n'avez pas nommés comme des commandes, chacun regardé avant de devenir un enregistrement.
+
+- **Folder to settle** (dossier à régler) vaut `~/new` au départ ; tapez un autre dossier et
+  appuyez sur Entrée (il est retenu). La liste en montre un seul niveau, les dossiers d'abord ;
+  cliquez un dossier pour l'ouvrir, **↑** ou le chemin pour revenir. Les entrées cachées et le
+  dossier `DELETED` ne sont pas listés.
+- Cliquez un fichier pour le voir : une image, un texte (Markdown, texte brut, CSV…), un PDF, ou un
+  enregistrement audio ou vidéo se lit dans la page. **‹ ›** parcourent les fichiers du dossier.
+- À droite, dites quel enregistrement en faire :
+  - **Module** et **Title** (titre) — le titre part du nom du fichier sans son extension.
+  - **Its text into** (son texte dans), pour un fichier texte — le champ qui reçoit le texte :
+    **Full text** pour une ressource, **Description** sinon, ou tout autre champ long.
+  - **Day** (jour) et **Goes to** (va dans) — le jour que porte le nom du fichier
+    (`IMG_20261114_…`, `scan 20261114….pdf`, `2026-11-14`), sinon le jour de sa dernière
+    modification, et le champ de date qui le reçoit (**Published on** pour une ressource), ou
+    **Nowhere** (nulle part).
+  - **Then the file** (puis le fichier) va dans le dossier du dépôt 1 du nouvel enregistrement,
+    ou — une image — en devient la couverture (`cover.jpg`), ou reste où il est.
+- **Create record** le crée et passe au fichier suivant ; la ligne verte mène à l'enregistrement.
+  **Skip** (passer) garde le fichier pour plus tard ; **Put aside** (mettre de côté) le déplace dans
+  `DELETED/` du dossier réglé — rien n'est supprimé.
+- **Delete** demande d'abord, puis envoie le fichier (ou le dossier) dans la corbeille du bureau,
+  d'où le gestionnaire de fichiers peut le restaurer tant qu'elle n'est pas vidée.
+- **Un dossier entier en un enregistrement :** le bouton ✓ sur la ligne d'un dossier le sélectionne
+  au lieu de l'ouvrir. Son contenu est listé, le titre est le nom du dossier, le jour vient de ce
+  nom, et **Text from** peut prendre le texte d'un de ses fichiers texte. À la création, tout ce
+  qu'il contient passe dans le dossier dépôt 1 de l'enregistrement, et le dossier vidé disparaît.
+
+Le module, et par module les champs de texte et de date choisis, sont retenus dans ce navigateur.
 
 ## Renommeur d'images { #image-renamer }
 

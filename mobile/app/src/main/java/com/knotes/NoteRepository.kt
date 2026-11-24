@@ -303,6 +303,25 @@ class NoteRepository(
     }
 
     /**
+     * The journal widget's save: [body] appended to the day's journal note under a `[HH:mm]` stamp
+     * (see [com.knotes.util.JournalLog]), or that note started if the day has none yet. The day's
+     * FIRST [type] note is its log, like the web's board journal; journal notes written later in
+     * the app are notes of their own and are left alone. Read and written at once, so an edit made on the desktop and synced since is
+     * kept rather than overwritten from a stale copy.
+     */
+    fun appendToTodayJournal(body: String, type: String, priority: Int, category: String?, nowMillis: Long = System.currentTimeMillis()): File {
+        val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.ROOT).format(java.util.Date(nowMillis))
+        val day = listTasksSince(type, null, startOfToday()).minByOrNull { it.createdMillis }
+        return appendJournalEntry(day?.file, time, body) { text -> saveNew(text, type, priority, category) }
+    }
+
+    /** How many entries the day's journal log (its first [type] note since [sinceMillis]) holds. */
+    fun countJournalEntriesSince(type: String, sinceMillis: Long): Int {
+        val day = listTasksSince(type, null, sinceMillis).minByOrNull { it.createdMillis } ?: return 0
+        return com.knotes.util.JournalLog.entries(day.content).size.coerceAtLeast(1)
+    }
+
+    /**
      * Updates an existing note's body; renames the file if type/priority/category changed, and
      * moves its `<stem>.d` attachments folder along with it (as the desktop does).
      *
@@ -329,6 +348,17 @@ class NoteRepository(
      * rather than silently appearing to work.
      */
     fun delete(note: Note): Boolean = deleteNoteFile(note.file)
+}
+
+/**
+ * [NoteRepository.appendToTodayJournal]'s write, as a function of the files alone: [body] under a
+ * [time] stamp at the end of [logFile], or, when the day has no log yet (or its file has gone),
+ * a new note made by [create] from the first entry.
+ */
+fun appendJournalEntry(logFile: File?, time: String, body: String, create: (String) -> File): File {
+    if (logFile == null || !logFile.isFile) return create(com.knotes.util.JournalLog.entry(time, body))
+    logFile.writeText(com.knotes.util.JournalLog.append(logFile.readText(), time, body).withTrailingNewline())
+    return logFile
 }
 
 /** [NoteRepository.update] as a function of the note alone, testable like [deleteNoteFile]. */

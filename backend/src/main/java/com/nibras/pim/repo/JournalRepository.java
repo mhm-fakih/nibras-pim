@@ -36,4 +36,13 @@ public interface JournalRepository extends BaseRepository<Journal> {
             order by j.id asc
             """)
     List<Journal> findSmmOnDay(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    /** The day's journals of one type (by code), oldest first — the day's board is the first. */
+    @Query("""
+            select j from Journal j
+            where j.type.code = :code and j.startDate >= :from and j.startDate < :to
+            order by j.id asc
+            """)
+    List<Journal> findOfTypeOnDay(@Param("code") String code, @Param("from") LocalDateTime from,
+                                  @Param("to") LocalDateTime to);
 }

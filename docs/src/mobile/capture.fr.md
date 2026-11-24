@@ -25,7 +25,7 @@ Deux [widgets](widgets.md) ont une barre d'ajout en haut :
 | Widget | Barre d'ajout | Enregistré comme |
 |---|---|---|
 | **Tâches du jour** | **+  Ajouter une tâche…** | Une note de type `T` à votre **Priorité maximale** |
-| **Journal du jour** | **+  Écrire le journal du jour…** | Une note de type `J` à votre **Priorité par défaut** |
+| **Journal du jour** | **+  Écrire le journal du jour…** | Une entrée horodatée `[HH:mm]`, ajoutée à la première note `J` du jour (créée à votre **Priorité par défaut** à la première entrée) |
 
 Touchez la barre : un champ d'une ligne apparaît juste au-dessus du clavier, intitulé **Tâche · p4** ou **Journal · aujourd’hui**, avec **Que faut-il faire ?** ou **Que s’est-il passé ?** comme invite. Saisissez votre texte et appuyez sur la touche **OK** (Terminé) du clavier. Il n'y a pas de bouton Ajouter. La note est écrite dans votre dossier de notes et le widget se met à jour aussitôt (une nouvelle tâche apparaît aussi sur le widget [Tableau des tâches](widgets.md)).
 

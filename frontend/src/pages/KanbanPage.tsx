@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Box, Paper, Stack, Typography } from '@mui/material';
 import Flag from '@mui/icons-material/Flag';
@@ -37,7 +36,6 @@ interface Column {
 }
 
 export function KanbanPage() {
-  const navigate = useNavigate();
   const { data } = useQuery({ queryKey: ['kanban'], queryFn: getKanban });
   const goals = useMemo(() => data?.goals ?? [], [data]);
   const tasks = useMemo(() => data?.tasks ?? [], [data]);
@@ -120,14 +118,14 @@ export function KanbanPage() {
                     <code>{col.code}</code> {col.name}
                   </Typography>
                 </Box>
-                <Box sx={{ p: 0.5 }}>
+                <Box sx={{ p: 0.75 }}>
                   {col.goals.length > 0 && (
                     <SectionTitle icon={<Flag fontSize="small" />} title="Goals" />
                   )}
-                  <Stack spacing={0.75}>
+                  <Stack spacing={1}>
                     {col.goals.map((g) => (
                       <Box key={g.id}>
-                        <RecordCard dense module="goals" record={g} onClick={() => navigate('/goals')} />
+                        <RecordCard dense module="goals" record={g} to={`/goals?select=${g.id}`} />
                         {(tasksByGoal.get(g.id) ?? []).length > 0 && (
                           <Stack
                             spacing={0.25}
@@ -139,7 +137,7 @@ export function KanbanPage() {
                                 key={t.id}
                                 module="tasks"
                                 record={t}
-                                onClick={() => navigate('/tasks')}
+                                to={`/tasks?select=${t.id}`}
                                 sx={isDone(t) ? doneSx : undefined}
                               />
                             ))}
@@ -162,7 +160,7 @@ export function KanbanPage() {
                             key={t.id}
                             module="tasks"
                             record={t}
-                            onClick={() => navigate('/tasks')}
+                            to={`/tasks?select=${t.id}`}
                             sx={isDone(t) ? doneSx : undefined}
                           />
                         ))}

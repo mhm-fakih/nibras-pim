@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { linkProps } from '../util/links';
 import { Box, Chip, List, ListItemButton, ListItemText, Typography } from '@mui/material';
 import LinkIcon from '@mui/icons-material/Link';
 import { getRelated } from '../api/client';
@@ -29,7 +30,7 @@ export function RelatedRecordsPanel({ module, id }: { module: string; id: number
                 <ListItemButton
                   key={it.id}
                   sx={{ py: 0.25, borderRadius: 1 }}
-                  onClick={() => navigate(`/${it.module}?select=${it.id}`)}
+                  {...linkProps(`/${it.module}?select=${it.id}`, () => navigate(`/${it.module}?select=${it.id}`))}
                 >
                   <ListItemText
                     primary={it.title || '(untitled)'}

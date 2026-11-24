@@ -462,6 +462,80 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         if (mode == PlayNextMode.AI_QUEUE) refreshAiNarrations()
     }
 
+    // ---- PLAYLIST: named playlists of your own ("Night", "Lectures", …) ------------------------
+
+    /** Every playlist, in the order they were made. */
+    var playlists by mutableStateOf(Playlists.decode(prefs.getString(K_PLAYLISTS, "")))
+        private set
+
+    /** The playlist [PlayNextMode.PLAYLIST] walks; null until one is chosen. */
+    var activePlaylist by mutableStateOf(prefs.getString(K_ACTIVE_PLAYLIST, null))
+        private set
+
+    fun playlist(name: String?): Playlist? = playlists.firstOrNull { it.name == name }
+
+    private fun savePlaylists(lists: List<Playlist>) {
+        playlists = lists
+        if (playlist(activePlaylist) == null) activePlaylist = null
+        prefs.edit()
+            .putString(K_PLAYLISTS, Playlists.encode(lists))
+            .putString(K_ACTIVE_PLAYLIST, activePlaylist)
+            .apply()
+    }
+
+    /** Makes a playlist (with [first] on it, when given); the cleaned name, or null if taken/blank. */
+    fun createPlaylist(rawName: String, first: File? = null): String? {
+        val name = Playlists.cleanName(rawName)
+        if (name.isEmpty() || playlists.any { it.name.equals(name, ignoreCase = true) }) return null
+        savePlaylists(playlists + Playlist(name, listOfNotNull(first?.absolutePath)))
+        return name
+    }
+
+    /** False when the new name is blank or another playlist already has it. */
+    fun renamePlaylist(old: String, rawName: String): Boolean {
+        val name = Playlists.cleanName(rawName)
+        if (name.isEmpty()) return false
+        if (playlists.any { it.name != old && it.name.equals(name, ignoreCase = true) }) return false
+        val wasActive = activePlaylist == old
+        if (wasActive) activePlaylist = name
+        savePlaylists(playlists.map { if (it.name == old) it.copy(name = name) else it })
+        return true
+    }
+
+    /** Removes the list only — the files on it are not touched. */
+    fun deletePlaylist(name: String) = savePlaylists(playlists.filter { it.name != name })
+
+    fun inPlaylist(name: String, file: File): Boolean =
+        playlist(name)?.paths?.contains(file.absolutePath) == true
+
+    /** Adds [file] to the end of the playlist, or takes it off when it's already there. */
+    fun togglePlaylistFile(name: String, file: File) {
+        val path = file.absolutePath
+        savePlaylists(playlists.map { p ->
+            if (p.name != name) p
+            else p.copy(paths = if (path in p.paths) p.paths - path else p.paths + path)
+        })
+    }
+
+    fun movePlaylistFile(name: String, file: File, delta: Int) =
+        savePlaylists(playlists.map { p ->
+            if (p.name == name) p.copy(paths = Playlists.move(p.paths, file.absolutePath, delta)) else p
+        })
+
+    /** Play next from this playlist: it becomes the active one and Play next is set to it. */
+    fun usePlaylist(name: String) {
+        if (playlist(name) == null) return
+        activePlaylist = name
+        prefs.edit().putString(K_ACTIVE_PLAYLIST, name).apply()
+        changePlayNextMode(PlayNextMode.PLAYLIST)
+    }
+
+    /** The active playlist's entry after what is playing; null at its end or with none chosen. */
+    private fun peekPlaylist(): File? {
+        val paths = playlist(activePlaylist)?.paths ?: return null
+        return Playlists.next(paths, currentFile?.absolutePath) { File(it).isFile }?.let(::File)
+    }
+
     // ---- AI_QUEUE: the recent AI narrations, ticked to play next -------------------------------
 
     /** The narrations offered (newest first); loaded when the mode is chosen or refreshed. */
@@ -593,6 +667,13 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
             PlayNextMode.RANDOM_NEW_PARENT -> pickRandom(parentRoots(), NextTrack.Pick.NEWEST) { open(it) }
             PlayNextMode.AI_QUEUE -> peekQueued()?.let { dequeue(it); open(it) }
                 ?: run { notice = getApplication<Application>().getString(R.string.player_notice_queue_empty) }
+            PlayNextMode.PLAYLIST -> peekPlaylist()?.let { open(it) }
+                ?: run {
+                    notice = getApplication<Application>().getString(
+                        if (playlist(activePlaylist) == null) R.string.player_notice_no_playlist
+                        else R.string.player_notice_playlist_end
+                    )
+                }
             // The ordered modes run out at the end of a folder, which is just as silent as an empty
             // random pick and needs saying just as much.
             else -> nextSibling()?.let { open(it) }
@@ -629,6 +710,9 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
             PlayNextMode.RANDOM_NEW_PARENT -> startAutoNext { pickRandom(parentRoots(), NextTrack.Pick.NEWEST) { open(it) } }
             // Nothing ticked: stay on the finished file, as NONE does — nothing was asked for.
             PlayNextMode.AI_QUEUE -> peekQueued()?.let { next -> startAutoNext { dequeue(next); open(next) } }
+                ?: finished?.let { openPaused(it, 0L) }
+            // The end of the list: stay on the last file, as NONE does.
+            PlayNextMode.PLAYLIST -> peekPlaylist()?.let { next -> startAutoNext { open(next) } }
                 ?: finished?.let { openPaused(it, 0L) }
         }
     }
@@ -740,6 +824,8 @@ class PlayerController(app: Application) : AndroidViewModel(app) {
         const val MAX_SKIP_SECS = 60
         const val K_PLAY_NEXT = "play_next_mode"
         const val K_AI_QUEUE = "ai_queue"
+        const val K_PLAYLISTS = "playlists"
+        const val K_ACTIVE_PLAYLIST = "active_playlist"
         const val K_VIDEO_DISABLED = "video_disabled"
         const val K_VIDEO_AUTO_NEXT = "video_auto_next"
         const val NEXT_COUNTDOWN_SECS = 5

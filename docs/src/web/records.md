@@ -53,6 +53,11 @@ The new record opens in the detail pane with a **✓ Saved** card above it.
       **Ctrl+Enter** or **Add**. If the first line is short it becomes the title and the rest the
       content. Once saved, the new note appears as a card under the box — click it to open the note.
       Click the bar's header to fold it away.
+    - The same bar's **Note | Board** switch sends the text to today's **board** journal instead:
+      the first jot of the day creates the journal (*Board dd-mm-yyyy*, type **Board**, which is
+      added on first use), and every later one is appended below the others under its time, as
+      `[14:05] …`. Multi-line text stays as typed. **Open Board …** under the box opens the journal.
+      The bar remembers which of the two you used last.
     - [Batch entry](batch-commands.md#batch-entry) creates many records from one line each.
     - On **Resources**, the link icon beside **New** (**New resource from a URL**) lets you paste a
       web address and click **Fetch**: the server reads the page and opens a pre-filled form —
@@ -89,6 +94,12 @@ Further down you'll find:
 - **Append to Description… / Append to Notes…** — a box under those fields that adds text to the end
   without opening the form. Press **Ctrl+Enter** to add. When the field is still empty, its heading
   is shown above the box all the same, so you can see which field you are adding to.
+- **Links** — a note can be linked to any one record (a verse to its surah, a note to a goal, a
+  resource, a contact…). On a note, **Linked to** shows that record; **Change** or **l** opens a
+  picker (type words, an id, or a module letter and id such as `W802` or `R25489`), and the unlink
+  button removes the link. On every record, **Notes linked here** lists the notes linked to it, in
+  their order (a surah's verses by number): type a line and press Enter to add a new note linked
+  there (numbered next when the list is numbered), or pick existing notes to bring them in.
 - **Related** — linked records in other modules (a goal's tasks, a task's time-tracking journals, a
   resource's notes…). Click one to open it.
 - **Edit full text in your editor** — see [Writings & checkout files](writings-fulltext.md).
@@ -165,6 +176,20 @@ Each record can have files kept in up to three **repositories** — folders on t
 In the **Files** section of the detail pane, choose **Upload to**, click **Upload** and pick a file.
 Click a file name to download it; the bin icon deletes it. A file named `cover.jpg` (or `.png`,
 `.webp`…) is shown as the record's cover.
+
+**Preview as slides** (the slides icon beside a PDF, presentation, word-processor or spreadsheet
+file) shows the document as a deck: one large page on a dark stage, arrows at its sides, the page
+number and a slider above, and a strip of page thumbnails below. Use ← and → (or Page Up/Down,
+Space), Home and End to move, **F** for full screen, Esc to close; click the left third of a page to
+go back, anywhere else to go on. The open-in-new-tab button shows the deck on a page of its own, and
+the download button saves the file. A presentation or Word file is converted to PDF on the server
+the first time (a few seconds), then opens at once.
+
+The folder-and-arrow icon next to a file **moves** or **copies** it to the record's folder in
+another repository. Moving a file from repo 2 to repo 1 is how to get it onto the phone, since
+repo 1 is the one Syncthing syncs; moving it back takes it off. A name already used there gets a
+date added rather than replacing the file. A file in repo 2 that is a link to the external drive
+is copied as the file itself (so the drive must be attached); moving it removes only the link.
 
 !!! note "Open-folder buttons"
     **Repo1 / Repo2 / Repo3** (and the keys **f 1/2/3**) open the folder in a file manager *on the

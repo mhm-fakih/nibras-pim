@@ -908,12 +908,14 @@ class KnotesWindow(Gtk.ApplicationWindow):
         self.toolbar.pack_start(self.refresh_button, False, False, 0)
 
         # Restart the whole program — for picking up a new version of the app itself (a pull, a
-        # style change) without hunting for the window's close button and the launcher.
+        # style change) without hunting for the window's close button and the launcher. At the far
+        # end of the toolbar and behind a confirmation: next to Refresh, a slip meant to re-read the
+        # folder restarted the app instead.
         self.restart_button = Gtk.Button()
         self.restart_button.add(Gtk.Image.new_from_icon_name("system-reboot-symbolic", Gtk.IconSize.BUTTON))
-        self.restart_button.set_tooltip_text("Restart the app — saves first, then reopens (picks up app updates)")
-        self.restart_button.connect("clicked", lambda b: self._restart_app())
-        self.toolbar.pack_start(self.restart_button, False, False, 0)
+        self.restart_button.set_tooltip_text("Restart the app — asks first; saves, then reopens (picks up app updates)")
+        self.restart_button.connect("clicked", lambda b: self._confirm_restart())
+        self.toolbar.pack_end(self.restart_button, False, False, 0)
 
         # Card ordering — also switched often, so it's a toolbar dropdown. "Date created" is stable
         # across metadata-only edits (its sort key never changes), unlike "Last updated" — pick it
@@ -3353,6 +3355,11 @@ class KnotesWindow(Gtk.ApplicationWindow):
         body.set_border_width(12)
         if body_markup:
             body.pack_start(preview_label(body_markup, 3, "title"), False, False, 0)
+        # While searching, a note longer than its card also shows WHERE it matched: the card is
+        # the note's start, and in a long note the line that matched is usually far below it.
+        context = self._search_context_markup(note)
+        if context:
+            body.pack_start(preview_label(context, 7, "search-context"), False, False, 0)
         body.pack_start(self._build_card_actions(note, counts), False, False, 0)
         outer.pack_start(body, False, False, 0)
 
@@ -3384,6 +3391,30 @@ class KnotesWindow(Gtk.ApplicationWindow):
         if colour:
             shown = f'<span foreground="{colour}" weight="bold">{shown}</span>'
         return f'{created.strftime("%Y-%m-%d %H:%M")}  →  {shown}'
+
+    SEARCH_MATCH_BG = "#ffd54f"
+
+    def _search_context_markup(self, note: Note) -> str:
+        """Pango markup for a search result's excerpts (see notes.search_snippets), one per line
+        under a dim "N matches"; "" when not searching, when the match is only in the name or tags,
+        or when the note is short enough that the card already shows all of it."""
+        query = self._search_query
+        if not query or note.path in self._unrecognized_paths:
+            return ""
+        if len(note.content) <= self.settings.preview_chars + self.settings.preview_tail_chars:
+            return ""
+        snippets, total = _notes.search_snippets(note.content, query)
+        if not snippets:
+            return ""
+        esc = GLib.markup_escape_text
+        lines = [f'<span alpha="60%" size="small">{fmt_count(total)} match{"" if total == 1 else "es"}</span>']
+        for before, match, after in snippets:
+            # A leading "…" is neutral, so an Arabic excerpt would open left-to-right and put it on
+            # the wrong side: a right-to-left mark first makes the line read from the right.
+            mark = "\u200f" if reads_rtl(before + match + after) else ""
+            lines.append(f'{mark}{esc(before)}<span background="{self.SEARCH_MATCH_BG}" foreground="#101010">'
+                         f'<b>{esc(match)}</b></span>{esc(after)}')
+        return "\n".join(lines)
 
     def _runs_markup(self, runs) -> str:
         """Pango markup for a line of note text, painting the clauses marked ``==like this==``.
@@ -4175,6 +4206,18 @@ class KnotesWindow(Gtk.ApplicationWindow):
             self.repo.save_new(text, self.selected_type, self.priority,
                                self.selected_category, self.settings.timestamp_format)
             self.buffer.set_text("")
+
+    def _confirm_restart(self) -> None:
+        dialog = Gtk.MessageDialog(
+            transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION,
+            buttons=Gtk.ButtonsType.YES_NO, text="Restart knotes?")
+        dialog.format_secondary_text("Everything is saved first, then the app closes and reopens.")
+        # No is the default: Enter on a stray click must not restart.
+        dialog.set_default_response(Gtk.ResponseType.NO)
+        resp = dialog.run()
+        dialog.destroy()
+        if resp == Gtk.ResponseType.YES:
+            self._restart_app()
 
     def _restart_app(self) -> None:
         """Save everything the window holds (as closing does), then replace this process with a

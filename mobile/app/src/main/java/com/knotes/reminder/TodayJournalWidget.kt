@@ -17,7 +17,12 @@ import com.knotes.startOfToday
 import com.knotes.ui.QuickTaskActivity
 
 /**
- * Home-screen widget: today's journal entries, with a bar for writing another.
+ * Home-screen widget: today's journal log, with a bar for writing another entry.
+ *
+ * The log is the day's FIRST `J` note, as the web's board journal is the day's board record: each
+ * entry from the bar is appended to it under a `[HH:mm]` stamp (started on the day's first entry),
+ * and the rows are its entries. Journal notes written later in the app are notes of their own and
+ * are not listed here.
  *
  * The sibling of [TodayTasksWidget] and deliberately built the same way, with one difference that
  * matters: **every priority is listed, not just the top one.** A task list is a do-this-first
@@ -29,7 +34,7 @@ import com.knotes.ui.QuickTaskActivity
  *
  * The add bar is a TextView made to look like a text field, and has to be: `RemoteViews` supports
  * no editable view on any Android version, so a widget cannot contain a real one. Tapping it opens
- * [QuickTaskActivity] as a one-line bar on the keyboard, which writes the note and refreshes this
+ * [QuickTaskActivity] as a one-line bar on the keyboard, which appends the entry and refreshes this
  * widget — so the entry lands here as soon as it is typed.
  */
 class TodayJournalWidget : AppWidgetProvider() {
@@ -63,10 +68,10 @@ class TodayJournalWidget : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.widget_today_journal)
             val settings = SettingsStore(context)
 
-            // Counted from the file names alone — this runs on every redraw, including the
-            // system's own onUpdate on the main thread. Null priority: every entry counts.
+            // Entries of the day's log (its first journal note), not files. That reads one small
+            // file on each redraw, which is fine on the main thread.
             val count = runCatching {
-                NoteRepository(settings).countTasksSince(JOURNAL_TYPE, null, startOfToday())
+                NoteRepository(settings).countJournalEntriesSince(JOURNAL_TYPE, startOfToday())
             }.getOrDefault(0)
 
             views.setTextViewText(R.id.tj_title, context.getString(R.string.widgets_today_journal_title))

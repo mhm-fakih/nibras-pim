@@ -36,7 +36,10 @@ class AlarmReceiver : BroadcastReceiver() {
             at != null && at <= now + SLACK_MS
         }
 
-        due.forEach { alarm ->
+        due.forEach { stored ->
+            // The quick timer sounds as Settings say NOW, not as they were when it was started —
+            // changing the volume or dB while it counts down (to test them) takes effect.
+            val alarm = if (stored.id == QuickTimer.ID) QuickTimer.withCurrentSound(context, stored) else stored
             notify(context, alarm)
             // In a foreground service, so the process isn't frozen or killed mid-sound. Only when
             // the system refuses that (an inexact alarm has no right to start one) is it played
@@ -84,7 +87,8 @@ class AlarmReceiver : BroadcastReceiver() {
                     .build(),
             )
             player.setDataSource(context, uri)
-            player.setVolume(level.gain, level.gain)
+            val gain = level.gain * SoundGain.toGain(alarm.gainDb)
+            player.setVolume(gain, gain)
             player.setOnCompletionListener {
                 played++
                 if (played < alarm.repeatCount.coerceIn(1, 20)) {

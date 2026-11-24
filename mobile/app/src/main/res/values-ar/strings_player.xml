@@ -176,4 +176,27 @@
     <string name="player_tab_playlist">قائمة التشغيل (%1$d)</string>
     <string name="player_playlist_inactive">لا تُشغَّل الملفات المحدَّدة تاليًا إلا إذا ضُبط «التالي» على قراءات الذكاء الاصطناعي.</string>
     <string name="player_playlist_use">تفعيلها</string>
+    <string name="player_next_playlist">قائمة تشغيل</string>
+    <string name="player_next_caption_playlist">يشغّل «%1$s» بالترتيب، من الملف الجاري (أو من أوله). تبقى الملفات في القائمة بعد تشغيلها.</string>
+    <string name="player_next_caption_playlist_none">اختر قائمة تشغيل من تبويب القوائم في المشغّل.</string>
+    <string name="player_notice_no_playlist">لم تُختر قائمة تشغيل — اختر واحدة من تبويب القوائم.</string>
+    <string name="player_notice_playlist_end">نهاية قائمة التشغيل.</string>
+    <string name="player_playlists_ai">سرد الذكاء الاصطناعي</string>
+    <string name="player_playlist_new">قائمة جديدة</string>
+    <string name="player_playlist_name">اسم القائمة</string>
+    <string name="player_playlist_create">إنشاء</string>
+    <string name="player_playlist_rename">إعادة تسمية</string>
+    <string name="player_playlist_delete">حذف القائمة</string>
+    <string name="player_playlist_delete_title">حذف القائمة «%1$s»؟</string>
+    <string name="player_playlist_delete_body">تُحذف القائمة فقط؛ تبقى ملفاتها في مكانها.</string>
+    <string name="player_playlist_name_taken">هذا الاسم فارغ أو مستخدم.</string>
+    <string name="player_playlist_add_this">أضف هذا الملف</string>
+    <string name="player_playlist_remove_this">أزل هذا الملف</string>
+    <string name="player_playlist_add_to">أضف إلى قائمة</string>
+    <string name="player_playlist_empty">القائمة فارغة — أضف ملفات بزر القائمة على أي ملف.</string>
+    <string name="player_playlist_not_active">لا تُشغَّل هذه القائمة تالياً إلا إذا ضُبط «التالي» عليها.</string>
+    <string name="player_playlist_move_up">إلى الأعلى</string>
+    <string name="player_playlist_move_down">إلى الأسفل</string>
+    <string name="player_playlist_remove">أزل من القائمة</string>
+    <string name="player_playlist_count">%1$s (%2$d)</string>
 </resources>

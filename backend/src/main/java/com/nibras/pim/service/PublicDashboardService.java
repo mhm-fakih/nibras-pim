@@ -43,7 +43,9 @@ public class PublicDashboardService {
     private final IndicatorMonitorService indicatorMonitor;
     private final CalendarEventService calendarEvents;
     private final DashboardService kanban;
-    private final com.nibras.pim.service.checklists.ChecklistService checklists;
+    private final com.nibras.pim.service.checklists.ChecklistDbService checklists;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.nibras.pim.service.localnotes.QuickTasksService quickTasks;
     private final TaskService tasks;
     private final com.nibras.pim.repo.TaskRepository taskRepo;
     private final com.nibras.pim.service.localnotes.LocalNotesService localNotes;
@@ -55,7 +57,7 @@ public class PublicDashboardService {
     public PublicDashboardService(CustomDashboardService dashboards, IndexCardService notes, GoalService goals,
                                   IndicatorService indicators, IndicatorMonitorService indicatorMonitor,
                                   CalendarEventService calendarEvents, DashboardService kanban,
-                                  com.nibras.pim.service.checklists.ChecklistService checklists, TaskService tasks,
+                                  com.nibras.pim.service.checklists.ChecklistDbService checklists, TaskService tasks,
                                   com.nibras.pim.repo.TaskRepository taskRepo,
                                   com.nibras.pim.service.localnotes.LocalNotesService localNotes,
                                   SettingService settings,
@@ -94,7 +96,9 @@ public class PublicDashboardService {
             /** 'plans' regions: bookmarked planner entries of the chosen types. */
             List<com.nibras.pim.web.dto.PlannerDto> plans,
             /** 'tasks' regions: how many files each task has in repository 1, by task id. */
-            Map<Long, Integer> taskFiles) {
+            Map<Long, Integer> taskFiles,
+            /** 'indicatorTicker' regions: the bookmarked indicators' latest and previous values. */
+            List<IndicatorMonitorService.Trend> indicatorTrends) {
     }
 
     public record GoalHeatmap(Long goalId, String goalCode, List<IndicatorWithSeries> indicators) {
@@ -122,23 +126,26 @@ public class PublicDashboardService {
             case "goalsHeatmap" -> withGoalsHeatmap(r);
             case "kanban" -> withKanban(r);
             case "file" -> withFile(r, resolveFile(r.config()));
+            case "quickTasks" -> withFile(r, quickTasks.read());
             case "checklist" -> new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(),
-                    null, null, null, null, null, resolveChecklist(0), null, null, resolveChecklist(1), null, null);
+                    null, null, null, null, null, resolveChecklist(0), null, null, resolveChecklist(1), null, null, null);
             case "localTasks" -> new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(),
-                    null, null, null, null, null, null, null, resolveLocalTasks(r.config()), null, null, null);
+                    null, null, null, null, null, null, null, resolveLocalTasks(r.config()), null, null, null, null);
             case "plans" -> new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(),
-                    null, null, null, null, null, null, null, null, null, resolvePlans(r.config()), null);
+                    null, null, null, null, null, null, null, null, null, resolvePlans(r.config()), null, null);
             case "tasks" -> withTasks(r);
+            case "indicatorTicker" -> new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(),
+                    null, null, null, null, null, null, null, null, null, null, null, indicatorMonitor.trends());
             default -> withQuote(r, null);
         };
     }
 
     private PublicRegion withQuote(CustomDashboardRegionDto r, IndexCardDto note) {
-        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), note, null, null, null, null, null, null, null, null, null, null);
+        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), note, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private PublicRegion withCalendar(CustomDashboardRegionDto r, List<CalendarEventDto> events) {
-        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, events, null, null, null, null, null, null, null, null, null);
+        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, events, null, null, null, null, null, null, null, null, null, null);
     }
 
     private PublicRegion withGoalsHeatmap(CustomDashboardRegionDto r) {
@@ -157,15 +164,15 @@ public class PublicDashboardService {
                 })
                 .filter(g -> !g.indicators().isEmpty())
                 .toList();
-        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, null, groups, null, null, null, null, null, null, null, null);
+        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, null, groups, null, null, null, null, null, null, null, null, null);
     }
 
     private PublicRegion withKanban(CustomDashboardRegionDto r) {
-        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, null, null, kanban.kanban(), null, null, null, null, null, null, null);
+        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, null, null, kanban.kanban(), null, null, null, null, null, null, null, null);
     }
 
     private PublicRegion withFile(CustomDashboardRegionDto r, DashboardFileContentDto file) {
-        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, null, null, null, file, null, null, null, null, null, null);
+        return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(), null, null, null, null, file, null, null, null, null, null, null, null);
     }
 
     private IndexCardDto resolveQuote(String config) {
@@ -232,7 +239,7 @@ public class PublicDashboardService {
     private PublicRegion withTasks(CustomDashboardRegionDto r) {
         List<TaskDto> list = resolveTasks(r.config());
         return new PublicRegion(r.id(), r.orderIndex(), r.componentType(), r.colSpan(), r.rowSpan(), r.config(),
-                null, null, null, null, null, null, list, null, null, null, taskFiles(list));
+                null, null, null, null, null, null, list, null, null, null, taskFiles(list), null);
     }
 
     /** Files in each task's repository-1 folder (its working files), by task id. */

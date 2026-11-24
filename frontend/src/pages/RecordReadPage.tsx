@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -17,37 +16,16 @@ import { ENTITY_BY_KEY } from '../config/entities';
 import { lookupStyle } from '../components/statusStyle';
 import { RelatedRecordsPanel } from '../components/RelatedRecordsPanel';
 import { FulltextPanel } from '../components/FulltextPanel';
-import { FieldLabel, FieldView, OpenFolderButtons } from '../components/DetailPane';
+import { FieldLabel, FieldView, isReadingField, OpenFolderButtons } from '../components/DetailPane';
 import { AuthImage } from '../components/AuthImage';
 import { isRtlText } from '../util/rtl';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureFlags } from '../hooks/useFeature';
-import { HighlightableText } from '../components/HighlightableText';
-import { appendHighlight, removeHighlight, toggleRange } from '../util/highlights';
-
-/**
- * Which field carries the readable body and which collects highlighted sentences, per module.
- * Every module with a `mainHighlights` field highlights its `description`; resources are the
- * exception on both sides — the body worth highlighting is `fullText`, and the collector stays
- * `highlights`, which is the field the phone's own highlight push (mobilePushHighlight -> Book
- * .highlights) writes to. Pointing the web at `mainHighlights` for resources instead would split
- * the same book's highlights across two fields depending on which device made them.
- */
-const HIGHLIGHT_OVERRIDES: Record<string, { source: string; target: string }> = {
-  resources: { source: 'fullText', target: 'highlights' },
-};
-
-function highlightFields(entity: string | undefined): { source: string; target: string } | undefined {
-  if (!entity) return undefined;
-  const override = HIGHLIGHT_OVERRIDES[entity];
-  if (override) return override;
-  const cfg = ENTITY_BY_KEY[entity];
-  if (!cfg) return undefined;
-  const has = (n: string) => cfg.fields.some((f) => f.name === n);
-  return has('mainHighlights') && has('description')
-    ? { source: 'description', target: 'mainHighlights' }
-    : undefined;
-}
+import { HighlightableText, HighlightBar } from '../components/HighlightableText';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { useRecordHighlight } from '../hooks/useRecordHighlight';
+import { useReadingScale } from '../hooks/useReadingScale';
+import { TextSizeSlider } from '../components/TextSizeSlider';
 
 /**
  * A record's content on its own tab, narrow and reading-optimized — no list/nav chrome. Editing
@@ -62,39 +40,15 @@ export function RecordReadPage() {
   const config = entity ? ENTITY_BY_KEY[entity] : undefined;
   const recordId = Number(id);
 
-  const [highlighting, setHighlighting] = useState(false);
-
   const { data: record, isLoading } = useQuery({
     queryKey: ['record', entity, recordId],
     queryFn: () => getEntity(entity!, recordId),
     enabled: !!config && Number.isFinite(recordId),
   });
 
-  const fields = highlightFields(entity);
-
-  // Toggling a highlight rewrites two fields at once: the body (== markers) and the highlights
-  // collector. Sent as a full-record PUT — the generic endpoint applies every DTO field, so a
-  // partial body would null out everything else.
-  const toggle = useMutation({
-    // From the record's CURRENT value, by range: the sentence's flags flip and the markers are
-    // rewritten from them (util/highlights), so an older clause highlight inside the sentence is
-    // absorbed rather than nested. The collector loses every highlight that disappeared (that
-    // clause) and gains every one that appeared (the sentence).
-    mutationFn: async ({ start, end }: { start: number; end: number }) => {
-      const src = String(record?.[fields!.source] ?? '');
-      const result = toggleRange(src, start, end);
-      if (!result) return; // refused: it would have changed the text itself
-      let tgt = (record?.[fields!.target] as string | null | undefined) ?? '';
-      for (const t of result.removed) tgt = removeHighlight(tgt, t);
-      for (const t of result.added) tgt = appendHighlight(tgt, t);
-      return updateEntity(entity!, recordId, {
-        ...record,
-        [fields!.source]: result.source,
-        [fields!.target]: tgt,
-      });
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['record', entity, recordId] }),
-  });
+  const { fields, highlighting, setHighlighting, toggle } = useRecordHighlight(entity, recordId, record);
+  const [readingScale, setReadingScale] = useReadingScale();
+  useDocumentTitle(record ? record.displayTitle || `${config?.label} ${recordId}` : undefined);
 
   /**
    * Tick a `- [ ]` item — the same shape as the highlight toggle above, and for the same reason:
@@ -195,38 +149,24 @@ export function RecordReadPage() {
         <OpenFolderButtons module={config.key} id={recordId} />
       </Stack>
 
-      {fields && canWriteContent && String(record[fields.source] ?? '').trim() && (
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
-          <Button
-            size="small"
-            variant={highlighting ? 'contained' : 'outlined'}
-            color="warning"
-            onClick={() => setHighlighting((h) => !h)}
-          >
-            {highlighting ? 'Done highlighting' : 'Highlight'}
-          </Button>
-          {highlighting && (
-            <>
-              <Typography variant="caption" color="text.secondary">
-                Click a sentence to highlight it — it also goes to “{config.fields.find((f) => f.name === fields.target)?.label ?? fields.target}”.
-              </Typography>
-            </>
-          )}
-          {toggle.isPending && <CircularProgress size={16} />}
-        </Stack>
-      )}
-
       <Stack spacing={3}>
         {/* Honours the same Settings → Features switches as the form and the detail pane, so a
             hidden field doesn't come back the moment the record is opened for reading. */}
-        {config.fields.filter((f) => featureOn(f.feature)).map((f) =>
-          highlighting && fields && f.name === fields.source ? (
+        {config.fields.filter((f) => featureOn(f.feature)).map((f) => {
+          const isSource = !!fields && f.name === fields.source;
+          const hasText = String(record[f.name] ?? '').trim() !== '';
+          const reading = isReadingField(config.key, f.name);
+          // The Highlight switch and the size slider sit right on top of the text they act on.
+          const showHighlight = isSource && canWriteContent && hasText;
+          const showSize = reading && hasText;
+          const view = highlighting && isSource ? (
             <Box key={f.name}>
               <FieldLabel>{f.label}</FieldLabel>
               <HighlightableText
                 source={String(record[f.name] ?? '')}
                 disabled={toggle.isPending}
                 onToggle={(start, end) => toggle.mutate({ start, end })}
+                reading={reading ? readingScale : undefined}
               />
               <Divider sx={{ mt: 2 }} />
             </Box>
@@ -242,9 +182,27 @@ export function RecordReadPage() {
                   ? (index) => toggleItem.mutate({ field: f.name, index })
                   : undefined
               }
+              reading={reading ? readingScale : undefined}
             />
-          ),
-        )}
+          );
+          if (!showHighlight && !showSize) return view;
+          return (
+            <Box key={f.name}>
+              <Stack direction="row" alignItems="center" flexWrap="wrap" useFlexGap columnGap={3} sx={{ mb: 1 }}>
+                {showHighlight && (
+                  <HighlightBar
+                    highlighting={highlighting}
+                    onChange={setHighlighting}
+                    pending={toggle.isPending}
+                    targetLabel={config.fields.find((t) => t.name === fields?.target)?.label}
+                  />
+                )}
+                {showSize && <TextSizeSlider value={readingScale} onChange={setReadingScale} />}
+              </Stack>
+              {view}
+            </Box>
+          );
+        })}
       </Stack>
 
       <RelatedRecordsPanel module={config.key} id={recordId} />
@@ -253,3 +211,4 @@ export function RecordReadPage() {
     </Box>
   );
 }
+

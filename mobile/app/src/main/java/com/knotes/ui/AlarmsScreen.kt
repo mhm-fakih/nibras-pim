@@ -130,6 +130,8 @@ fun AlarmsScreen(
                 )
             }
 
+            AlarmWindowPermissions()
+
             if (alarms.isEmpty()) {
                 Text(
                     stringResource(R.string.prayer_alarm_empty),
@@ -327,4 +329,55 @@ private fun whenLines(context: Context, a: Alarm, nextAt: Long?, zone: ZoneId): 
         )
     }
     return setting to context.getString(R.string.prayer_alarm_rings, day, "%02d:%02d".format(t.hour, t.minute))
+}
+
+/**
+ * What an alarm needs to open as a window rather than only a notification: "Display over other
+ * apps" (so it can open over whatever is in use) and, on Android 14+, full-screen alarms (so it
+ * opens over the lock screen). Each missing one is a line with a button to its settings page;
+ * re-checked whenever the app comes back to the front.
+ */
+@Composable
+private fun AlarmWindowPermissions() {
+    val context = LocalContext.current
+    var tick by remember { mutableStateOf(0) }
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { tick++ }
+    val overlayOk = remember(tick) {
+        android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M ||
+            android.provider.Settings.canDrawOverlays(context)
+    }
+    val fullScreenOk = remember(tick) {
+        android.os.Build.VERSION.SDK_INT < 34 ||
+            context.getSystemService(android.app.NotificationManager::class.java)?.canUseFullScreenIntent() != false
+    }
+    fun open(action: String) {
+        runCatching {
+            context.startActivity(
+                android.content.Intent(action, android.net.Uri.parse("package:" + context.packageName))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
+    if (!overlayOk) PermissionLine(stringResource(R.string.prayer_alarm_window_overlay)) {
+        open(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+    }
+    if (!fullScreenOk) PermissionLine(stringResource(R.string.prayer_alarm_window_fullscreen)) {
+        open("android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT")
+    }
+}
+
+@Composable
+private fun PermissionLine(text: String, onAllow: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onAllow) { Text(stringResource(R.string.prayer_alarm_window_allow)) }
+    }
 }

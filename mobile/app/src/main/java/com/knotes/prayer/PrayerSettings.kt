@@ -94,6 +94,19 @@ data class PrayerSettings(
      * [alarmStepFor] — so it means the same loudness whatever that volume was left at.
      */
     val athanVolumes: Map<Prayer, Int> = emptyMap(),
+    /**
+     * The athan rises to its volume over this many seconds instead of starting at it; 0 starts at
+     * full. A call that starts at full volume in a sleeping house is a jolt, not a call.
+     */
+    val athanRiseSeconds: Int = DEFAULT_ATHAN_RISE,
+    /** Where that rise starts, in dB below the athan's volume (negative). */
+    val athanRiseFromDb: Int = DEFAULT_ATHAN_RISE_FROM_DB,
+    /**
+     * The whole athan this many dB quieter (0 or negative), in the player's own gain — on top of
+     * the per-prayer volume. For phones whose lowest alarm step is still loud, and those (Samsung)
+     * that report a flat volume curve, where the per-prayer volume can only pick a step.
+     */
+    val athanGainDb: Int = 0,
 
     // ---- silence ----
     /** Drop the ringer from the athan until [silenceMinutes] later — to silent, or to vibrate. */
@@ -155,6 +168,21 @@ data class PrayerSettings(
         const val MIN_VOLUME = 0
         const val MAX_VOLUME = 100
         const val DEFAULT_ATHAN_VOLUME = 80
+        const val MIN_ATHAN_RISE = 0
+        const val MAX_ATHAN_RISE = 60
+        const val DEFAULT_ATHAN_RISE = 20
+        /** Where the rise starts, below the athan's volume: -10 dB is half as loud to the ear. */
+        const val DEFAULT_ATHAN_RISE_FROM_DB = -10
+        const val MIN_ATHAN_RISE_FROM_DB = -40
+        const val MAX_ATHAN_RISE_FROM_DB = -1
+
+        /**
+         * The rise as (time 0..1, volume 0..1) points, even steps in dB rather than in amplitude:
+         * a straight amplitude ramp sounds as if it jumps up in the first seconds and then hardly
+         * moves, because loudness follows the log of amplitude.
+         */
+        fun riseCurve(fromDb: Int = DEFAULT_ATHAN_RISE_FROM_DB, points: Int = 16): Pair<FloatArray, FloatArray> =
+            com.knotes.alarm.SoundGain.riseCurve(fromDb.coerceIn(MIN_ATHAN_RISE_FROM_DB, MAX_ATHAN_RISE_FROM_DB), points)
 
         /**
          * Percentage → the alarm-stream step to set while the athan plays, on a stream whose steps
@@ -233,6 +261,11 @@ class PrayerSettingsStore(context: Context) {
             athanPrayers = decodePrayers(prefs.getString(K_ATHAN, null)) ?: d.athanPrayers,
             athanSoundUri = prefs.getString(K_ATHAN_SOUND, "") ?: "",
             athanVolumes = decodeVolumes(prefs.getString(K_ATHAN_VOLUMES, null)),
+            athanRiseSeconds = prefs.getInt(K_ATHAN_RISE, d.athanRiseSeconds)
+                .coerceIn(PrayerSettings.MIN_ATHAN_RISE, PrayerSettings.MAX_ATHAN_RISE),
+            athanRiseFromDb = prefs.getInt(K_ATHAN_RISE_FROM, d.athanRiseFromDb)
+                .coerceIn(PrayerSettings.MIN_ATHAN_RISE_FROM_DB, PrayerSettings.MAX_ATHAN_RISE_FROM_DB),
+            athanGainDb = prefs.getInt(K_ATHAN_GAIN_DB, 0).coerceIn(com.knotes.alarm.SoundGain.MIN_DB, 0),
             silenceEnabled = prefs.getBoolean(K_SIL_ON, d.silenceEnabled),
             silenceVibrate = prefs.getBoolean(K_SIL_VIBRATE, d.silenceVibrate),
             silenceMinutes = prefs.getInt(K_SIL_MIN, d.silenceMinutes),
@@ -281,6 +314,9 @@ class PrayerSettingsStore(context: Context) {
             .putString(K_ATHAN, encodePrayers(s.effectiveAthan))
             .putString(K_ATHAN_SOUND, s.athanSoundUri.trim())
             .putString(K_ATHAN_VOLUMES, encodeVolumes(s.athanVolumes))
+            .putInt(K_ATHAN_RISE, s.athanRiseSeconds.coerceIn(PrayerSettings.MIN_ATHAN_RISE, PrayerSettings.MAX_ATHAN_RISE))
+            .putInt(K_ATHAN_RISE_FROM, s.athanRiseFromDb.coerceIn(PrayerSettings.MIN_ATHAN_RISE_FROM_DB, PrayerSettings.MAX_ATHAN_RISE_FROM_DB))
+            .putInt(K_ATHAN_GAIN_DB, s.athanGainDb.coerceIn(com.knotes.alarm.SoundGain.MIN_DB, 0))
             .putBoolean(K_SIL_ON, s.silenceEnabled)
             .putBoolean(K_SIL_VIBRATE, s.silenceVibrate)
             .putInt(K_SIL_MIN, s.silenceMinutes.coerceIn(PrayerSettings.MIN_SILENCE, PrayerSettings.MAX_SILENCE))
@@ -316,6 +352,9 @@ class PrayerSettingsStore(context: Context) {
         private const val K_ATHAN = "athan_prayers"
         private const val K_ATHAN_SOUND = "athan_sound_uri"
         private const val K_ATHAN_VOLUMES = "athan_volumes"
+        private const val K_ATHAN_RISE = "athan_rise_seconds"
+        private const val K_ATHAN_RISE_FROM = "athan_rise_from_db"
+        private const val K_ATHAN_GAIN_DB = "athan_gain_db"
         private const val K_SIL_ON = "silence_enabled"
         private const val K_SIL_VIBRATE = "silence_vibrate"
         private const val K_SIL_MIN = "silence_minutes"

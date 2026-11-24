@@ -21,6 +21,19 @@ public class WritingService extends AbstractCrudService<Writing, WritingDto> {
         super(repo);
     }
 
+    /** Leaves the source surahs out while the Quran module is on (unless that type is asked for). */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private QuranService quran;
+
+    @Override
+    protected org.springframework.data.jpa.domain.Specification<com.nibras.pim.domain.Writing> spec(com.nibras.pim.web.dto.FilterParams f) {
+        org.springframework.data.jpa.domain.Specification<com.nibras.pim.domain.Writing> base = super.spec(f);
+        Long hidden = quran == null ? null : quran.hiddenType(name());
+        if (hidden == null || hidden.equals(f.typeId())) return base;
+        return base.and((root, query, cb) -> cb.or(cb.isNull(root.get("type")), cb.notEqual(root.get("type").get("id"), hidden)));
+    }
+
     @Override
     public String name() {
         return "writings";

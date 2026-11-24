@@ -56,7 +56,7 @@ public class BookService extends AbstractCrudService<Book, BookDto> {
                 b.getTitle(), b.getAuthor(), b.getPublisher(), b.getEdition(), b.getIsbn(),
                 b.getDescription(), b.getShortDescription(), b.getNotes(), b.getComments(), b.getUrl(),
                 b.getFullText(), b.getHighlights(),
-                b.getPriority(), b.getBookmarked(), b.getIsPrivate(), b.getIsRead(), b.getReadOn(),
+                b.getPriority(), b.getBookmarked(), b.getIsPrivate(), b.getIsRead(), b.getReadOn(), b.getPublishedOn(),
                 b.getPercentCompleted(), b.getResourceYear(), b.getPages(),
                 b.getStatus() == null ? null : b.getStatus().getId(),
                 b.getType() == null ? null : b.getType().getId(),
@@ -103,6 +103,7 @@ public class BookService extends AbstractCrudService<Book, BookDto> {
         b.setIsPrivate(dto.isPrivate());
         b.setIsRead(dto.isRead());
         b.setReadOn(dto.readOn());
+        b.setPublishedOn(dto.publishedOn());
         b.setPercentCompleted(dto.percentCompleted());
         b.setResourceYear(dto.resourceYear());
         b.setPages(dto.pages());

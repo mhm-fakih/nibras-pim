@@ -48,6 +48,18 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.PlaylistAddCheck
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.FiberNew
 import androidx.compose.material.icons.filled.RecordVoiceOver
@@ -258,7 +270,15 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
     var tab by remember { mutableStateOf(tabFromName(UiStateStore.playerPanel(panelContext))) }
     // Opens on the playlist when it is what plays next, else on the bookmarks.
     var underTab by rememberSaveable {
-        mutableStateOf(if (controller.playNextMode == PlayNextMode.AI_QUEUE) UnderTab.PLAYLIST else UnderTab.BOOKMARKS)
+        mutableStateOf(
+            if (controller.playNextMode == PlayNextMode.AI_QUEUE || controller.playNextMode == PlayNextMode.PLAYLIST) UnderTab.PLAYLIST
+            else UnderTab.BOOKMARKS
+        )
+    }
+    // Which list the Playlist tab shows: one of your playlists by name, or null for the AI
+    // narrations. Opens on the one Play next is walking.
+    var shownPlaylist by rememberSaveable {
+        mutableStateOf(if (controller.playNextMode == PlayNextMode.PLAYLIST) controller.activePlaylist else null)
     }
     // One effect rather than a write at each switch — the state IS the setting.
     LaunchedEffect(tab) { UiStateStore.setPlayerPanel(panelContext, tab.name) }
@@ -447,6 +467,7 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                 },
                 // The star, where it is always in sight whatever the file's name does to the card.
                 actions = {
+                    PlaylistMenuButton(controller, currentFile, tint = Color.White)
                     val starredNow = controller.isStarred(currentFile)
                     IconButton(onClick = { controller.toggleStar(currentFile) }) {
                         Icon(
@@ -565,8 +586,8 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                                 }
                             }
                         }
-                        // Under the transport, two tabs: the file's bookmarks, and the playlist —
-                        // the recent AI narrations, ticked to play next. Both are chosen while
+                        // Under the transport, two tabs: the file's bookmarks, and the playlists —
+                        // the recent AI narrations ticked to play next, and your own named lists. Both are chosen while
                         // listening, so they sit here rather than on a page of their own.
                         Spacer(Modifier.height(12.dp))
                         TabRow(
@@ -581,29 +602,18 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                             Tab(
                                 selected = underTab == UnderTab.PLAYLIST,
                                 onClick = { underTab = UnderTab.PLAYLIST },
-                                text = { Text(stringResource(R.string.player_tab_playlist, controller.aiQueue.size)) },
+                                text = {
+                                    Text(stringResource(
+                                        R.string.player_tab_playlist,
+                                        controller.playlist(shownPlaylist)?.paths?.size ?: controller.aiQueue.size,
+                                    ))
+                                },
                             )
                         }
                         Spacer(Modifier.height(8.dp))
                         when (underTab) {
-                            UnderTab.PLAYLIST -> {
-                                // The ticks are kept whatever the mode, but only AI-narrations
-                                // mode plays them: say so, with the switch one tap away.
-                                if (controller.playNextMode != PlayNextMode.AI_QUEUE) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            stringResource(R.string.player_playlist_inactive),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color(0xFF888888),
-                                            modifier = Modifier.weight(1f),
-                                        )
-                                        TextButton(onClick = { controller.changePlayNextMode(PlayNextMode.AI_QUEUE) }) {
-                                            Text(stringResource(R.string.player_playlist_use))
-                                        }
-                                    }
-                                }
-                                AiQueuePanel(controller, currentFile)
-                            }
+                            UnderTab.PLAYLIST ->
+                                PlaylistsPanel(controller, currentFile, shownPlaylist) { shownPlaylist = it }
                             UnderTab.BOOKMARKS -> {
                                 if (bookmarks.isEmpty()) {
                                     Text("—", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF888888))
@@ -629,7 +639,11 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                         empty = siblings.isEmpty(),
                     ) {
                         items(siblings) { f ->
-                            MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = false) { controller.open(f); tab = PlayerTab.PLAYER }
+                            MediaRow(
+                                f,
+                                current = f.absolutePath == currentFile.absolutePath,
+                                trailing = { PlaylistMenuButton(controller, f) },
+                            ) { controller.open(f); tab = PlayerTab.PLAYER }
                         }
                     }
 
@@ -663,16 +677,16 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                                 )
                             }
                             items(starredFiles) { f ->
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = true) {
-                                            controller.open(f); tab = PlayerTab.PLAYER
+                                MediaRow(
+                                    f,
+                                    current = f.absolutePath == currentFile.absolutePath,
+                                    trailing = {
+                                        PlaylistMenuButton(controller, f)
+                                        IconButton(onClick = { controller.toggleStar(f) }) {
+                                            Icon(Icons.Filled.Star, stringResource(R.string.player_unstar), tint = Color(0xFFFFC107))
                                         }
-                                    }
-                                    IconButton(onClick = { controller.toggleStar(f) }) {
-                                        Icon(Icons.Filled.Star, stringResource(R.string.player_unstar), tint = Color(0xFFFFC107))
-                                    }
-                                }
+                                    },
+                                ) { controller.open(f); tab = PlayerTab.PLAYER }
                             }
                         }
                     }
@@ -682,7 +696,11 @@ fun PlayerScreen(controller: PlayerController, onBack: () -> Unit) {
                         empty = recents.isEmpty(),
                     ) {
                         items(recents) { f ->
-                            MediaRow(f, current = f.absolutePath == currentFile.absolutePath, showPath = true) { controller.open(f); tab = PlayerTab.PLAYER }
+                            MediaRow(
+                                f,
+                                current = f.absolutePath == currentFile.absolutePath,
+                                trailing = { PlaylistMenuButton(controller, f) },
+                            ) { controller.open(f); tab = PlayerTab.PLAYER }
                         }
                     }
 
@@ -1399,9 +1417,27 @@ fun MediaMetaBadge(file: File, modifier: Modifier = Modifier) {
     }
 }
 
-/** A tappable media file row used by the "in this folder" and "recently played" lists. */
+/**
+ * The one card every file list in the player uses — In this folder, Recently played, Starred, the
+ * playlists and the AI narrations alike: the title, then the folder it is in, its length and its
+ * bookmark count. [title] replaces the file name (a narration shows its note's title), [extra]
+ * adds to the details line, and [leading] / [trailing] hold a tick box or the row's buttons.
+ */
 @Composable
-private fun MediaRow(file: File, current: Boolean, showPath: Boolean = false, onClick: () -> Unit) {
+private fun MediaRow(
+    file: File,
+    current: Boolean,
+    title: String? = null,
+    extra: String? = null,
+    leading: (@Composable () -> Unit)? = null,
+    trailing: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
+    val meta by produceState<MediaMeta?>(initialValue = null, file) {
+        value = withContext(Dispatchers.IO) { loadMediaMeta(file) }
+    }
+    val accent = MaterialTheme.colorScheme.primary
+    val muted = Color(0xFF9AA0A6)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1410,43 +1446,291 @@ private fun MediaRow(file: File, current: Boolean, showPath: Boolean = false, on
             .border(1.dp, Color(0xFF3A3A3A), RoundedCornerShape(6.dp))
             // Special background + bold for the last-played (current) file.
             .background(
-                if (current) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent,
+                if (current) accent.copy(alpha = 0.18f) else Color.Transparent,
                 RoundedCornerShape(6.dp),
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+            .padding(start = 8.dp, end = if (trailing != null) 0.dp else 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
+        if (leading != null) leading()
+        else Icon(
             if (isVideoFile(file.name)) Icons.Filled.Movie else Icons.Filled.MusicNote,
             contentDescription = null,
-            tint = if (current) MaterialTheme.colorScheme.primary else Color(0xFFAAAAAA),
+            tint = if (current) accent else Color(0xFFAAAAAA),
             modifier = Modifier.size(18.dp),
         )
         Spacer(Modifier.width(10.dp))
-        MediaMetaBadge(file)
-        Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                file.name,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (current) MaterialTheme.colorScheme.primary else Color.White,
+                title ?: file.nameWithoutExtension,
+                style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Content),
+                color = if (current) accent else Color.White,
                 fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            // Path shown so each file's location is clear — with the redundant shared-storage
-            // "/storage/emulated/0/" prefix stripped.
-            if (showPath) {
+            Spacer(Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Folder, null, tint = muted, modifier = Modifier.size(12.dp))
+                Spacer(Modifier.width(3.dp))
                 Text(
-                    file.absolutePath.removePrefix("/storage/emulated/0/"),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF9AA0A6),
+                    file.parentFile?.name.orEmpty(),
+                    style = MaterialTheme.typography.labelSmall.copy(textDirection = TextDirection.Content),
+                    color = muted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+                Text(
+                    " · " + (meta?.let { formatDuration(it.durationMs) } ?: "··:··"),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = accent,
+                    maxLines = 1,
+                )
+                val bm = meta?.bookmarkCount ?: 0
+                if (bm > 0) {
+                    Text(" · ", style = MaterialTheme.typography.labelSmall, color = muted)
+                    Icon(Icons.Filled.Bookmark, null, modifier = Modifier.size(11.dp), tint = Color(0xFFFFC107))
+                    Text("$bm", style = MaterialTheme.typography.labelSmall, color = muted, maxLines = 1)
+                }
+            }
+            if (!extra.isNullOrEmpty()) {
+                Text(extra, style = MaterialTheme.typography.labelSmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
+        if (trailing != null) trailing()
+    }
+}
+
+/**
+ * The playlist button on a file: a menu of every playlist, ticked where the file already is (a tap
+ * adds or removes it), and "New playlist" to start one with this file on it.
+ */
+@Composable
+private fun PlaylistMenuButton(controller: PlayerController, file: File, tint: Color = Color(0xFFAAAAAA)) {
+    var open by remember { mutableStateOf(false) }
+    var creating by remember { mutableStateOf(false) }
+    val inAny = controller.playlists.any { file.absolutePath in it.paths }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(
+                if (inAny) Icons.AutoMirrored.Filled.PlaylistAddCheck else Icons.AutoMirrored.Filled.PlaylistAdd,
+                stringResource(R.string.player_playlist_add_to),
+                tint = if (inAny) MaterialTheme.colorScheme.primary else tint,
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            controller.playlists.forEach { p ->
+                val on = file.absolutePath in p.paths
+                DropdownMenuItem(
+                    text = { Text(p.name, style = LocalTextStyle.current.copy(textDirection = TextDirection.Content)) },
+                    leadingIcon = { Checkbox(checked = on, onCheckedChange = null) },
+                    onClick = { controller.togglePlaylistFile(p.name, file) },
+                )
+            }
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.player_playlist_new)) },
+                leadingIcon = { Icon(Icons.Filled.Add, null) },
+                onClick = { open = false; creating = true },
+            )
+        }
+    }
+    if (creating) {
+        PlaylistNameDialog(
+            title = stringResource(R.string.player_playlist_new),
+            confirm = stringResource(R.string.player_playlist_create),
+            initial = "",
+            onDismiss = { creating = false },
+        ) { name -> (controller.createPlaylist(name, file) != null).also { if (it) creating = false } }
+    }
+}
+
+/** Asks for a playlist's name; [onConfirm] returns false to keep the dialog up (name blank or taken). */
+@Composable
+private fun PlaylistNameDialog(
+    title: String,
+    confirm: String,
+    initial: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Boolean,
+) {
+    var name by remember { mutableStateOf(initial) }
+    var refused by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it.take(Playlists.MAX_NAME); refused = false },
+                label = { Text(stringResource(R.string.player_playlist_name)) },
+                singleLine = true,
+                isError = refused,
+                supportingText = if (refused) ({ Text(stringResource(R.string.player_playlist_name_taken)) }) else null,
+                textStyle = LocalTextStyle.current.copy(textDirection = TextDirection.Content),
+            )
+        },
+        confirmButton = { TextButton(onClick = { refused = !onConfirm(name) }) { Text(confirm) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.player_cancel)) } },
+    )
+}
+
+/**
+ * The Playlist tab under the transport: a chip per list — the AI narrations, then each playlist
+ * of your own, then "New playlist" — and the chosen one's files beneath.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PlaylistsPanel(controller: PlayerController, currentFile: File, shown: String?, onShow: (String?) -> Unit) {
+    var creating by remember { mutableStateOf(false) }
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        FilterChip(
+            selected = shown == null,
+            onClick = { onShow(null) },
+            label = { Text(stringResource(R.string.player_playlists_ai)) },
+            leadingIcon = { Icon(Icons.Filled.RecordVoiceOver, null, modifier = Modifier.size(16.dp)) },
+        )
+        controller.playlists.forEach { p ->
+            val playing = controller.playNextMode == PlayNextMode.PLAYLIST && controller.activePlaylist == p.name
+            FilterChip(
+                selected = shown == p.name,
+                onClick = { onShow(p.name) },
+                label = {
+                    Text(
+                        stringResource(R.string.player_playlist_count, p.name, p.paths.size),
+                        style = LocalTextStyle.current.copy(textDirection = TextDirection.Content),
+                        maxLines = 1,
+                    )
+                },
+                leadingIcon = if (playing) ({ Icon(Icons.AutoMirrored.Filled.QueueMusic, null, modifier = Modifier.size(16.dp)) }) else null,
+            )
+        }
+        FilterChip(
+            selected = false,
+            onClick = { creating = true },
+            label = { Text(stringResource(R.string.player_playlist_new)) },
+            leadingIcon = { Icon(Icons.Filled.Add, null, modifier = Modifier.size(16.dp)) },
+        )
+    }
+    if (creating) {
+        PlaylistNameDialog(
+            title = stringResource(R.string.player_playlist_new),
+            confirm = stringResource(R.string.player_playlist_create),
+            initial = "",
+            onDismiss = { creating = false },
+        ) { name -> controller.createPlaylist(name)?.let { creating = false; onShow(it); true } ?: false }
+    }
+    Spacer(Modifier.height(8.dp))
+
+    val list = controller.playlist(shown)
+    if (shown == null || list == null) {
+        // The ticks are kept whatever the mode, but only AI-narrations mode plays them: say so,
+        // with the switch one tap away.
+        if (controller.playNextMode != PlayNextMode.AI_QUEUE) {
+            ModeNotice(stringResource(R.string.player_playlist_inactive)) {
+                controller.changePlayNextMode(PlayNextMode.AI_QUEUE)
+            }
+        }
+        AiQueuePanel(controller, currentFile)
+        return
+    }
+    UserPlaylist(controller, list, currentFile, onShow)
+}
+
+@Composable
+private fun ModeNotice(text: String, onUse: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(text, style = MaterialTheme.typography.bodySmall, color = Color(0xFF888888), modifier = Modifier.weight(1f))
+        TextButton(onClick = onUse) { Text(stringResource(R.string.player_playlist_use)) }
+    }
+}
+
+/** One of your playlists: add or remove the playing file, rename, delete, and its files in order. */
+@Composable
+private fun UserPlaylist(controller: PlayerController, list: Playlist, currentFile: File, onShow: (String?) -> Unit) {
+    var renaming by remember(list.name) { mutableStateOf(false) }
+    var deleting by remember(list.name) { mutableStateOf(false) }
+    val active = controller.playNextMode == PlayNextMode.PLAYLIST && controller.activePlaylist == list.name
+    if (!active) ModeNotice(stringResource(R.string.player_playlist_not_active)) { controller.usePlaylist(list.name) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        val here = currentFile.absolutePath in list.paths
+        TextButton(onClick = { controller.togglePlaylistFile(list.name, currentFile) }) {
+            Icon(
+                if (here) Icons.Filled.Remove else Icons.AutoMirrored.Filled.PlaylistAdd,
+                null, modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(stringResource(if (here) R.string.player_playlist_remove_this else R.string.player_playlist_add_this))
+        }
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = { renaming = true }) {
+            Icon(Icons.Filled.Edit, stringResource(R.string.player_playlist_rename), modifier = Modifier.size(20.dp))
+        }
+        IconButton(onClick = { deleting = true }) {
+            Icon(Icons.Filled.Delete, stringResource(R.string.player_playlist_delete), modifier = Modifier.size(20.dp))
+        }
+    }
+    val files = list.paths.map(::File).filter { it.exists() }
+    if (files.isEmpty()) {
+        Text(stringResource(R.string.player_playlist_empty), style = MaterialTheme.typography.bodySmall, color = Color(0xFF888888))
+    }
+    files.forEachIndexed { i, f ->
+        MediaRow(
+            f,
+            current = f.absolutePath == currentFile.absolutePath,
+            leading = {
+                Text(
+                    "${i + 1}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color(0xFFAAAAAA),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(20.dp),
+                )
+            },
+            trailing = {
+                IconButton(onClick = { controller.movePlaylistFile(list.name, f, -1) }, enabled = i > 0, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Filled.ArrowUpward, stringResource(R.string.player_playlist_move_up), modifier = Modifier.size(18.dp))
+                }
+                IconButton(onClick = { controller.movePlaylistFile(list.name, f, 1) }, enabled = i < files.lastIndex, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Filled.ArrowDownward, stringResource(R.string.player_playlist_move_down), modifier = Modifier.size(18.dp))
+                }
+                IconButton(onClick = { controller.togglePlaylistFile(list.name, f) }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Filled.Close, stringResource(R.string.player_playlist_remove), modifier = Modifier.size(18.dp))
+                }
+            },
+        ) {
+            // Playing a file from the list plays the list on from there.
+            controller.usePlaylist(list.name)
+            controller.open(f)
+        }
+    }
+    if (renaming) {
+        PlaylistNameDialog(
+            title = stringResource(R.string.player_playlist_rename),
+            confirm = stringResource(R.string.player_playlist_rename),
+            initial = list.name,
+            onDismiss = { renaming = false },
+        ) { name ->
+            controller.renamePlaylist(list.name, name).also { ok -> if (ok) { renaming = false; onShow(Playlists.cleanName(name)) } }
+        }
+    }
+    if (deleting) {
+        AlertDialog(
+            onDismissRequest = { deleting = false },
+            title = { Text(stringResource(R.string.player_playlist_delete_title, list.name)) },
+            text = { Text(stringResource(R.string.player_playlist_delete_body)) },
+            confirmButton = {
+                TextButton(onClick = { deleting = false; controller.deletePlaylist(list.name); onShow(null) }) {
+                    Text(stringResource(R.string.player_delete), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(R.string.player_cancel)) } },
+        )
     }
 }
 
@@ -1553,6 +1837,9 @@ private fun PlayNextRow(controller: PlayerController) {
         PlayNextMode.RANDOM_OLD_PARENT -> stringResource(R.string.player_next_caption_random_here)
         PlayNextMode.RANDOM_NEW_PARENT -> stringResource(R.string.player_next_caption_newest_here)
         PlayNextMode.AI_QUEUE -> stringResource(R.string.player_next_caption_ai_queue)
+        PlayNextMode.PLAYLIST -> controller.playlist(controller.activePlaylist)
+            ?.let { stringResource(R.string.player_next_caption_playlist, it.name) }
+            ?: stringResource(R.string.player_next_caption_playlist_none)
     }
 
     Column {
@@ -1626,29 +1913,13 @@ private fun AiQueuePanel(controller: PlayerController, currentFile: File) {
     controller.aiNarrations.forEach { n ->
         val path = n.file.absolutePath
         val playing = path == currentFile.absolutePath
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable { controller.toggleQueued(n.file) }.padding(vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Checkbox(checked = path in queued, onCheckedChange = { controller.toggleQueued(n.file) })
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    n.title,
-                    fontWeight = if (playing) FontWeight.Bold else null,
-                    color = if (playing) MaterialTheme.colorScheme.primary else Color.Unspecified,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Content),
-                )
-                Text(
-                    (if (n.recordedMillis > 0) dateFmt.format(java.util.Date(n.recordedMillis)) + " · " else "") + n.file.name,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFFAAAAAA),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
+        MediaRow(
+            n.file,
+            current = playing,
+            title = n.title,
+            extra = if (n.recordedMillis > 0) dateFmt.format(java.util.Date(n.recordedMillis)) else null,
+            leading = { Checkbox(checked = path in queued, onCheckedChange = { controller.toggleQueued(n.file) }) },
+        ) { controller.toggleQueued(n.file) }
     }
 }
 
@@ -1660,6 +1931,7 @@ private fun playNextLabel(mode: PlayNextMode): Int = when (mode) {
     PlayNextMode.RANDOM_OLD_PARENT -> R.string.player_next_random_here
     PlayNextMode.RANDOM_NEW_PARENT -> R.string.player_next_newest_here
     PlayNextMode.AI_QUEUE -> R.string.player_next_ai_queue
+    PlayNextMode.PLAYLIST -> R.string.player_next_playlist
 }
 
 /**
@@ -1676,6 +1948,7 @@ private fun playNextIcon(mode: PlayNextMode): androidx.compose.ui.graphics.vecto
         PlayNextMode.RANDOM_OLD_PARENT -> Icons.Filled.FolderCopy
         PlayNextMode.RANDOM_NEW_PARENT -> Icons.Filled.FiberNew
         PlayNextMode.AI_QUEUE -> Icons.Filled.RecordVoiceOver
+        PlayNextMode.PLAYLIST -> Icons.AutoMirrored.Filled.QueueMusic
     }
 
 /** Sleep-timer picker. The service holds the actual countdown, so it fires with the screen off. */

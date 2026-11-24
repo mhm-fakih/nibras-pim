@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Box } from '@mui/material';
+import { Box, Button, CircularProgress, Stack, Typography } from '@mui/material';
+import { useHighlightStyle } from '../hooks/useHighlightStyle';
 import { isRtlText } from '../util/rtl';
 import { sentenceSpans, splitMarks } from '../util/highlights';
 
@@ -17,13 +18,17 @@ export function HighlightableText({
   source,
   onToggle,
   disabled,
+  reading,
 }: {
   /** The raw field value, including any existing `==…==` markers. */
   source: string;
   /** Called with the clicked sentence's range in the marker-free text. */
   onToggle: (start: number, end: number) => void;
   disabled?: boolean;
+  /** Long-form reading (a resource's full text): justified, the font scaled by this. */
+  reading?: number;
 }) {
+  const highlightStyle = useHighlightStyle();
   const { plain, flags } = useMemo(() => splitMarks(source), [source]);
   const rtl = isRtlText(plain);
   const sentences = useMemo(() => sentenceSpans(plain), [plain]);
@@ -57,7 +62,13 @@ export function HighlightableText({
   return (
     <Box
       dir={rtl ? 'rtl' : 'ltr'}
-      sx={{ textAlign: rtl ? 'right' : 'left', whiteSpace: 'pre-wrap', lineHeight: 1.9 }}
+      sx={{
+        textAlign: reading ? 'justify' : rtl ? 'right' : 'left',
+        textAlignLast: rtl ? 'right' : 'left',
+        whiteSpace: 'pre-wrap',
+        lineHeight: 1.9,
+        ...(reading && { fontSize: `${reading}em` }),
+      }}
     >
       {pieces.map((p, i) => {
         if (p.kind === 'gap') return <span key={i}>{p.text}</span>;
@@ -74,7 +85,7 @@ export function HighlightableText({
           >
             {p.runs.map((r, k) =>
               r.on ? (
-                <Box component="span" key={k} sx={{ bgcolor: 'warning.light', borderRadius: 0.5 }}>
+                <Box component="span" key={k} sx={highlightStyle}>
                   {r.text}
                 </Box>
               ) : (
@@ -85,5 +96,38 @@ export function HighlightableText({
         );
       })}
     </Box>
+  );
+}
+
+/** The Highlight button above a record's fields, and what clicking does while the mode is on. */
+export function HighlightBar({
+  highlighting,
+  onChange,
+  pending,
+  targetLabel,
+}: {
+  highlighting: boolean;
+  onChange: (on: boolean) => void;
+  pending: boolean;
+  /** The label of the field highlighted sentences are collected in. */
+  targetLabel?: string;
+}) {
+  return (
+    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+      <Button
+        size="small"
+        variant={highlighting ? 'contained' : 'outlined'}
+        color="warning"
+        onClick={() => onChange(!highlighting)}
+      >
+        {highlighting ? 'Done highlighting' : 'Highlight'}
+      </Button>
+      {highlighting && (
+        <Typography variant="caption" color="text.secondary">
+          Click a sentence to highlight it — it also goes to “{targetLabel}”. Click it again to clear.
+        </Typography>
+      )}
+      {pending && <CircularProgress size={16} />}
+    </Stack>
   );
 }

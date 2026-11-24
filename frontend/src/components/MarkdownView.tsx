@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Box } from '@mui/material';
 import MarkdownIt from 'markdown-it';
+import { useHighlightStyle } from '../hooks/useHighlightStyle';
 import markdownItMark from 'markdown-it-mark';
 
 // html:true keeps legacy <br>/HTML working during the move to Markdown; breaks:true turns
@@ -64,10 +65,14 @@ function withCheckboxes(source: string, interactive: boolean): string {
 export function MarkdownView({
   value,
   onToggleItem,
+  reading,
 }: {
   value: string;
   onToggleItem?: (index: number) => void;
+  /** Long-form reading (a resource's full text): justified paragraphs, the font scaled by this. */
+  reading?: number;
 }) {
+  const highlightStyle = useHighlightStyle();
   const html = useMemo(
     () => md.render(withCheckboxes(value ?? '', Boolean(onToggleItem))),
     [value, onToggleItem],
@@ -87,12 +92,19 @@ export function MarkdownView({
       }}
       sx={{
         lineHeight: 1.7,
+        ...(reading && { fontSize: `${reading}em` }),
         '& img': { maxWidth: '100%' },
-        '& mark': { backgroundColor: '#fff3a3', px: '2px', borderRadius: '2px' },
+        '& mark': highlightStyle,
         '& pre': { bgcolor: '#f5f5f5', p: 1.5, borderRadius: 1, overflow: 'auto' },
         '& code': { bgcolor: '#f5f5f5', px: '4px', borderRadius: '3px' },
         '& blockquote': { borderLeft: '3px solid #ccc', pl: 1.5, color: 'text.secondary', my: 1 },
         '& :first-of-type': { mt: 0 },
+        // Each paragraph (and each line after a break) takes the direction of its own first
+        // letter, not the whole text's: a board or note mixing English and Arabic jots keeps the
+        // Arabic ones right-aligned even when the text starts in English, and vice versa.
+        '& p, & h1, & h2, & h3, & h4, & h5, & h6': { unicodeBidi: 'plaintext', textAlign: 'start' },
+        // Justified, with each paragraph's last line still on its own start side (right for Arabic).
+        ...(reading && { '& p, & li': { unicodeBidi: 'plaintext', textAlign: 'justify', textAlignLast: 'start' } }),
         // A task list reads as a list of things to do, not as bullets that happen to have boxes.
         '& input.md-task': {
           mr: 0.75,

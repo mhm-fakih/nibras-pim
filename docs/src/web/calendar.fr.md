@@ -91,6 +91,21 @@ this occurrence** — Supprimer uniquement cette occurrence). Pour modifier ou t
 modifiez la fiche d'origine du planificateur — voir
 [Tâches et plans récurrents](records.md#repeating-tasks-and-plans).
 
+## Dates solaires (Shamsi) et hégiriennes, et occasions officielles de l'Iran { #shamsi-and-hijri-dates }
+
+Avec **Shamsi · Hijri** activé (dans la barre d'outils, activé par défaut), l'en-tête de chaque jour affiche sa date
+solaire (en persan) et sa date hégirienne (en arabe) sous le numéro du jour, puis les occasions du jour selon le
+calendrier officiel de l'Iran : chacune dans le persan d'origine, avec sa traduction arabe dessous. Le numéro et les
+occasions d'un jour férié sont en rouge. Survolez une occasion pour en lire le texte entier.
+
+La date hégirienne est calculée comme sur la page des prières du téléphone (avec l'ajustement `calendar.hijri-offset`
+du serveur). Le calendrier officiel fixe certaines dates hégiriennes par l'observation de la lune, un jour avant ou
+après le calcul ; un tel jour est marqué d'un `*`, et son infobulle donne la date hégirienne officielle. Les occasions
+sont toujours au jour où le calendrier officiel les place.
+
+Le calendrier officiel est chargé pour 1405 et 1406 (du 21 mars 2026 au 19 mars 2028), à partir des PDF de
+l'Université de Téhéran ; une année suivante s'ajoute depuis son PDF avec `tools/iran-calendar`.
+
 ## Calendriers ailleurs { #calendars-elsewhere }
 
 - Un [tableau de bord](dashboards.md) peut inclure une région **Calendar (filtered by type)**

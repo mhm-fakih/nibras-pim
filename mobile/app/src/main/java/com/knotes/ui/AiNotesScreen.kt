@@ -28,6 +28,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,6 +60,8 @@ import java.io.File
 @Composable
 fun AiNotesScreen(
     notes: List<Note>,
+    /** Whether the folder has been read yet; until then the page shows a spinner, not "empty". */
+    loaded: Boolean,
     settings: AppSettings,
     dirPath: String,
     dirExists: Boolean,
@@ -142,6 +146,10 @@ fun AiNotesScreen(
                 stringResource(R.string.player_ai_no_folder_title),
                 stringResource(R.string.player_ai_no_folder_detail, dirPath),
             )
+        } else if (notes.isEmpty() && !loaded) {
+            Box(Modifier.fillMaxWidth().padding(top = 32.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
         } else if (notes.isEmpty()) {
             Empty(
                 stringResource(R.string.player_ai_empty_title),
@@ -163,6 +171,7 @@ fun AiNotesScreen(
                         settings = settings,
                         readOnly = true,
                         whenText = note.createdText(),
+                        searchQuery = query.trim(),
                         onRead = { onOpen(note) },
                         onPlayMedia = onPlayMedia,
                     )

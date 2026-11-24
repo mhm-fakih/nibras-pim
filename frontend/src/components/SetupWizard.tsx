@@ -67,7 +67,7 @@ const STARTER_MODULES = ['tasks', 'planners', 'journals', 'notes', 'resources'];
 
 /** Pages a fresh, focused install starts with; every other toggleable page starts off. */
 // (Not Kanban: it shows goals and their tasks, and Goals is not a starter module.)
-const STARTER_PAGES = new Set(['calendar', 'bookmarks', 'parameters', 'checklists/view', 'local-notes', 'dashboards']);
+const STARTER_PAGES = new Set(['calendar', 'bookmarks', 'parameters', 'checklists', 'checklists/view', 'local-notes', 'dashboards']);
 
 /** The usual layout under one main folder; each path can still be changed on its own. */
 function layoutUnder(base: string): Folders {

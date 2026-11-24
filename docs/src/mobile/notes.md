@@ -79,6 +79,8 @@ Tapping a card opens it full-screen. Two chips at the top switch between **Read*
 **Read**
 
 - Markdown is shown formatted: headings, bold, lists and so on.
+- **Select and copy.** The text can be selected: long-press, drag the handles, then **Copy**. The copy button at the top copies the whole text in one tap (without the `==` marks). The same applies to AI answers.
+- **Highlighting is a mode.** Tap the highlighter button at the top to turn it on; while it is on, taps highlight instead of selecting. Tap it again to go back to selecting.
 - **Tap a clause to highlight it.** Tap again to remove the highlight. The highlight is written into the note itself as `==…==`, so it shows up on the computer and the server as well. The header counts how many clauses are highlighted.
 
 **Edit**

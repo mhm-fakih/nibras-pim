@@ -59,6 +59,8 @@ Les horaires dépendent de l'endroit où vous êtes. Ouvrez **Méthode → Votre
 - **Le son** : sans fichier choisi, l'adhan joue le **son d'alarme par défaut du téléphone**. Pour entendre un véritable adhan, touchez **Choisir un fichier d’adhan** et sélectionnez le fichier audio de l'enregistrement voulu. **Effacer** revient au son d'alarme par défaut. **Écouter** le joue tout de suite au volume d'alarme actuel du téléphone ; **Arrêter** l'arrête.
 - L'adhan est joué sur le canal sonore des **alarmes** : il reste donc audible lorsque le téléphone est mis en silence pour la prière.
 - **Volume pour chacune** : un volume distinct par prière (80 % par défaut). Pendant l'adhan, le volume d'alarme du téléphone est réglé à ce niveau, puis remis comme avant : 25 % sonne donc pareil quel que soit le volume d'alarme laissé. 0 coupe celui-ci. Les boutons **Écouter :** jouent l'adhan de chaque prière exactement au volume qu'il utilisera.
+- **Monte en N s** : l'adhan commence plus bas et monte jusqu'à son volume en ce nombre de secondes (20 par défaut ; 0 démarre au maximum). **Depuis N dB** règle de combien il commence plus bas : −10 dB par défaut (environ deux fois moins fort), jusqu'à −40 dB. La montée continue écran éteint. Android 8 et plus ; sur les téléphones plus anciens, il démarre à son volume. Les boutons **Écouter :** montent aussi.
+- **Adhan N dB moins fort** : tout l'adhan moins fort de cette valeur (de 0 à −40 dB), en plus du volume de chaque prière, dans le lecteur lui-même. Pour un téléphone dont le pas d'alarme le plus bas reste fort, ou dont (Samsung) le volume par prière ne peut choisir qu'un pas d'alarme. Pour essayer un niveau vite, réglez les mêmes dB sur le [minuteur rapide](settings.md#quick-timer).
 
 Lorsque l'adhan est joué, une notification apparaît avec un bouton **Arrêter**. Pendant la lecture, les touches de volume du téléphone montent ou baissent l'adhan (et les bips du Chourouq), même écran éteint, et une pression pause ou arrêt sur un casque l'arrête.
 
@@ -98,6 +100,15 @@ La date hégirienne est calculée de manière arithmétique : elle n'a donc beso
 
 - **Décaler de** : avancez ou reculez la date d'un jour pour la faire correspondre à ce qui a été annoncé là où vous vivez.
 - **Le jour commence au Maghrib** : le jour musulman commence au coucher du soleil, donc après le Maghrib, la date affichée est déjà celle du lendemain. Activé par défaut.
+
+## Solaire (Shamsi) { #shamsi }
+
+La puce **Solaire (Shamsi)** affiche un mois du calendrier solaire iranien, le samedi en premier et de droite à
+gauche comme le calendrier iranien est imprimé. Chaque jour montre son numéro solaire, avec dessous les jours grégorien
+et hégirien ; les jours fériés (officiels et vendredis) sont en rouge, et un point signale un jour avec des occasions.
+Touchez un jour pour ses trois dates et les occasions du calendrier officiel de l'Iran, en persan avec l'arabe. Les
+flèches changent de mois ; **امروز** revient à aujourd'hui. Les jours hégiriens suivent l'ajustement réglé sous
+**Hégire** ci-dessus.
 
 ## Voir aussi { #related }
 

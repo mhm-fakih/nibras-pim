@@ -171,6 +171,10 @@ data class AppSettings(
     val quickTimerVolume: Int = 80,
     /** How many times the sound plays through. */
     val quickTimerRepeat: Int = 2,
+    /** Played this many dB under its volume (0..−40), in the player — to test what −n dB sounds like. */
+    val quickTimerGainDb: Int = 0,
+    /** Rise from [quickTimerGainDb] to its volume over this many seconds (as the athan); 0 = flat. */
+    val quickTimerRiseSeconds: Int = 0,
     /** App display name shown in the home title. */
     val appName: String,
     /** New-note defaults (blank type/category = "first configured"); pre-selected and sticky. */
@@ -311,6 +315,8 @@ class SettingsStore(context: Context) {
         quickTimerSoundUri = prefs.getString(K_QT_SOUND, "") ?: "",
         quickTimerVolume = prefs.getInt(K_QT_VOLUME, 80).coerceIn(0, 100),
         quickTimerRepeat = prefs.getInt(K_QT_REPEAT, 2).coerceIn(1, 20),
+        quickTimerGainDb = prefs.getInt(K_QT_GAIN_DB, 0).coerceIn(com.knotes.alarm.SoundGain.MIN_DB, 0),
+        quickTimerRiseSeconds = prefs.getInt(K_QT_RISE, 0).coerceIn(0, 60),
         // Blank (or the old default "knotes") means the app's own name in the UI language.
         appName = prefs.getString(K_APP_NAME, null)?.takeUnless { it == OLD_DEFAULT_APP_NAME }.orEmpty(),
         defaultType = prefs.getString(K_DEF_TYPE, "") ?: "",
@@ -399,6 +405,8 @@ class SettingsStore(context: Context) {
             .putString(K_QT_SOUND, settings.quickTimerSoundUri.trim())
             .putInt(K_QT_VOLUME, settings.quickTimerVolume.coerceIn(0, 100))
             .putInt(K_QT_REPEAT, settings.quickTimerRepeat.coerceIn(1, 20))
+            .putInt(K_QT_GAIN_DB, settings.quickTimerGainDb.coerceIn(com.knotes.alarm.SoundGain.MIN_DB, 0))
+            .putInt(K_QT_RISE, settings.quickTimerRiseSeconds.coerceIn(0, 60))
             .putString(K_APP_NAME, settings.appName.trim())
             .putString(K_DEF_TYPE, settings.defaultType.trim())
             .putString(K_DEF_CAT, settings.defaultCategory.trim())
@@ -476,6 +484,8 @@ class SettingsStore(context: Context) {
         private const val K_QT_SOUND = "quick_timer_sound_uri"
         private const val K_QT_VOLUME = "quick_timer_volume"
         private const val K_QT_REPEAT = "quick_timer_repeat"
+        private const val K_QT_GAIN_DB = "quick_timer_gain_db"
+        private const val K_QT_RISE = "quick_timer_rise_seconds"
 
         /** The chime intervals offered in Settings, in minutes. */
         val CHIME_INTERVALS = listOf(15, 30, 60, 120)
@@ -512,7 +522,7 @@ class SettingsStore(context: Context) {
             K_FEED_TEXT_SP, K_BOARD_TEXT_SP, K_BOARD_COLUMNS, K_REM_OFFSETS, K_REM_SOUND,
             K_REM_DISMISS, K_REM_REPEAT, K_REM_IGNORE_SILENT, K_STATUS_NOTIF, K_SYNC_ENABLED, K_SYNC_CHECK_SEC,
             K_SYNC_SEC, K_CHIME, K_CHIME_SOUND, K_CHIME_START, K_CHIME_END, K_CHIME_INTERVAL, K_APP_NAME,
-            K_QT_SOUND, K_QT_VOLUME, K_QT_REPEAT, com.knotes.ui.ThemeColor.KEY, K_DEF_TYPE, K_DEF_CAT, K_DEF_PRIO,
+            K_QT_SOUND, K_QT_VOLUME, K_QT_REPEAT, K_QT_GAIN_DB, K_QT_RISE, com.knotes.ui.ThemeColor.KEY, K_DEF_TYPE, K_DEF_CAT, K_DEF_PRIO,
         ) + PLAYER_BACKUP_KEYS
 
 

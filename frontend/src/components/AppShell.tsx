@@ -10,6 +10,7 @@ import { ENTITY_BY_KEY } from '../config/entities';
 import { SearchResultsList } from './SearchResultsList';
 import { ShortcutContext } from './ShortcutsProvider';
 import { MiniCalendar } from './MiniCalendar';
+import { LINK_EVENT } from './RecordLinksPanel';
 import { SideNav } from './SideNav';
 import { StatusBar } from './StatusBar';
 import { ListPane } from './ListPane';
@@ -159,6 +160,8 @@ export function AppShell() {
         case 'd': if (canWriteContent && selectedId != null) { setQuick('department'); e.preventDefault(); } break;
         case 'c': if (canWriteContent && selectedId != null) { setQuick('course'); e.preventDefault(); } break;
         case '*': if (canWriteContent && selectedId != null) { e.preventDefault(); toggleBookmark(selectedId); } break;
+        // The links panel of the open record listens for this and opens its picker.
+        case 'l': if (canWriteContent && selectedId != null) { e.preventDefault(); window.dispatchEvent(new Event(LINK_EVENT)); } break;
         default: break;
       }
     };

@@ -58,10 +58,20 @@ public final class ChecklistWeekFile {
         }
     }
 
-    public record Item(int code, String text, List<Mark> marks) {
+    /**
+     * One item. {@code uid} and {@code notes} come from the database (a file has neither): the
+     * item's id there, and the note of each mark's day, null where there is none.
+     */
+    public record Item(int code, String text, List<Mark> marks, String uid, List<String> notes) {
+        public Item(int code, String text, List<Mark> marks) {
+            this(code, text, marks, null, null);
+        }
     }
 
-    public record Group(int code, String title, boolean weekly, List<Item> items) {
+    public record Group(int code, String title, boolean weekly, List<Item> items, String uid) {
+        public Group(int code, String title, boolean weekly, List<Item> items) {
+            this(code, title, weekly, items, null);
+        }
     }
 
     /**

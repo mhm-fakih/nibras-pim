@@ -18,7 +18,6 @@ import com.knotes.MainActivity
 import com.knotes.R
 import com.knotes.SettingsStore
 import com.knotes.ui.CHECKLISTS_DEST
-import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -27,9 +26,9 @@ import java.time.ZoneId
 /**
  * The daily nudge to fill in a checklist group, at the time written before its title (see
  * [ChecklistTimes]). One alarm at a time: each firing posts the groups due then and arms the next,
- * the prayer alarms' pattern. The week file is read afresh every time, so a time changed on the
- * desktop and synced over is picked up by the next arming — app start, a checklist edit, or the
- * previous reminder.
+ * the prayer alarms' pattern. The week is projected from [ChecklistRepo] every time, so a time
+ * changed on the web and synced over is picked up by the next arming — app start, a checklist edit,
+ * a checklist sync, or the previous reminder.
  *
  * The notification itself is silent (no buzz); a sound is played once alongside it only when one
  * is chosen in Settings → Checklists ([com.knotes.Settings.checklistSoundUri]). Skipped when the
@@ -47,7 +46,7 @@ object ChecklistReminders {
         val app = context.applicationContext
         val am = app.getSystemService(AlarmManager::class.java) ?: return
         val settings = SettingsStore(app).value
-        val next = if (settings.checklistsEnabled) runCatching { nextDue(app, settings.checklistsFolder()) }.getOrNull() else null
+        val next = if (settings.checklistsEnabled) runCatching { nextDue(app) }.getOrNull() else null
         if (next == null) {
             am.cancel(pendingIntent(app, 0L))
             return
@@ -60,33 +59,29 @@ object ChecklistReminders {
     }
 
     /** The first reminder time after now and after the last one handled, today or in the next week. */
-    private fun nextDue(context: Context, folder: String): LocalDateTime? {
-        val store = ChecklistStore(File(folder))
+    private fun nextDue(context: Context): LocalDateTime? {
         val now = LocalDateTime.now()
         val handled = LocalDateTime.ofInstant(Instant.ofEpochMilli(lastHandled(context)), ZoneId.systemDefault())
         val today = LocalDate.now()
         for (d in 0L..7L) {
             val date = today.plusDays(d)
-            val week = weekFor(store, date) ?: continue
+            val week = weekFor(context, date) ?: continue
             ChecklistTimes.dueOn(week, date).firstOrNull { it.at.isAfter(now) && it.at.isAfter(handled) }
                 ?.let { return it.at }
         }
         return null
     }
 
-    /** The week holding [date]: its file, else the latest earlier week's groups — as the page opens it. */
-    private fun weekFor(store: ChecklistStore, date: LocalDate): ChecklistWeek? {
-        val id = WeekId.of(date)
-        return store.load(id) ?: store.weeks().lastOrNull { it < id }?.let(store::load)?.carriedTo(id)
-    }
+    /** The week holding [date], as the page shows it; null when there are no checklists at all. */
+    private fun weekFor(context: Context, date: LocalDate): ChecklistWeek? =
+        ChecklistRepo.read(context) { d -> if (d.isEmpty) null else d.project(WeekId.of(date)) }
 
     internal fun fire(context: Context, atMillis: Long) {
         val app = context.applicationContext
         val settings = SettingsStore(app).value
         if (settings.checklistsEnabled && atMillis > lastHandled(app)) {
             val at = LocalDateTime.ofInstant(Instant.ofEpochMilli(atMillis), ZoneId.systemDefault())
-            val store = ChecklistStore(File(settings.checklistsFolder()))
-            weekFor(store, at.toLocalDate())?.let { week ->
+            weekFor(app, at.toLocalDate())?.let { week ->
                 val day = at.dayOfWeek.value - 1
                 val due = ChecklistTimes.dueOn(week, at.toLocalDate())
                     .filter { it.at == at && !ChecklistTimes.filledIn(week, it.sectionCode, day) }

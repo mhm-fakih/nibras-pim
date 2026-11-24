@@ -83,6 +83,8 @@ object AlarmStore {
                     put("soundUri", a.soundUri)
                     put("repeatCount", a.repeatCount)
                     put("volumePercent", a.volumePercent)
+                    put("gainDb", a.gainDb)
+                    put("riseSeconds", a.riseSeconds)
                 },
             )
         }
@@ -121,6 +123,8 @@ object AlarmStore {
                         soundUri = o.optString("soundUri", ""),
                         repeatCount = o.optInt("repeatCount", 1).coerceIn(1, 20),
                         volumePercent = o.optInt("volumePercent", 80).coerceIn(0, 100),
+                        gainDb = o.optInt("gainDb", 0).coerceIn(SoundGain.MIN_DB, 0),
+                        riseSeconds = o.optInt("riseSeconds", 0).coerceIn(0, 120),
                     )
                 } catch (_: Exception) {
                     null

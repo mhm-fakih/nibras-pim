@@ -82,6 +82,11 @@
     <string name="notes_calendar_today">Aujourd’hui</string>
     <string name="notes_read_ai_answer">Réponse IA</string>
     <string name="notes_read_tap_clause_hint">Touchez une phrase pour la surligner</string>
+    <string name="notes_read_select_hint">Appui long pour sélectionner et copier · le surligneur marque les phrases</string>
+    <string name="notes_read_copy_all">Tout copier</string>
+    <string name="notes_read_copied">Copié</string>
+    <string name="notes_read_highlight_on">Surligner des phrases</string>
+    <string name="notes_read_highlight_off">Arrêter de surligner</string>
     <string name="notes_read_edit_tags_hint">· Modifier en haut · étiquettes en bas</string>
     <string name="notes_read_empty">Cette note est vide.</string>
     <string name="notes_read_empty_start_typing">Cette note est vide — commencez à écrire.</string>
@@ -148,4 +153,13 @@
     <string name="notes_add_note">Ajouter une note</string>
     <string name="notes_quick_add_hint">Note rapide — enregistrée %1$s</string>
     <string name="notes_open_full_form">Formulaire complet : type, priorité, département</string>
+    <plurals name="notes_card_highlights">
+        <item quantity="one">%1$d surlignage</item>
+        <item quantity="other">%1$d surlignages</item>
+    </plurals>
+    <plurals name="notes_card_search_matches">
+        <item quantity="one">%1$d occurrence</item>
+        <item quantity="many">%1$d occurrences</item>
+        <item quantity="other">%1$d occurrences</item>
+    </plurals>
 </resources>

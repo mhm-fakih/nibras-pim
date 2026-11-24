@@ -40,10 +40,11 @@ Plusieurs de ces pages peuvent être désactivées, chacune avec l'interrupteur 
 
 | Case | Page |
 |---|---|
+| **A** | **Coran**, quand le module Coran du serveur est activé : sourates, versets, favoris et notes. |
 | **T**, **P**, **J**, **G**, **N**, **W**, **R** | Les sept types de fiches : **Tâches**, **Plans**, **Journal**, **Objectifs**, **Notes**, **Écrits**, **Ressources**. Le nombre entre parenthèses indique combien de fiches de ce type se trouvent sur le téléphone. |
 | Cartes | **Cartes mémoire** |
 | Guillemet | **Passages surlignés** |
-| Personnes | **Contacts** |
+| **K** | **Contacts**, après les types de fiches. Le nombre entre parenthèses indique combien de personnes la page affiche (vos contacts favoris). |
 | Globe avec loupe | **Rechercher sur le serveur** |
 | Flèche circulaire | **Actualiser les pages du serveur**. Se reconnecte, actualise les types et catégories depuis le serveur et recharge toutes les pages serveur. N'ouvre aucune page. |
 

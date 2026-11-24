@@ -39,7 +39,13 @@ class AlarmSoundService : Service() {
     private var player: MediaPlayer? = null
     private var previousVolume: Int? = null
 
-    private data class Sound(val label: String, val uri: String, val repeat: Int, val volumePercent: Int)
+    private data class Sound(
+        val label: String, val uri: String, val repeat: Int, val volumePercent: Int,
+        val gainDb: Int = 0, val riseSeconds: Int = 0,
+    )
+
+    /** Held while a rise runs, so the shaper is not collected mid-rise. */
+    private var shaper: Any? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -54,6 +60,8 @@ class AlarmSoundService : Service() {
                 it.getStringExtra(EXTRA_URI).orEmpty(),
                 it.getIntExtra(EXTRA_REPEAT, 1),
                 it.getIntExtra(EXTRA_VOLUME, 80),
+                it.getIntExtra(EXTRA_GAIN_DB, 0),
+                it.getIntExtra(EXTRA_RISE, 0),
             )
         }
         // startForeground() first, unconditionally: startForegroundService() requires it.
@@ -71,6 +79,8 @@ class AlarmSoundService : Service() {
         val sound = queue.removeFirstOrNull() ?: return stopAll()
         val nm = getSystemService(NotificationManager::class.java)
         nm?.notify(NOTIF_ID, notification(sound.label))
+        ringing.value = sound.label
+        openWindow()
 
         val uri = sound.uri.takeIf { it.isNotBlank() }?.let(Uri::parse)
             ?: android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
@@ -91,7 +101,13 @@ class AlarmSoundService : Service() {
                     .build(),
             )
             p.setDataSource(this, uri)
-            p.setVolume(level.gain, level.gain)
+            // −n dB in the player itself; with a rise, that is where it starts and it rises to the
+            // step's own loudness, as the athan does.
+            val rising = sound.riseSeconds > 0 && sound.gainDb < 0
+            val gain = level.gain * (if (rising) 1f else SoundGain.toGain(sound.gainDb))
+            p.setVolume(gain, gain)
+            android.util.Log.i(TAG, "alarm at ${sound.volumePercent}%: step ${level.index}, gain $gain, ${sound.gainDb} dB" +
+                if (rising) " rising over ${sound.riseSeconds} s" else "")
             p.setOnCompletionListener {
                 played++
                 if (played < sound.repeat.coerceIn(1, 20)) {
@@ -110,6 +126,7 @@ class AlarmSoundService : Service() {
                 true
             }
             p.prepare()
+            shaper = if (rising) SoundGain.rise(p, sound.riseSeconds, sound.gainDb, TAG) else null
             p.start()
         } catch (_: Exception) {
             // A sound file that has moved or been revoked must not stop the next alarm sounding.
@@ -119,10 +136,22 @@ class AlarmSoundService : Service() {
         }
     }
 
+    /**
+     * Opens [AlarmActivity] straight away. Android lets a background app do that only with
+     * "Display over other apps" granted; without it this fails quietly and the notification's
+     * full-screen intent opens the window instead — always over the lock screen, and while the
+     * phone is in use only on Android versions that still allow it.
+     */
+    private fun openWindow() {
+        runCatching { startActivity(windowIntent(this)) }
+    }
+
     private fun stopAll() {
+        ringing.value = null
         queue.clear()
         player?.let { runCatching { it.stop() }; runCatching { it.release() } }
         player = null
+        shaper = null
         previousVolume?.let { v ->
             runCatching { getSystemService(AudioManager::class.java)?.setStreamVolume(AudioManager.STREAM_ALARM, v, 0) }
         }
@@ -158,13 +187,20 @@ class AlarmSoundService : Service() {
             Intent(this, AlarmSoundService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        val window = PendingIntent.getActivity(
+            this, 1, windowIntent(this),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_notes)
             .setContentTitle(com.knotes.util.Bidi.notif(this, label.ifBlank { getString(R.string.prayer_alarm_default_title) }))
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setOngoing(true)
-            .setContentIntent(stop)
+            // The alarm is a window, not just this notification: shown full screen when it fires,
+            // and a tap on the notification brings the window back.
+            .setFullScreenIntent(window, true)
+            .setContentIntent(window)
             .addAction(0, getString(R.string.prayer_alarm_stop), stop)
             .rtlIfArabic(this).build()
     }
@@ -173,11 +209,29 @@ class AlarmSoundService : Service() {
     data class Level(val index: Int, val gain: Float)
 
     companion object {
+        /** The label of the alarm sounding now, or null when none is — what [AlarmActivity] shows. */
+        val ringing = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+
+        fun windowIntent(context: Context): Intent =
+            Intent(context, AlarmActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NO_USER_ACTION)
+
+        /** Stops every queued alarm sound — the window's Stop, same as the notification's. */
+        fun stop(context: Context) {
+            ringing.value = null
+            runCatching {
+                context.startService(Intent(context, AlarmSoundService::class.java).setAction(ACTION_STOP))
+            }
+        }
+
         private const val ACTION_STOP = "com.knotes.ALARM_SOUND_STOP"
         private const val EXTRA_LABEL = "label"
         private const val EXTRA_URI = "uri"
         private const val EXTRA_REPEAT = "repeat"
         private const val EXTRA_VOLUME = "volume"
+        private const val EXTRA_GAIN_DB = "gain_db"
+        private const val EXTRA_RISE = "rise_seconds"
+        private const val TAG = "AlarmSoundService"
         private const val CHANNEL = "knotes_alarm_sound"
         private const val NOTIF_ID = 0x4A1B
 
@@ -204,6 +258,8 @@ class AlarmSoundService : Service() {
                 .putExtra(EXTRA_URI, alarm.soundUri)
                 .putExtra(EXTRA_REPEAT, alarm.repeatCount)
                 .putExtra(EXTRA_VOLUME, alarm.volumePercent)
+                .putExtra(EXTRA_GAIN_DB, alarm.gainDb)
+                .putExtra(EXTRA_RISE, alarm.riseSeconds)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {

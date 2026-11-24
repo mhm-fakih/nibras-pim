@@ -43,7 +43,7 @@ Tap **+  Add a task…** at the top to type a new one straight from the home scr
 
 ## Today's journal
 
-Today's journal entries, at every priority. Like the tasks widget it starts fresh each day. Tap **+  Write today's journal…** to add an entry.
+Today's journal log: the entries of the day's first journal note (type `J`), newest first, each led by its time. Tap **+  Write today's journal…** to add an entry: it's appended to that note under a `[HH:mm]` stamp, and the day's first entry creates the note. The day reads top to bottom in one note, like the web's **Board** journal. Journal notes you write in the app later that day are separate notes and aren't listed here. Like the tasks widget it starts fresh each day.
 
 ## Top priority
 
@@ -86,6 +86,13 @@ Your next events from the Nibras planner, labelled by day and time (**Tom 09:00*
 ## Bookmarked records
 
 The Plans, Goals and Tasks you've starred in the app's [server pages](server-pages.md#bookmark-the-star) (records bookmarked on this phone), in a scrollable list. Tap the title to sync and redraw.
+
+## Today in three calendars
+
+Today's Shamsi date (in red on a holiday), its Hijri and Gregorian dates, and the occasions of
+Iran's official calendar for **yesterday**, **today** and **tomorrow** — each in Persian with the
+Arabic beneath. The Hijri date is the prayer page's, with its adjustment. Tap it to open the
+Calendar. 4×2.
 
 ## Prayer times
 

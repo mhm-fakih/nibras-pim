@@ -3,6 +3,12 @@ package com.nibras.pim.web;
 import com.nibras.pim.service.SettingService;
 import com.nibras.pim.service.filesearch.FileIndexService;
 import com.nibras.pim.service.filesearch.FileSearchConfig;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -24,7 +30,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 /**
  * Search page → Files: the file index over the repositories and the notes' companion folders (see
- * {@link FileIndexService}), its Settings matrix, and opening a found file on this desktop.
+ * {@link FileIndexService}), its Settings matrix, opening a found file on this desktop, and
+ * downloading it to the browser's machine (for when the server is not the machine you sit at).
  */
 @RestController
 @RequestMapping("/api/search/files")
@@ -75,6 +82,25 @@ public class FileSearchController {
     @PostMapping("/reindex")
     public boolean reindex() {
         return index.scanInBackground(true);
+    }
+
+    /**
+     * Sends a found file to the browser as a download, byte for byte. Like {@link #open}, only a
+     * path that is in the index: the request cannot name an arbitrary file on the server.
+     */
+    @GetMapping("/download")
+    public ResponseEntity<Resource> download(@RequestParam String path) throws IOException {
+        Path file = Path.of(path);
+        if (!index.isIndexed(path) || !Files.isRegularFile(file)) {
+            throw new ResponseStatusException(NOT_FOUND, "Not an indexed file: " + path);
+        }
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(file.getFileName().toString(), java.nio.charset.StandardCharsets.UTF_8).build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .contentLength(Files.size(file))
+                .body(new FileSystemResource(file));
     }
 
     /**

@@ -1,6 +1,8 @@
+import VideoLibrary from '@mui/icons-material/VideoLibrary';
 import { MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import Payments from '@mui/icons-material/Payments';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { linkProps } from '../util/links';
 import {
   Box,
   Divider,
@@ -52,6 +54,7 @@ import HelpOutline from '@mui/icons-material/HelpOutline';
 import MoveToInbox from '@mui/icons-material/MoveToInbox';
 import PlaylistAdd from '@mui/icons-material/PlaylistAdd';
 import DriveFileMove from '@mui/icons-material/DriveFileMove';
+import Inventory from '@mui/icons-material/Inventory';
 import Photo from '@mui/icons-material/Photo';
 import Public from '@mui/icons-material/Public';
 import RssFeed from '@mui/icons-material/RssFeed';
@@ -66,13 +69,16 @@ import People from '@mui/icons-material/People';
 import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import Security from '@mui/icons-material/Security';
 import Logout from '@mui/icons-material/Logout';
+import YouTube from '@mui/icons-material/YouTube';
+import AutoStories from '@mui/icons-material/AutoStories';
 import { useAuth } from '../hooks/useAuth';
 import { BASE, Permission } from '../api/client';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ENTITY_BY_KEY } from '../config/entities';
 import { reportsFor } from '../config/reports';
 import { useModules } from '../hooks/useModules';
-import { getSetting, getSettingsMulti, listEntities, ListParams } from '../api/client';
+import { setAppTitle } from '../util/documentTitle';
+import { countExpenses, countQuran, getSetting, getSettingsMulti, listEntities, ListParams } from '../api/client';
 import { FEATURE_SETTING_KEYS, PAGE_SETTING_KEYS, featureEnabled, pageEnabled } from '../config/pages';
 import { SavedSearchPanel } from './SavedSearchPanel';
 import type { SavedSearchRecordRef } from '../api/client';
@@ -84,7 +90,7 @@ const ICONS: Record<string, typeof Flag> = {
 };
 
 /** Per-module icon names not derived from entities.ts (modules without a field config). */
-const MODULE_ICON: Record<string, string> = { indicators: 'ShowChart' };
+const MODULE_ICON: Record<string, string> = { indicators: 'ShowChart', quran: 'MenuBook' };
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Admin',
@@ -111,7 +117,7 @@ const TOOL_GROUPS: { key: ToolGroupKey; label: string; icon: typeof Flag }[] = [
 // Each tool optionally requires a capability key; who holds it is decided by the DB permission
 // matrix (editable at /permissions). Tools with no `perm` are visible to any signed-in user. All are
 // still subject to the per-page enabled setting.
-const TOOLS: {
+export const TOOLS: {
   path: string;
   label: string;
   icon: typeof Flag;
@@ -126,17 +132,21 @@ const TOOLS: {
   { path: '/insights', label: 'Insights', icon: InsightsIcon, group: 'views' },
   { path: '/sprints', label: 'Sprints', icon: DirectionsRun, group: 'views' },
   { path: '/reports', label: 'Reports', icon: TableChart, group: 'views' },
-  { path: '/expenses', label: 'Expenses', icon: Payments, group: 'views' },
   { path: '/bookmarks', label: 'All bookmarks', icon: StarIcon, group: 'library' },
   { path: '/flashcards', label: 'Flash cards', icon: StyleIcon, group: 'library' },
   { path: '/highlights', label: 'Highlights', icon: FormatQuote, group: 'library' },
   { path: '/local-notes', label: 'Local notes', icon: NotesIcon, group: 'library' },
+  { path: '/videos', label: 'Videos', icon: VideoLibrary, group: 'library' },
+  { path: '/excerpt-library', label: 'Excerpt library', icon: AutoStories, group: 'library' },
   { path: '/catalog', label: 'Disk catalogue', icon: Storage, group: 'library' },
+  { path: '/checklists', label: 'Checklists', icon: ChecklistIcon, group: 'library' },
   // A full-screen wall view, so it opens in its own tab rather than replacing this one.
   { path: '/checklists/view', label: 'Checklists (week)', icon: ChecklistIcon, group: 'library', newTab: true },
   { path: '/batch', label: 'Batch entry', icon: PlaylistAdd, group: 'io', perm: 'content.write' },
   { path: '/import-files', label: 'Import files', icon: DriveFileMove, group: 'io', perm: 'content.write' },
+  { path: '/file-processor', label: 'File processor', icon: Inventory, group: 'io', perm: 'content.write' },
   { path: '/import', label: 'Import notes', icon: MoveToInbox, group: 'io', perm: 'content.write' },
+  { path: '/media-download', label: 'YouTube download', icon: YouTube, group: 'io', perm: 'tools.admin' },
   { path: '/images', label: 'Image renamer', icon: Photo, group: 'io', perm: 'content.write' },
   { path: '/sites', label: 'Static website', icon: Public, group: 'io', perm: 'content.write' },
   { path: '/parameters', label: 'Parameters', icon: Tune, group: 'admin', perm: 'params.write' },
@@ -183,10 +193,15 @@ export function SideNav({
   const countQueries = useQueries({
     queries: enabled.map((m) => ({
       queryKey: ['module-count', m.moduleKey],
-      queryFn: () => listEntities(m.moduleKey, { size: 1 }),
+      // The Quran page is not a record list: its count is the surahs copied into it.
+      queryFn: () =>
+        m.moduleKey === 'quran'
+          ? countQuran().then((n) => ({ totalElements: n }))
+          : listEntities(m.moduleKey, { size: 1 }),
       staleTime: 60_000,
     })),
   });
+  const paymentsCount = useQuery({ queryKey: ['module-count', 'expenses'], queryFn: countExpenses, staleTime: 60_000 });
   const moduleCounts: Record<string, number | undefined> = Object.fromEntries(
     enabled.map((m, i) => [m.moduleKey, countQueries[i]?.data?.totalElements]),
   );
@@ -196,11 +211,10 @@ export function SideNav({
     queryFn: () => getSetting('app.name', 'Nibras'),
     staleTime: 300_000,
   });
-  // The browser tab title follows the configurable app name (Settings → Application) instead of
-  // the static fallback baked into index.html — SideNav is mounted on every authenticated page.
-  useEffect(() => {
-    document.title = appName;
-  }, [appName]);
+  // The tab title when the route has no name of its own: the configurable app name (Settings →
+  // Application) instead of the static fallback baked into index.html. SideNav is mounted on every
+  // authenticated page; the public ones can't read settings.
+  useEffect(() => setAppTitle(appName), [appName]);
   const { data: pageSettings } = useQuery({
     queryKey: ['page-settings'],
     queryFn: () => getSettingsMulti(PAGE_SETTING_KEYS),
@@ -291,8 +305,9 @@ export function SideNav({
     .filter((g) => g.tools.length > 0);
   const menuTools = toolMenu ? tools.filter((t) => t.group === toolMenu.group) : [];
 
-  const runReport = (params: Record<string, string>) =>
-    navigate(`/${activeModule}?${new URLSearchParams(params).toString()}`);
+  const reportPath = (params: Record<string, string>) =>
+    `/${activeModule}?${new URLSearchParams(params).toString()}`;
+  const runReport = (params: Record<string, string>) => navigate(reportPath(params));
 
   const rail = (
     <Box
@@ -387,7 +402,7 @@ export function SideNav({
               <ListItemButton
                 key={r.key}
                 sx={{ py: 0.25, borderRadius: 1, opacity: empty ? 0.5 : 1 }}
-                onClick={() => runReport(r.params)}
+                {...linkProps(reportPath(r.params), () => runReport(r.params))}
               >
                 <ListItemText primary={r.label} primaryTypographyProps={{ fontSize: 13 }} />
                 {count != null && (
@@ -450,7 +465,7 @@ export function SideNav({
             <ListItemButton
               key={m.moduleKey}
               selected={pathname === `/${m.moduleKey}` && !search}
-              onClick={() => navigate(`/${m.moduleKey}`)}
+              {...linkProps(`/${m.moduleKey}`, () => navigate(`/${m.moduleKey}`))}
               title={m.code ? `${m.label} (${m.code})` : m.label}
               sx={{ py: 0.1, px: 0.75, borderRadius: 1, minWidth: 0 }}
             >
@@ -479,6 +494,36 @@ export function SideNav({
             </ListItemButton>
           );
         })}
+        {/* Payments (the Expenses page, code Q) sits with the modules only, as in the old app. */}
+        {pageEnabled(pageSettings, 'expenses') && (
+          <ListItemButton
+            selected={pathname === '/expenses'}
+            {...linkProps('/expenses', () => goTool('/expenses'))}
+            title="Payments (Q)"
+            sx={{ py: 0.1, px: 0.75, borderRadius: 1, minWidth: 0 }}
+          >
+            <ListItemIcon sx={{ minWidth: 26, color: 'primary.main' }}>
+              <Payments fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary={
+                <>
+                  Payments
+                  {paymentsCount.data != null && (
+                    <Box component="span" sx={{ fontSize: 11, color: 'text.secondary', ml: 0.5 }}>
+                      ({paymentsCount.data.toLocaleString()})
+                    </Box>
+                  )}
+                </>
+              }
+              primaryTypographyProps={{ fontSize: 13, noWrap: true }}
+              sx={{ minWidth: 0, my: 0.25 }}
+            />
+            <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', ml: 0.5 }}>
+              Q
+            </Typography>
+          </ListItemButton>
+        )}
       </List>
 
       <Divider />
@@ -495,7 +540,9 @@ export function SideNav({
             <ListItemButton
               key={g.key}
               selected={Boolean(current)}
-              onClick={(e) => (single ? openTool(single) : setToolMenu({ group: g.key, anchor: e.currentTarget }))}
+              {...(single
+                ? linkProps(single.path, () => openTool(single))
+                : { onClick: (e: React.MouseEvent<HTMLElement>) => setToolMenu({ group: g.key, anchor: e.currentTarget }) })}
               sx={{ py: 0.1, borderRadius: 1 }}
             >
               <ListItemIcon sx={{ minWidth: 32, color: 'primary.main' }}>
@@ -528,10 +575,10 @@ export function SideNav({
               key={t.path}
               dense
               selected={pathname === t.path}
-              onClick={() => {
+              {...linkProps(t.path, () => {
                 setToolMenu(null);
                 openTool(t);
-              }}
+              })}
             >
               <ListItemIcon sx={{ color: 'primary.main' }}>
                 <Icon fontSize="small" />
@@ -559,7 +606,7 @@ export function SideNav({
               )}
             </Typography>
             <Tooltip title="Search everything ( / )">
-              <IconButton size="small" color={pathname === '/search' ? 'primary' : 'default'} onClick={() => navigate('/search')}>
+              <IconButton size="small" color={pathname === '/search' ? 'primary' : 'default'} {...linkProps('/search', () => navigate('/search'))}>
                 <SearchIcon fontSize="small" />
               </IconButton>
             </Tooltip>

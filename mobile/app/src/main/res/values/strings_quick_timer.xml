@@ -11,4 +11,9 @@
     <string name="qt_settings_default_sound">Default alarm sound</string>
     <string name="qt_settings_volume">Volume %1$d%%</string>
     <string name="qt_settings_repeat">Plays %1$d×</string>
+    <string name="qt_settings_gain_off">Played at full gain</string>
+    <string name="qt_settings_gain">%1$d dB quieter</string>
+    <string name="qt_settings_rise_off">Starts at that, no rise</string>
+    <string name="qt_settings_rise">Rises to its volume over %1$d s</string>
+    <string name="qt_settings_gain_note">For testing the athan: the same −n dB and rise the athan uses, in a few minutes instead of waiting for a prayer. If −30 dB here is quiet but the athan\'s rise is not, the rise is what fails on this phone.</string>
 </resources>

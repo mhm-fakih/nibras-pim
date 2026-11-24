@@ -9,8 +9,10 @@ import java.util.concurrent.ConcurrentHashMap
  *
  *  - audio / video: it has time marks (the player's `<stem>.tmk` sidecar; a `.txt` beside it may
  *    be a transcript rather than legacy marks, so it doesn't count);
- *  - image: it was annotated (burning marks keeps the original in `.scr-backup/`, here and on the
- *    desktop annotator alike);
+ *  - image: it was annotated — burning marks keeps the original in `.scr-backup/` here and in
+ *    `.originals/` on the desktop annotator. A rename doesn't lose that: the phone moves its backup
+ *    with the file, and a desktop rename is followed back to the first name through the desktop's
+ *    `.scr-annotator-log.tsv`, which is the name its `.originals/` copy keeps;
  *  - PDF: it carries a markup annotation — highlight, underline, ink, sticky note… (a link is not
  *    one; annotations packed into a compressed object stream are not seen);
  *  - text / markdown: it holds a `==highlight==`.
@@ -47,7 +49,7 @@ object Review {
         if (!reviewable) return Status.NOT_APPLICABLE
         // Media and images are judged by a file beside them, which the cache key can't see.
         if (ext in AUDIO_VIDEO) return mark(hasTimeMarks(file))
-        if (ext in IMAGE) return mark(File(File(file.parentFile, ".scr-backup"), file.name).isFile)
+        if (ext in IMAGE) return mark(imageAnnotated(file))
         val key = file.absolutePath
         val size = file.length()
         val mtime = file.lastModified()
@@ -58,6 +60,46 @@ object Review {
         )
         cache[key] = Triple(size, mtime, st)
         return st
+    }
+
+    private const val DESKTOP_LOG = ".scr-annotator-log.tsv"
+
+    /** folder → (log mtime, current name → first name), replayed from the desktop's rename log. */
+    private val origins = ConcurrentHashMap<String, Pair<Long, Map<String, String>>>()
+
+    private fun imageAnnotated(file: File): Boolean {
+        val dir = file.parentFile ?: return false
+        val name = file.name
+        if (File(File(dir, ".scr-backup"), name).isFile) return true
+        val first = originOf(dir, name)
+        return listOf(".scr-backup", ".originals").any { d ->
+            File(File(dir, d), first).isFile || File(File(dir, d), name).isFile
+        }
+    }
+
+    /**
+     * The name [name] had before the desktop annotator first relabelled it — the log's rows are
+     * `time \t old \t new`, and following the chain gives the name `.originals/` keeps.
+     */
+    internal fun originOf(dir: File, name: String): String {
+        val log = File(dir, DESKTOP_LOG)
+        if (!log.isFile) return name
+        val mtime = log.lastModified()
+        val map = origins[dir.absolutePath]?.takeIf { it.first == mtime }?.second
+            ?: runCatching { replayLog(log.readLines()) }.getOrDefault(emptyMap())
+                .also { origins[dir.absolutePath] = mtime to it }
+        return map[name] ?: name
+    }
+
+    internal fun replayLog(lines: List<String>): Map<String, String> {
+        val map = HashMap<String, String>()
+        for (line in lines) {
+            val cols = line.split('\t')
+            if (cols.size < 3) continue
+            val (old, new) = cols[1] to cols[2]
+            map[new] = map.remove(old) ?: old
+        }
+        return map
     }
 
     private fun mark(done: Boolean) = if (done) Status.REVIEWED else Status.PENDING

@@ -3,6 +3,8 @@ package com.knotes.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
@@ -77,7 +81,8 @@ import androidx.compose.ui.geometry.Size
 import com.knotes.R
 import androidx.compose.ui.platform.LocalContext
 import com.knotes.checklist.ChecklistReminders
-import com.knotes.checklist.ChecklistStore
+import com.knotes.checklist.ChecklistRepo
+import com.knotes.checklist.ChecklistSync
 import com.knotes.checklist.ChecklistWeek
 import com.knotes.checklist.DAYS
 import com.knotes.checklist.Mark
@@ -87,27 +92,26 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.io.File
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 
 /**
  * Daily and weekly checklists, one ISO week at a time — see [ChecklistWeek] for the model and
- * [com.knotes.checklist.ChecklistFormat] for the file each week is saved to.
+ * [com.knotes.checklist.ChecklistData] for the rows it is kept as (and synced to the server).
  *
  * Two views of the same week. **Day** is for ticking: big rows, one tap cycles ✓ → ◐ → blank.
  * **Week** is for looking back: every item against all seven days, with each day's completion.
  * The pencil switches either view into editing, where items and groups are added, renamed,
- * reordered and removed — as often as the day needs; the week's file simply follows.
+ * reordered and removed — as often as the day needs; the rows simply follow. A long press on a
+ * mark opens it with a note.
  *
  * Kept apart from the tasks list on purpose: thirty small daily ticks would bury the real tasks.
  */
 @Composable
-fun ChecklistsScreen(folder: String) {
+fun ChecklistsScreen() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current.applicationContext
-    val store = remember(folder) { ChecklistStore(File(folder)) }
     val today = remember { LocalDate.now() }
     val thisWeek = remember(today) { WeekId.of(today) }
 
@@ -129,38 +133,28 @@ fun ChecklistsScreen(folder: String) {
     val weeklyTitle = stringResource(R.string.checklists_group_weekly)
 
     var week by remember { mutableStateOf<ChecklistWeek?>(null) }
-    var saved by remember { mutableStateOf(false) }     // whether this week has a file yet
-    var reload by remember { mutableIntStateOf(0) }
-    var loadedStamp by remember { mutableStateOf(0L) }
+    var saved by remember { mutableStateOf(false) }     // whether anything was ticked this week
+    // Moves on every change to the rows — an edit here, or a sync bringing the web's in.
+    val version by ChecklistRepo.version.collectAsState()
 
-    LaunchedEffect(weekId, reload) {
-        val (w, exists, stamp) = withContext(Dispatchers.IO) {
-            Triple(
-                store.open(weekId) { ChecklistWeek.starter(weekId, starterTitles, weeklyTitle) },
-                store.exists(weekId),
-                store.stamp(weekId),
-            )
+    LaunchedEffect(weekId, version) {
+        val (w, started) = withContext(Dispatchers.IO) {
+            ChecklistRepo.open(context, weekId) { ChecklistWeek.starter(weekId, starterTitles, weeklyTitle) }
         }
-        week = w; saved = exists; loadedStamp = stamp
+        week = w; saved = started
     }
-    // Back in the app: re-read if the file changed under us (a sync from the desktop).
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        scope.launch {
-            val stamp = withContext(Dispatchers.IO) { store.stamp(weekId) }
-            if (stamp != loadedStamp) reload++
-        }
-    }
+    // Opening the page (and coming back to it) fetches what the web changed meanwhile.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { ChecklistSync.syncSoon(context) }
 
-    // One save at a time, in order: two quick taps must not race each other to the file.
+    // One save at a time, in order: two quick taps must not race each other.
     val saveLock = remember { Mutex() }
 
     /**
-     * Apply [change] to the week: on screen at once, then to the file.
+     * Apply [change] to the week: on screen at once, then to the rows.
      *
-     * The file is shared through folder sync, so it can change under an open page — an item added
-     * on the desktop arrives while you are ticking here. Saving the in-memory copy over it lost that
-     * edit (and Syncthing filed a conflict copy). So the save re-reads the file when it has moved
-     * since we last read or wrote it, and applies this change to that newer version instead.
+     * The change is applied again to a fresh projection of the week rather than saving the
+     * on-screen copy, so a sync that landed between the tap and the save (the web's tick on another
+     * item) is kept, not overwritten by the older picture this screen was showing.
      */
     fun edit(change: (ChecklistWeek) -> ChecklistWeek) {
         val shown = week ?: return
@@ -169,16 +163,20 @@ fun ChecklistsScreen(folder: String) {
         scope.launch(Dispatchers.IO) {
             saveLock.withLock {
                 val id = shown.id
-                val moved = store.exists(id) && store.stamp(id) != loadedStamp
-                val base = if (moved) store.load(id) ?: shown else week ?: shown
-                val next = if (moved) change(base) else base
-                if (store.save(next)) {
-                    loadedStamp = store.stamp(id)
-                    // A group's reminder time is part of its title; any edit may have changed one.
-                    ChecklistReminders.sync(context)
-                    if (moved) week = next      // show what the file now holds, both edits included
-                }
+                val current = ChecklistRepo.open(context, id) { shown }.first
+                ChecklistRepo.save(context, change(current))
+                // A group's reminder time is part of its title; any edit may have changed one.
+                ChecklistReminders.sync(context)
             }
+        }
+    }
+
+    // Long press on a mark: its mark and note together.
+    var slotDialog by remember { mutableStateOf<SlotDialog?>(null) }
+    slotDialog?.let { d ->
+        SlotEntryDialog(d, onDismiss = { slotDialog = null }) { mark, note ->
+            edit { it.setSlot(d.section, d.item, d.slot, mark, note) }
+            slotDialog = null
         }
     }
 
@@ -269,8 +267,10 @@ fun ChecklistsScreen(folder: String) {
                 TextButton(onClick = {
                     val w = week ?: return@TextButton
                     val next = weekId.plus(1)
+                    // Items carry on from week to week by themselves; a first-ever list is saved so
+                    // next week has it too.
                     scope.launch {
-                        withContext(Dispatchers.IO) { if (!store.exists(next)) store.save(w.carriedTo(next)) }
+                        withContext(Dispatchers.IO) { if (!saved) ChecklistRepo.save(context, w) }
                         weekKey = next.toString()
                         editing = true
                     }
@@ -324,7 +324,9 @@ fun ChecklistsScreen(folder: String) {
                             pair.forEach { (ii, item) ->
                                 Box(modifier = Modifier.weight(1f)) {
                                     ItemRow(section.codeOf(item), item.text, item.marks[slot], editing = false, compact = true,
+                                        note = item.noteAt(slot),
                                         onTap = { edit { it.cycle(si, ii, slot) } },
+                                        onLongPress = { slotDialog = SlotDialog(si, ii, slot, section.codeOf(item), item.text, item.marks[slot], item.noteAt(slot)) },
                                         onRename = {}, onRemove = {})
                                 }
                             }
@@ -334,15 +336,21 @@ fun ChecklistsScreen(folder: String) {
                 } else section.items.forEachIndexed { ii, item ->
                     when {
                         section.weekly -> ItemRow(section.codeOf(item), item.text, item.marks[0], editing,
+                            note = item.noteAt(0),
                             onTap = { edit { it.cycle(si, ii, 0) } },
+                            onLongPress = { slotDialog = SlotDialog(si, ii, 0, section.codeOf(item), item.text, item.marks[0], item.noteAt(0)) },
                             onRename = { dialog = TextDialog.RenameItem(si, ii, item.text) },
                             onRemove = { edit { it.removeItem(si, ii) } })
                         weekView -> WeekGridRow(section.codeOf(item), item.text, item.marks, today, w.id,
+                            notes = List(DAYS) { item.noteAt(it) },
                             onTap = { d -> edit { it.cycle(si, ii, d) } },
+                            onLongPress = { d -> slotDialog = SlotDialog(si, ii, d, section.codeOf(item), item.text, item.marks[d], item.noteAt(d)) },
                             editing = editing,
                             onRename = { dialog = TextDialog.RenameItem(si, ii, item.text) })
                         else -> ItemRow(section.codeOf(item), item.text, item.marks[day], editing,
+                            note = item.noteAt(day),
                             onTap = { edit { it.cycle(si, ii, day) } },
+                            onLongPress = { slotDialog = SlotDialog(si, ii, day, section.codeOf(item), item.text, item.marks[day], item.noteAt(day)) },
                             onRename = { dialog = TextDialog.RenameItem(si, ii, item.text) },
                             onRemove = { edit { it.removeItem(si, ii) } })
                     }
@@ -488,6 +496,62 @@ private fun TextEntryDialog(d: TextDialog, onDismiss: () -> Unit, onOk: (String)
     )
 }
 
+/** The long-pressed slot: which item and day, and what it holds now. */
+private data class SlotDialog(
+    val section: Int,
+    val item: Int,
+    val slot: Int,
+    val code: String,
+    val text: String,
+    val mark: Mark,
+    val note: String,
+)
+
+/** One day of one item: its mark, chosen outright, and a note — what was done, or why not. */
+@Composable
+private fun SlotEntryDialog(d: SlotDialog, onDismiss: () -> Unit, onOk: (Mark, String) -> Unit) {
+    var mark by remember(d) { mutableStateOf(d.mark) }
+    var note by remember(d) { mutableStateOf(d.note) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                withCode(d.code, d.text),
+                style = MaterialTheme.typography.titleMedium.directed(d.text),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        text = {
+            Column {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(Mark.DONE, Mark.PARTIAL, Mark.NONE).forEach { m ->
+                        FilterChip(
+                            selected = mark == m,
+                            onClick = { mark = m },
+                            label = { Text((if (m == Mark.NONE) "" else m.symbol + " ") + markLabel(m)) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = { Text(stringResource(R.string.checklists_note)) },
+                    textStyle = MaterialTheme.typography.bodyLarge.directed(note),
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onOk(mark, note) }) { Text(stringResource(R.string.checklists_save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.player_cancel)) }
+        },
+    )
+}
+
 /**
  * Mon … Sun with their completion, picking which day the Day view ticks — so yesterday can be
  * filled in. Two rows, Mon–Thu over Fri–Sun: seven chips do not fit across a phone beside the rail,
@@ -556,6 +620,7 @@ private fun SectionHeader(
 }
 
 /** One item in Day view (or a weekly item): a big mark box and the text; the whole row is the tap target. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ItemRow(
     code: String,
@@ -563,7 +628,9 @@ private fun ItemRow(
     mark: Mark,
     editing: Boolean,
     compact: Boolean = false,
+    note: String = "",
     onTap: () -> Unit,
+    onLongPress: () -> Unit = {},
     onRename: () -> Unit,
     onRemove: () -> Unit,
 ) {
@@ -573,11 +640,17 @@ private fun ItemRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = if (compact) 40.dp else 48.dp)
-            .clickable(onClick = if (editing) onRename else onTap)
-            .semantics(mergeDescendants = true) { contentDescription = "$code $text, $markLabel" }
+            .combinedClickable(
+                onClick = if (editing) onRename else onTap,
+                onLongClick = if (editing) null else onLongPress,
+            )
+            .semantics(mergeDescendants = true) {
+                contentDescription = "$code $text, $markLabel" + if (note.isNotBlank()) ", $note" else ""
+            }
             .padding(vertical = 2.dp, horizontal = if (compact) 2.dp else 0.dp),
     ) {
-        MarkBox(mark, if (compact) 24.dp else 32.dp, onClick = onTap)
+        MarkBox(mark, if (compact) 24.dp else 32.dp, hasNote = note.isNotBlank(), onClick = onTap,
+            onLongClick = if (editing) null else onLongPress)
         Spacer(Modifier.width(if (compact) 6.dp else 10.dp))
         // The code is the item's identity (its ticks follow it): a small light-grey line of its own
         // above the name, so the name keeps the full width and never wraps around it.
@@ -596,6 +669,17 @@ private fun ItemRow(
                 overflow = TextOverflow.Ellipsis,
                 color = if (mark == Mark.DONE) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
             )
+            // The day's note, under the name: one line, quiet — the long press shows all of it.
+            if (note.isNotBlank()) {
+                Text(
+                    note,
+                    style = MaterialTheme.typography.labelSmall.copy(fontStyle = FontStyle.Italic).directed(note),
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         if (editing) {
             IconButton(onClick = onRemove, modifier = Modifier.size(36.dp)) { Icon(Icons.Filled.Delete, stringResource(R.string.checklists_remove_item), modifier = Modifier.size(18.dp)) }
@@ -632,7 +716,9 @@ private fun WeekGridRow(
     marks: List<Mark>,
     today: LocalDate,
     week: WeekId,
+    notes: List<String>,
     onTap: (Int) -> Unit,
+    onLongPress: (Int) -> Unit,
     editing: Boolean,
     onRename: () -> Unit,
 ) {
@@ -650,17 +736,33 @@ private fun WeekGridRow(
                 MarkBox(
                     marks[d], 24.dp,
                     dim = date.isAfter(today),
-                    description = "$code $text, ${dayName(date)}, ${markLabel(marks[d])}",
+                    hasNote = notes[d].isNotBlank(),
+                    description = "$code $text, ${dayName(date)}, ${markLabel(marks[d])}" +
+                        if (notes[d].isNotBlank()) ", ${notes[d]}" else "",
                     onClick = { onTap(d) },
+                    onLongClick = if (editing) null else ({ onLongPress(d) }),
                 )
             }
         }
     }
 }
 
-/** A square showing a mark: filled for done, half-shaded for partial, an outline for not done. */
+/**
+ * A square showing a mark: filled for done, half-shaded for partial, an outline for not done. A
+ * small dot in its corner says the day has a note.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MarkBox(mark: Mark, size: Dp, dim: Boolean = false, description: String? = null, onClick: () -> Unit) {
+private fun MarkBox(
+    mark: Mark,
+    size: Dp,
+    dim: Boolean = false,
+    hasNote: Boolean = false,
+    description: String? = null,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+) {
+    val noteDot = MaterialTheme.colorScheme.tertiary
     val accent = MaterialTheme.colorScheme.primary
     val outline = MaterialTheme.colorScheme.outline
     val alpha = if (dim) 0.4f else 1f
@@ -677,7 +779,14 @@ private fun MarkBox(mark: Mark, size: Dp, dim: Boolean = false, description: Str
                 RoundedCornerShape(6.dp),
             )
             .border(1.5.dp, (if (mark == Mark.NONE) outline else accent).copy(alpha = alpha), RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick)
+            .drawWithContent {
+                drawContent()
+                if (hasNote) {
+                    val r = this.size.minDimension * 0.14f
+                    drawCircle(noteDot, radius = r, center = Offset(this.size.width - r * 1.3f, r * 1.3f))
+                }
+            }
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier),
     ) {
         if (mark != Mark.NONE) {

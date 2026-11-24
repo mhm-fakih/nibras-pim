@@ -47,7 +47,13 @@ enum class PlayNextMode {
      * companion folders of the AI answers folder (`knotes-ai`) — each with a checkbox, and the
      * next file played is the first ticked one. Nothing ticked: nothing starts by itself.
      */
-    AI_QUEUE;
+    AI_QUEUE,
+
+    /**
+     * One of your own named playlists (see [Playlists]), walked in order from the file playing —
+     * or from its top when that file isn't on it. Files stay on the list after they play.
+     */
+    PLAYLIST;
 
     /** True for the modes that pick at random rather than walking the folder in order. */
     val isRandom: Boolean get() = this == RANDOM_OLD || this == RANDOM_OLD_PARENT || this == RANDOM_NEW_PARENT

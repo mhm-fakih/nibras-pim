@@ -39,10 +39,32 @@ public class AttachmentController {
 
     private final AttachmentService service;
     private final UrlScrapeService scraper;
+    private final com.nibras.pim.service.SlideService slides;
+    private final com.nibras.pim.service.MediaLinkService links;
 
-    public AttachmentController(AttachmentService service, UrlScrapeService scraper) {
+    public AttachmentController(AttachmentService service, UrlScrapeService scraper,
+                                com.nibras.pim.service.SlideService slides,
+                                com.nibras.pim.service.MediaLinkService links) {
         this.service = service;
         this.scraper = scraper;
+        this.slides = slides;
+        this.links = links;
+    }
+
+    /**
+     * A document in the record's folder as slides: its page count, a signed link for its page
+     * images ({@code &n=<page>&w=<width>} appended) and one for the file itself.
+     */
+    public record Slides(String name, int pages, String page, String file) {
+    }
+
+    @GetMapping("/slides")
+    public Slides slides(@PathVariable String module, @PathVariable long id,
+                         @RequestParam(defaultValue = "1") int repo, @RequestParam String path) throws IOException {
+        Path file = service.resolveInRepo(module, id, repo, path);
+        if (!Files.isRegularFile(file)) throw new ResponseStatusException(NOT_FOUND, "File not found.");
+        var deck = slides.deck(file);
+        return new Slides(file.getFileName().toString(), deck.pages(), links.link("slide", deck.pdf()), links.link("file", file));
     }
 
     /** Files in the record's folder across all three repositories. */
@@ -69,6 +91,18 @@ public class AttachmentController {
                                        @RequestParam("file") MultipartFile file) {
         service.store(module, id, repo, file);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Move (or, with {@code move=false}, copy) a file from repository {@code repo} to repository
+     * {@code to}, into the same record's folder there. Answers with the name it now has.
+     */
+    @PostMapping("/transfer")
+    public java.util.Map<String, String> transfer(@PathVariable String module, @PathVariable long id,
+                                                  @RequestParam int repo, @RequestParam int to,
+                                                  @RequestParam String path,
+                                                  @RequestParam(defaultValue = "true") boolean move) {
+        return java.util.Map.of("name", service.transfer(module, id, repo, to, path, move));
     }
 
     /** Delete a file from the record's folder in repository {@code repo} (default 1). */

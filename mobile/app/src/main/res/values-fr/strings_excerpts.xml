@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Excerpt library page: the web's random book samples, summarized from the phone. -->
+<resources>
+    <string name="excerpts_title">Bibliothèque d’extraits</string>
+    <string name="excerpts_counts">%1$d échantillons de %2$d sur %3$d livres · %4$d à résumer · %5$d promus</string>
+    <string name="excerpts_make_more">En faire plus</string>
+    <string name="excerpts_making">En cours…</string>
+    <string name="excerpts_job_running">%1$d sur %2$d faits · %3$d livres essayés</string>
+    <string name="excerpts_job_done">Dernier lot : %1$d sur %2$d faits, %3$d livres sans fichier lisible</string>
+    <string name="excerpts_status_new">À résumer</string>
+    <string name="excerpts_status_summarized">Résumés</string>
+    <string name="excerpts_status_promoted">Promus</string>
+    <string name="excerpts_status_skipped">Mis de côté</string>
+    <string name="excerpts_status_all">Tous</string>
+    <string name="excerpts_search">Chercher titre, auteur, résumé, texte</string>
+    <string name="excerpts_error">Serveur injoignable : %1$s</string>
+    <string name="excerpts_retry">Réessayer</string>
+    <string name="excerpts_none_new">Rien à résumer. Faites d’autres échantillons ci-dessus.</string>
+    <string name="excerpts_none">Rien ici.</string>
+    <string name="excerpts_image_only">image seule</string>
+    <string name="excerpts_back">Retour à la liste</string>
+    <string name="excerpts_open_book">Ouvrir le livre</string>
+    <string name="excerpts_another">Un autre endroit</string>
+    <string name="excerpts_restore">Reprendre</string>
+    <string name="excerpts_skip">Mettre de côté</string>
+    <string name="excerpts_promote">Promouvoir en Extrait</string>
+    <string name="excerpts_promoted_as">Extrait n° %1$d</string>
+    <string name="excerpts_promote_hint">Enregistrez d’abord un résumé d’une ligne pour le promouvoir.</string>
+    <string name="excerpts_summary">Résumé en une ligne</string>
+    <string name="excerpts_details">Détails (facultatif)</string>
+    <string name="excerpts_save">Enregistrer</string>
+    <string name="excerpts_save_next">Enregistrer et suivant</string>
+    <string name="excerpts_next">Suivant</string>
+    <string name="excerpts_text">Texte</string>
+    <string name="excerpts_pages">Pages (%1$d)</string>
+    <string name="excerpts_nothing">Ni texte ni pages pour cet échantillon.</string>
+    <string name="excerpts_rail">Bibliothèque d’extraits</string>
+    <string name="excerpts_read_full">Lire en plein écran</string>
+    <string name="excerpts_open_with">Ouvrir avec…</string>
+    <string name="excerpts_pages_tap">Touchez une page pour la lire en plein écran.</string>
+</resources>

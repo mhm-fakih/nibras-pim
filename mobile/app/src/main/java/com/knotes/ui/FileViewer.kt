@@ -111,6 +111,9 @@ fun isViewableInApp(name: String): Boolean =
 object InAppViewer {
     var file by mutableStateOf<File?>(null)
 
+    /** The page (0-based) a PDF opens at; taken once by the viewer, then reset. */
+    var startPage by mutableIntStateOf(0)
+
     /** Bumped when the viewer renamed or deleted a file, so lists showing that folder re-read it. */
     var changed by mutableIntStateOf(0)
 
@@ -399,7 +402,20 @@ private fun PdfPages(
     LaunchedEffect(pdf) { onPageCount(pdf.count) }
 
     var zoom by remember(file) { mutableFloatStateOf(1f) }
-    val list = rememberLazyListState()
+    val start = remember(file) {
+        InAppViewer.startPage.coerceIn(0, (pdf.count - 1).coerceAtLeast(0)).also { InAppViewer.startPage = 0 }
+    }
+    val list = rememberLazyListState(initialFirstVisibleItemIndex = start)
+    // The pages above take their real height only once rendered, which pushed the asked-for page
+    // down; landing on it again after they have settled puts its top at the top of the screen.
+    if (start > 0) {
+        LaunchedEffect(file) {
+            repeat(3) {
+                delay(250)
+                list.scrollToItem(start)
+            }
+        }
+    }
     val density = LocalDensity.current
     val reading = tool == PdfTool.NONE
     BoxWithConstraints(

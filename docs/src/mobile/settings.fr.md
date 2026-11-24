@@ -172,6 +172,13 @@ Ce que joue le [minuteur rapide](alarms.md#quick-timer) en haut de la page Alarm
 | **Choisir un fichier son** | **Son d’alarme par défaut** |
 | **Volume N %** | 80 % |
 | **Joué N×** | 2× (de 1 à 10) |
+| **N dB moins fort** | Gain plein (de 0 à −40 dB) |
+| **Monte jusqu'à son volume en N s** | Sans montée (0 à 60 s ; affiché quand un gain est réglé) |
+
+Les deux derniers servent à tester le son de l'adhan en quelques minutes plutôt qu'en attendant une
+prière : mêmes −n dB et même montée que l'adhan. Si −30 dB est faible au minuteur rapide mais pas
+la montée de l'adhan, c'est la montée qui ne fonctionne pas sur ce téléphone ; utilisez alors
+**Adhan N dB moins fort** (voir [Horaires de prière](prayer.md)).
 
 ## Calendrier et widgets { #calendar-widgets }
 

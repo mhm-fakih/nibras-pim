@@ -64,6 +64,7 @@ export const SHORTCUTS: ShortcutGroup[] = [
       { keys: 'd', desc: 'Set department (pick a code)' },
       { keys: 'c', desc: 'Set course (pick a code)' },
       { keys: '*', desc: 'Toggle bookmark' },
+      { keys: 'l', desc: 'Link: a note to a record, or notes to this record' },
     ],
   },
   {

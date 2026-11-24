@@ -27,6 +27,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _aiNotes = MutableStateFlow<List<Note>>(emptyList())
     val aiNotes: StateFlow<List<Note>> = _aiNotes.asStateFlow()
 
+    /** False until the AI folder has been read once: an empty list before that means "not read
+     *  yet", not "the folder is empty", and the page must not say the latter while it loads. */
+    private val _aiLoaded = MutableStateFlow(false)
+    val aiLoaded: StateFlow<Boolean> = _aiLoaded.asStateFlow()
+
     /** Where the AI answers are read from, and whether that folder is actually there. */
     fun aiDirPath(): String = aiRepo.dirPath()
     fun aiDirExists(): Boolean = aiRepo.dirExists()
@@ -39,13 +44,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshAiNotes() {
         viewModelScope.launch(Dispatchers.IO) {
             _aiNotes.value = if (aiRepo.dirExists()) aiRepo.listNotes() else emptyList()
+            _aiLoaded.value = true
+        }
+    }
+
+    /**
+     * Save an AI answer's body after a highlight is toggled — the only write its reader makes.
+     * Written in place: the name is the desktop's, so it is never rebuilt from tags here, and a
+     * file already gone (Syncthing moved it) is not recreated.
+     */
+    fun saveAiAnswer(note: Note, text: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (!note.file.isFile) return@launch
+            runCatching { note.file.writeText(if (text.endsWith("\n")) text else text + "\n") }
+            _aiNotes.value = if (aiRepo.dirExists()) aiRepo.listNotes() else emptyList()
         }
     }
 
     /**
      * The homework folder (~/new/knotes-hw, synced): one note per assignment, answered on the phone
-     * by highlighting the chosen option's letter. Unlike the AI answers it is written to — the
-     * highlight IS the answer — so its reader saves, like the notes page's.
+     * by highlighting the chosen option's letter — the highlight IS the answer — so its reader
+     * saves, like the notes page's.
      */
     private val hwRepo = NoteRepository(settingsStore) { settingsStore.value.hwDir() }
 

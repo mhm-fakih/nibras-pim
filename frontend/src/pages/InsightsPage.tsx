@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { linkProps } from '../util/links';
 import { useQuery } from '@tanstack/react-query';
 import {
   Box,
@@ -369,7 +370,7 @@ function ModuleCard({
               {stale.content.map((r) => {
                 const rtl = dirOf(r.displayTitle) === 'rtl';
                 return (
-                  <ListItemButton key={r.id} sx={{ py: 0.1, px: 0.5, borderRadius: 1 }} onClick={() => onOpenRecord(r.id)}>
+                  <ListItemButton key={r.id} sx={{ py: 0.1, px: 0.5, borderRadius: 1 }} {...linkProps(`/${m.key}?select=${r.id}`, () => onOpenRecord(r.id))}>
                     <ListItemText
                       primary={r.displayTitle || '(untitled)'}
                       primaryTypographyProps={{

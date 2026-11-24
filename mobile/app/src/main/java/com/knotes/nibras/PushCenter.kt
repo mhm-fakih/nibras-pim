@@ -70,12 +70,14 @@ object PushCenter {
         RecordOutbox.seed(context)
         FlashOutbox.seed(context)
         PaymentOutbox.seed(context)
+        com.knotes.quran.QuranStore.seed(context)
         val settings = SettingsStore(context).value
         val base = settings.nibrasBaseUrl.trim()
         val calendar = CalendarStore(context)
         if (base.isEmpty() ||
             (RecordOutbox.pending.value.isEmpty() && calendar.pending.value.isEmpty() &&
-                FlashOutbox.pending.value.isEmpty() && PaymentOutbox.sendable().isEmpty())
+                FlashOutbox.pending.value.isEmpty() && PaymentOutbox.sendable().isEmpty() &&
+                com.knotes.quran.QuranStore.sendable().isEmpty())
         ) {
             return
         }
@@ -101,6 +103,9 @@ object PushCenter {
                 NibrasApi.PaymentSend.Later -> Unit
             }
         }
+
+        // Quran bookmarks and notes made on the phone, in the order they were made.
+        runCatching { com.knotes.quran.QuranStore.drain(context, base) }
 
         // Calendar outbox — same behaviour as the Calendar page's flushPending, but available
         // process-wide so events created offline sync even if that page is never reopened.

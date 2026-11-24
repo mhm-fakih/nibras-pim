@@ -23,6 +23,7 @@ import {
   SeriesPoint,
   getCalendarEvents,
   getDashboardFileContent,
+  getQuickTasks,
   getKanban,
   getLocalNotes,
   getLookups,
@@ -30,9 +31,10 @@ import {
   LocalNote,
   setTaskCompleted,
 } from '../api/client';
+import { MarkdownView } from './MarkdownView';
 import { HabitHeatmap } from './HabitHeatmap';
-import { IndicatorTickerComponent } from './IndicatorTicker';
-import { RecordCard } from './RecordCard';
+import { IndicatorTickerComponent, IndicatorTickerView } from './IndicatorTicker';
+import { RecordCard, plainDescription } from './RecordCard';
 import { dirOf } from '../util/rtl';
 import { lookupStyle } from './statusStyle';
 
@@ -47,6 +49,7 @@ export const DASHBOARD_COMPONENT_TYPES: { type: string; label: string }[] = [
   { type: 'plans', label: 'Plans (bookmarked planner entries)' },
   { type: 'tasks', label: 'Open tasks' },
   { type: 'localTasks', label: 'Local tasks (notes folder)' },
+  { type: 'quickTasks', label: 'Quick tasks (quick-tasks.md, open ones)' },
   { type: 'indicatorTicker', label: 'Indicators ticker (monitored indicators, ▲▼ trend)' },
 ];
 
@@ -94,7 +97,7 @@ export function DashboardComponent({ componentType, config }: { componentType: s
     case 'goalsHeatmap':
       return <GoalsHeatmapComponent />;
     case 'kanban':
-      return <KanbanComponent />;
+      return <KanbanComponent config={config} />;
     case 'file':
       return <FileComponent config={config} />;
     case 'checklist':
@@ -103,6 +106,8 @@ export function DashboardComponent({ componentType, config }: { componentType: s
       return <TasksComponent config={config} />;
     case 'localTasks':
       return <LocalTasksComponent config={config} />;
+    case 'quickTasks':
+      return <QuickTasksComponent />;
     case 'plans':
       return <PlansComponent config={config} />;
     case 'indicatorTicker':
@@ -580,22 +585,34 @@ function isDone(r: EntityRecord): boolean {
   return r.completedOn != null || r.status?.code === 'done';
 }
 
-function KanbanComponent() {
+function KanbanComponent({ config }: { config?: string }) {
   const { data } = useQuery({
     queryKey: ['kanban'],
     queryFn: getKanban,
     staleTime: 0,
     refetchInterval: 2 * 60 * 1000,
   });
-  return <KanbanBoard goals={data?.goals ?? []} tasks={data?.tasks ?? []} navigable />;
+  return <KanbanBoard goals={data?.goals ?? []} tasks={data?.tasks ?? []} navigable showDescription={descriptionOn(config)} fullDescription={fullDescriptionOn(config)} />;
 }
 
 /** Public (unauthenticated) variant — kanban board data already resolved server-side. */
-function PublicKanbanComponent({ data }: { data: KanbanData | null }) {
-  return <KanbanBoard goals={data?.goals ?? []} tasks={data?.tasks ?? []} />;
+function PublicKanbanComponent({ data, config }: { data: KanbanData | null; config?: string }) {
+  return <KanbanBoard goals={data?.goals ?? []} tasks={data?.tasks ?? []} showDescription={descriptionOn(config)} fullDescription={fullDescriptionOn(config)} />;
 }
 
-function KanbanBoard({ goals, tasks, navigable }: { goals: EntityRecord[]; tasks: EntityRecord[]; navigable?: boolean }) {
+function KanbanBoard({
+  goals,
+  tasks,
+  navigable,
+  showDescription,
+  fullDescription,
+}: {
+  goals: EntityRecord[];
+  tasks: EntityRecord[];
+  navigable?: boolean;
+  showDescription: boolean;
+  fullDescription: boolean;
+}) {
   const navigate = useNavigate();
 
   const tasksByGoal = useMemo(() => {
@@ -624,7 +641,7 @@ function KanbanBoard({ goals, tasks, navigable }: { goals: EntityRecord[]; tasks
     <Stack spacing={1.5}>
       {goals.map((g) => (
         <Box key={g.id}>
-          <RecordCard module="goals" record={g} onClick={navigable ? () => navigate('/goals') : undefined} />
+          <RecordCard module="goals" record={g} to={navigable ? `/goals?select=${g.id}` : undefined} />
           {(tasksByGoal.get(g.id) ?? []).length > 0 && (
             <Stack spacing={0.5} sx={{ mt: 0.5, ml: 1.5, pl: 1, borderLeft: 2, borderColor: 'divider' }}>
               {tasksByGoal.get(g.id)!.map((t) => (
@@ -632,8 +649,10 @@ function KanbanBoard({ goals, tasks, navigable }: { goals: EntityRecord[]; tasks
                   key={t.id}
                   module="tasks"
                   record={t}
-                  onClick={navigable ? () => navigate('/tasks') : undefined}
+                  to={navigable ? `/tasks?select=${t.id}` : undefined}
                   sx={isDone(t) ? doneSx : undefined}
+                  hideDescription={!showDescription}
+                  fullDescription={fullDescription}
                 />
               ))}
             </Stack>
@@ -673,6 +692,37 @@ function FileComponent({ config }: { config?: string }) {
     );
   }
   return <FileView content={data?.content} truncated={data?.truncated} />;
+}
+
+// ---- Quick tasks: the desktop's quick-tasks.md, open tasks only ---------------------------
+
+function QuickTasksComponent() {
+  const { data, isError, isLoading } = useQuery({
+    queryKey: ['dashboard-quick-tasks'],
+    queryFn: getQuickTasks,
+    // The desktop rewrites the file whenever a task is added or ticked.
+    staleTime: 0,
+    refetchInterval: 2 * 60 * 1000,
+  });
+  if (isError) return <Typography color="error" variant="body2">Could not read quick-tasks.md.</Typography>;
+  if (isLoading) return null;
+  return <QuickTasksView data={data ?? null} />;
+}
+
+/** Rendered as Markdown, so the "- [ ]" lines show as (read-only) boxes and Arabic lines go right to left. */
+function QuickTasksView({ data }: { data: DashboardFileContent | null }) {
+  if (!data) {
+    return <Typography color="text.secondary">No quick-tasks.md in the notes folder.</Typography>;
+  }
+  if (!data.content.trim()) {
+    return <Typography color="text.secondary">Nothing left to do.</Typography>;
+  }
+  return (
+    <Box sx={{ height: '100%', overflow: 'auto', '& ul': { pl: 2.5, my: 0.5 }, '& h1': { fontSize: 18, my: 0.5 } }}>
+      <MarkdownView value={data.content} />
+      {data.truncated && <Chip size="small" label="truncated" sx={{ mt: 1 }} />}
+    </Box>
+  );
 }
 
 /** Public (unauthenticated) variant — file content already read server-side. */
@@ -716,9 +766,11 @@ export function PublicDashboardComponent({ region }: { region: PublicDashboardRe
     case 'goalsHeatmap':
       return <PublicGoalsHeatmapComponent groups={region.goalsHeatmap ?? []} />;
     case 'kanban':
-      return <PublicKanbanComponent data={region.kanbanBoard} />;
+      return <PublicKanbanComponent data={region.kanbanBoard} config={region.config} />;
     case 'file':
       return <PublicFileComponent data={region.file} />;
+    case 'quickTasks':
+      return <QuickTasksView data={region.file} />;
     case 'checklist':
       return (
         <ChecklistView
@@ -728,13 +780,26 @@ export function PublicDashboardComponent({ region }: { region: PublicDashboardRe
         />
       );
     case 'tasks':
-      return <TasksView tasks={region.tasks ?? []} fileCounts={region.taskFiles ?? undefined} />;
+      return (
+        <TasksView
+          tasks={region.tasks ?? []}
+          fileCounts={region.taskFiles ?? undefined}
+          showDescription={descriptionOn(region.config)}
+          fullDescription={fullDescriptionOn(region.config)}
+        />
+      );
     case 'plans':
       return <PlansView plans={region.plans ?? []} config={region.config} />;
     case 'localTasks':
-      return <LocalTasksView notes={region.localTasks ?? []} minPriority={localTasksConfig(region.config).minPriority} />;
+      return (
+        <LocalTasksView
+          notes={region.localTasks ?? []}
+          minPriority={localTasksConfig(region.config).minPriority}
+          showDescription={descriptionOn(region.config)}
+        />
+      );
     case 'indicatorTicker':
-      return <Typography color="text.secondary">The indicators ticker shows on the signed-in dashboard only.</Typography>;
+      return <IndicatorTickerView trends={region.indicatorTrends ?? []} config={region.config} />;
     default:
       return <Typography color="text.secondary">Unknown component type "{region.componentType}".</Typography>;
   }
@@ -930,6 +995,76 @@ function ChecklistView({
   );
 }
 
+// ---- A task's summary with its description beside it ------------------------------------------
+
+/** Region config `showDescription`: on unless turned off, so existing dashboards get it too. */
+function descriptionOn(config?: string): boolean {
+  return safeParse<{ showDescription?: boolean }>(config, {}).showDescription !== false;
+}
+
+/** Region config `fullDescription`: all of the text rather than two lines, on unless turned off. */
+function fullDescriptionOn(config?: string): boolean {
+  return safeParse<{ fullDescription?: boolean }>(config, {}).fullDescription !== false;
+}
+
+/** A note's snippet opens with its title line, which is already on screen. */
+function noteDescription(title: string, snippet?: string | null): string {
+  const text = plainDescription(snippet);
+  return text.startsWith(title) ? text.slice(title.length).trim() : text;
+}
+
+/**
+ * Summary with its description under it, each in its own text direction. Line breaks in the
+ * description are kept, whether it is shown in full or cut to two lines.
+ */
+function TitleWithDescription({
+  title,
+  description,
+  struck,
+  full,
+}: {
+  title: string;
+  description: string;
+  struck?: boolean;
+  /** All of the text, rather than two lines. */
+  full?: boolean;
+}) {
+  return (
+    <>
+      <Typography
+        dir={dirOf(title)}
+        sx={{
+          fontSize: 15,
+          lineHeight: 1.35,
+          textAlign: 'start',
+          textDecoration: struck ? 'line-through' : undefined,
+        }}
+      >
+        {title}
+      </Typography>
+      {description && (
+        <Typography
+          dir={dirOf(description)}
+          variant="body2"
+          color="text.secondary"
+          sx={{
+            mt: 0.25,
+            lineHeight: 1.35,
+            textAlign: 'start',
+            whiteSpace: 'pre-wrap',
+            overflowWrap: 'anywhere',
+            ...(full
+              ? {}
+              : { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }),
+          }}
+        >
+          {description}
+        </Typography>
+      )}
+    </>
+  );
+}
+
 // ---- Open tasks: active status, due ones first ---------------------------------------
 
 interface TasksConfig {
@@ -985,14 +1120,31 @@ function TasksComponent({ config }: { config?: string }) {
     enabled: sorted.length > 0,
     staleTime: 60 * 1000,
   });
-  return <TasksView tasks={sorted} fileCounts={fileCounts} />;
+  return (
+    <TasksView
+      tasks={sorted}
+      fileCounts={fileCounts}
+      showDescription={descriptionOn(config)}
+      fullDescription={fullDescriptionOn(config)}
+    />
+  );
 }
 
 /** What the list holds, said on the list itself (a TV has no tooltips to hover). */
 const OPEN_TASKS_NOTE =
   'Open: not completed, with an active status (or none). Due first, soonest first; older than the overdue limit left out.';
 
-function TasksView({ tasks, fileCounts }: { tasks: EntityRecord[]; fileCounts?: Record<string, number> }) {
+function TasksView({
+  tasks,
+  fileCounts,
+  showDescription,
+  fullDescription,
+}: {
+  tasks: EntityRecord[];
+  fileCounts?: Record<string, number>;
+  showDescription: boolean;
+  fullDescription: boolean;
+}) {
   const today = ymd(new Date());
   const qc = useQueryClient();
   // Ticked here, by task id: stays struck through until the next refresh drops it from the list,
@@ -1056,17 +1208,12 @@ function TasksView({ tasks, fileCounts }: { tasks: EntityRecord[]; fileCounts?: 
                 />
               </Tooltip>
               <Box sx={{ minWidth: 0, flex: 1, opacity: done ? 0.5 : 1 }}>
-                <Typography
-                  dir={dirOf(title)}
-                  sx={{
-                    fontSize: 15,
-                    lineHeight: 1.35,
-                    textAlign: 'start',
-                    textDecoration: done ? 'line-through' : undefined,
-                  }}
-                >
-                  {title || '(untitled)'}
-                </Typography>
+                <TitleWithDescription
+                  title={title || '(untitled)'}
+                  description={showDescription ? plainDescription(t.description, true) : ''}
+                  struck={done}
+                  full={fullDescription}
+                />
                 <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.25, flexWrap: 'wrap' }}>
                   {due && (
                     <Typography variant="body2" sx={{ color: late ? 'error.main' : due === today ? 'warning.dark' : 'text.secondary', fontWeight: late || due === today ? 700 : 400 }}>
@@ -1134,10 +1281,18 @@ function LocalTasksComponent({ config }: { config?: string }) {
         .slice(0, limit),
     [data, minPriority, limit],
   );
-  return <LocalTasksView notes={notes} minPriority={minPriority} />;
+  return <LocalTasksView notes={notes} minPriority={minPriority} showDescription={descriptionOn(config)} />;
 }
 
-function LocalTasksView({ notes, minPriority }: { notes: LocalNote[]; minPriority: number }) {
+function LocalTasksView({
+  notes,
+  minPriority,
+  showDescription,
+}: {
+  notes: LocalNote[];
+  minPriority: number;
+  showDescription: boolean;
+}) {
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <Typography variant="subtitle1" sx={{ fontWeight: 700, flexShrink: 0 }}>
@@ -1152,9 +1307,10 @@ function LocalTasksView({ notes, minPriority }: { notes: LocalNote[]; minPriorit
           const title = n.title || n.snippet || n.filename;
           return (
             <Box key={n.filename} sx={{ py: 0.5, borderBottom: 1, borderColor: 'divider' }}>
-              <Typography dir={dirOf(title)} sx={{ fontSize: 15, lineHeight: 1.35, textAlign: 'start' }}>
-                {title}
-              </Typography>
+              <TitleWithDescription
+                title={title}
+                description={showDescription ? noteDescription(title, n.snippet) : ''}
+              />
               <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.25, flexWrap: 'wrap' }}>
                 <Typography variant="body2" color="text.secondary">
                   P{n.priority}

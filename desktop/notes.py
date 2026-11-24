@@ -97,6 +97,44 @@ TIME_MARK_EXT = ".tmk"
 SENTENCE_BREAKS = frozenset(".!?…\n" + "؟؛")
 
 
+def search_snippets(text: str, query: str, radius: int = 60,
+                    limit: int = 3) -> tuple[list[tuple[str, str, str]], int]:
+    """Where [query] occurs in [text]: up to [limit] ``(before, match, after)`` excerpts, and the
+    total number of matches.
+
+    For a search result's card: the card shows a note's start, and in a long note the line that
+    matched is usually far below it. Case-insensitive, on the text as read (highlight markers
+    removed), with each excerpt's line breaks folded to spaces and cut at a word where it can be.
+    Matches close enough to share an excerpt are not listed twice.
+    """
+    if not query:
+        return [], 0
+    plain = split_highlights(text)[0]
+    low, q = plain.lower(), query.lower()
+    hits, at = [], low.find(q)
+    while at >= 0:
+        hits.append(at)
+        at = low.find(q, at + len(q))
+    out: list[tuple[str, str, str]] = []
+    covered = -1
+    for at in hits:
+        if at < covered or len(out) >= limit:
+            continue
+        start, end = max(0, at - radius), min(len(plain), at + len(q) + radius)
+        if start > 0:
+            space = plain.find(" ", start, at)
+            start = space + 1 if space >= 0 else start
+        if end < len(plain):
+            space = plain.rfind(" ", at + len(q), end)
+            end = space if space >= 0 else end
+        fold = lambda t: re.sub(r"\s+", " ", t)
+        before = ("…" if start > 0 else "") + fold(plain[start:at]).lstrip()
+        after = fold(plain[at + len(q):end]).rstrip() + ("…" if end < len(plain) else "")
+        out.append((before, plain[at:at + len(q)], after))
+        covered = end
+    return out, len(hits)
+
+
 def split_highlights(text: str) -> tuple[str, list[bool]]:
     """Split ``text`` into its plain reading form and a per-character "is highlighted" flag.
 

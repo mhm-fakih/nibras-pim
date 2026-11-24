@@ -63,6 +63,13 @@ data class Alarm(
     val repeatCount: Int = 1,
     /** 0-100, applied to the alarm stream for this alarm only and then put back. */
     val volumePercent: Int = 80,
+    /**
+     * Played this many dB under [volumePercent] (0 or negative), in the player's own gain — the
+     * same mechanism as the athan's "quieter by". The quick timer's, to test what −n dB sounds like.
+     */
+    val gainDb: Int = 0,
+    /** Rise from [gainDb] to full over this many seconds (VolumeShaper, as the athan's rise); 0 = flat. */
+    val riseSeconds: Int = 0,
 ) {
     /** True when this alarm has somewhere to fire — a countdown must have been started. */
     fun armable(): Boolean = enabled && (kind != AlarmKind.COUNTDOWN || dueAtMillis != null)

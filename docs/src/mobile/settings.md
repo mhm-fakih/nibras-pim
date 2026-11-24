@@ -172,6 +172,13 @@ What the [quick timer](alarms.md#quick-timer) at the top of the Alarms page play
 | **Choose sound file** | **Default alarm sound** |
 | **Volume N%** | 80% |
 | **Plays N×** | 2× (1–10) |
+| **N dB quieter** | Full gain (0 to −40 dB) |
+| **Rises to its volume over N s** | No rise (0–60 s; shown when quieter is set) |
+
+The last two are for testing the athan's sound in a few minutes rather than waiting for a prayer:
+they use the same −n dB and the same rise as the athan. If −30 dB is quiet on the quick timer
+but the athan's rise is not, the rise is what does not work on that phone; then use the athan's
+**Athan N dB quieter** instead (see [Prayer times](prayer.md)).
 
 ## Calendar & widgets
 

@@ -212,6 +212,110 @@ class NibrasApi {
             }.getOrDefault(PaymentSend.Later)
         }
 
+    /** Days in the three calendars with Iran's official occasions, verbatim (see IranCalendar). */
+    @Throws(ApiException::class)
+    suspend fun fetchCalendarDaysRaw(base: String, from: java.time.LocalDate, to: java.time.LocalDate, hijriOffset: Int): String =
+        withContext(Dispatchers.IO) {
+            get("${base.trimEnd('/')}/api/calendar-days?from=$from&to=$to&hijriOffset=$hijriOffset")
+        }
+
+    // ---- Quran ------------------------------------------------------------------------------
+
+    /** The Quran overview (surahs, whether the module is on), verbatim, for the offline copy. */
+    @Throws(ApiException::class)
+    suspend fun fetchQuranRaw(base: String): String =
+        withContext(Dispatchers.IO) { get("${base.trimEnd('/')}$PATH_QURAN") }
+
+    /** One surah with its ayat, exegesis, notes and linked notes, verbatim. */
+    @Throws(ApiException::class)
+    suspend fun fetchQuranSurahRaw(base: String, number: Int): String =
+        withContext(Dispatchers.IO) { get("${base.trimEnd('/')}$PATH_QURAN/surahs/$number") }
+
+    /**
+     * One call to the web's Excerpt library ([PATH_EXCERPT_LIBRARY] + [path]): GET without a body,
+     * else [method] with [body] as JSON. The response body, or an [ApiException] carrying the
+     * server's own message when it gave one.
+     */
+    @Throws(ApiException::class)
+    suspend fun excerptLibrary(base: String, path: String, method: String = "GET", body: JSONObject? = null): String =
+        withContext(Dispatchers.IO) {
+            val url = "${base.trimEnd('/')}$PATH_EXCERPT_LIBRARY$path"
+            fun build(): Request {
+                val b = Request.Builder().url(url).header("Accept", "application/json")
+                if (method == "GET") b.get() else b.method(method, (body ?: JSONObject()).toString().toRequestBody(jsonMedia))
+                token?.let { b.header("Authorization", "Bearer $it") }
+                return b.build()
+            }
+            var resp = try { client.newCall(build()).execute() } catch (e: java.io.IOException) {
+                throw ApiException(null, e.message ?: "The server could not be reached.")
+            }
+            if (resp.code == 401 && doLogin()) {
+                resp.close()
+                resp = client.newCall(build()).execute()
+            }
+            resp.use { r ->
+                val text = r.body?.string().orEmpty()
+                if (!r.isSuccessful) {
+                    val msg = runCatching { JSONObject(text).optString("message") }.getOrNull().orEmpty()
+                    throw ApiException(r.code, msg.ifBlank { "HTTP ${r.code}" })
+                }
+                text
+            }
+        }
+
+    /** Downloads [url] (a signed media link: no sign-in needed) into [dest], written beside it and renamed over it. */
+    @Throws(ApiException::class)
+    suspend fun download(url: String, dest: java.io.File) = withContext(Dispatchers.IO) {
+        val resp = try { client.newCall(Request.Builder().url(url).get().build()).execute() } catch (e: java.io.IOException) {
+            throw ApiException(null, e.message ?: "The server could not be reached.")
+        }
+        resp.use { r ->
+            if (!r.isSuccessful) throw ApiException(r.code, "HTTP ${r.code}")
+            dest.parentFile?.mkdirs()
+            val part = java.io.File(dest.parentFile, dest.name + ".part")
+            r.body!!.byteStream().use { input -> part.outputStream().use { input.copyTo(it) } }
+            if (!part.renameTo(dest)) { part.delete(); throw ApiException(null, "Could not write ${dest.absolutePath}") }
+        }
+    }
+
+    /** How one Quran change sent to the server ended. */
+    enum class QuranSend { DONE, REFUSED, LATER }
+
+    /** Sends one queued Quran change: a bookmark (surah or aya) or a note to append. */
+    suspend fun sendQuran(base: String, op: com.knotes.quran.QuranOp): QuranSend =
+        withContext(Dispatchers.IO) {
+            val root = "${base.trimEnd('/')}$PATH_QURAN/surahs/${op.surah}"
+            val (url, method, body) = when (op.kind) {
+                com.knotes.quran.QuranOp.SURAH_BOOKMARK ->
+                    Triple("$root/bookmark", "PUT", JSONObject().put("bookmarked", op.on))
+                com.knotes.quran.QuranOp.AYA_BOOKMARK ->
+                    Triple("$root/ayat/${op.aya}/bookmark", "PUT", JSONObject().put("bookmarked", op.on))
+                else -> Triple("$root/ayat/${op.aya}/notes", "POST",
+                    JSONObject().put("text", op.text).put("ref", op.ref).put("at", op.at))
+            }
+            fun build(): Request {
+                val rb = body.toString().toRequestBody(jsonMedia)
+                val b = Request.Builder().url(url).header("Accept", "application/json")
+                    .method(method, rb)
+                token?.let { b.header("Authorization", "Bearer $it") }
+                return b.build()
+            }
+            runCatching {
+                var resp = client.newCall(build()).execute()
+                if (resp.code == 401 && doLogin()) {
+                    resp.close()
+                    resp = client.newCall(build()).execute()
+                }
+                resp.use { r ->
+                    when {
+                        r.isSuccessful -> QuranSend.DONE
+                        r.code == 404 || r.code == 400 -> QuranSend.REFUSED
+                        else -> QuranSend.LATER
+                    }
+                }
+            }.getOrDefault(QuranSend.LATER)
+        }
+
     /** Record a decision. The same call puts a card back, by sending NEW. */
     suspend fun pushFlashcardState(base: String, id: Long, state: String): Boolean =
         withContext(Dispatchers.IO) {
@@ -349,6 +453,16 @@ class NibrasApi {
                 JSONObject(body).optLong("id").takeIf { it > 0 }?.toString()
             }.getOrNull()
         }
+
+    /**
+     * One checklist sync round: [body] carries the rows changed on the phone (see
+     * [com.knotes.checklist.ChecklistData.outgoing]); the answer is every row the server changed
+     * after the phone's cursor, as JSON. Null when the call failed — offline, signed out, or a
+     * server too old to have the endpoint.
+     */
+    suspend fun syncChecklists(base: String, body: JSONObject): String? = withContext(Dispatchers.IO) {
+        runCatching { postAuthedBody("${base.trimEnd('/')}$PATH_CHECKLIST_SYNC", body) }.getOrNull()
+    }
 
     /** As [postAuthed], but hands back the response body (null when the call failed). */
     private fun postAuthedBody(url: String, payload: JSONObject): String? {
@@ -544,9 +658,12 @@ class NibrasApi {
         const val PATH_MOBILE_PUSH_BOOKMARK = "/sync/mobilePushBookmark"
         const val PATH_CLIENT_TAXONOMY = "/sync/clientTaxonomy"
         const val PATH_FLASHCARDS = "/api/flashcards"
+        const val PATH_CHECKLIST_SYNC = "/api/checklists/sync"
         const val PATH_HIGHLIGHTS = "/api/highlights"
         // The base path is the CRUD list now; the grouped view this page wants is a sub-path.
         const val PATH_CONTACTS = "/api/contacts"
+        const val PATH_QURAN = "/api/quran"
+        const val PATH_EXCERPT_LIBRARY = "/api/excerpt-library"
         const val PATH_EXPENSES = "/api/expenses"
 
         /** Statuses that mean "this payment, as it is, will not be accepted". */

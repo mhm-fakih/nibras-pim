@@ -59,6 +59,8 @@ The times depend on where you are. Open **Method → Where you are**:
 - **The sound**: with no file chosen, the athan plays the **phone's default alarm sound**. To hear an actual athan, tap **Choose athan file** and pick any audio file of the recording you want. **Clear** goes back to the default alarm sound. **Hear it** plays it now at the phone's current alarm volume; **Stop** stops it.
 - The athan plays on the **alarm** sound channel, so it is still heard while the phone is silenced for the prayer.
 - **Volume for each**: a separate volume per prayer (80% by default). While the athan plays, the phone's alarm volume is set to this level, then put back as it was, so 25% is the same loudness whatever the alarm volume was left at. 0 mutes that one. The **Hear:** buttons play each prayer's athan at exactly the volume it will use.
+- **Rises over N s**: the athan starts quieter and rises to its volume over this many seconds (20 by default; 0 starts at full). **From N dB** sets how much quieter it starts: −10 dB by default (about half as loud), down to −40 dB. It keeps rising with the screen off. Android 8 and later; older phones start at the volume. The **Hear:** buttons rise too.
+- **Athan N dB quieter**: the whole athan this much quieter (0 to −40 dB), on top of each prayer's volume, in the player itself. For a phone whose lowest alarm step is still loud, or one (Samsung) where the per-prayer volume can only choose an alarm step. To try a level quickly, set the same dB on the [quick timer](settings.md#quick-timer).
 
 When the athan plays, a notification appears with a **Stop** button. The phone's volume keys turn the athan (and the Shurooq beeps) up or down while it plays, even with the screen off, and a pause or stop press on a headset stops it.
 
@@ -98,6 +100,15 @@ The Islamic date is calculated arithmetically, so it needs no network. The real 
 
 - **Shift by**: move the date a day earlier or later to match what was announced where you live.
 - **Day starts at Maghrib**: the Islamic day begins at sunset, so after Maghrib the date shown is already tomorrow's. On by default.
+
+## Shamsi
+
+The **Shamsi** chip shows a month of the Shamsi (Iranian solar) calendar, Saturday first and right to
+left as Iran's calendar is printed. Each day shows its Shamsi number, with the Gregorian and Hijri
+days beneath; holidays (official ones and Fridays) are in red, and a dot marks a day with occasions.
+Tap a day for its three dates and the occasions of Iran's official calendar, in Persian with the
+Arabic. The arrows change the month; **امروز** comes back to today. The Hijri days follow the
+adjustment set under **Hijri** above.
 
 ## Related
 

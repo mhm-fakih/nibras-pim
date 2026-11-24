@@ -56,6 +56,12 @@ Le nouvel enregistrement s'ouvre dans le volet de détail, surmonté d'une carte
       **Ctrl+Enter** ou **Add** (Ajouter). Si la première ligne est courte, elle devient le titre et le reste le
       contenu. Une fois enregistrée, la nouvelle note apparaît sous forme de carte sous la zone —
       cliquez dessus pour ouvrir la note. Cliquez sur l'en-tête de la barre pour la replier.
+    - Le commutateur **Note | Board** de la même barre envoie le texte dans le journal **board** du
+      jour : la première saisie de la journée crée le journal (*Board jj-mm-aaaa*, type **Board**,
+      ajouté à la première utilisation), et chaque saisie suivante est ajoutée en dessous des
+      autres, précédée de son heure, sous la forme `[14:05] …`. Le texte sur plusieurs lignes est
+      gardé tel quel. **Open Board …** sous la zone ouvre le journal. La barre retient le dernier
+      choix.
     - La [saisie par lot](batch-commands.md#batch-entry) crée de nombreux enregistrements, un par ligne.
     - Sur **Resources**, l'icône de lien à côté de **New** (**New resource from a URL** — Nouvelle ressource depuis
       une URL) vous permet de coller une adresse web et de cliquer sur **Fetch** (Récupérer) : le serveur lit la page
@@ -93,6 +99,13 @@ Plus bas, vous trouverez :
   ajoute du texte à la fin sans ouvrir le formulaire. Appuyez sur **Ctrl+Enter** pour ajouter. Lorsque le champ
   est encore vide, son titre s'affiche quand même au-dessus de la zone, pour que vous voyiez à quel champ vous
   ajoutez du texte.
+- **Links** (Liens) — une note peut être liée à un enregistrement (un verset à sa sourate, une note
+  à un objectif, une ressource, un contact…). Sur une note, **Linked to** montre cet enregistrement ;
+  **Change** ou **l** ouvre un sélecteur (des mots, un id, ou la lettre du module et l'id, comme
+  `W802` ou `R25489`), et le bouton de déliaison retire le lien. Sur tout enregistrement,
+  **Notes linked here** liste les notes qui y sont liées, dans leur ordre (les versets d'une sourate
+  par numéro) : tapez une ligne et Entrée pour ajouter une note liée, ou choisissez des notes
+  existantes pour les y rattacher.
 - **Related** (Liés) — les enregistrements liés dans d'autres modules (les tâches d'un objectif, les journaux de suivi
   du temps d'une tâche, les notes d'une ressource…). Cliquez sur l'un d'eux pour l'ouvrir.
 - **Edit full text in your editor** (Modifier le texte intégral dans votre éditeur) — voir
@@ -172,6 +185,21 @@ Chaque enregistrement peut avoir des fichiers conservés dans jusqu'à trois **d
 Dans la section **Files** du volet de détail, choisissez **Upload to** (Téléverser vers), cliquez sur **Upload**
 (Téléverser) et choisissez un fichier. Cliquez sur un nom de fichier pour le télécharger ; l'icône de corbeille le
 supprime. Un fichier nommé `cover.jpg` (ou `.png`, `.webp`…) est affiché comme couverture de l'enregistrement.
+
+**Preview as slides** (Aperçu en diapositives, l'icône de diapositives à côté d'un PDF, d'une
+présentation, d'un texte ou d'un tableur) montre le document comme un diaporama : une grande page
+sur fond sombre, des flèches de chaque côté, le numéro de page et un curseur au-dessus, une bande de
+miniatures en dessous. ← et → (ou Page préc./suiv., Espace), Début et Fin pour se déplacer, **F**
+pour le plein écran, Échap pour fermer ; un clic sur le tiers gauche d'une page revient en arrière,
+ailleurs il avance. Le bouton d'ouverture dans un nouvel onglet montre le diaporama sur une page à
+lui, et le bouton de téléchargement enregistre le fichier. Une présentation ou un fichier Word est
+converti en PDF sur le serveur la première fois (quelques secondes), puis s'ouvre aussitôt.
+
+L'icône dossier-et-flèche à côté d'un fichier le **déplace** ou le **copie** vers le dossier de l'enregistrement
+dans un autre dépôt. Déplacer un fichier du dépôt 2 vers le dépôt 1 permet de l'avoir sur le téléphone, puisque
+c'est le dépôt 1 que Syncthing synchronise ; le ramener l'en retire. Un nom déjà pris reçoit une date au lieu de
+remplacer le fichier. Un fichier du dépôt 2 qui est un lien vers le disque externe est copié comme le fichier
+lui-même (le disque doit donc être branché) ; le déplacer ne supprime que le lien.
 
 !!! note "Boutons d'ouverture de dossier"
     **Repo1 / Repo2 / Repo3** (et les touches **f 1/2/3**) ouvrent le dossier dans un gestionnaire de fichiers *sur

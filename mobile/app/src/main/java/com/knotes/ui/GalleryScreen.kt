@@ -34,7 +34,8 @@ import androidx.compose.material.icons.filled.FormatColorFill
 import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -102,8 +103,8 @@ private enum class Tool(@StringRes val labelRes: Int) {
 
 /**
  * Full-screen, swipeable photo viewer with the desktop annotator's tools on it: pen, highlighter,
- * crop and rename. The delete button removes the current photo **immediately, without
- * confirmation** — a fast workflow for culling images.
+ * crop and rename. The delete button removes the current photo **at once, without confirmation**,
+ * with a 4-second Undo bar at the bottom of the screen — a fast workflow for culling images.
  *
  * **Autosave, no save button** — ported from `scr_annotator.commit`. Marks and the label are written
  * when you leave the image (page change, disarming the tool, or leaving the gallery), marks first
@@ -117,8 +118,7 @@ fun GalleryScreen(
     /**
      * Opened on one file, from a note's attachments or a server record's files (see
      * [openFileInApp]) rather than as the Gallery page. Then the pages are that folder's own
-     * images only (not its subfolders, where the backups go), the start is [startFile], and the
-     * delete asks first (a note's file is not a photo to cull). A rename or delete is reported
+     * images only (not its subfolders, where the backups go) and the start is [startFile]. A rename or delete is reported
      * through [InAppViewer.changed] so the note list re-reads the folder.
      */
     startFile: File? = null,
@@ -131,6 +131,25 @@ fun GalleryScreen(
     fun list() = if (attachments) listFolderImages(dir) else listImages(dir)
     var images by remember(dir) { mutableStateOf(list()) }
 
+    // A delete waits 4 s behind an Undo bar: the file is first renamed to a hidden name beside it
+    // (so the listing drops it and an undo is a rename back), and only removed when the bar goes —
+    // on timeout, on the next delete, or when this screen closes.
+    var pendingDelete by remember { mutableStateOf<PendingDelete?>(null) }
+    fun finishDelete() {
+        pendingDelete?.hidden?.delete()
+        pendingDelete = null
+    }
+    LaunchedEffect(dir) { withContext(Dispatchers.IO) { sweepStaleDeletes(dir) } }
+    LaunchedEffect(pendingDelete) {
+        if (pendingDelete == null) return@LaunchedEffect
+        delay(UNDO_DELETE_MS)
+        finishDelete()
+        // A note's last file gone for good: nothing left to show.
+        if (attachments && images.isEmpty()) onClose?.invoke()
+    }
+    DisposableEffect(Unit) { onDispose { pendingDelete?.hidden?.delete() } }
+    var undoDelete: () -> Unit = {}
+
     if (images.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
@@ -139,6 +158,12 @@ fun GalleryScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(24.dp),
             )
+            pendingDelete?.let { UndoDeleteBar(it.original.name) { undoDelete() } }
+        }
+        undoDelete = {
+            pendingDelete?.let { p -> if (p.hidden.renameTo(p.original)) images = list() }
+            pendingDelete = null
+            if (attachments) InAppViewer.changed++
         }
         return
     }
@@ -165,7 +190,6 @@ fun GalleryScreen(
     // the save happens AFTER the page has already moved on.
     var markedFile by remember { mutableStateOf<File?>(null) }
     var closeAction: (() -> Unit)? = null
-    var confirmDelete by remember { mutableStateOf<String?>(null) }
 
     // Autosave. The picture as it was when marking began is copied aside (sessionBase); every save
     // draws ALL the marks so far onto that copy and writes the result over the file. So a JPEG is
@@ -224,7 +248,8 @@ fun GalleryScreen(
         if (!burnNow()) return false
         val ok = withContext(Dispatchers.IO) {
             runCatching {
-                Renamer.rename(file, file.name.substringBeforeLast('.'), pendingLabel)
+                val renamed = Renamer.rename(file, file.name.substringBeforeLast('.'), pendingLabel)
+                AnnotationBurner.followRename(file, renamed)
                 true
             }.getOrDefault(false)
         }
@@ -435,7 +460,10 @@ fun GalleryScreen(
         fun deleteCurrent() {
             val idx = pagerState.currentPage
             images.getOrNull(idx)?.let { file ->
-                file.delete()
+                finishDelete()   // one undo at a time: the previous delete becomes final
+                val hidden = File(file.parentFile, ".${file.name}$DELETING_SUFFIX")
+                if (file.renameTo(hidden)) pendingDelete = PendingDelete(file, hidden)
+                else file.delete()
                 // Anything pending belonged to the file just deleted.
                 marks.clear()
                 burnedCount = 0
@@ -443,43 +471,75 @@ fun GalleryScreen(
                 sessionBase = null
                 markedFile = null
                 images = images.toMutableList().also { it.removeAt(idx) }
-                if (attachments) {
-                    InAppViewer.changed++
-                    // The folder's last image gone: nothing left to show.
-                    if (images.isEmpty()) onClose?.invoke()
-                } else {
-                    images.getOrNull(idx.coerceAtMost(images.lastIndex))
-                        ?.let { next -> saveLastViewedPath(context, dir, next.absolutePath) }
-                }
+                if (attachments) InAppViewer.changed++
+                else images.getOrNull(idx.coerceAtMost(images.lastIndex))
+                    ?.let { next -> saveLastViewedPath(context, dir, next.absolutePath) }
             }
         }
-        confirmDelete?.let { name ->
-            AlertDialog(
-                onDismissRequest = { confirmDelete = null },
-                title = { Text(stringResource(R.string.viewer_delete_title)) },
-                text = { Text(name) },
-                confirmButton = {
-                    TextButton(onClick = { confirmDelete = null; deleteCurrent() }) {
-                        Text(stringResource(R.string.viewer_delete), color = MaterialTheme.colorScheme.error)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { confirmDelete = null }) { Text(stringResource(android.R.string.cancel)) }
-                },
-            )
+        undoDelete = {
+            pendingDelete?.let { p ->
+                if (p.hidden.renameTo(p.original)) {
+                    images = list()
+                    val at = images.indexOfFirst { it.absolutePath == p.original.absolutePath }
+                    if (at >= 0) scope.launch { pagerState.scrollToPage(at) }
+                    if (attachments) InAppViewer.changed++
+                }
+            }
+            pendingDelete = null
         }
 
         FloatingActionButton(
-            onClick = {
-                // The Gallery page culls on one tap; a note's file asks first.
-                if (attachments) confirmDelete = images.getOrNull(pagerState.currentPage)?.name
-                else deleteCurrent()
-            },
+            // One tap deletes, with no question asked; the Undo bar below is the way back.
+            onClick = { deleteCurrent() },
             containerColor = MaterialTheme.colorScheme.errorContainer,
             contentColor = MaterialTheme.colorScheme.onErrorContainer,
             modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(20.dp),
         ) {
             Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.widgets_gallery_delete_photo))
+        }
+        pendingDelete?.let { UndoDeleteBar(it.original.name) { undoDelete() } }
+    }
+}
+
+private const val UNDO_DELETE_MS = 4_000L
+private const val DELETING_SUFFIX = ".deleting"
+
+/** A deleted file still waiting behind the Undo bar, under its hidden name. */
+private data class PendingDelete(val original: File, val hidden: File)
+
+/**
+ * Removes hidden files a delete left behind when the app was stopped inside the 4 s — anything
+ * past a minute old can no longer be undone from the bar.
+ */
+private fun sweepStaleDeletes(dir: String) {
+    val cutoff = System.currentTimeMillis() - 60_000
+    File(dir).walkTopDown().maxDepth(4)
+        .filter { it.isFile && it.name.startsWith(".") && it.name.endsWith(DELETING_SUFFIX) && it.lastModified() < cutoff }
+        .forEach { it.delete() }
+}
+
+/** The bar at the bottom of the screen after a delete: the file's name and an Undo button. */
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.UndoDeleteBar(name: String, onUndo: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .align(Alignment.BottomStart)
+            .navigationBarsPadding()
+            // Clear of the delete button at the bottom end, so a second tap can't land on Undo.
+            .padding(start = 16.dp, end = 96.dp, bottom = 24.dp)
+            .background(Color(0xEE323232), RoundedCornerShape(8.dp))
+            .padding(start = 16.dp, end = 4.dp),
+    ) {
+        Text(
+            stringResource(R.string.widgets_gallery_deleted, name),
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        TextButton(onClick = onUndo) {
+            Text(stringResource(R.string.widgets_gallery_undo_delete), color = Color(0xFF8AB4F8))
         }
     }
 }

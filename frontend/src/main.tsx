@@ -22,11 +22,18 @@ import { NotificationWatcher } from './components/NotificationWatcher';
 import { CalendarPage } from './pages/CalendarPage';
 import { RecordReadPage } from './pages/RecordReadPage';
 import { ChecklistDashboardPage } from './pages/ChecklistDashboardPage';
+import { ChecklistsPage } from './pages/ChecklistsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AuditPage } from './pages/AuditPage';
 import { ImportNotesPage } from './pages/ImportNotesPage';
 import { BatchEntryPage } from './pages/BatchEntryPage';
 import { ImportFilesPage } from './pages/ImportFilesPage';
+import { FileProcessorPage } from './pages/FileProcessorPage';
+import { MediaDownloadPage } from './pages/MediaDownloadPage';
+import { QuranPage } from './pages/QuranPage';
+import { ExcerptLibraryPage } from './pages/ExcerptLibraryPage';
+import { VideosPage } from './pages/VideosPage';
+import { SlidesPage } from './pages/SlidesPage';
 import { ImagesPage } from './pages/ImagesPage';
 import { CatalogPage } from './pages/CatalogPage';
 import { KanbanPage } from './pages/KanbanPage';
@@ -38,6 +45,7 @@ import { BookmarksPage } from './pages/BookmarksPage';
 import { IndicatorsPage } from './pages/IndicatorsPage';
 import { InsightsPage } from './pages/InsightsPage';
 import { FlashCardsPage } from './pages/FlashCardsPage';
+import { RouteTitle } from './components/RouteTitle';
 import { HighlightsPage } from './pages/HighlightsPage';
 import { AllHighlightsPage } from './pages/AllHighlightsPage';
 import { LocalNotesPage } from './pages/LocalNotesPage';
@@ -67,7 +75,9 @@ const queryClient = new QueryClient({
 function HomeRedirect() {
   const { enabled, isLoading } = useModules();
   if (isLoading) return null;
-  return <Navigate to={`/${enabled[0]?.moduleKey ?? 'tasks'}`} replace />;
+  // The first record module — the Quran page is listed first but is not where the app opens.
+  const first = enabled.find((m) => m.moduleKey !== 'quran');
+  return <Navigate to={`/${first?.moduleKey ?? 'tasks'}`} replace />;
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -77,6 +87,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={enGB}>
           <CssBaseline />
           <BrowserRouter basename={new URL(document.baseURI).pathname}>
+            <RouteTitle />
             <AuthProvider>
             <Routes>
               {/* Public: login, and the chrome-free dashboard view (meant for a TV/kiosk with no
@@ -100,6 +111,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                         {/* The phone's checklists for a week, read-only, fitted to one screen with no
                             navigation around it — opened in its own tab from the side rail. */}
                         <Route path="/checklists/view" element={<ChecklistDashboardPage />} />
+                        {/* A record's document as slides, on a page of its own (opened from the viewer). */}
+                        <Route path="/slides" element={<SlidesPage />} />
+                        <Route path="/videos" element={<VideosPage />} />
+                        {/* The same checklists to tick, annotate and edit, inside the app. */}
+                        <Route path="/checklists" element={<ChecklistsPage />} />
                         <Route path="/kanban" element={<KanbanPage />} />
                         <Route path="/dashboards" element={<DashboardsPage />} />
                         <Route path="/bookmarks" element={<BookmarksPage />} />
@@ -163,6 +179,22 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                           element={
                             <RequireAuth permission="content.write">
                               <BatchEntryPage />
+                            </RequireAuth>
+                          }
+                        />
+                        <Route
+                          path="/file-processor"
+                          element={
+                            <RequireAuth permission="content.write">
+                              <FileProcessorPage />
+                            </RequireAuth>
+                          }
+                        />
+                        <Route
+                          path="/media-download"
+                          element={
+                            <RequireAuth permission="tools.admin">
+                              <MediaDownloadPage />
                             </RequireAuth>
                           }
                         />
@@ -245,6 +277,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                             just touched, per module) keeps its own address. */}
                         <Route path="/" element={<Navigate to="/kanban" replace />} />
                         <Route path="/today" element={<TodayPage />} />
+                        <Route path="/quran" element={<QuranPage />} />
+                        <Route path="/excerpt-library" element={<ExcerptLibraryPage />} />
                         <Route path="/:entity" element={<AppShell />} />
                         <Route path="*" element={<HomeRedirect />} />
                       </Routes>

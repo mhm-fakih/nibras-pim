@@ -81,6 +81,22 @@ To remove a single occurrence, hover it and click the **×** in its corner (**Re
 occurrence**). To change or end the whole series, edit the original planner record — see
 [Repeating tasks and plans](records.md#repeating-tasks-and-plans).
 
+## Shamsi and Hijri dates, and Iran's official occasions
+
+With **Shamsi · Hijri** switched on (in the toolbar, on by default), each day's header shows its
+Shamsi date (in Persian) and its Hijri date (in Arabic) under the day's number, then the day's
+occasions from Iran's official calendar: each in the original Persian with its Arabic translation
+under it. A holiday's number and occasions are in red. Hover an occasion for the whole text.
+
+The Hijri date is calculated the same way as on the phone's prayer page (with the server's
+`calendar.hijri-offset` day adjustment). The official calendar fixes some Hijri dates by moon
+sighting, a day either side of the calculation; such a day is marked with `*`, and its tooltip gives
+the official Hijri date. The occasions themselves are always on the day the official calendar puts
+them.
+
+The official calendar is loaded for 1405 and 1406 SH (21 March 2026 – 19 March 2028), from the
+University of Tehran's PDFs; a later year is added from its PDF with `tools/iran-calendar`.
+
 ## Calendars elsewhere
 
 - A [dashboard](dashboards.md) can include a **Calendar (filtered by type)** region — for example

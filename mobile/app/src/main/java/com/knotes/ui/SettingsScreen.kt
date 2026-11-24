@@ -148,6 +148,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
     var qtSound by remember { mutableStateOf(current.quickTimerSoundUri) }
     var qtVolume by remember { mutableStateOf(current.quickTimerVolume) }
     var qtRepeat by remember { mutableStateOf(current.quickTimerRepeat) }
+    var qtGainDb by remember { mutableStateOf(current.quickTimerGainDb) }
+    var qtRise by remember { mutableStateOf(current.quickTimerRiseSeconds) }
     var appName by remember { mutableStateOf(current.appName) }
     var defType by remember { mutableStateOf(current.defaultType) }
     var defCategory by remember { mutableStateOf(current.defaultCategory) }
@@ -304,6 +306,8 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                 quickTimerSoundUri = qtSound,
                 quickTimerVolume = qtVolume,
                 quickTimerRepeat = qtRepeat,
+                quickTimerGainDb = qtGainDb,
+                quickTimerRiseSeconds = qtRise,
                 appName = appName,
                 defaultType = defType,
                 defaultCategory = defCategory,
@@ -1085,6 +1089,23 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit, onReplayTour: () ->
                     StepSlider(stringResource(R.string.qt_settings_repeat, qtRepeat), qtRepeat.toFloat(), 1f, 10f, 1f) {
                         qtRepeat = it.toInt().coerceIn(1, 10)
                     }
+                    StepSlider(
+                        if (qtGainDb == 0) stringResource(R.string.qt_settings_gain_off)
+                        else stringResource(R.string.qt_settings_gain, -qtGainDb),
+                        qtGainDb.toFloat(), com.knotes.alarm.SoundGain.MIN_DB.toFloat(), 0f, 1f,
+                    ) { qtGainDb = it.toInt().coerceIn(com.knotes.alarm.SoundGain.MIN_DB, 0) }
+                    if (qtGainDb < 0) {
+                        StepSlider(
+                            if (qtRise == 0) stringResource(R.string.qt_settings_rise_off)
+                            else stringResource(R.string.qt_settings_rise, qtRise),
+                            qtRise.toFloat(), 0f, 60f, 5f,
+                        ) { qtRise = it.toInt().coerceIn(0, 60) }
+                    }
+                    Text(
+                        stringResource(R.string.qt_settings_gain_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
 
                 SettingsTab.CALENDAR -> {

@@ -19,6 +19,7 @@ prêtes et que vous laissez ouverte — sur un écran mural, une télévision ou
     | **Goals habit heatmap** (Carte de chaleur des habitudes) | Les cartes de chaleur des objectifs marqués *Show habit heatmap on dashboards* | — |
     | **Kanban board** (Tableau Kanban) | Le [Kanban](tasks-kanban-sprints.md#kanban) | — |
     | **File content** (Contenu de fichier) | Le texte d'un fichier situé dans l'un des dépôts | **Repo** (Dépôt, 1–3), **Relative path** (Chemin relatif) |
+    | **Quick tasks (quick-tasks.md, open ones)** (Tâches rapides) | Le fichier `quick-tasks.md` de l'application de bureau (à la racine du dossier de notes), sans les tâches cochées | — |
 
 4. Indiquez sur combien de **Columns** de la grille s'étend chaque zone, et utilisez les flèches
    **Move up** / **Move down** (Monter / Descendre). Chaque zone affiche un **Preview** (Aperçu) en direct.
@@ -48,9 +49,9 @@ Il actualise ses données toutes les deux ou trois minutes et se recharge entiè
 **Checklists (week)** (Listes de contrôle de la semaine ; barre latérale → **Library**) affiche les listes de contrôle
 quotidiennes et hebdomadaires que vous tenez sur le téléphone, une semaine à la fois, sous forme de page murale en
 lecture seule. Elle s'ouvre dans un nouvel onglet, sans rien autour, et fait tenir toute la semaine à l'écran — le
-texte rapetisse plutôt que la page ne défile. Le téléphone enregistre chaque semaine dans un fichier du dossier
-`checklists` de votre dossier de notes ; dès que votre outil de synchronisation de fichiers l'a copié sur le serveur,
-la page l'affiche.
+texte rapetisse plutôt que la page ne défile. Les listes sont conservées dans la base de données, avec laquelle le
+téléphone se synchronise (voir [Cocher depuis le web](#ticking-on-the-web)) ; une modification faite sur le téléphone
+apparaît ici dès qu'il s'est synchronisé.
 
 - Chaque groupe d'éléments forme un bloc avec son propre score. Les groupes quotidiens ont une colonne par jour ; les
   groupes hebdomadaires n'ont qu'une colonne **Week** (Semaine).
@@ -59,8 +60,6 @@ la page l'affiche.
   l'autre.
 - L'en-tête affiche le numéro et les dates de la semaine, la part des éléments quotidiens faits chaque jour, et les
   flèches **Previous week** / **Next week** (Semaine précédente / suivante).
-- Une semaine pas encore commencée sur le téléphone affiche les éléments de la semaine précédente, sans marques, et
-  l'en-tête indique **not started · items from …** (pas commencée · éléments de …).
 - Les éléments en arabe s'affichent de droite à gauche.
 
 La page s'entretient toute seule : lorsque la modification faite sur le téléphone arrive sur le serveur, elle relit la
@@ -72,6 +71,42 @@ page fixe l'intervalle (en minutes) pour cet écran seulement.
 !!! note
     Contrairement au lien **View** d'un tableau de bord, cette page demande une connexion. Connectez-vous une fois sur
     le navigateur de l'écran : une page ouverte renouvelle d'elle-même sa connexion, elle reste donc connectée.
+
+### Cocher depuis le web { #ticking-on-the-web }
+
+**Checklists** (Listes de contrôle ; barre latérale → **Library**, juste au-dessus de la page murale) affiche les
+mêmes listes dans l'application, pour cocher et annoter :
+
+- **Cliquez** sur une case pour changer sa marque : fait (✓), puis fait en partie (◐), puis vide — comme sur le
+  téléphone.
+- **Clic droit** sur une case pour choisir sa marque et écrire une **note** pour ce jour. Une case annotée porte un
+  petit coin jaune ; survolez-la pour lire la note.
+- **Cliquez sur un élément** pour voir son historique : chaque jour où il a été coché ou annoté, le plus récent en
+  premier.
+- **Edit lists** (Modifier les listes) ajoute des groupes et des éléments, les renomme, fait passer un groupe de
+  quotidien à **Weekly** (hebdomadaire) et retire des groupes ou des éléments de la liste. Les changements valent à
+  partir de la semaine affichée : un élément ajouté en semaine 46 commence cette semaine-là, et un élément retiré en
+  semaine 46 apparaît pour la dernière fois en semaine 45. Rien n'est supprimé — l'historique reste, et **Not on this
+  week's list** (Absents de la liste de cette semaine), en bas, propose **Reopen** (Rétablir). Une heure devant le nom
+  d'un groupe (`07:30 Start of day`) règle le rappel du téléphone.
+- Les flèches passent d'une semaine à l'autre ; **This week** (Cette semaine) y ramène. L'icône de fenêtre ouvre la
+  page murale.
+- L'icône d'**imprimante** imprime des **listes papier** : une feuille A4 qui reprend une seule fois les groupes et
+  éléments de la semaine, chacun avec **trois cases, une par jour**, à cocher au stylo sur trois jours, et un cadre de
+  notes par jour en bas. Choisissez le premier jour (aujourd'hui par défaut) et appuyez sur **Print** (Imprimer) ; la
+  boîte d'impression du navigateur s'ouvre sur l'imprimante actuelle (choisissez-y *Enregistrer au format PDF* pour un
+  fichier). Un élément hebdomadaire a une seule case pour les trois jours. Une longue liste se répartit sur deux colonnes,
+  et le texte rapetisse jusqu'à ce que tout tienne sur une page.
+
+**Synchronisation avec le téléphone.** Le téléphone garde sa propre copie et échange les changements avec le serveur
+à chaque synchronisation ; il fonctionne donc aussi hors ligne. Si le même jour du même élément a été modifié à la
+fois sur le téléphone et sur le web entre deux synchronisations, c'est le changement du téléphone qui l'emporte par
+défaut. Pour faire l'inverse, ouvrez le menu **⋮** de la page Checklists et choisissez **The web's change stands**
+(Le changement du web l'emporte).
+
+Les fichiers de semaine que le téléphone écrivait (dans le dossier `checklists` du dossier de notes) ont été lus une
+fois, à la première ouverture de la page ; ils restent en place. **⋮ → Import the week files again** (Réimporter les
+fichiers de semaine) les relit en n'ajoutant que ce qui manque à la base.
 
 ## Analyses { #insights }
 

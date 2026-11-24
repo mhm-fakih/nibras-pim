@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Box, Button, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { Box, Button, Link, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material';
 import NoteAdd from '@mui/icons-material/NoteAdd';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import { createEntity, EntityRecord } from '../api/client';
+import { appendToBoard, BoardAppend, createEntity, EntityRecord } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import { RecordCard } from './RecordCard';
 
 const COLLAPSED_KEY = 'nibras.quickNoteCollapsed';
+const TARGET_KEY = 'nibras.quickNoteTarget';
+
+/** Where the bar saves: a new note, or appended to today's board journal. */
+type Target = 'note' | 'board';
 
 /**
  * First non-blank line (trimmed) under 120 chars becomes the summary, with everything after it as
@@ -42,6 +46,14 @@ export function QuickNoteBar({ onSaved }: { onSaved?: (msg: string) => void }) {
   const [text, setText] = useState('');
   const [savedFlash, setSavedFlash] = useState(false);
   const [lastSaved, setLastSaved] = useState<EntityRecord | null>(null);
+  const [lastBoard, setLastBoard] = useState<BoardAppend | null>(null);
+  const [target, setTarget] = useState<Target>(() => {
+    try {
+      return localStorage.getItem(TARGET_KEY) === 'board' ? 'board' : 'note';
+    } catch {
+      return 'note';
+    }
+  });
   const navigate = useNavigate();
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -52,6 +64,14 @@ export function QuickNoteBar({ onSaved }: { onSaved?: (msg: string) => void }) {
       /* ignore */
     }
   }, [open]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TARGET_KEY, target);
+    } catch {
+      /* ignore */
+    }
+  }, [target]);
 
   const add = useMutation({
     mutationFn: () => {
@@ -69,10 +89,31 @@ export function QuickNoteBar({ onSaved }: { onSaved?: (msg: string) => void }) {
     },
   });
 
+  // Board: the day's 'board' journal collects the jots in order, each under its time stamp.
+  const board = useMutation({
+    mutationFn: () => appendToBoard(text),
+    onSuccess: (res) => {
+      setText('');
+      setLastBoard(res);
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1500);
+      qc.invalidateQueries({ queryKey: ['list', 'journals'] });
+      qc.invalidateQueries({ queryKey: ['record', 'journals', res.id] });
+      qc.invalidateQueries({ queryKey: ['calendar', 'journals'] });
+      if (res.typeCreated) qc.invalidateQueries({ queryKey: ['lookups'] });
+      inputRef.current?.focus();
+      onSaved?.(res.created ? `Started ${res.summary}` : `Added to ${res.summary}`);
+    },
+  });
+  const busy = add.isPending || board.isPending;
+  const failed = target === 'board' ? board.error : add.error;
+
   if (!canWriteContent) return null;
 
   const submit = () => {
-    if (text.trim() && !add.isPending) add.mutate();
+    if (!text.trim() || busy) return;
+    if (target === 'board') board.mutate();
+    else add.mutate();
   };
 
   return (
@@ -91,9 +132,25 @@ export function QuickNoteBar({ onSaved }: { onSaved?: (msg: string) => void }) {
         }}
       >
         <NoteAdd fontSize="small" />
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, flex: 1 }}>
-          Quick note
+        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+          {target === 'board' ? 'Quick board' : 'Quick note'}
         </Typography>
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          value={target}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(_, v: Target | null) => v && setTarget(v)}
+          sx={{ '& .MuiToggleButton-root': { py: 0, px: 1, fontSize: '0.75rem', textTransform: 'none' } }}
+        >
+          <Tooltip title="Save as a new note">
+            <ToggleButton value="note">Note</ToggleButton>
+          </Tooltip>
+          <Tooltip title="Append to today's board journal, stamped with the time">
+            <ToggleButton value="board">Board</ToggleButton>
+          </Tooltip>
+        </ToggleButtonGroup>
+        <Box sx={{ flex: 1 }} />
         {savedFlash && (
           <Typography variant="caption" color="success.main" sx={{ fontWeight: 700 }}>
             Added
@@ -110,7 +167,11 @@ export function QuickNoteBar({ onSaved }: { onSaved?: (msg: string) => void }) {
             multiline
             minRows={1}
             maxRows={6}
-            placeholder="Jot something down… first line becomes the title if it's short. Ctrl+Enter to add."
+            placeholder={
+              target === 'board'
+                ? "Add to today's board… stamped with the time. Ctrl+Enter to add."
+                : "Jot something down… first line becomes the title if it's short. Ctrl+Enter to add."
+            }
             value={text}
             onChange={(e) => setText(e.target.value)}
             inputProps={{ dir: 'auto' }}
@@ -123,14 +184,26 @@ export function QuickNoteBar({ onSaved }: { onSaved?: (msg: string) => void }) {
           />
           <Tooltip title="Ctrl+Enter">
             <span>
-              <Button variant="contained" size="small" disabled={!text.trim() || add.isPending} onClick={submit}>
+              <Button variant="contained" size="small" disabled={!text.trim() || busy} onClick={submit}>
                 Add
               </Button>
             </span>
           </Tooltip>
         </Stack>
       )}
-      {open && lastSaved && (
+      {open && failed && (
+        <Typography variant="caption" color="error" sx={{ display: 'block', px: 1.5, pb: 1 }}>
+          Not saved: {(failed as Error).message}
+        </Typography>
+      )}
+      {open && target === 'board' && lastBoard && (
+        <Box sx={{ px: 1.5, pb: 1.5 }}>
+          <Link component="button" variant="body2" onClick={() => navigate(`/journals?select=${lastBoard.id}`)}>
+            Open {lastBoard.summary}
+          </Link>
+        </Box>
+      )}
+      {open && target === 'note' && lastSaved && (
         <Box sx={{ px: 1.5, pb: 1.5 }}>
           <RecordCard
             module="notes"

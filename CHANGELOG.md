@@ -2,8 +2,202 @@
 
 ## Unreleased
 
+- **Mobile — Excerpt library:** a book icon in the server band (after Highlights) opens the web's
+  Excerpt library on the phone: the samples by status with search, **Make more** (10/20/50, made on
+  the server, no AI), and each sample's text or page images with its one-line summary and details —
+  save, save & next, another place, set aside / bring back, promote to an Excerpt. Online only.
+  **Read full screen** opens the sample's PDF in the app's PDF viewer (pen, highlighter), **Open
+  with…** in another reader; the PDF is kept in `Nibras/excerpt-library/<book id>/`.
+  The web page itself now also works at phone width (list, then the sample, with **Back to the list**).
+- **Excerpt library — book covers** (web and phone): each sample shows its book's cover, the
+  record's own `cover.<ext>` or else one made from the book's first page (PDF/DjVu) or its embedded
+  cover (EPUB/MOBI/AZW3), kept in the sample folder `E/ebk/<book id>/cover.jpg`; made for new samples
+  and, at startup, for those sampled before.
+- **Mobile — Today in three calendars widget:** larger text that grows with the widget.
+- **Calendars — Shamsi, Hijri and Iran's official occasions:** Iran's official calendar for 1405 and
+  1406 SH, parsed from the University of Tehran's PDFs (`tools/iran-calendar`), each occasion in the
+  original Persian with an Arabic translation. The web's Calendar shows each day's Shamsi and Hijri
+  dates and occasions in the day headers (switchable); the phone's Calendar does the same (tap a day
+  for all its occasions); the prayer page has a **Shamsi** month (Saturday first, Gregorian and Hijri
+  days beneath, holidays in red); and a new widget, **Today in three calendars**, shows today's three
+  dates with the occasions of yesterday, today and tomorrow. Hijri dates follow the prayer page's
+  calculation and adjustment; the official (sighted) Hijri date is shown where it differs.
+- **Web — Excerpt library** (Library): 2–3 pages taken at random from the body (12–85%) of the ebk
+  books' files, made in batches in the background — PDF and DjVu cut to a small PDF with their text
+  when it is real text, EPUB text, MOBI/AZW3/CHM converted first. Give each a one-line summary and
+  details, promote it to an Excerpt of its book (text, pages and PDF go with it), set it aside, or
+  take another place in the same book. Kept apart from the Excerpts module; the sample PDFs
+  are in repository 1 under `E/ebk/<book id>/`.
+- **Mobile — Quran:** **A** heads the server band when the server's Quran module is on: the surahs
+  (mushaf or revelation order, filter, bookmarked only), each surah's ayat vocalized with their
+  exegesis, notes and nested linked notes. Bookmark a surah or an aya, and add a note to an aya —
+  appended on the server after the aya's existing notes with a dated line, never replacing them.
+  Works offline: opened surahs are saved (or all 114 at once), and changes queue and sync on
+  reconnect; each note carries a reference so a resend is applied once. The web gets surah
+  bookmarks too.
+- **Web — Quran exegesis and notes module** (code `A`, first among the modules, off until switched on
+  in Settings → Modules): a re-runnable copy of the surah and aya records into its own tables; a
+  reader with the surahs in mushaf or revelation order, each aya vocalized with its exegesis, notes
+  (editable, long ones folded) and the notes linked to it the old way (entity code N + record id),
+  nested; bookmarks; search ignoring diacritics; Markdown/HTML/EPUB export per surah. While it is
+  on, the source surahs and ayat are left out of the Writings and Notes lists, and it is not sent to
+  the phone as a capture type.
+- **Mobile — Contacts as K:** the server band of the rail shows Contacts as **K (n)** after the
+  record types, n being the people the page lists.
+- **Web — side menu:** Payments appears once, with the modules (code `Q`, with its number of
+  expenses); the duplicate Expenses entry in the Views group is gone.
+- **Web — paper checklists:** a printer button on the Checklists page prints the week's groups and
+  items once on one A4 sheet, each with three squares (one per day) to tick by pen over three
+  days, and a notes box per day, through the browser's print dialog (current printer, or Save as
+  PDF). Weekly items get one square across the days; long lists go in two columns and the type shrinks until the sheet fits one page; Arabic
+  items print right-to-left.
+- **Web — YouTube download:** a page (Import & export, admins) that runs the capture tools'
+  `media-dl.sh` on the server: YouTube ids or links, video + audio, video or audio only, subtitles
+  or none (optionally inside the MP4), voice quality, a note text. Runs in the background with its
+  log, can be stopped, and imports the resulting R note as a record in one click. Recent downloads and their logs are kept on disk across restarts; one cut short by a restart
+  shows as interrupted, and a failed one can be retried.
+- **Mobile — athan quieter, and a quick way to test it:** the athan has **Athan N dB quieter**
+  (0 to −40 dB), the whole athan turned down in the player itself on top of each prayer's volume.
+  That works on phones whose lowest alarm step is still loud, and on Samsung phones, where the
+  per-prayer volume can only pick an alarm step. The **quick timer** gets the same **N dB quieter**
+  and an optional **rise to its volume over N s** (Settings → Alerts → Quick timer). Both use the
+  athan's own code, so −30 dB and the rise can be heard in minutes rather than at the next prayer. If
+  −30 dB is quiet on the timer but the athan's rise is not, the rise (Android's VolumeShaper) is what
+  fails on that phone. The level applied is now written to the log.
+- **Web — Videos:** the phone's Videos page, laid out like YouTube. It lists every video in
+  repository 1 (the folder synced to the phone), newest first, as cards with a frame, the length, a
+  watched bar, the folder, the date, the size and the bookmark count; folder chips and a search sit
+  above. The watch view has the player (it streams and seeks), resumes where you left off, and shows
+  the video's **bookmarks**. These are the phone player's `.tmk` marks: click one to jump there, or
+  add one at the current time, and it reaches the phone. **Up next** lists the rest of the folder.
+  Frames and lengths come from ffmpeg and are cached on the server.
+- **Web — documents as slides:** a PDF, presentation, Word or spreadsheet file in a record's
+  **Files** has a **Preview as slides** button. It opens the file as a deck: one large page, side
+  arrows, the page number and a slider, and a thumbnail strip. Keys are ←/→, Home/End, F for full
+  screen and Esc; buttons give full screen, a page of its own, and download. Office files are
+  converted to PDF by LibreOffice on the server the first time; pages are drawn by poppler and cached.
+- **Web — signed media links:** videos, frames and slide pages load through links that expire after
+  8 hours (an HMAC over the path, under `/api/public/media`), because `<video>` and `<img>` can't
+  send the session token. They are handed out only by endpoints that need a login.
+- **Web — note links (entity_code + record_id):** the links the old app made from a note to any
+  record — 6,440 of them, most a verse to its surah — show again. A note shows what it is
+  **Linked to** (open, change, unlink); every record lists the **Notes linked here** in their order,
+  with a line to add a new linked note and a picker to bring existing ones in. The picker finds by
+  words, id, or letter+id (`W802`); **l** opens it. Old letters are kept (contacts `S`), and when
+  two records merge their linked notes follow the survivor. A writing's notes are listed here
+  rather than under Related.
+- **Web — Payments** (the Expenses page) is also in the module list of the side menu.
+- **Docs:** the **l** (link) shortcut in Keyboard shortcuts; the side-menu guide notes Payments
+  after the modules, File processor in Import & export, and Ctrl/middle-click opening any entry,
+  list row or card in a new tab (English, French, Arabic).
+- **Web — Ctrl+click opens in a new tab:** the side menu (modules, module reports, tool pages,
+  search), rows in a module's list, related records, a note's resource chip, catalogue and
+  insights entries, search results, and Kanban/dashboard cards are now real links. A plain click
+  works as before; Ctrl/Cmd/Shift-click, middle-click and "Open link in new tab" open the page
+  (or the record, as `/<module>?select=<id>`) in a new tab. Kanban and dashboard cards now open
+  their own record rather than just the module.
+- **Web — File processor:** settles a folder (`~/new` by default) one entry at a time, as the old
+  app's scan processor did: one level of the folder at a time, the file shown in the page (image,
+  text, PDF, audio, video), then a record made of it — module, title (the file name unless
+  changed), the text into the field you pick (Full text for a resource), the day from the file
+  name into the date field you pick (Published on for a resource). The file then moves into the
+  record's repo-1 folder, or an image becomes its cover (`cover.<ext>`); **Put aside** moves it
+  into `DELETED/`, never deleting.
+  **Delete** (after a confirmation) moves a file or folder to the desktop's trash
+  (freedesktop.org, restorable from the file manager). A whole folder can be settled as one
+  record: its contents become the record's repo-1 folder, the title and day come from the
+  folder name, and the text may come from one of its text files.
+- **Web — reading a resource's full text:** justified, in a slightly larger font, on the read page
+  and in the detail pane, highlighting mode included; each paragraph's last line stays on its own
+  side (right for Arabic). On the read page and in the detail pane, a text-size slider (90–180%,
+  kept per browser) and the Highlight button sit directly above the full text.
+- **Web — resources: Published on:** the day a resource was published, next to its year, in the
+  form and the detail pane (the column was there, filled by RSS imports, but not shown).
+- **Web — move files between repositories:** each file in a record's **Files** section can be
+  moved or copied to another repository — repo 2 → repo 1 puts it in the Syncthing-synced folder,
+  so it reaches the phone. Taken names get a date suffix; links into the external drive are copied
+  as the file they point to.
+- **Desktop — restart asks first:** the restart button sits at the far end of the toolbar, away
+  from Refresh, and asks before restarting.
+- **Web — Quick tasks dashboard component:** shows the desktop's `quick-tasks.md` from the notes
+  folder with the ticked tasks (and what is indented under them) left out, as Markdown.
+- **Mobile — copy from notes and AI answers:** the reading view's text is selectable (long-press,
+  then Copy), and a copy button copies all of it in one tap. Highlighting is now a mode switched on
+  with the highlighter button, as on the web, so a tap no longer marks a sentence by accident.
+- **Checklists in the database, synced both ways with the phone:** the daily/weekly checklists are
+  no longer one Markdown file per week carried by folder sync. Groups (categories), items (with a
+  start date and, once taken off the list, an end date) and each day's check (its mark — done or
+  partly — and a note) are database rows. The web has a **Checklists** page (Library) to tick,
+  write notes (right-click a box), see an item's history, and add, rename, end and reopen groups
+  and items; the wall view reads the same rows. The phone keeps its own copy, works offline, and
+  syncs changes both ways; when both sides changed the same row between syncs, the phone's change
+  stands by default (**⋮** on the Checklists page switches it to the web's). The existing week
+  files were imported once and left in place. `/api/checklists/sync`, migration V24.
+- **Fix — fetching a resource from a URL took too much:** on pages that stream their content
+  (Next.js, e.g. al-akhbar.com), the full text came back as the article, the related posts shown
+  inside it, then all of that a second time. Only the article's own text is taken now.
+- **Mobile — the athan rises:** it starts quieter and rises to its volume over **Rises over N s**
+  (20 s by default, 0 = start at full), from **From N dB** below it (−10 dB by default, down to
+  −40), both on the Athan panel. The rise runs in the system's media server, so it carries on
+  while the app is frozen with the screen off. Android 8+.
+- **Mobile — today's journal widget keeps one log:** an entry from the widget is appended, under
+  a `[HH:mm]` stamp, to the day's first journal note (created on the day's first entry) instead
+  of becoming a note of its own, as the web's Quick board does. The widget lists that note's
+  entries, newest first; journal notes written in the app later stay separate and off the widget.
+- **Web — Quick board:** the Quick note bar has a **Note | Board** switch. On **Board** the text
+  (multi-line as typed) is appended to today's *board* journal under a `[HH:mm]` stamp; the
+  journal is created on the day's first jot, and the **Board** journal type on first use.
+  `POST /api/journals/board`.
+- **Web — mixed-language text:** each Markdown paragraph and line takes the direction of its own
+  first letter, so Arabic lines stay right-aligned in a text that starts in English (and the
+  reverse).
+- **Mobile — notes header fits at larger font sizes:** with sync on, the "synced …" line under
+  the note counts was cut off by the filter bar once the system font was above 100%; the bar now
+  grows to hold it.
+- **Web — search results open in a new tab:** records, local notes and the record chip on a found
+  file are links that open in a new tab, so the results stay put.
+- **Web — Kanban cards breathe:** more padding inside each card and between its tags.
+- **Web — download found files:** Search → Files has a **Download** button on each file, which
+  saves the file itself to the machine you browse from (Open / Open folder act on the server's
+  desktop, which is no help over remote access). Only files in the index can be fetched.
+- **Mobile — search context:** while searching notes or AI answers, a card whose note is longer
+  than its preview shows "N matches" and up to three excerpts with the match marked, as the
+  desktop does.
+- **Web — task descriptions on dashboards:** Open tasks and Local tasks show the description under
+  each summary with its line breaks, on by default, with a **Show the description with
+  each task** switch per region. The same switch covers the Kanban board's card previews. **Show the full
+  description** (also on by default, Open tasks and Kanban) shows all of it rather than two lines.
+- **Web — highlighting in the details panel:** the Highlight button from the read page now also
+  sits on a record's details panel. The colour is set in Settings → Highlights (very light green
+  by default), with padding inside the background, and applies to `==marked==` text everywhere it
+  is rendered as Markdown.
+- **Web — tab titles follow the content:** a record's summary, a dashboard's name, or the page's
+  name, instead of the app name on every tab.
+- **Web — indicators ticker on the dashboard view:** the public TV view now shows the ticker
+  instead of a "signed-in only" note. Its tiles don't link there, since that view has no session.
+
+- **Mobile — alarms as a window:** a ringing alarm opens a full-screen window (time, label, a
+  large Stop) over the lock screen, and over other apps once **Display over other apps** is
+  allowed; the Alarms page links to each permission still missing.
+- **Mobile — fix:** highlights tapped in an AI answer are saved into its file (the reader painted
+  them but never wrote them). Editing and tags stay off there.
+- **Mobile — highlight count on note cards:** as on the desktop, a note of 120+ characters shows
+  "N highlights" as a red / orange / green pill (none / one or two / three or more).
+- **Desktop — search context:** while searching, a card for a note longer than its preview shows
+  up to three excerpts around the matches, the match marked, under "N matches".
+- **Mobile — playlists:** as many named playlists as you like (Night, Lectures, …) next to the AI
+  narrations. Add a file from the playlist button on any file card or the top bar; reorder,
+  rename and delete lists on the Playlist tab under the controls. **Play next → Playlist** walks
+  the chosen one in order, and files stay on it after they play.
+- **Mobile — one file card in the player:** Starred, In this folder, Recently played, the
+  playlists and the AI narrations all show the title, folder name, length and bookmark count.
+- **Mobile — delete a picture with undo:** the gallery deletes at once, a note's pictures too
+  (no more confirm), with a 4-second **Undo** bar at the bottom of the screen.
+- **Mobile — fix:** a picture annotated and then renamed no longer shows as not reviewed. The
+  backup now follows a rename on the phone, and a desktop annotator rename or annotation
+  (`.originals/`, via its rename log) counts too.
 - **Mobile — files stay in the app:** a note's images open in the gallery annotator (pen ready,
-  highlighter, crop, rename, delete after a confirm), PDFs in a PDF viewer, text and markdown in
+  highlighter, crop, rename, delete), PDFs in a PDF viewer, text and markdown in
   the note reader (tap to highlight); "+N more" lists every file on the card.
 - **Mobile — PDF marking:** pen and highlighter on PDFs, written into the file as standard
   annotations (PdfBox-Android) that any reader shows; highlights snap to the text lines on

@@ -98,7 +98,9 @@ public class RelationService {
     public List<RelatedGroup> related(String module, Long id) {
         List<RelatedGroup> out = new ArrayList<>();
         for (Rel r : RELATIONS) {
-            if (!r.parent().equals(module)) {
+            // A writing's notes are listed by the links panel (RecordLinkService), with the ones
+            // linked through entity_code/record_id and in their verse order.
+            if (!r.parent().equals(module) || (r.parent().equals("writings") && r.child().equals("notes"))) {
                 continue;
             }
             try {

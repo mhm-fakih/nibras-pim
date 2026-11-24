@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { linkProps } from '../util/links';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   Alert,
@@ -445,7 +446,7 @@ export function ListPane({ config, selectedId, onSelect, onNew, onScraped, onIte
               key={it.id}
               divider
               selected={it.id === selectedId}
-              onClick={() => onSelect(it.id)}
+              {...linkProps(`/${config.key}?select=${it.id}`, () => onSelect(it.id))}
               draggable={canWriteContent && MERGEABLE_MODULES.has(config.key)}
               onDragStart={(e) => {
                 e.dataTransfer.setData('text/plain', String(it.id));

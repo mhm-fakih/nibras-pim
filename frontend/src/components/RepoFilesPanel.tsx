@@ -8,22 +8,29 @@ import {
   List,
   ListItem,
   ListItemText,
+  Menu,
   MenuItem,
+  Tooltip,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
 import UploadFile from '@mui/icons-material/UploadFile';
 import DeleteOutline from '@mui/icons-material/DeleteOutline';
+import DriveFileMove from '@mui/icons-material/DriveFileMove';
 import Folder from '@mui/icons-material/Folder';
 import InsertDriveFile from '@mui/icons-material/InsertDriveFile';
+import ViewCarousel from '@mui/icons-material/ViewCarousel';
+import { SlideSource, SlideViewerDialog } from './SlideViewer';
 import {
   RepoFile,
   deleteRepoFile,
+  transferRepoFile,
   listRepoFiles,
   repoFileUrl,
   downloadFile,
   uploadRepoFile,
+  isSlideDoc,
 } from '../api/client';
 
 const REPO_LABEL: Record<number, string> = {
@@ -38,6 +45,7 @@ export function RepoFilesPanel({ module, id }: { module: string; id: number }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [repo, setRepo] = useState(1);
   const key = ['repo-files', module, id];
+  const [slides, setSlides] = useState<SlideSource | null>(null);
 
   const { data } = useQuery({ queryKey: key, queryFn: () => listRepoFiles(module, id) });
 
@@ -48,6 +56,21 @@ export function RepoFilesPanel({ module, id }: { module: string; id: number }) {
   const del = useMutation({
     mutationFn: (f: RepoFile) => deleteRepoFile(module, id, f.repo, f.name),
     onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+  });
+
+  // Move/copy between repositories: repo 2 → repo 1 is how a file reaches the phone (Syncthing
+  // carries repo 1), and repo 1 → repo 2 takes it back off.
+  const [moveMenu, setMoveMenu] = useState<{ anchor: HTMLElement; file: RepoFile } | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const transfer = useMutation({
+    mutationFn: (v: { f: RepoFile; to: number; move: boolean }) =>
+      transferRepoFile(module, id, v.f.repo, v.to, v.f.name, v.move),
+    onMutate: () => setMoveError(null),
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { message?: string; detail?: string } } })?.response?.data;
+      setMoveError(msg?.detail || msg?.message || 'Could not move the file.');
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
   });
 
   const files = data ?? [];
@@ -110,8 +133,31 @@ export function RepoFilesPanel({ module, id }: { module: string; id: number }) {
                   <ListItem
                     key={`${f.repo}-${f.name}`}
                     disableGutters
+                    sx={{ pr: f.directory ? 0 : isSlideDoc(f.name) ? 14 : 10 }}
                     secondaryAction={
                       !f.directory && (
+                        <>
+                        {isSlideDoc(f.name) && (
+                          <Tooltip title="Preview as slides">
+                            <IconButton
+                              size="small"
+                              onClick={() => setSlides({ module, id, repo: f.repo, path: f.name })}
+                              sx={{ mr: 0.5 }}
+                            >
+                              <ViewCarousel fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        <Tooltip title="Move or copy to another repository">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => setMoveMenu({ anchor: e.currentTarget, file: f })}
+                            disabled={transfer.isPending}
+                            sx={{ mr: 0.5 }}
+                          >
+                            <DriveFileMove fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                         <IconButton
                           edge="end"
                           size="small"
@@ -121,6 +167,7 @@ export function RepoFilesPanel({ module, id }: { module: string; id: number }) {
                         >
                           <DeleteOutline fontSize="small" />
                         </IconButton>
+                        </>
                       )
                     }
                   >
@@ -158,6 +205,38 @@ export function RepoFilesPanel({ module, id }: { module: string; id: number }) {
           </Box>
         ))
       )}
+      {moveError && (
+        <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>
+          {moveError}
+        </Typography>
+      )}
+      <SlideViewerDialog source={slides} onClose={() => setSlides(null)} />
+      <Menu anchorEl={moveMenu?.anchor} open={!!moveMenu} onClose={() => setMoveMenu(null)}>
+        {moveMenu &&
+          [1, 2, 3]
+            .filter((r) => r !== moveMenu.file.repo)
+            .flatMap((r) => [
+              <MenuItem
+                key={`m${r}`}
+                onClick={() => {
+                  transfer.mutate({ f: moveMenu.file, to: r, move: true });
+                  setMoveMenu(null);
+                }}
+              >
+                Move to {REPO_LABEL[r]}
+                {r === 1 ? ' (syncs to the phone)' : ''}
+              </MenuItem>,
+              <MenuItem
+                key={`c${r}`}
+                onClick={() => {
+                  transfer.mutate({ f: moveMenu.file, to: r, move: false });
+                  setMoveMenu(null);
+                }}
+              >
+                Copy to {REPO_LABEL[r]}
+              </MenuItem>,
+            ])}
+      </Menu>
     </Box>
   );
 }

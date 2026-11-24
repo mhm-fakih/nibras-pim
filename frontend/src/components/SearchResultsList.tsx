@@ -70,6 +70,7 @@ export function SearchResultsList({
               key={`${rec.module}-${rec.id}`}
               module={rec.module}
               record={record}
+              to={`/${rec.module}?select=${rec.id}`}
               onClick={() => onSelect(rec)}
               sx={selectedSx}
             />

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Excerpt library page: the web's random book samples, summarized from the phone. -->
+<resources>
+    <string name="excerpts_title">Excerpt library</string>
+    <string name="excerpts_counts">%1$d samples from %2$d of %3$d ebooks · %4$d to summarize · %5$d promoted</string>
+    <string name="excerpts_make_more">Make more</string>
+    <string name="excerpts_making">Making…</string>
+    <string name="excerpts_job_running">%1$d of %2$d made · %3$d books tried</string>
+    <string name="excerpts_job_done">Last batch: %1$d of %2$d made, %3$d books without a readable file</string>
+    <string name="excerpts_status_new">To summarize</string>
+    <string name="excerpts_status_summarized">Summarized</string>
+    <string name="excerpts_status_promoted">Promoted</string>
+    <string name="excerpts_status_skipped">Set aside</string>
+    <string name="excerpts_status_all">All</string>
+    <string name="excerpts_search">Search title, author, summary, text</string>
+    <string name="excerpts_error">Could not reach the server: %1$s</string>
+    <string name="excerpts_retry">Retry</string>
+    <string name="excerpts_none_new">Nothing to summarize. Make more samples above.</string>
+    <string name="excerpts_none">Nothing here.</string>
+    <string name="excerpts_image_only">image only</string>
+    <string name="excerpts_back">Back to the list</string>
+    <string name="excerpts_open_book">Open the book</string>
+    <string name="excerpts_another">Another place</string>
+    <string name="excerpts_restore">Bring back</string>
+    <string name="excerpts_skip">Set aside</string>
+    <string name="excerpts_promote">Promote to an Excerpt</string>
+    <string name="excerpts_promoted_as">Excerpt #%1$d</string>
+    <string name="excerpts_promote_hint">Save a one-line summary first to promote it.</string>
+    <string name="excerpts_summary">One-line summary</string>
+    <string name="excerpts_details">Details (optional)</string>
+    <string name="excerpts_save">Save</string>
+    <string name="excerpts_save_next">Save &amp; next</string>
+    <string name="excerpts_next">Next</string>
+    <string name="excerpts_text">Text</string>
+    <string name="excerpts_pages">Pages (%1$d)</string>
+    <string name="excerpts_nothing">Neither text nor pages are available for this sample.</string>
+    <string name="excerpts_rail">Excerpt library</string>
+    <string name="excerpts_read_full">Read full screen</string>
+    <string name="excerpts_open_with">Open with…</string>
+    <string name="excerpts_pages_tap">Tap a page to read it full screen.</string>
+</resources>

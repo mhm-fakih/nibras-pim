@@ -63,6 +63,10 @@
     انقر **الشعار** أعلى الشريط الجانبي (**Open in a new tab**، فتح في تبويب جديد) لتفتح التطبيق مرة
     أخرى في تبويب جديد — مسجَّل الدخول مسبقًا — فتعمل على أمرين جنبًا إلى جنب.
 
+    كل عنصر في الشريط الجانبي، وكل صف في قائمة وحدة، والسجلات المرتبطة، ونتائج البحث، وبطاقات
+    Kanban ولوحة المعلومات روابط حقيقية: **Ctrl/⌘ مع النقر** أو النقر بالزر الأوسط أو **فتح الرابط في
+    تبويب جديد** من المتصفح يفتح تلك الصفحة أو ذلك السجل في تبويب جديد، أما النقر العادي فيبقى في هذا التبويب.
+
 !!! tip "على الهاتف أو في نافذة ضيقة"
     يتحول الشريط الجانبي إلى درج خلف زر قائمة **☰** في الزاوية العليا اليسرى، ويعرض عرض الوحدة
     إما القائمة وإما السجل — لا الاثنين معًا. استخدم **Back to list** (العودة إلى القائمة) للرجوع.
@@ -74,7 +78,9 @@
     تفتح **أزرار الوحدات** في الشريط الجانبي (Tasks وJournal وPlanner وResources وNotes وGoals
     وWritings وDepartments وCourses و…) كل نوع من أنواع السجلات. تُعرض زرّين في كل صف، والرقم بين
     القوسين بعد كل اسم هو عدد السجلات في الوحدة. أما أي الوحدات تظهر، وبأي ترتيب، وبأي رمز قصير
-    (يظهر في طرف الزر، مثل `T`) فيُضبط في [Settings → Modules](settings.md#modules).
+    (يظهر في طرف الزر، مثل `T`) فيُضبط في [Settings → Modules](settings.md#modules). ويلي الوحدات
+    زر **Payments** (صفحة Expenses، المصروفات؛ رمزه `Q` ومعه عدد المصروفات) متى كانت تلك الصفحة مفعّلة. أما **Quran**
+    (القرآن، رمزه `A`) فيأتي أولًا متى فُعّل — انظر [القرآن](reading-review.md#quran).
 
 === "صفحات الأدوات"
 
@@ -84,8 +90,8 @@
     | المجموعة | الصفحات |
     |---|---|
     | **Views** (العروض) | Today وCalendar وKanban وDashboards وInsights وSprints وReports |
-    | **Library** (المكتبة) | All bookmarks وFlash cards وHighlights وLocal notes وChecklists (week) |
-    | **Import & export** (الاستيراد والتصدير) | Batch entry وImport files وImport notes وImage renamer وStatic website |
+    | **Library** (المكتبة) | All bookmarks وFlash cards وHighlights وLocal notes وVideos وExcerpt library وChecklists وChecklists (week) |
+    | **Import & export** (الاستيراد والتصدير) | Batch entry وImport files وImport notes وYouTube download وFile processor وImage renamer وStatic website |
     | **Admin** (الإدارة) | Parameters وAdmin وMaintenance وAudit log وTrash وSettings وUsers وRoles & permissions |
     | **Help & shortcuts** (المساعدة والاختصارات) | تفتح صفحة المساعدة مباشرةً |
 

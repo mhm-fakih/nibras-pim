@@ -24,8 +24,11 @@ import java.util.List;
 public class CustomDashboardController {
 
     private final CustomDashboardService service;
+    private final com.nibras.pim.service.localnotes.QuickTasksService quickTasks;
 
-    public CustomDashboardController(CustomDashboardService service) {
+    public CustomDashboardController(CustomDashboardService service,
+                                     com.nibras.pim.service.localnotes.QuickTasksService quickTasks) {
+        this.quickTasks = quickTasks;
         this.service = service;
     }
 
@@ -78,6 +81,14 @@ public class CustomDashboardController {
      * Plain-text content of a file under one of the three repo roots, for the "file" component —
      * e.g. {@code repo=1, path=dashboard-top.md} reads {@code <repo1>/dashboard-top.md}.
      */
+    /** The desktop's quick-tasks.md without its ticked tasks; 204 when there is no such file. */
+    @GetMapping("/quick-tasks")
+    public org.springframework.http.ResponseEntity<DashboardFileContentDto> quickTasks() {
+        DashboardFileContentDto f = quickTasks.read();
+        return f == null ? org.springframework.http.ResponseEntity.noContent().build()
+                : org.springframework.http.ResponseEntity.ok(f);
+    }
+
     @GetMapping("/file-content")
     public DashboardFileContentDto fileContent(@RequestParam(defaultValue = "1") int repo, @RequestParam String path) {
         return service.readFile(repo, path);

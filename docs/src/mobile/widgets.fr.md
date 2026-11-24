@@ -43,7 +43,7 @@ Touchez **+  Ajouter une tâche…** en haut pour en saisir une nouvelle directe
 
 ## Journal du jour { #todays-journal }
 
-Les entrées de journal du jour, toutes priorités confondues. Comme le widget des tâches, il repart de zéro chaque jour. Touchez **+  Écrire le journal du jour…** pour ajouter une entrée.
+Le journal du jour : les entrées de la première note de journal du jour (type `J`), les plus récentes en haut, chacune précédée de son heure. Touchez **+  Écrire le journal du jour…** pour ajouter une entrée : elle est ajoutée à cette note sous un horodatage `[HH:mm]`, et la première entrée du jour crée la note. La journée se lit de haut en bas dans une seule note, comme le journal **Board** du web. Les notes de journal écrites plus tard dans l'app sont des notes à part et n'apparaissent pas ici. Comme le widget des tâches, il repart de zéro chaque jour.
 
 ## Priorité maximale { #top-priority }
 
@@ -86,6 +86,12 @@ Vos prochains événements de l'agenda Nibras, indiqués par jour et heure (**De
 ## Fiches en favori { #bookmarked-records }
 
 Les Plans, Objectifs et Tâches que vous avez étoilés dans les [pages serveur](server-pages.md#bookmark-the-star) de l'application (fiches en favori sur ce téléphone), dans une liste déroulante. Touchez le titre pour synchroniser et redessiner.
+
+## Aujourd'hui en trois calendriers { #today-in-three-calendars }
+
+La date solaire du jour (en rouge un jour férié), ses dates hégirienne et grégorienne, et les occasions du calendrier
+officiel de l'Iran pour **hier**, **aujourd'hui** et **demain** — chacune en persan avec l'arabe dessous. La date
+hégirienne est celle de la page des prières, avec son ajustement. Touchez-le pour ouvrir le Calendrier. 4×2.
 
 ## Heures de prière { #prayer-times }
 

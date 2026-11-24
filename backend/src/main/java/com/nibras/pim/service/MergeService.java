@@ -45,14 +45,17 @@ public class MergeService {
     private final EntityCatalog catalog;
     private final RepositoryService repositories;
     private final RelationService relations;
+    private final RecordLinkService links;
 
     @PersistenceContext
     private EntityManager em;
 
-    public MergeService(EntityCatalog catalog, RepositoryService repositories, RelationService relations) {
+    public MergeService(EntityCatalog catalog, RepositoryService repositories, RelationService relations,
+                        RecordLinkService links) {
         this.catalog = catalog;
         this.repositories = repositories;
         this.relations = relations;
+        this.links = links;
     }
 
     @Transactional
@@ -104,6 +107,7 @@ public class MergeService {
         em.flush();   // persist primary's field changes; fires @PreUpdate + the audit listener
 
         relations.repoint(module, cls, primaryId, secondaryId);   // e.g. a goal's tasks/journals/planners
+        links.repoint(module, primaryId, secondaryId);            // notes linked to it (entity_code/record_id)
 
         String primaryType = service.typeCodeFor(primaryId);
         String secondaryType = service.typeCodeFor(secondaryId);

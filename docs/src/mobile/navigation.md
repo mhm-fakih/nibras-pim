@@ -40,10 +40,11 @@ Several of these can be switched off, each with the switch at the top of its tab
 
 | Cell | Page |
 |---|---|
+| **A** | **Quran**, when the server's Quran module is on: surahs, ayat, bookmarks and notes. |
 | **T**, **P**, **J**, **G**, **N**, **W**, **R** | The seven record types: **Tasks**, **Plans**, **Journal**, **Goals**, **Notes**, **Writings**, **Resources**. The number in brackets is how many records of that type are on the phone. |
 | Cards | **Flash cards** |
 | Quotation mark | **Highlights** |
-| People | **Contacts** |
+| **K** | **Contacts**, after the record types. The number in brackets is how many people the page lists (your bookmarked contacts). |
 | Globe with magnifier | **Search server** |
 | Circular arrow | **Refresh server pages**. Reconnects, refreshes the types and categories from the server, and reloads every server page. It does not open a page. |
 

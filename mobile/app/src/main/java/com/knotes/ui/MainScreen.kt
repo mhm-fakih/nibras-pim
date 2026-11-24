@@ -76,6 +76,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -92,12 +93,14 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.knotes.AppSettings
 import com.knotes.BuildConfig
 import com.knotes.DraftStore
@@ -539,6 +542,11 @@ fun MainScreen(
                         )
                     }
                 },
+                // Title + counts + sync line is three lines; the bar's fixed 64dp held them only at
+                // font scale 1, and from 1.1 the sync line was cut off under the filter bar.
+                expandedHeight = if (!searchOpen && settings.syncActive) {
+                    maxOf(TopAppBarDefaults.TopAppBarExpandedHeight, with(LocalDensity.current) { 60.sp.toDp() } + 16.dp)
+                } else TopAppBarDefaults.TopAppBarExpandedHeight,
             )
         },
     ) { padding ->
@@ -598,6 +606,7 @@ fun MainScreen(
                             NoteCard(
                                 note = note,
                                 settings = settings,
+                                searchQuery = query,
                                 isEditing = editing?.file == note.file,
                                 onPlayMedia = onPlayMedia,
                                 onRead = { reading = note to false },

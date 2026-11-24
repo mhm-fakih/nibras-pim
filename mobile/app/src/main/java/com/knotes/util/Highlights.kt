@@ -28,6 +28,15 @@ object Highlights {
      * A `==` opens a highlight only if another `==` follows with at least one character between
      * them; an unpaired `==` is literal text (a note is allowed to contain one).
      */
+    /**
+     * How many `==marked==` clauses [source] has — runs, not characters, so one long highlighted
+     * sentence counts once. The desktop's `Note.highlight_count`, for the same number on the card.
+     */
+    fun count(source: String): Int {
+        val flags = split(source).second
+        return flags.indices.count { flags[it] && (it == 0 || !flags[it - 1]) }
+    }
+
     fun split(source: String): Pair<String, BooleanArray> {
         val plain = StringBuilder(source.length)
         val flags = ArrayList<Boolean>(source.length)

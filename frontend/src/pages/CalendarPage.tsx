@@ -1,3 +1,4 @@
+import { getCalendarDays, type CalDay } from '../api/client';
 import { useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,7 +15,9 @@ import {
 import {
   Box,
   Button,
+  FormControlLabel,
   IconButton,
+  Switch,
   MenuItem,
   Stack,
   TextField,
@@ -158,6 +161,13 @@ export function CalendarPage() {
     queryFn: () => getCalendarEvents(ymd(rangeFrom), ymd(rangeTo)),
   });
   const events = data ?? [];
+  const calDays = useQuery({
+    queryKey: ['calendar-days', ymd(rangeFrom), ymd(rangeTo)],
+    queryFn: () => getCalendarDays(ymd(rangeFrom), ymd(rangeTo)),
+    enabled: prefs.threeCalendars,
+    staleTime: 3_600_000,
+  });
+  const calByDate = useMemo(() => new Map((calDays.data?.days ?? []).map((d) => [d.date, d])), [calDays.data]);
 
   const rows = Math.max(1, ((prefs.endHour - prefs.startHour) * 60) / prefs.slotMinutes);
   const colHeight = rows * SLOT_PX;
@@ -351,6 +361,13 @@ export function CalendarPage() {
               </MenuItem>
             ))}
           </TextField>
+          <Tooltip title="Each day's Shamsi and Hijri dates, and Iran's official occasions (Persian and Arabic)">
+            <FormControlLabel
+              sx={{ ml: 0.5 }}
+              control={<Switch size="small" checked={prefs.threeCalendars} onChange={(e) => update({ threeCalendars: e.target.checked })} />}
+              label={<Typography sx={{ fontSize: 13 }}>Shamsi · Hijri</Typography>}
+            />
+          </Tooltip>
         </Stack>
 
         {/* Grid + overview */}
@@ -375,9 +392,10 @@ export function CalendarPage() {
                   <Typography variant="caption" color="text.secondary">
                     {format(d, 'EEE')}
                   </Typography>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: calByDate.get(ymd(d))?.holiday ? 'error.main' : undefined }}>
                     {format(d, 'd')}
                   </Typography>
+                  {prefs.threeCalendars && calByDate.get(ymd(d)) && <DayDates day={calByDate.get(ymd(d))!} />}
                   {spanningEvents(events, d).map((ev) => (
                     <Tooltip key={eventKey(ev)} title={`${ev.title} (${format(parseISO(ev.start), 'd MMM')} – ${format(parseISO(ev.end!), 'd MMM')})`}>
                       <Box
@@ -791,5 +809,54 @@ function EventBlock({
         {fmtMinutes(startMin, hour12)} {ev.title}
       </Box>
     </Tooltip>
+  );
+}
+
+const FA_DIGITS = (n: number) => String(n).replace(/[0-9]/g, (c) => '۰۱۲۳۴۵۶۷۸۹'[Number(c)]);
+const AR_DIGITS = (n: number) => String(n).replace(/[0-9]/g, (c) => '٠١٢٣٤٥٦٧٨٩'[Number(c)]);
+
+/**
+ * Under a day's number: its Shamsi date (Persian) and Hijri date (Arabic), then Iran's official
+ * occasions for the day — each in Persian with the Arabic beneath. A holiday's are in red. When the
+ * official Hijri date differs from the arithmetic one shown, it is given in the tooltip.
+ */
+function DayDates({ day }: { day: CalDay }) {
+  const h = day.hijri;
+  const o = day.hijriOfficial;
+  const differs = o && (o.day !== h.day || o.month !== h.month);
+  return (
+    <Box sx={{ mt: 0.25 }}>
+      <Tooltip title={`${day.shamsi.day} ${day.shamsi.monthName} ${day.shamsi.year} · ${h.day} ${h.monthName} ${h.year}${differs ? ` (official Hijri: ${o!.day} ${o!.monthName})` : ''}`}>
+        <Typography dir="rtl" sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.4 }}>
+          {FA_DIGITS(day.shamsi.day)} {day.shamsi.monthNative} · {AR_DIGITS(h.day)} {h.monthNative}
+          {differs ? ' *' : ''}
+        </Typography>
+      </Tooltip>
+      {day.occasions.map((oc, i) => (
+        <Tooltip key={i} title={<Box dir="rtl" sx={{ textAlign: 'right' }}><div>{oc.fa}</div>{oc.ar && <div>{oc.ar}</div>}</Box>}>
+          <Box
+            dir="rtl"
+            sx={{
+              mt: 0.25,
+              mx: 0.5,
+              px: 0.5,
+              fontSize: 11,
+              lineHeight: '16px',
+              textAlign: 'right',
+              borderRadius: 0.5,
+              bgcolor: oc.holiday ? 'error.light' : 'action.selected',
+              color: oc.holiday ? 'error.contrastText' : 'text.primary',
+              overflow: 'hidden',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+            }}
+          >
+            {oc.fa}
+            {oc.ar && <Box component="span" sx={{ display: 'block', opacity: 0.8 }}>{oc.ar}</Box>}
+          </Box>
+        </Tooltip>
+      ))}
+    </Box>
   );
 }

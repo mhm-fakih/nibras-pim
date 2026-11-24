@@ -1,5 +1,11 @@
 import { useAuth } from '../hooks/useAuth';
 import { HOUR12_SETTING, useHour12 } from '../hooks/useHour12';
+import {
+  DEFAULT_HIGHLIGHT_COLOR,
+  HIGHLIGHT_COLOR_SETTING,
+  useHighlightColor,
+  useHighlightStyle,
+} from '../hooks/useHighlightStyle';
 import { OPEN_SETUP_EVENT } from '../components/SetupWizard';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -103,6 +109,7 @@ export function SettingsPage() {
             <AppSettingsSection />
             <SessionSection />
             <CalendarClockSection />
+            <HighlightColorSection />
             <NotificationsSection />
             <IndicatorAutoCollectSection />
             <DescriptionAppendSection />
@@ -556,6 +563,45 @@ function CalendarClockSection() {
         control={<Switch checked={!hour12} onChange={(e) => save.mutate(!e.target.checked)} />}
         label="24-hour clock (13:00 rather than 1 PM) on the calendar and the dashboards"
       />
+    </Box>
+  );
+}
+
+/** The background of highlighted text in a record's details panel and read page. */
+function HighlightColorSection() {
+  const qc = useQueryClient();
+  const saved = useHighlightColor();
+  const style = useHighlightStyle();
+  const save = useMutation({
+    mutationFn: (color: string) => setSetting(HIGHLIGHT_COLOR_SETTING, color),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setting', HIGHLIGHT_COLOR_SETTING] }),
+  });
+  return (
+    <Box sx={{ mt: 5 }}>
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        Highlights
+      </Typography>
+      <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+        <input
+          key={saved}
+          type="color"
+          defaultValue={saved}
+          aria-label="Highlight colour"
+          // Saved when the picker closes, not on every step of a drag across it.
+          onBlur={(e) => e.target.value !== saved && save.mutate(e.target.value)}
+          style={{ width: 36, height: 26, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
+        />
+        <Box component="span" sx={style}>
+          Highlighted text looks like this
+        </Box>
+        <Button
+          size="small"
+          disabled={saved === DEFAULT_HIGHLIGHT_COLOR}
+          onClick={() => save.mutate(DEFAULT_HIGHLIGHT_COLOR)}
+        >
+          Reset to default
+        </Button>
+      </Stack>
     </Box>
   );
 }

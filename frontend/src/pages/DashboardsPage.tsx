@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Box,
@@ -50,6 +51,7 @@ export function DashboardsPage() {
   const qc = useQueryClient();
   const { data: dashboards } = useQuery({ queryKey: ['custom-dashboards'], queryFn: listCustomDashboards });
   const [editingId, setEditingId] = useState<number | 'new' | null>(null);
+  useDocumentTitle(editingId === 'new' ? 'New dashboard' : dashboards?.find((d) => d.id === editingId)?.name);
 
   const remove = useMutation({
     mutationFn: (id: number) => deleteCustomDashboard(id),
@@ -491,6 +493,31 @@ function RegionEditor({
         </Stack>
         </>
       )}
+      {(region.componentType === 'tasks' ||
+        region.componentType === 'localTasks' ||
+        region.componentType === 'kanban') && (
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={cfg.showDescription !== false}
+              onChange={(e) => setCfg({ showDescription: e.target.checked })}
+            />
+          }
+          label="Show the description with each task"
+        />
+      )}
+      {(region.componentType === 'tasks' || region.componentType === 'kanban') && (
+        <FormControlLabel
+          control={
+            <Checkbox
+              disabled={cfg.showDescription === false}
+              checked={cfg.fullDescription !== false}
+              onChange={(e) => setCfg({ fullDescription: e.target.checked })}
+            />
+          }
+          label="Show the full description, not just the start"
+        />
+      )}
       {region.componentType === 'plans' && <PlansOptions cfg={cfg} setCfg={setCfg} />}
       {region.componentType === 'indicatorTicker' && (
         <>
@@ -566,9 +593,7 @@ function RegionEditor({
           </Stack>
         </>
       )}
-      {(region.componentType === 'goalsHeatmap' ||
-        region.componentType === 'kanban' ||
-        region.componentType === 'checklist') && (
+      {(region.componentType === 'goalsHeatmap' || region.componentType === 'checklist') && (
         <Typography variant="caption" color="text.secondary">
           No settings for this component.
         </Typography>

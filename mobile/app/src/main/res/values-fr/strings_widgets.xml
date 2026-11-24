@@ -86,6 +86,8 @@
     <string name="widgets_gallery_next">Image suivante</string>
     <string name="widgets_gallery_label_hint">Libellé (renomme le fichier)</string>
     <string name="widgets_gallery_delete_photo">Supprimer la photo</string>
+    <string name="widgets_gallery_deleted">%1$s supprimé</string>
+    <string name="widgets_gallery_undo_delete">Annuler</string>
     <string name="widgets_bookmarks_title">Fiches en favori</string>
     <string name="widgets_bookmarks_empty">Aucun favori</string>
     <string name="widgets_no_title">(sans titre)</string>
@@ -192,4 +194,5 @@
     <string name="widgets_collect_range_7">7 derniers jours</string>
     <string name="widgets_collect_range_30">30 derniers jours</string>
     <string name="widgets_collect_range_all">Tout</string>
+    <string name="widgets_label_dates">Aujourd\'hui en trois calendriers</string>
 </resources>

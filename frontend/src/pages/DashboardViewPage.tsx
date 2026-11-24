@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Box, CircularProgress, Paper, Stack, Typography } from '@mui/material';
@@ -93,6 +94,8 @@ export function DashboardViewPage() {
     staleTime: 0,
     refetchInterval: 2 * 60 * 1000,
   });
+
+  useDocumentTitle(data?.name);
 
   // A full page reload every refreshMinutes — the simplest way to guarantee a screen left on this
   // page for days never runs stale JS or accumulates memory, on top of the snapshot's own periodic
@@ -228,7 +231,7 @@ export function DashboardViewPage() {
   // Calendar (and kanban, which can also run long) claim real vertical space and stretch to fill
   // it; everything else (quote, file, the heatmap) just wraps its own content — stretching those
   // to match a tall neighbour left a bordered box full of empty space below the actual text.
-  const fillsHeight = (type: string) => ['calendar', 'kanban', 'checklist', 'tasks', 'localTasks', 'plans'].includes(type);
+  const fillsHeight = (type: string) => ['calendar', 'kanban', 'checklist', 'tasks', 'localTasks', 'quickTasks', 'plans'].includes(type);
 
   return (
     // The clock comes with the snapshot: this page makes no signed-in requests (see Hour12Context).

@@ -19,7 +19,7 @@ Open **Alarms** (the alarm-clock icon) from the rail. The top of the page is the
 3. While it runs, the coloured ring shrinks back towards 12, the middle counts down, and **Ends at** under it gives the clock time it will ring.
 4. To cancel, tap the same button, now a red stop button (**Stop the quick timer**), or the middle of the dial again.
 
-The quick timer rings like any other alarm, with a notification and a **Stop** button. Its sound, volume and how many times it plays are set once, in [Settings](settings.md#alerts) → **Alerts** → **Quick timer**:
+The quick timer rings like any other alarm, in the alarm window with a **Stop** button. Its sound, volume and how many times it plays are set once, in [Settings](settings.md#alerts) → **Alerts** → **Quick timer**:
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -75,7 +75,7 @@ The bottom row holds the actions:
 - a delete button, which asks **Delete this alarm?** first,
 - a switch to turn it on or off.
 
-When an alarm rings, a notification shows its label with a **Stop** button, and the sound plays the number of times you set. While it plays, the phone's alarm volume is set to that alarm's level, then put back as it was, so 50% is equally loud whatever the alarm slider was left at. Alarms due at the same moment play one after the other. The sound plays from a foreground service, so Android can't cut it short once the alarm has fired.
+When an alarm rings, it opens as a full-screen window showing the time, its label and a large **Stop** button, over the lock screen too, and closes when the sound ends. A notification with **Stop** is posted as well. For the window to open over another app you're using, allow **Display over other apps**; on Android 14 and later, also allow **full-screen alarms**. The Alarms page shows a line with an **Allow** button for each one still missing. The sound plays the number of times you set. While it plays, the phone's alarm volume is set to that alarm's level, then put back as it was, so 50% is equally loud whatever the alarm slider was left at. Alarms due at the same moment play one after the other. The sound plays from a foreground service, so Android can't cut it short once the alarm has fired.
 
 !!! warning "Alarms firing late?"
     If the page shows **Exact alarms are not permitted for this app, so these may fire late.**, open Android's settings for Nibras Mobile and allow **Alarms & reminders**.

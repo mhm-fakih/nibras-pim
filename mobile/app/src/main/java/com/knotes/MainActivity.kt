@@ -493,6 +493,30 @@ private fun AppShell(
 ) {
     val counts by nibrasVm.counts.collectAsState()
     val conn by nibrasVm.conn.collectAsState()
+    val contactsCount by com.knotes.nibras.ContactsCount.count.collectAsState()
+    val quranOverview by com.knotes.quran.QuranStore.overview.collectAsState()
+    val refreshTick by com.knotes.nibras.ServerRefresh.tick.collectAsState()
+    val appContext = LocalContext.current.applicationContext
+    // The rail's "K (n)": the saved count first (offline too), then a fresh one at start and on
+    // every rail refresh — so it is right without having opened the Contacts page.
+    LaunchedEffect(settings.serverEnabled, settings.nibrasBaseUrl, refreshTick) {
+        if (!settings.serverEnabled) return@LaunchedEffect
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.knotes.nibras.ContactsCount.seed(appContext)
+            com.knotes.quran.QuranStore.seed(appContext)
+            com.knotes.calendar.IranCalendar.seed(appContext)
+            if (settings.nibrasBaseUrl.isNotBlank()) {
+                // Iran's official calendar around today, with the prayer page's Hijri adjustment,
+                // for the Calendar and prayer pages and the dates widget.
+                val offset = com.knotes.prayer.PrayerSettingsStore(appContext).value.hijriOffsetDays
+                if (com.knotes.calendar.IranCalendar.refresh(appContext, settings.nibrasBaseUrl, offset)) {
+                    runCatching { com.knotes.reminder.DatesWidget.refresh(appContext) }
+                }
+                com.knotes.nibras.ContactsCount.refresh(appContext, settings.nibrasBaseUrl)
+                com.knotes.quran.QuranStore.refreshOverview(appContext, settings.nibrasBaseUrl)
+            }
+        }
+    }
 
     // System back from any non-home page returns to Home rather than exiting the app. (Inner screens
     // that handle their own back — e.g. an open record — register closer BackHandlers that win first.)
@@ -544,7 +568,12 @@ private fun AppShell(
                 onFlashcards = { onDest(FLASHCARDS_DEST) },
                 onHighlights = { onDest(HIGHLIGHTS_DEST) },
                 onContacts = { onDest(CONTACTS_DEST) },
+                contactsCount = contactsCount,
+                quranEnabled = settings.serverEnabled && quranOverview?.enabled == true,
+                quranCount = quranOverview?.surahs?.size?.takeIf { it > 0 },
+                onQuran = { onDest(com.knotes.ui.QURAN_DEST) },
                 onPayments = { onDest(PAYMENTS_DEST) },
+                onExcerptLibrary = { onDest(com.knotes.ui.EXCERPT_LIBRARY_DEST) },
                 // The same full sync the record pages' own refresh runs (push the outbox, pull every
                 // type), plus the signal the flash card / highlight / contact pages watch. The bump
                 // alone left T/P/R… untouched, so the button looked like it did nothing there.
@@ -606,10 +635,11 @@ private fun AppShell(
                                 },
                             )
                         }
-                        // Read-only by construction: the screen is given notes and an open
-                        // callback, and no way to write. The reader it opens is told readOnly too.
+                        // Read-only apart from highlights: the reader hides edit and tags, and a
+                        // tapped highlight is written into the answer's file (see saveAiAnswer).
                         AI_NOTES_DEST -> {
                             val aiNotes by vm.aiNotes.collectAsState()
+                            val aiLoaded by vm.aiLoaded.collectAsState()
                             val hwNotes by vm.hwNotes.collectAsState()
                             var reading by remember { mutableStateOf<Note?>(null) }
                             // Homeworks is a tab of the AI page: its assignments are set by the AI
@@ -632,7 +662,8 @@ private fun AppShell(
                                 NoteReadScreen(
                                     note = open,
                                     settings = settings,
-                                    onSave = {},
+                                    // Highlights are kept; nothing else in this reader writes.
+                                    onSave = { body -> vm.saveAiAnswer(open, body) },
                                     onTags = { _, _, _, _ -> },
                                     onBack = { reading = null },
                                     readOnly = true,
@@ -661,6 +692,7 @@ private fun AppShell(
                                     } else {
                                         AiNotesScreen(
                                             notes = aiNotes,
+                                            loaded = aiLoaded,
                                             settings = settings,
                                             dirPath = vm.aiDirPath(),
                                             dirExists = vm.aiDirExists(),
@@ -694,7 +726,7 @@ private fun AppShell(
                             onPlayMedia = onPlayMedia,
                         )
                         GALLERY_DEST -> GalleryScreen(dir = settings.galleryDir)
-                        CHECKLISTS_DEST -> ChecklistsScreen(folder = settings.checklistsFolder())
+                        CHECKLISTS_DEST -> ChecklistsScreen()
                         VIDEOS_DEST -> VideosScreen(
                             dir = settings.videosDir.ifBlank { SettingsStore.defaultVideosDir() },
                             currentPath = player.currentFile?.absolutePath,
@@ -713,7 +745,9 @@ private fun AppShell(
                         FLASHCARDS_DEST -> FlashcardsScreen(store = flashStore, baseUrl = settings.nibrasBaseUrl)
                         HIGHLIGHTS_DEST -> HighlightsScreen(store = flashStore, baseUrl = settings.nibrasBaseUrl)
                         CONTACTS_DEST -> ContactsScreen(baseUrl = settings.nibrasBaseUrl)
+                        com.knotes.ui.QURAN_DEST -> com.knotes.ui.QuranScreen(baseUrl = settings.nibrasBaseUrl)
                         PAYMENTS_DEST -> com.knotes.ui.PaymentsScreen(baseUrl = settings.nibrasBaseUrl)
+                        com.knotes.ui.EXCERPT_LIBRARY_DEST -> com.knotes.ui.ExcerptLibraryScreen(baseUrl = settings.nibrasBaseUrl, filesDir = settings.nibrasFilesDir)
                         CALENDAR_DEST -> CalendarScreen(
                             startHour = settings.calendarStartHour,
                             endHour = settings.calendarEndHour,

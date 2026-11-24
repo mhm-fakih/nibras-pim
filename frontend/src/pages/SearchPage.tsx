@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Alert,
@@ -7,6 +7,7 @@ import {
   Button,
   Checkbox,
   Chip,
+  CircularProgress,
   FormControlLabel,
   IconButton,
   InputAdornment,
@@ -23,12 +24,14 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import DownloadIcon from '@mui/icons-material/Download';
 import {
   FILE_SOURCES,
   FileHit,
   getFileSearchConfig,
   getSearchIndexStatus,
   openFoundFile,
+  downloadFoundFile,
   searchEverything,
   searchFiles,
   SearchHit,
@@ -88,7 +91,6 @@ function buildSearch(f: SearchForm): string {
 }
 
 export function SearchPage() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const q = searchParams.get('q') ?? '';
   const [form, setForm] = useState<SearchForm>(() => parseSearch(q));
@@ -331,7 +333,7 @@ export function SearchPage() {
               {list.map((h) => (
                 <ListItemButton
                   key={`${h.module}-${h.id}`}
-                  onClick={() => navigate(`/${h.module}?select=${h.id}`)}
+                  {...newTab(`/${h.module}?select=${h.id}`)}
                   divider
                   alignItems="flex-start"
                 >
@@ -365,7 +367,7 @@ export function SearchPage() {
               {notes.map((n) => (
                 <ListItemButton
                   key={n.filename}
-                  onClick={() => navigate(`/local-notes?open=${encodeURIComponent(n.filename)}`)}
+                  {...newTab(`/local-notes?open=${encodeURIComponent(n.filename)}`)}
                   divider
                   alignItems="flex-start"
                 >
@@ -429,7 +431,7 @@ export function SearchPage() {
             </Stack>
             <List dense>
               {fileHits.map((f) => (
-                <FileRow key={f.path} f={f} terms={terms} onOwner={navigate} />
+                <FileRow key={f.path} f={f} terms={terms} />
               ))}
             </List>
             {fileHits.length === 0 && !filesFetching && (
@@ -478,13 +480,24 @@ function formatSize(n: number): string {
 }
 
 /** One found file: name, where it lives (record or note), the matched text, and open actions. */
-function FileRow({ f, terms, onOwner }: { f: FileHit; terms: string[]; onOwner: (to: string) => void }) {
+function FileRow({ f, terms }: { f: FileHit; terms: string[] }) {
   const folder = f.rel.includes('/') ? f.rel.slice(0, f.rel.lastIndexOf('/')) : '';
   const owner = f.ownerModule && f.ownerId != null
     ? { label: `${f.ownerLabel ?? f.ownerModule} #${f.ownerId}`, to: `/${f.ownerModule}?select=${f.ownerId}` }
     : f.ownerNote
       ? { label: 'Note', to: `/local-notes?open=${encodeURIComponent(f.ownerNote)}` }
       : null;
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const download = () => {
+    setDownloading(true);
+    setDownloadError(null);
+    downloadFoundFile(f.path, f.name)
+      .catch((e) => setDownloadError(e?.response?.status === 404
+        ? 'Download failed: the file is no longer there (or no longer indexed).'
+        : 'Download failed.'))
+      .finally(() => setDownloading(false));
+  };
   return (
     <ListItem
       divider
@@ -501,9 +514,18 @@ function FileRow({ f, terms, onOwner }: { f: FileHit; terms: string[]; onOwner: 
               <FolderOpenIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+          {/* Open and Open folder act on the server's desktop; from another machine (remote
+              access) this is the way to get the file itself. */}
+          <Tooltip title={downloading ? 'Downloading…' : `Download (${formatSize(f.size)})`}>
+            <span>
+              <IconButton size="small" disabled={downloading} onClick={download}>
+                {downloading ? <CircularProgress size={16} /> : <DownloadIcon fontSize="small" />}
+              </IconButton>
+            </span>
+          </Tooltip>
         </Stack>
       }
-      sx={{ pr: 10 }}
+      sx={{ pr: 14 }}
     >
       <ListItemText
         primary={<Highlight text={f.name} terms={terms} />}
@@ -515,12 +537,15 @@ function FileRow({ f, terms, onOwner }: { f: FileHit; terms: string[]; onOwner: 
               {f.nameOnly ? ' · name match' : ''}
             </Box>
             {f.snippet && <Marked text={f.snippet} />}
+            {downloadError && (
+              <Box component="span" sx={{ display: 'block', color: 'error.main', fontSize: 12 }}>{downloadError}</Box>
+            )}
           </>
         }
         secondaryTypographyProps={{ dir: 'auto', component: 'span', sx: { display: 'block', textAlign: 'start' } }}
       />
       {owner && (
-        <Chip size="small" variant="outlined" label={owner.label} onClick={() => onOwner(owner.to)} sx={{ ml: 1, mt: 0.5 }} />
+        <Chip size="small" variant="outlined" label={owner.label} clickable {...newTab(owner.to)} sx={{ ml: 1, mt: 0.5 }} />
       )}
     </ListItem>
   );
@@ -542,6 +567,15 @@ function Marked({ text }: { text: string }) {
       )}
     </Box>
   );
+}
+
+/**
+ * A search result opens in a new tab, so the results stay where they are while you look through
+ * several. A real link (router-aware, so a context path is kept), which also gives middle-click
+ * and "copy link".
+ */
+function newTab(to: string) {
+  return { component: Link, to, target: '_blank', rel: 'noopener' } as const;
 }
 
 /** A leading ~ asks for near-duplicate RECORDS; note files are not candidates. */

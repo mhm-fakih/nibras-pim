@@ -214,4 +214,15 @@
     <string name="prayer_elapsed_for">Elapsed timer: %1$d min</string>
     <string name="prayer_elapsed_off">Elapsed timer: off</string>
     <string name="prayer_elapsed_note">Once a time arrives, the page and the strip count up from it — “منذ 4:12” — for this long, instead of jumping to the next time hours away.</string>
+    <string name="prayer_alarm_window_overlay">Alarms open as a window over other apps only with “Display over other apps” allowed.</string>
+    <string name="prayer_alarm_window_fullscreen">Allow full-screen alarms so an alarm opens over the lock screen.</string>
+    <string name="prayer_alarm_window_allow">Allow</string>
+    <string name="prayer_athan_rise">Fade-in: %1$d s</string>
+    <string name="prayer_athan_rise_off">No fade-in</string>
+    <string name="prayer_athan_rise_from">Fade-in starts %1$d dB lower</string>
+    <string name="prayer_athan_rise_note">Only the first seconds: the athan starts this much lower and reaches its volume when the fade-in ends. It does not make the rest of the athan quieter.</string>
+    <string name="prayer_athan_gain_off">Whole athan: not turned down</string>
+    <string name="prayer_athan_gain">Whole athan: %1$d dB quieter</string>
+    <string name="prayer_athan_gain_note">Turns the whole athan down, start to end, on top of each prayer\'s volume — for when even the lowest volume is too loud. 10 dB sounds about half as loud; 30 dB is very quiet.</string>
+    <string name="prayer_panel_shamsi">Shamsi</string>
 </resources>

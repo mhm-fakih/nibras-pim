@@ -85,3 +85,48 @@ Les points clés consignés dans vos fiches (le champ de surlignages du serveur 
 ## Contacts { #contacts }
 
 Les personnes que vous avez mises en favori sur le serveur, chacune suivie des tâches encore en cours avec elle, avec leurs échéances (**échéance …**). L'en-tête affiche **N en favori · M en cours**. Un contact sans rien en cours apparaît quand même, pour que vous voyiez que rien n'est en suspens. Si personne n'est en favori, la page indique **Aucun contact en favori. Ajoutez en favori les personnes avec qui vous travaillez.**
+
+## Coran { #quran }
+
+**A** ouvre la bande du serveur lorsque le module Coran du serveur est activé (voir le
+[Coran](../web/reading-review.md#quran) du web) ; le nombre est celui de ses sourates.
+
+- Les sourates dans l'ordre du **Mushaf** ou de la **Révélation** ; tapez un nom ou un numéro pour en trouver une,
+  et **Favoris** pour n'afficher que les sourates en favori ou contenant des versets en favori (★) — ✎ compte les
+  versets annotés.
+- Le signet au bout d'une ligne, ou à côté du nom d'une sourate ouverte, met la **sourate** en favori.
+- Une sourate ouverte affiche chaque verset vocalisé, son **exégèse**, ses **notes** (une longue note repliée) et les
+  **notes liées** à lui sur le serveur, imbriquées.
+- Sur un verset, le signet marque **le verset**, et le bouton de note **ajoute une note**. Elle est ajoutée aux notes
+  du verset sur le serveur, après une ligne datée — les notes existantes ne sont jamais remplacées.
+- Tout fonctionne hors ligne. Chaque sourate ouverte est enregistrée sur le téléphone (le bouton nuage enregistre les
+  114 d'un coup) ; les favoris et notes faits hors ligne s'affichent aussitôt (une note comme *En attente d'envoi*)
+  et partent vers le serveur dès qu'il est joignable. Chaque note part avec sa propre référence : envoyée deux fois
+  après une réponse perdue, elle n'est ajoutée qu'une fois.
+
+## Bibliothèque d'extraits { #excerpt-library }
+
+L'icône de livre après les passages surlignés ouvre la [Bibliothèque d'extraits](../web/reading-review.md#excerpt-library)
+du web : 2 à 3 pages prises au hasard dans vos livres numériques, à lire et à résumer. La page a
+besoin du serveur ; rien n'est gardé sur le téléphone.
+
+- **La liste** : filtrez par *À résumer*, *Résumés*, *Promus*, *Mis de côté* ou *Tous*, et cherchez
+  dans le titre, l'auteur, le résumé et le texte. Chaque ligne montre le livre, son résumé (ou le
+  début du texte) et l'endroit des pages dans le livre.
+- **En faire plus** : choisissez 10, 20 ou 50 et le serveur fait autant de nouveaux échantillons en
+  arrière-plan, à partir de livres pris au hasard. La progression s'affiche sous le bouton. Aucune
+  IA n'intervient : les pages sont simplement découpées dans les fichiers des livres.
+- **Un échantillon** : écrivez un **Résumé en une ligne** (la touche Terminé du clavier
+  l'enregistre) et des **Détails** facultatifs, puis **Enregistrer** ou **Enregistrer et suivant**.
+  Lisez-le sous **Texte** (quand le livre a un vrai texte ; les paragraphes arabes sont alignés à
+  droite) ou **Pages** (les pages en images). **Ouvrir le livre** ouvre le fichier entier ; **Un
+  autre endroit** prend 2 à 3 autres pages du même livre ; **Mettre de côté** le retire de la liste
+  (**Reprendre** le ramène) ; **Promouvoir en Extrait** en fait un Extrait de son livre une fois un
+  résumé enregistré.
+- **Lire les pages** : **Lire en plein écran** ouvre le PDF de l'échantillon dans le lecteur PDF de
+  l'application (zoom, stylo, surligneur, enregistrés dans le fichier) ; **Ouvrir avec…** le confie
+  à une autre application (PocketBook, un navigateur…) ; toucher une page sous **Pages** l'ouvre aussi
+  en plein écran. Le PDF est téléchargé une fois dans `Nibras/excerpt-library/<id du livre>/`, et vos
+  annotations restent avec lui ; elles ne sont pas renvoyées au serveur.
+- **Couvertures** : chaque échantillon montre la couverture de son livre — la sienne, sinon une
+  faite à partir de sa première page (ou la couverture contenue dans un EPUB/MOBI).

@@ -82,6 +82,10 @@ public class SecurityConfig {
                         // its session ran out and making a forced password change impossible.
                         .requestMatchers(HttpMethod.POST, "/api/auth/refresh", "/api/auth/password").authenticated()
 
+                        // The File processor shows any file in the folder being settled: content
+                        // writers only, reads included (the writes are covered below anyway).
+                        .requestMatchers("/api/file-settle/**", "/api/file-settle").access(perm(perms, Permissions.CONTENT_WRITE))
+
                         // Mobile commits + all other content writes.
                         .requestMatchers(HttpMethod.POST, MOBILE_PUSH_PATHS).access(perm(perms, Permissions.CONTENT_WRITE))
                         .requestMatchers(HttpMethod.POST, "/api/**").access(perm(perms, Permissions.CONTENT_WRITE))

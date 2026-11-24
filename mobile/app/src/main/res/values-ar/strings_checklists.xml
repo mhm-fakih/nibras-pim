@@ -40,8 +40,9 @@
     <string name="settings_checklist_sound_ringtone">نغمة…</string>
     <string name="settings_checklist_sound_file">ملف…</string>
     <string name="settings_checklist_sound_test">تجربة</string>
-    <string name="settings_checklists_folder_hint">ملف ‎.md‎ لكل أسبوع. فارغ = %1$s</string>
+    <string name="settings_checklists_folder_hint">حيث تُقرأ ملفات الأسابيع القديمة (‎.md‎) مرة واحدة. فارغ = %1$s</string>
     <string name="checklists_edit_text">تعديل كنص</string>
+    <string name="checklists_note">ملاحظة</string>
     <string name="checklists_save">حفظ</string>
     <string name="checklists_edit_text_help">بند في كل سطر، تحت عنوان «## المجموعة»؛ أضف «[weekly]» بعد اسم المجموعة للبنود الأسبوعية. الصق أو رتّب أو احذف بحرية — يحتفظ البند بعلاماته ما دام نصه لم يتغير.</string>
 </resources>

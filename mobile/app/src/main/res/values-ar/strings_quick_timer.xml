@@ -11,4 +11,9 @@
     <string name="qt_settings_default_sound">صوت المنبّه الافتراضي</string>
     <string name="qt_settings_volume">مستوى الصوت %1$d%%</string>
     <string name="qt_settings_repeat">يُشغَّل %1$d مرّات</string>
+    <string name="qt_settings_gain_off">بلا تخفيض</string>
+    <string name="qt_settings_gain">أخفض بـ %1$d ديسيبل</string>
+    <string name="qt_settings_rise_off">يبقى عند هذا المستوى بلا تصاعد</string>
+    <string name="qt_settings_rise">يتصاعد إلى مستواه خلال %1$d ث</string>
+    <string name="qt_settings_gain_note">لاختبار الأذان: الديسيبلات السالبة نفسها والتصاعد نفسه اللذان يستعملهما الأذان، في دقائق بدل انتظار الصلاة. إن كانت ‎−30‎ ديسيبل خافتة هنا ولم يكن تصاعد الأذان كذلك، فالتصاعد هو ما لا يعمل على هذا الهاتف.</string>
 </resources>

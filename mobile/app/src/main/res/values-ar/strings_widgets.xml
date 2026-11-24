@@ -107,6 +107,8 @@
     <string name="widgets_gallery_next">الصورة التالية</string>
     <string name="widgets_gallery_label_hint">تسمية (تُعيد تسمية الملف)</string>
     <string name="widgets_gallery_delete_photo">حذف الصورة</string>
+    <string name="widgets_gallery_deleted">حُذف %1$s</string>
+    <string name="widgets_gallery_undo_delete">تراجع</string>
     <string name="widgets_bookmarks_title">السجلات المرجعية</string>
     <string name="widgets_bookmarks_empty">لا توجد إشارات مرجعية</string>
     <string name="widgets_no_title">(بلا عنوان)</string>
@@ -236,4 +238,5 @@
     <string name="widgets_collect_range_7">آخر 7 أيام</string>
     <string name="widgets_collect_range_30">آخر 30 يومًا</string>
     <string name="widgets_collect_range_all">الكل</string>
+    <string name="widgets_label_dates">اليوم في ثلاثة تقاويم</string>
 </resources>

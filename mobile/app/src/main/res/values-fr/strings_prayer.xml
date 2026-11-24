@@ -216,4 +216,15 @@
     <string name="prayer_elapsed_for">Minuteur « منذ » : %1$d min</string>
     <string name="prayer_elapsed_off">Minuteur « منذ » : désactivé</string>
     <string name="prayer_elapsed_note">Une fois l’heure arrivée, la page et la barre comptent à partir d’elle — « منذ 4:12 » — pendant cette durée, au lieu de sauter à l’horaire suivant, des heures plus loin.</string>
+    <string name="prayer_alarm_window_overlay">Les alarmes ne s\'ouvrent en fenêtre par-dessus les autres applis qu\'avec « Superposition » autorisée.</string>
+    <string name="prayer_alarm_window_fullscreen">Autorisez les alarmes en plein écran pour qu\'elles s\'ouvrent sur l\'écran verrouillé.</string>
+    <string name="prayer_alarm_window_allow">Autoriser</string>
+    <string name="prayer_athan_rise">Fondu d\'entrée : %1$d s</string>
+    <string name="prayer_athan_rise_off">Pas de fondu d\'entrée</string>
+    <string name="prayer_athan_rise_from">Le fondu commence %1$d dB plus bas</string>
+    <string name="prayer_athan_rise_note">Seulement les premières secondes : l\'adhan commence aussi bas, puis atteint son volume à la fin du fondu. Il ne rend pas le reste de l\'adhan moins fort.</string>
+    <string name="prayer_athan_gain_off">Tout l\'adhan : non baissé</string>
+    <string name="prayer_athan_gain">Tout l\'adhan : %1$d dB moins fort</string>
+    <string name="prayer_athan_gain_note">Baisse tout l\'adhan, du début à la fin, en plus du volume de chaque prière — quand même le volume le plus bas est trop fort. 10 dB sonne environ deux fois moins fort ; 30 dB est très doux.</string>
+    <string name="prayer_panel_shamsi">Solaire (Shamsi)</string>
 </resources>

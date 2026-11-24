@@ -51,7 +51,22 @@ enum class Mark(val symbol: String) {
  * item's identity: the ticks belong to the code, not to the wording, so renaming keeps them, and the
  * same code means the same item from week to week (and, later, on the backend).
  */
-data class ChecklistItem(val code: Int, val text: String, val marks: List<Mark>)
+data class ChecklistItem(
+    val code: Int,
+    val text: String,
+    val marks: List<Mark>,
+    /**
+     * A note per mark slot, "" where there is none — parallel to [marks], but possibly shorter
+     * (empty for an item that has no notes at all), so read it through [noteAt].
+     */
+    val notes: List<String> = emptyList(),
+) {
+    fun noteAt(slot: Int): String = notes.getOrNull(slot).orEmpty()
+
+    /** [notes] padded to one entry per mark, so a single slot can be replaced. */
+    fun withNote(slot: Int, note: String): ChecklistItem =
+        copy(notes = List(marks.size) { if (it == slot) note.trim() else noteAt(it) })
+}
 
 /** A group, numbered by [code] (1, 2, 3 …); its items' codes are `code.n`. */
 data class ChecklistSection(val code: Int, val title: String, val weekly: Boolean, val items: List<ChecklistItem>) {
@@ -111,6 +126,11 @@ data class ChecklistWeek(val id: WeekId, val sections: List<ChecklistSection>) {
         it.copy(marks = it.marks.toMutableList().also { m -> m[slot] = m[slot].next() })
     }
 
+    /** Sets one slot's mark and note at once — what the long-press dialog saves. */
+    fun setSlot(section: Int, item: Int, slot: Int, mark: Mark, note: String): ChecklistWeek = editItem(section, item) {
+        it.copy(marks = it.marks.toMutableList().also { m -> m[slot] = mark }).withNote(slot, note)
+    }
+
     fun rename(section: Int, item: Int, text: String): ChecklistWeek = editItem(section, item) {
         it.copy(text = clean(text).ifEmpty { it.text })
     }
@@ -146,7 +166,7 @@ data class ChecklistWeek(val id: WeekId, val sections: List<ChecklistSection>) {
     /** The same items, same codes, for another week, every mark cleared — how a week is planned. */
     fun carriedTo(other: WeekId): ChecklistWeek = ChecklistWeek(
         other,
-        sections.map { s -> s.copy(items = s.items.map { it.copy(marks = List(s.width) { Mark.NONE }) }) },
+        sections.map { s -> s.copy(items = s.items.map { it.copy(marks = List(s.width) { Mark.NONE }, notes = emptyList()) }) },
     )
 
     /** Groups by code, items by code within each: code order IS the order. */
@@ -189,8 +209,8 @@ data class ChecklistWeek(val id: WeekId, val sections: List<ChecklistSection>) {
      */
     fun applyOutline(text: String): ChecklistWeek {
         val oldSections = sections.associateBy { it.code }
-        val oldItems = HashMap<String, List<Mark>>()
-        sections.forEach { s -> s.items.forEach { oldItems[s.codeOf(it)] = it.marks } }
+        val oldItems = HashMap<String, ChecklistItem>()
+        sections.forEach { s -> s.items.forEach { oldItems[s.codeOf(it)] = it } }
 
         data class Head(var code: Int?, val title: String, val weekly: Boolean)
         data class Line(val section: Int?, val code: Int?, val text: String, val head: Head?)
@@ -249,8 +269,11 @@ data class ChecklistWeek(val id: WeekId, val sections: List<ChecklistSection>) {
             // so a fresh item never takes over a code the week was just using for something else.
             val n = if (keep) code!! else maxOf(g.nextItemCode(), (oldSections[section]?.nextItemCode() ?: 1))
             taken += "$section.$n"
-            val marks = if (keep) oldItems["$section.$n"]?.takeIf { it.size == g.width } else null
-            groups[section] = g.copy(items = g.items + ChecklistItem(n, text, marks ?: List(g.width) { Mark.NONE }))
+            // Ticks and their notes go together: both belong to the code.
+            val old = if (keep) oldItems["$section.$n"]?.takeIf { it.marks.size == g.width } else null
+            groups[section] = g.copy(
+                items = g.items + ChecklistItem(n, text, old?.marks ?: List(g.width) { Mark.NONE }, old?.notes.orEmpty()),
+            )
         }
         // Coded lines first, so the new ones are numbered after every code the text keeps.
         lines.filter { it.code != null }.forEach { add(it.section!!, it.code, it.text) }

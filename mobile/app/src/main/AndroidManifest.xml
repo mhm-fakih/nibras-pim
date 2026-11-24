@@ -27,6 +27,10 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Alarms open as a window: full screen over the lock screen, and (with "Display over other
+         apps" granted) over whatever is open, rather than only as a notification. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- Prayer times: silencing the ringer for a prayer needs Do Not Disturb access, which the user
          also has to grant on the DND-access screen (see SilenceState). Location is coarse, optional
@@ -120,6 +124,17 @@
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
+
+        <!-- The ringing alarm's window: time, label, Stop; shown over the lock screen. -->
+        <activity
+            android:name=".alarm.AlarmActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:taskAffinity="com.knotes.alarm"
+            android:theme="@style/Theme.Knotes"
+            android:turnScreenOn="true" />
 
         <!-- Plays a fired alarm's sound; foreground so the process survives until it has played. -->
         <service
@@ -342,6 +357,18 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/prayer_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".reminder.DatesWidget"
+            android:exported="false"
+            android:label="@string/widgets_label_dates">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dates_widget_info" />
         </receiver>
 
         <!-- Lets other apps open record files we hand off via content:// URIs. -->

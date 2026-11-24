@@ -47,6 +47,8 @@ Hiding a page only removes it from the sidebar.
 - **Enable desktop notifications (overdue tasks/planners, missing journal entry)** — turns on your
   browser's notifications for this app. The first time, the browser asks for permission. If it says
   **Notifications are blocked for this site**, allow them in the browser's site settings.
+- **Highlights** — the background colour of highlighted text in a record's details panel and read
+    page. Very light green by default.
 - **Journal reminder hour** — after this hour (24-hour clock, default 17), you are reminded once a
   day if you haven't written a journal entry. Click **Save**.
 

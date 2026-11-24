@@ -25,7 +25,7 @@ Two [widgets](widgets.md) have an add bar at the top:
 | Widget | Add bar | Saves as |
 |---|---|---|
 | **Today's tasks** | **+  Add a task…** | A note of type `T` at your **Top priority** |
-| **Today's journal** | **+  Write today's journal…** | A note of type `J` at your **Default priority** |
+| **Today's journal** | **+  Write today's journal…** | An entry, stamped `[HH:mm]`, appended to the day's first `J` note (created at your **Default priority** on the day's first entry) |
 
 Tap the bar and a one-line input appears just above the keyboard, labelled **Task · p4** or **Journal · today**, with **What needs doing?** or **What happened?** as the prompt. Type and press the keyboard's **Done** key. There is no Add button. The note is written to your notes folder and the widget updates at once (a new task also shows on the [Tasks board widget](widgets.md)).
 

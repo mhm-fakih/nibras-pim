@@ -75,6 +75,9 @@ public class ClientSyncViewService {
 
         List<SyncedModule> mods = modules.findAll().stream()
                 .filter(m -> !Boolean.FALSE.equals(m.getEnabled()))
+                // A module with no records of its own to capture into (the Quran page) is not a
+                // capture type on the phone.
+                .filter(m -> catalog.find(m.getModuleKey()).isPresent())
                 .sorted(Comparator.comparingInt(
                         (AppModule m) -> m.getSortOrder() == null ? Integer.MAX_VALUE : m.getSortOrder())
                         .thenComparing(m -> nz(m.getLabel())))

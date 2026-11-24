@@ -57,10 +57,19 @@ export function IndicatorTickerComponent({ config }: { config?: string }) {
   });
   if (isLoading) return <Typography color="text.secondary">Loading…</Typography>;
   if (error) return <Typography color="error">Couldn't load the indicators.</Typography>;
-  return <IndicatorTickerView trends={data ?? []} config={config} />;
+  return <IndicatorTickerView trends={data ?? []} config={config} navigable />;
 }
 
-export function IndicatorTickerView({ trends, config }: { trends: IndicatorTrend[]; config?: string }) {
+/** `navigable`: a tile opens the indicators page; off on the TV view, which has no session to open it with. */
+export function IndicatorTickerView({
+  trends,
+  config,
+  navigable,
+}: {
+  trends: IndicatorTrend[];
+  config?: string;
+  navigable?: boolean;
+}) {
   const navigate = useNavigate();
   const cfg = tickerConfig(config);
   const threshold = cfg.threshold && cfg.threshold > 0 ? cfg.threshold : DEFAULT_TICKER_THRESHOLD;
@@ -94,7 +103,7 @@ export function IndicatorTickerView({ trends, config }: { trends: IndicatorTrend
             } (${when(t.previousDate)})`}
           >
             <Box
-              onClick={() => navigate('/indicators')}
+              onClick={navigable ? () => navigate('/indicators') : undefined}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
@@ -102,9 +111,9 @@ export function IndicatorTickerView({ trends, config }: { trends: IndicatorTrend
                 py: 0.25,
                 px: 0.5,
                 borderRadius: 1,
-                cursor: 'pointer',
+                cursor: navigable ? 'pointer' : 'default',
                 minWidth: 0,
-                '&:hover': { bgcolor: 'action.hover' },
+                '&:hover': navigable ? { bgcolor: 'action.hover' } : undefined,
               }}
             >
               <MoveIcon move={move} />

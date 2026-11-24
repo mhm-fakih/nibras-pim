@@ -120,6 +120,9 @@ only the name matched), and a snippet of the text around the match.
   record.
 - The two icons **Open the file** and **Open its folder** open them on the computer running the
   server.
+- **Download** saves the file itself to the computer you are browsing from — the way to get it
+  when that is not the server (remote access). The tooltip gives its size. The whole file is
+  fetched before the browser saves it, so a large video takes a while.
 
 Which folders are searched, and for which file types the contents are read, is set in
 [Settings → File search](settings.md#file-search). Only the free words are looked for in files; the

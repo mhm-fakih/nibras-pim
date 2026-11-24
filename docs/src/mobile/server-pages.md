@@ -85,3 +85,48 @@ The key points recorded on your records (the server's highlights field on notes,
 ## Contacts
 
 The people you've bookmarked on the server, each followed by the tasks still open with them, with due dates (**due …**). The header shows **N bookmarked · M open**. A contact with nothing open still appears, so you can see that nothing is outstanding. If no one is bookmarked, the page says **No contact is bookmarked. Bookmark the people you are working with.**
+
+## Quran
+
+**A** heads the server band when the server's Quran module is on (see the web's
+[Quran](../web/reading-review.md#quran)); the number is its surahs.
+
+- The surahs in **Mushaf** or **Revelation** order; type a name or number to find one, and
+  **Bookmarked** to show only the surahs bookmarked or holding bookmarked ayat (★) — ✎ counts
+  the ayat with notes.
+- The bookmark at the end of a row, or beside an open surah's name, bookmarks the **surah**.
+- An open surah shows each aya vocalized, its **exegesis**, its **notes** (a long one folded) and
+  the **notes linked** to it on the server, nested.
+- On an aya, the bookmark marks **the aya**, and the note button **adds a note**. The note is
+  appended to the aya's notes on the server, after a line with the date — existing notes are never
+  replaced.
+- Everything works offline. Each surah opened is saved on the phone (the cloud button saves all
+  114 at once); bookmarks and notes made offline show at once (a note as *Waiting to be sent*)
+  and go to the server as soon as it can be reached. A note is sent with its own reference, so
+  one sent twice after a lost reply is still added only once.
+
+## Excerpt library
+
+The book icon after Highlights opens the web's [Excerpt library](../web/reading-review.md#excerpt-library):
+2–3 pages taken at random from your ebooks, to read and sum up. The page needs the server; nothing
+is kept on the phone.
+
+- **The list**: filter by *To summarize*, *Summarized*, *Promoted*, *Set aside* or *All*, and search
+  the title, author, summary and text. Each row shows the book, its summary (or the start of the
+  text) and where the pages are in the book.
+- **Make more**: pick 10, 20 or 50 and the server makes that many new samples in the background,
+  from books chosen at random. The progress shows under the button. No AI is involved: the pages
+  are simply cut from the book files.
+- **A sample**: write a **One-line summary** (the keyboard's Done key saves it) and optional
+  **Details**, then **Save** or **Save & next**. Read it under **Text** (when the book has real
+  text; Arabic paragraphs are right-aligned) or **Pages** (the pages as images). **Open the book**
+  opens the whole file; **Another place** takes 2–3 other pages from the same book; **Set aside**
+  removes it from the list (**Bring back** returns it); **Promote to an Excerpt** makes it an
+  Excerpt of its book once a summary is saved.
+- **Read the pages**: **Read full screen** opens the sample's PDF in the app's own PDF viewer
+  (zoom, pen, highlighter, saved into the file); **Open with…** hands it to another app
+  (PocketBook, a browser…); tapping a page under **Pages** also opens it full screen. The PDF is
+  downloaded once to `Nibras/excerpt-library/<book id>/` (the Nibras files folder), so your marks
+  stay with it; they are not sent back to the server.
+- **Covers**: each sample shows its book's cover — the book's own, else one made from its first
+  page (or the cover inside an EPUB/MOBI).

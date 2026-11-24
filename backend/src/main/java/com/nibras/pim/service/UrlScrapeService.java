@@ -145,7 +145,7 @@ public class UrlScrapeService {
         String body = articleText(doc);
         // A page can deliver its article without ever putting it in the DOM — see streamedText.
         if (body.length() < MIN_BODY_CHARS) {
-            String streamed = streamedText(doc);
+            String streamed = streamedText(doc, clean(description));
             if (streamed.length() > body.length()) {
                 body = streamed;
             }
@@ -285,7 +285,7 @@ public class UrlScrapeService {
      * once per repetition, and these chunks run to thousands of characters, so the first real page
      * this was tried against killed it outright. This scan is linear and cannot recurse.
      */
-    private String streamedText(Document doc) {
+    private String streamedText(Document doc, String description) {
         StringBuilder payload = new StringBuilder();
         for (Element script : doc.select("script")) {
             String js = script.data();
@@ -306,11 +306,72 @@ public class UrlScrapeService {
         if (payload.length() == 0) {
             return "";
         }
+        // When the payload carries its HTML as text rows, take the one row that is this page's
+        // article rather than all of them: the same payload holds the bodies of the "related"
+        // posts shown inside the article, and often the article itself twice (once for the page,
+        // once for the post list it also renders). Concatenating everything is what turned one
+        // al-akhbar.com article into that article, two other ones, then all three again.
+        String html = articleRow(textRows(payload.toString()), description);
         // Re-parse as HTML and reuse the ordinary block extraction, so entities, nesting and the
         // Markdown-ish shaping are all handled in exactly one place.
-        Document streamed = Jsoup.parse(payload.toString(), doc.baseUri());
+        Document streamed = Jsoup.parse(html != null ? html : payload.toString(), doc.baseUri());
         streamed.select(FURNITURE).remove();
         return blocksToMarkdown(streamed);
+    }
+
+    /** A flight text row's head: {@code <hex id>:T<hex byte length>,}, its text following. */
+    private static final Pattern TEXT_ROW = Pattern.compile("([0-9a-f]+):T([0-9a-f]{1,8}),");
+
+    /**
+     * The text rows of a flight payload, in order, each once. A text row is the payload's way of
+     * carrying a long string — an article's HTML body — out of line: {@code 15:T10da,<p>…} is row
+     * 15, 0x10da UTF-8 BYTES long, and the JSON tree refers to it as {@code "$15"}. The length is
+     * what delimits it (no newline follows), so it is counted in bytes over the decoded text.
+     */
+    List<String> textRows(String payload) {
+        java.util.LinkedHashSet<String> rows = new java.util.LinkedHashSet<>();
+        Matcher m = TEXT_ROW.matcher(payload);
+        int from = 0;
+        while (from < payload.length() && m.find(from)) {
+            long bytes = Long.parseLong(m.group(2), 16);
+            int i = m.end();
+            long taken = 0;
+            while (i < payload.length() && taken < bytes) {
+                int cp = payload.codePointAt(i);
+                taken += cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+                i += Character.charCount(cp);
+            }
+            rows.add(payload.substring(m.end(), i));
+            from = i;
+        }
+        return List.copyOf(rows);
+    }
+
+    /**
+     * Which text row is the article: the one whose text opens like the page's own description
+     * (publishers fill og:description with the lead), else the only one, else none — and then the
+     * caller falls back to the whole payload, as before. Longest-wins would be wrong: a related
+     * post is as likely as not to be longer than the article it sits under.
+     */
+    private String articleRow(List<String> rows, String description) {
+        if (rows.isEmpty()) {
+            return null;
+        }
+        String lead = flat(description);
+        if (lead.length() >= 20) {
+            String probe = lead.substring(0, Math.min(60, lead.length()));
+            for (String row : rows) {
+                if (flat(Jsoup.parse(row).text()).contains(probe)) {
+                    return row;
+                }
+            }
+        }
+        return rows.size() == 1 ? rows.get(0) : null;
+    }
+
+    /** Whitespace collapsed, for comparing text that came through different markup. */
+    private static String flat(String s) {
+        return s == null ? "" : s.replace('\u00a0', ' ').replaceAll("\\s+", " ").trim();
     }
 
     /** Index of the closing quote of the JSON string starting at [open], or -1 if unterminated. */

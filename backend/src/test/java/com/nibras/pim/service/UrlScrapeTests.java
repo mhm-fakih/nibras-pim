@@ -112,6 +112,52 @@ class UrlScrapeTests {
         assertThat(s.fullText().length()).isGreaterThan(10_000);
     }
 
+    /** A flight text row as a page streams it: {@code id:T<hex UTF-8 byte length>,<text>}. */
+    private static String row(String id, String text) {
+        return id + ":T" + Integer.toHexString(text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length)
+                + "," + text;
+    }
+
+    /** JSON-escapes a payload piece the way it sits inside {@code __next_f.push([1,"…"])}. */
+    private static String push(String piece) {
+        return "<script>self.__next_f.push([1,\"" + piece.replace("\\", "\\\\").replace("\"", "\\\"")
+                + "\"])</script>";
+    }
+
+    @Test
+    void takesOnlyTheArticlesOwnTextRowNotTheRelatedPostsOrADuplicate() {
+        /*
+         * The al-akhbar.com shape behind resource 26125: the article body is a text row, the
+         * "related" posts shown inside it are text rows too (and longer), and the article's row
+         * appears a second time for the post list. Taking every chunk gave article + two related
+         * posts + all three again. Rows run straight into each other with no newline, and a row
+         * can be split across two pushes.
+         */
+        String lead = "أحبط الجمهوريون في مجلس النواب الأميركي، أمس، محاولة مساءلة وزير الدفاع";
+        String article = "<p>" + lead + " تمهيداً لعزله.</p><p>الفقرة الثانية من الخبر نفسه.</p>";
+        String related = "<p><br />رغم أن المقاومة فاجأت العدوّ بصمودها، مقال آخر تماماً "
+                + "يظهر في أسفل الصفحة ونصه أطول من نص الخبر الذي نقرأه.</p>".repeat(3);
+        String payload = row("15", article) + row("16", related) + "8b:{\"content\":\"$8f\"}\n"
+                + row("8f", article) + row("98", related);
+        int cut = payload.indexOf("الثانية");
+        String page = "<html><head><meta property=\"og:description\" content=\"" + lead + " تمهيداً\">"
+                + "</head><body><article><h1>t</h1></article>"
+                + push(payload.substring(0, cut)) + push(payload.substring(cut)) + "</body></html>";
+
+        String text = parse(page).fullText();
+
+        assertThat(text).startsWith(lead).contains("الفقرة الثانية من الخبر نفسه.")
+                .doesNotContain("رغم أن المقاومة");
+        assertThat(text.indexOf(lead)).isEqualTo(text.lastIndexOf(lead));
+    }
+
+    @Test
+    void textRowsAreDelimitedByTheirByteLengthNotByCharacters() {
+        // Two-byte Arabic letters: a char count would run into the next row's head.
+        String payload = row("1", "<p>نص</p>") + row("2", "<p>آخر</p>");
+        assertThat(scraper.textRows(payload)).containsExactly("<p>نص</p>", "<p>آخر</p>");
+    }
+
     // ------------------------------------------------------------------ extraction
 
     @Test

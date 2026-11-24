@@ -82,6 +82,11 @@
     <string name="notes_calendar_today">Today</string>
     <string name="notes_read_ai_answer">AI answer</string>
     <string name="notes_read_tap_clause_hint">Tap a sentence to highlight it</string>
+    <string name="notes_read_select_hint">Long-press to select and copy · the highlighter marks sentences</string>
+    <string name="notes_read_copy_all">Copy all</string>
+    <string name="notes_read_copied">Copied</string>
+    <string name="notes_read_highlight_on">Highlight sentences</string>
+    <string name="notes_read_highlight_off">Stop highlighting</string>
     <string name="notes_read_edit_tags_hint">· Edit above · tags below</string>
     <string name="notes_read_empty">This note is empty.</string>
     <string name="notes_read_empty_start_typing">This note is empty — start typing.</string>
@@ -148,4 +153,12 @@
     <string name="notes_add_note">Add note</string>
     <string name="notes_quick_add_hint">Quick note — saved as %1$s</string>
     <string name="notes_open_full_form">Full form: type, priority, department</string>
+    <plurals name="notes_card_highlights">
+        <item quantity="one">%1$d highlight</item>
+        <item quantity="other">%1$d highlights</item>
+    </plurals>
+    <plurals name="notes_card_search_matches">
+        <item quantity="one">%1$d match</item>
+        <item quantity="other">%1$d matches</item>
+    </plurals>
 </resources>

@@ -79,6 +79,8 @@ Toucher une carte l'ouvre en plein écran. Deux puces en haut permettent de basc
 **Lecture**
 
 - Le Markdown est affiché mis en forme : titres, gras, listes, etc.
+- **Sélectionner et copier.** Le texte se sélectionne : appui long, faites glisser les poignées, puis **Copier**. Le bouton de copie en haut copie tout le texte d'un geste (sans les marques `==`). De même pour les réponses de l'IA.
+- **Le surlignage est un mode.** Touchez le bouton surligneur en haut pour l'activer ; tant qu'il est actif, un toucher surligne au lieu de sélectionner. Touchez-le à nouveau pour revenir à la sélection.
 - **Touchez une phrase pour la surligner.** Touchez à nouveau pour retirer le surlignage. Le surlignage est écrit dans la note elle-même sous la forme `==…==`, il apparaît donc aussi sur l'ordinateur et sur le serveur. L'en-tête compte le nombre de phrases surlignées.
 
 **Modifier**

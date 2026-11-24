@@ -75,6 +75,11 @@ votre navigateur :
     nouvel onglet) pour rouvrir l'application dans un nouvel onglet — déjà connecté — et travailler
     sur deux choses côte à côte.
 
+    Chaque entrée de la barre latérale, chaque ligne de la liste d'un module, les fiches liées, les
+    résultats de recherche et les cartes Kanban ou du tableau de bord sont de vrais liens :
+    **Ctrl/⌘-clic**, le clic du milieu ou **Ouvrir le lien dans un nouvel onglet** du navigateur
+    ouvre cette page ou cette fiche dans un nouvel onglet ; un clic simple reste dans celui-ci.
+
 !!! tip "Sur un téléphone ou une fenêtre étroite"
     La barre latérale devient un tiroir derrière un bouton de menu **☰** dans le coin supérieur
     gauche, et la vue du module affiche soit la liste, soit l'enregistrement — jamais les deux.
@@ -89,7 +94,9 @@ votre navigateur :
     disposés deux par ligne, et le nombre entre parenthèses après chaque nom indique combien
     d'enregistrements contient le module. Les modules affichés, leur ordre et leur code court
     (affiché à droite du bouton, p. ex. `T`) se règlent dans
-    [Settings → Modules](settings.md#modules).
+    [Settings → Modules](settings.md#modules). **Payments** (la page Expenses, les dépenses ; code
+    `Q`, avec son nombre de dépenses) suit les modules lorsque cette page est activée. **Quran** (Coran, code `A`),
+    une fois activé, vient en premier — voir [Coran](reading-review.md#quran).
 
 === "Pages d'outils"
 
@@ -100,8 +107,8 @@ votre navigateur :
     | Groupe | Pages |
     |---|---|
     | **Views** (Vues) | Today, Calendar, Kanban, Dashboards, Insights, Sprints, Reports |
-    | **Library** (Bibliothèque) | All bookmarks, Flash cards, Highlights, Local notes, Checklists (week) |
-    | **Import & export** (Import et export) | Batch entry, Import files, Import notes, Image renamer, Static website |
+    | **Library** (Bibliothèque) | All bookmarks, Flash cards, Highlights, Local notes, Videos, Excerpt library, Checklists, Checklists (week) |
+    | **Import & export** (Import et export) | Batch entry, Import files, Import notes, YouTube download, File processor, Image renamer, Static website |
     | **Admin** (Administration) | Parameters, Admin, Maintenance, Audit log, Trash, Settings, Users, Roles & permissions |
     | **Help & shortcuts** (Aide et raccourcis) | Ouvre directement la page d'aide |
 

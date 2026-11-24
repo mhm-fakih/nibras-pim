@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { placePath } from '../util/storagePlace';
 import { useNavigate } from 'react-router-dom';
+import { linkProps } from '../util/links';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Autocomplete,
@@ -63,13 +64,19 @@ import { HistoryPanel } from './HistoryPanel';
 import { RepoFilesPanel } from './RepoFilesPanel';
 import { CatalogFilesPanel } from './CatalogFilesPanel';
 import { RelatedRecordsPanel } from './RelatedRecordsPanel';
+import { RecordLinksPanel } from './RecordLinksPanel';
 import { MarkdownView } from './MarkdownView';
+import { HighlightableText, HighlightBar } from './HighlightableText';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { useRecordHighlight } from '../hooks/useRecordHighlight';
 import { toggleChecklistItem } from '../util/checklist';
 import { FulltextPanel } from './FulltextPanel';
 import { isRtlText } from '../util/rtl';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureFlags } from '../hooks/useFeature';
 import { useModules } from '../hooks/useModules';
+import { useReadingScale } from '../hooks/useReadingScale';
+import { TextSizeSlider } from './TextSizeSlider';
 import { AuthImage } from './AuthImage';
 import { TaskTimeTracker } from './TaskTimeTracker';
 import { AddNoteToResource } from './AddNoteToResource';
@@ -95,6 +102,12 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
     queryKey: ['record', config.key, id],
     queryFn: () => getEntity(config.key, id),
   });
+  const { fields: highlight, highlighting, setHighlighting, toggle: toggleHighlight } = useRecordHighlight(
+    config.key,
+    id,
+    record,
+  );
+  useDocumentTitle(record ? record.displayTitle || `${config.label} ${id}` : undefined);
 
   // Files on catalogued storage (external disks): the delete dialog warns about them. Same query
   // key as CatalogFilesPanel, so it costs no extra request.
@@ -125,6 +138,8 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
       qc.invalidateQueries({ queryKey: ['list', config.key] });
     },
   });
+
+  const [readingScale, setReadingScale] = useReadingScale();
 
   /**
    * Tick or untick a `- [ ]` item in one of the record's long-text fields.
@@ -301,7 +316,7 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
           <Chip
             size="small"
             label={`📖 ${record.book.name}`}
-            onClick={() => navigate(`/resources?select=${record.book!.id}`)}
+            {...linkProps(`/resources?select=${record.book.id}`, () => navigate(`/resources?select=${record.book!.id}`))}
             clickable
           />
         )}
@@ -355,17 +370,47 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
             places. Nothing is deleted by hiding it — see FieldDef.feature. */}
         {config.fields.filter((f) => featureOn(f.feature)).map((f) => (
           <Box key={f.name}>
-            <FieldView
-              label={f.label}
-              type={f.type}
-              value={record[f.name]}
-              record={record}
-              onToggleChecklistItem={
-                canWriteContent && (f.type === 'markdown' || f.type === 'richtext')
-                  ? (index) => toggleChecklist.mutate({ field: f.name, index })
-                  : undefined
-              }
-            />
+            {/* The Highlight switch and the size slider sit right on top of the text they act on. */}
+            {String(record[f.name] ?? '').trim() !== '' &&
+              ((highlight && f.name === highlight.source && canWriteContent) || isReadingField(config.key, f.name)) && (
+                <Stack direction="row" alignItems="center" flexWrap="wrap" useFlexGap columnGap={3} sx={{ mb: 1 }}>
+                  {highlight && f.name === highlight.source && canWriteContent && (
+                    <HighlightBar
+                      highlighting={highlighting}
+                      onChange={setHighlighting}
+                      pending={toggleHighlight.isPending}
+                      targetLabel={config.fields.find((t) => t.name === highlight.target)?.label}
+                    />
+                  )}
+                  {isReadingField(config.key, f.name) && (
+                    <TextSizeSlider value={readingScale} onChange={setReadingScale} />
+                  )}
+                </Stack>
+              )}
+            {highlighting && highlight && f.name === highlight.source ? (
+              <>
+                <FieldLabel>{f.label}</FieldLabel>
+                <HighlightableText
+                  source={String(record[f.name] ?? '')}
+                  disabled={toggleHighlight.isPending}
+                  onToggle={(start, end) => toggleHighlight.mutate({ start, end })}
+                  reading={isReadingField(config.key, f.name) ? readingScale : undefined}
+                />
+              </>
+            ) : (
+              <FieldView
+                label={f.label}
+                type={f.type}
+                value={record[f.name]}
+                record={record}
+                onToggleChecklistItem={
+                  canWriteContent && (f.type === 'markdown' || f.type === 'richtext')
+                    ? (index) => toggleChecklist.mutate({ field: f.name, index })
+                    : undefined
+                }
+                reading={isReadingField(config.key, f.name) ? readingScale : undefined}
+              />
+            )}
             {/* An empty field shows no FieldView, and with it no label: the append box stood under
                 the previous field as though it belonged to it. */}
             {(f.name === 'description' || f.name === 'notes') && canWriteContent &&
@@ -389,6 +434,8 @@ export function DetailPane({ config, id, onEdit, onDeleted }: Props) {
       {config.key === 'goals' && <GoalHabits goalId={id} goalTitle={record.displayTitle} />}
 
       {config.key === 'goals' && canWriteContent && <GoalQuickAddTask goalId={id} />}
+
+      <RecordLinksPanel module={config.key} id={id} />
 
       <RelatedRecordsPanel module={config.key} id={id} />
 
@@ -943,12 +990,18 @@ export function FieldLabel({ children }: { children: ReactNode }) {
   );
 }
 
+/** Fields read as long-form text — justified, in a slightly larger font: a resource's full text. */
+export function isReadingField(module: string, field: string): boolean {
+  return module === 'resources' && field === 'fullText';
+}
+
 export function FieldView({
   label,
   type,
   value,
   record,
   onToggleChecklistItem,
+  reading,
 }: {
   label: string;
   type: string;
@@ -956,6 +1009,8 @@ export function FieldView({
   record: EntityRecord;
   /** Ticking a `- [ ]` item in this field. Omitted where the record can't be written. */
   onToggleChecklistItem?: (index: number) => void;
+  /** Long-form text read as such (a resource's full text): justified, the font scaled by this. */
+  reading?: number;
 }) {
   if (type === 'storagePlace') {
     const path = placePath(record);
@@ -978,7 +1033,7 @@ export function FieldView({
   if (type === 'richtext' || type === 'markdown') {
     body = (
       <Box dir={rtl ? 'rtl' : 'ltr'} sx={{ textAlign: rtl ? 'right' : 'left' }}>
-        <MarkdownView value={String(value)} onToggleItem={onToggleChecklistItem} />
+        <MarkdownView value={String(value)} onToggleItem={onToggleChecklistItem} reading={reading} />
       </Box>
     );
   } else if (type === 'url') {
@@ -991,6 +1046,8 @@ export function FieldView({
     body = <Typography>{value ? 'Yes' : 'No'}</Typography>;
   } else if (type === 'datetime') {
     body = <Typography>{new Date(String(value)).toLocaleString()}</Typography>;
+  } else if (type === 'date') {
+    body = <Typography>{new Date(String(value)).toLocaleDateString()}</Typography>;
   } else {
     body = (
       <Typography

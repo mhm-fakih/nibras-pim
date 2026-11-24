@@ -39,6 +39,12 @@ public class ExpenseService {
     private final JdbcTemplate jdbc;
     private final SettingService settings;
 
+    /** How many expenses there are (not deleted), for the side menu's module count. */
+    public long count() {
+        Long n = jdbc.queryForObject("select count(*) from payment where deleted_on is null", Long.class);
+        return n == null ? 0 : n;
+    }
+
     public ExpenseService(JdbcTemplate jdbc, SettingService settings) {
         this.jdbc = jdbc;
         this.settings = settings;

@@ -40,8 +40,9 @@
     <string name="settings_checklist_sound_ringtone">Ringtone…</string>
     <string name="settings_checklist_sound_file">A file…</string>
     <string name="settings_checklist_sound_test">Test</string>
-    <string name="settings_checklists_folder_hint">One .md file per week. Blank = %1$s</string>
+    <string name="settings_checklists_folder_hint">Where the old week files (.md) are read from, once. Blank = %1$s</string>
     <string name="checklists_edit_text">Edit as text</string>
+    <string name="checklists_note">Note</string>
     <string name="checklists_save">Save</string>
     <string name="checklists_edit_text_help">One item per line, under a “## Group” heading; add “[weekly]” after a group’s name for once-a-week items. Paste, reorder or delete freely — an item keeps its ticks as long as its text is unchanged.</string>
 </resources>

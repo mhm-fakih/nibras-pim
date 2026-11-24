@@ -11,4 +11,9 @@
     <string name="qt_settings_default_sound">Son d’alarme par défaut</string>
     <string name="qt_settings_volume">Volume %1$d%%</string>
     <string name="qt_settings_repeat">Joué %1$d×</string>
+    <string name="qt_settings_gain_off">Gain plein</string>
+    <string name="qt_settings_gain">%1$d dB moins fort</string>
+    <string name="qt_settings_rise_off">Reste à ce niveau, sans montée</string>
+    <string name="qt_settings_rise">Monte jusqu\'à son volume en %1$d s</string>
+    <string name="qt_settings_gain_note">Pour tester l\'adhan : les mêmes −n dB et la même montée que l\'adhan, en quelques minutes au lieu d\'attendre une prière. Si −30 dB est faible ici mais pas la montée de l\'adhan, c\'est la montée qui échoue sur ce téléphone.</string>
 </resources>

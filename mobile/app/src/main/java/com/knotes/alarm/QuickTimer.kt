@@ -37,7 +37,21 @@ object QuickTimer {
                 soundUri = settings.quickTimerSoundUri,
                 repeatCount = settings.quickTimerRepeat.coerceIn(1, 20),
                 volumePercent = settings.quickTimerVolume.coerceIn(0, 100),
+                gainDb = settings.quickTimerGainDb.coerceIn(SoundGain.MIN_DB, 0),
+                riseSeconds = settings.quickTimerRiseSeconds.coerceIn(0, 60),
             ),
+        )
+    }
+
+    /** [alarm] with the sound, volume, repeat, dB and rise Settings hold right now. */
+    fun withCurrentSound(context: Context, alarm: Alarm): Alarm {
+        val s = runCatching { com.knotes.SettingsStore(context).value }.getOrNull() ?: return alarm
+        return alarm.copy(
+            soundUri = s.quickTimerSoundUri,
+            repeatCount = s.quickTimerRepeat.coerceIn(1, 20),
+            volumePercent = s.quickTimerVolume.coerceIn(0, 100),
+            gainDb = s.quickTimerGainDb.coerceIn(SoundGain.MIN_DB, 0),
+            riseSeconds = s.quickTimerRiseSeconds.coerceIn(0, 60),
         )
     }
 

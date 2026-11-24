@@ -222,4 +222,15 @@
     <string name="prayer_elapsed_for">مؤقّت «منذ»: %1$d دقيقة</string>
     <string name="prayer_elapsed_off">مؤقّت «منذ»: متوقف</string>
     <string name="prayer_elapsed_note">حين يحين الوقت، تعدّ الصفحة والشريط تصاعديًا منه — «منذ 4:12» — طوال هذه المدة، بدل القفز إلى الوقت التالي البعيد بساعات.</string>
+    <string name="prayer_alarm_window_overlay">لا تظهر المنبهات كنافذة فوق التطبيقات الأخرى إلا بعد السماح بـ«الظهور فوق التطبيقات».</string>
+    <string name="prayer_alarm_window_fullscreen">اسمح بالمنبهات بملء الشاشة لتظهر فوق شاشة القفل.</string>
+    <string name="prayer_alarm_window_allow">سماح</string>
+    <string name="prayer_athan_rise">التصاعد التدريجي: %1$d ث</string>
+    <string name="prayer_athan_rise_off">بلا تصاعد تدريجي</string>
+    <string name="prayer_athan_rise_from">يبدأ التصاعد أخفض بـ %1$d ديسيبل</string>
+    <string name="prayer_athan_rise_note">الثواني الأولى فقط: يبدأ الأذان أخفض بهذا المقدار ويبلغ مستواه عند انتهاء التصاعد. ولا يخفض بقية الأذان.</string>
+    <string name="prayer_athan_gain_off">الأذان كله: بلا تخفيض</string>
+    <string name="prayer_athan_gain">الأذان كله: أخفض بـ %1$d ديسيبل</string>
+    <string name="prayer_athan_gain_note">يخفض الأذان كله من أوله إلى آخره، فوق مستوى كل صلاة — حين يكون حتى أدنى مستوى مرتفعًا. 10 ديسيبل تبدو نحو نصف الارتفاع، و30 ديسيبل خافتة جدًا.</string>
+    <string name="prayer_panel_shamsi">الشمسي</string>
 </resources>

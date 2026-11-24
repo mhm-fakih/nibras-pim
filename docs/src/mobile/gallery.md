@@ -34,5 +34,4 @@ Crop is always applied last, whatever order you drew in, so your marks land wher
 
 ## Deleting a picture
 
-!!! warning
-    The red **Delete photo** button in the corner deletes the current picture **immediately, without asking**. This makes it quick to clear out a folder of screenshots, so take care.
+The red **Delete photo** button in the corner deletes the current picture **at once, without asking**, which makes it quick to clear out a folder of screenshots. A bar at the bottom of the screen says **Deleted …** with an **Undo** button for 4 seconds; after that the file is gone for good. This applies to a note's pictures too.

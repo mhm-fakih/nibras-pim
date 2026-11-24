@@ -8,10 +8,12 @@ export interface CalendarPrefs {
   startHour: number; // 0–23
   endHour: number; // 1–24
   view: CalendarView;
+  /** Show each day's Shamsi and Hijri dates and Iran's official occasions in the day headers. */
+  threeCalendars: boolean;
 }
 
 const KEY = 'nibras.calendarPrefs';
-const DEFAULTS: CalendarPrefs = { slotMinutes: 30, startHour: 7, endHour: 21, view: 'week' };
+const DEFAULTS: CalendarPrefs = { slotMinutes: 30, startHour: 7, endHour: 21, view: 'week', threeCalendars: true };
 
 function load(): CalendarPrefs {
   try {

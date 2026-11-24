@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Excerpt library page: the web's random book samples, summarized from the phone. -->
+<resources>
+    <string name="excerpts_title">مكتبة المقتطفات</string>
+    <string name="excerpts_counts">%1$d عيّنة من %2$d من أصل %3$d كتابًا · %4$d للتلخيص · %5$d مُرقّاة</string>
+    <string name="excerpts_make_more">اصنع المزيد</string>
+    <string name="excerpts_making">جارٍ الصنع…</string>
+    <string name="excerpts_job_running">صُنع %1$d من %2$d · جُرّب %3$d كتابًا</string>
+    <string name="excerpts_job_done">الدفعة الأخيرة: صُنع %1$d من %2$d، و%3$d كتابًا بلا ملف مقروء</string>
+    <string name="excerpts_status_new">للتلخيص</string>
+    <string name="excerpts_status_summarized">ملخّصة</string>
+    <string name="excerpts_status_promoted">مُرقّاة</string>
+    <string name="excerpts_status_skipped">مُستبعدة</string>
+    <string name="excerpts_status_all">الكل</string>
+    <string name="excerpts_search">ابحث في العنوان والمؤلف والملخص والنص</string>
+    <string name="excerpts_error">تعذّر الوصول إلى الخادم: %1$s</string>
+    <string name="excerpts_retry">أعد المحاولة</string>
+    <string name="excerpts_none_new">لا شيء للتلخيص. اصنع عيّنات أخرى في الأعلى.</string>
+    <string name="excerpts_none">لا شيء هنا.</string>
+    <string name="excerpts_image_only">صور فقط</string>
+    <string name="excerpts_back">العودة إلى القائمة</string>
+    <string name="excerpts_open_book">افتح الكتاب</string>
+    <string name="excerpts_another">موضع آخر</string>
+    <string name="excerpts_restore">أعِدها</string>
+    <string name="excerpts_skip">استبعد</string>
+    <string name="excerpts_promote">رقِّها إلى مقتطف</string>
+    <string name="excerpts_promoted_as">المقتطف رقم %1$d</string>
+    <string name="excerpts_promote_hint">احفظ ملخّصًا من سطر واحد أولًا لترقيتها.</string>
+    <string name="excerpts_summary">ملخّص في سطر</string>
+    <string name="excerpts_details">تفاصيل (اختياري)</string>
+    <string name="excerpts_save">احفظ</string>
+    <string name="excerpts_save_next">احفظ والتالي</string>
+    <string name="excerpts_next">التالي</string>
+    <string name="excerpts_text">النص</string>
+    <string name="excerpts_pages">الصفحات (%1$d)</string>
+    <string name="excerpts_nothing">لا نص ولا صفحات لهذه العيّنة.</string>
+    <string name="excerpts_rail">مكتبة المقتطفات</string>
+    <string name="excerpts_read_full">اقرأ بملء الشاشة</string>
+    <string name="excerpts_open_with">افتح بـ…</string>
+    <string name="excerpts_pages_tap">المس صفحة لقراءتها بملء الشاشة.</string>
+</resources>

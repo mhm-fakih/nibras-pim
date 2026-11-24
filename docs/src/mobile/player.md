@@ -105,6 +105,18 @@ A bookmark marks a moment. A **star** marks the whole file, so you can find it a
 
 Starred files are listed on the **Starred** tab, newest star first. Tap one to play it, or tap its star to remove it. A starred file that has been moved away is hidden until it's back, and deleting a file from the player drops its star.
 
+## Playlists
+
+Besides the AI narrations, you can keep as many playlists of your own as you like, for example **Night** or **Lectures**.
+
+- **Add a file:** tap the playlist button (☰+) on any file card, or in the top bar for the file that's playing. A menu lists your playlists, ticked where the file already is; tap one to add or remove the file, or **New playlist** to start one with it.
+- **See and manage them:** on the **Player** tab, open **Playlist** under the controls. A chip per playlist sits next to **AI narrations**, plus **New playlist**. The chosen playlist lists its files in order, with buttons to move each up or down or take it off, and **Add this file** for what's playing. The pencil renames the playlist; the bin deletes the list (never its files).
+- **Play one:** tap **Use it** (or any file on the list). **Play next** is then set to that playlist, and the player walks it in order from the file playing. Files stay on a playlist after they play, so it can be played again. At the end the player stops on the last file.
+
+## File cards
+
+Every list of files in the player (**Starred**, **In this folder**, **Recently played**, the playlists and the AI narrations) shows the same card: the title, then the folder it's in, its length and its number of bookmarks.
+
 ## The tabs
 
 Each tab is an icon, most with a count. The app remembers which tab you had open.
@@ -152,6 +164,8 @@ With **Night sleep timer** on, anything you start playing between **From** and *
 | **Random old** | A file from anywhere in your library folders that you have never bookmarked and haven't touched in 90 days. If nothing is that old yet, the oldest ones are used. |
 | **Random here** | The same kind of pick, but only from the folder around what's playing, including its subfolders. Inside a note's attachment folder, it searches the folder that holds all the notes, so it works through every note's attachments. |
 | **Newest here** | The same folder as **Random here**, but the newest unbookmarked files instead of the oldest, for catching up on what just arrived. |
+| **AI narrations** | The narrations ticked on the **Playlist** tab, top to bottom; each comes off the list as it starts. |
+| **Playlist** | The [playlist](#playlists) chosen with **Use it**, in order from the file playing. |
 
 If there's nothing left to pick, the player says so, for example **Nothing left here — every file in this folder is bookmarked or already played.**
 
