@@ -46,6 +46,8 @@ class PrayerReceiver : BroadcastReceiver() {
     }
 
     private fun fire(context: Context, intent: Intent) {
+        // The moment the alarm actually reached us — the log compares it with when it was due.
+        val received = System.currentTimeMillis()
         val kind = intent.getStringExtra(PrayerScheduler.EXTRA_KIND)
             ?.let { name -> PrayerEventKind.entries.firstOrNull { it.name == name } }
         val prayer = Prayer.of(intent.getStringExtra(PrayerScheduler.EXTRA_PRAYER))
@@ -63,7 +65,9 @@ class PrayerReceiver : BroadcastReceiver() {
             val due = PrayerEvents.at(settings, ZoneId.systemDefault(), at)
                 .ifEmpty { listOf(PrayerEvent(kind, prayer, at)) }
             // One failing must not cost the others — least of all the silence after an athan.
-            due.forEach { event -> runCatching { act(context, settings, event) } }
+            // A recital last: a reminder due at the same moment would otherwise cut it off with its ding.
+            due.sortedBy { if (it.kind == PrayerEventKind.RECITAL) 1 else 0 }
+                .forEach { event -> runCatching { act(context, settings, event, received) } }
         } finally {
             if (kind != PrayerEventKind.COUNTDOWN) PrayerScheduler.markHandled(context, at)
             PrayerScheduler.sync(context)
@@ -73,13 +77,17 @@ class PrayerReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun act(context: Context, settings: PrayerSettings, event: PrayerEvent) {
+    private fun act(context: Context, settings: PrayerSettings, event: PrayerEvent, received: Long) {
         val at = event.atMillis
         when (event.kind) {
             PrayerEventKind.REMINDER -> reminder(context, event.prayer, at, settings.reminderLeadMin)
             PrayerEventKind.SUNRISE_REMINDER ->
                 reminder(context, event.prayer, at, settings.sunriseReminderLeadMin)
-            PrayerEventKind.ATHAN -> athan(context, settings, event.prayer, at)
+            PrayerEventKind.ATHAN -> {
+                val played = athan(context, settings, event.prayer, at)
+                log(context, event, received, played, null)
+            }
+            PrayerEventKind.RECITAL -> recital(context, settings, event, received)
             PrayerEventKind.SILENCE_START -> {
                 val until = at + settings.silenceMinutes
                     .coerceIn(PrayerSettings.MIN_SILENCE, PrayerSettings.MAX_SILENCE) * 60_000L
@@ -107,10 +115,51 @@ class PrayerReceiver : BroadcastReceiver() {
         runCatching { NotificationManagerCompat.from(context).notify(NOTIF_REMINDER, builder.rtlIfArabic(context).build()) }
         // Notification usage, so it follows the notification-volume slider like the quarter-hour
         // chime rather than arriving at alarm volume.
-        playOnce(context, "", AudioAttributes.USAGE_NOTIFICATION, RingtoneManager.TYPE_NOTIFICATION)
+        // Not over a recital: the ding would stop it (one player plays everything here).
+        if (!recitalPlaying) playOnce(context, "", AudioAttributes.USAGE_NOTIFICATION, RingtoneManager.TYPE_NOTIFICATION)
     }
 
-    private fun athan(context: Context, settings: PrayerSettings, prayer: Prayer, at: Long) {
+    private fun log(context: Context, event: PrayerEvent, received: Long, played: Boolean, note: String?) {
+        runCatching {
+            PrayerLog.add(context, PrayerFiring(event.kind, event.prayer, event.atMillis, received,
+                if (played) System.currentTimeMillis() else null, note))
+        }.onFailure { Log.w(TAG, "athan log not written", it) }
+    }
+
+    /**
+     * The next recital from the chosen folder, on its way to the athan: the same stream, volume,
+     * "quieter by" and rise as that prayer's athan, and the athan, when it comes, cuts it off.
+     */
+    private fun recital(context: Context, settings: PrayerSettings, event: PrayerEvent, received: Long) {
+        val file = nextRecital(context, settings.recitalFolderUri, advance = true)
+        if (file == null) {
+            log(context, event, received, false, context.getString(R.string.prayer_recital_none))
+            return
+        }
+        ensureChannels(context)
+        val stop = PendingIntent.getBroadcast(
+            context, 1, Intent(context, PrayerReceiver::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val athanAt = event.atMillis + settings.recitalLeadMin * 60_000L
+        val builder = NotificationCompat.Builder(context, CHANNEL_ATHAN)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle(com.knotes.util.Bidi.notif(context,
+                context.getString(R.string.prayer_recital_notif, context.getString(event.prayer.labelRes))))
+            .setContentText(com.knotes.util.Bidi.notif(context, "${file.second} · ${clock(athanAt)}"))
+            .setContentIntent(openPrayerPage(context))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .addAction(0, context.getString(R.string.prayer_stop), stop)
+        // The athan's own notification id, so the athan replaces this one when it comes.
+        runCatching { NotificationManagerCompat.from(context).notify(NOTIF_ATHAN, builder.rtlIfArabic(context).build()) }
+        val played = soundRecital(context, settings, event.prayer, file.first)
+        log(context, event, received, played, file.second)
+    }
+
+    private fun athan(context: Context, settings: PrayerSettings, prayer: Prayer, at: Long): Boolean {
         ensureChannels(context)
         val stop = PendingIntent.getBroadcast(
             context, 1, Intent(context, PrayerReceiver::class.java).setAction(ACTION_STOP),
@@ -128,6 +177,7 @@ class PrayerReceiver : BroadcastReceiver() {
             .addAction(0, context.getString(R.string.prayer_stop), stop)
         runCatching { NotificationManagerCompat.from(context).notify(NOTIF_ATHAN, builder.rtlIfArabic(context).build()) }
         soundAthan(context, settings, prayer, startNow = true)
+        return player != null
     }
 
     /**
@@ -230,6 +280,73 @@ class PrayerReceiver : BroadcastReceiver() {
                 gainDb = if (setDeviceLevel) settings.athanGainDb else 0,
             )
         }
+
+        /**
+         * A recital file, played as the athan of [prayer] would be — the same alarm stream, volume,
+         * "quieter by" and rise. Returns whether it started.
+         */
+        fun soundRecital(context: Context, settings: PrayerSettings, prayer: Prayer, uri: Uri): Boolean {
+            playOnce(
+                context, uri.toString(), AudioAttributes.USAGE_ALARM, RingtoneManager.TYPE_ALARM,
+                volumePercent = settings.athanVolumeOf(prayer), startNow = true, alarmLevel = true,
+                riseSeconds = settings.athanRiseSeconds, riseFromDb = settings.athanRiseFromDb,
+                gainDb = settings.athanGainDb,
+            )
+            val started = player != null
+            recitalPlaying = started
+            return started
+        }
+
+        /** The audio files in the recital folder, by name. Empty when it cannot be read. */
+        fun recitalFiles(context: Context, folderUri: String): List<Pair<Uri, String>> {
+            if (folderUri.isBlank()) return emptyList()
+            return runCatching {
+                val tree = Uri.parse(folderUri)
+                val docId = android.provider.DocumentsContract.getTreeDocumentId(tree)
+                val children = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(tree, docId)
+                val cols = arrayOf(
+                    android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE,
+                )
+                val out = mutableListOf<Pair<Uri, String>>()
+                context.contentResolver.query(children, cols, null, null, null)?.use { c ->
+                    while (c.moveToNext()) {
+                        val id = c.getString(0) ?: continue
+                        val name = c.getString(1) ?: continue
+                        val mime = c.getString(2) ?: ""
+                        val audio = mime.startsWith("audio/") ||
+                            name.substringAfterLast('.', "").lowercase() in AUDIO_EXT
+                        if (audio) out += android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, id) to name
+                    }
+                }
+                out.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.second })
+            }.onFailure { Log.w(TAG, "recital folder not readable", it) }.getOrDefault(emptyList())
+        }
+
+        /**
+         * The recital to play next — the folder in name order, carrying on from the last one played
+         * and starting over after the last file. [advance] moves the place on (the alarm does; the
+         * "hear one" button does not).
+         */
+        fun nextRecital(context: Context, folderUri: String, advance: Boolean): Pair<Uri, String>? {
+            val files = recitalFiles(context, folderUri)
+            if (files.isEmpty()) return null
+            val prefs = context.getSharedPreferences(RECITAL_PREFS, Context.MODE_PRIVATE)
+            val last = prefs.getString(K_RECITAL_LAST, null)
+            val i = files.indexOfFirst { it.second == last }
+            val next = files[(i + 1).mod(files.size)]
+            if (advance) prefs.edit().putString(K_RECITAL_LAST, next.second).commit()
+            return next
+        }
+
+        private val AUDIO_EXT = setOf("mp3", "m4a", "aac", "ogg", "opus", "oga", "wav", "flac", "amr", "3gp", "mka", "webm")
+        private const val RECITAL_PREFS = "knotes_prayer_recital"
+        private const val K_RECITAL_LAST = "last_played"
+
+        /** True while a recital is the sound playing — a reminder then stays quiet rather than stop it. */
+        @Volatile
+        private var recitalPlaying = false
 
         /**
          * Put the alarm volume back if an athan changed it and nothing is sounding now — for when
@@ -421,6 +538,7 @@ class PrayerReceiver : BroadcastReceiver() {
             runCatching { player?.stop() }
             runCatching { player?.release() }
             player = null
+            recitalPlaying = false
             shaper = null
             releaseVolumeKeys()
             // An athan that set the alarm volume puts it back the moment it stops — ended, Stop,

@@ -40,6 +40,8 @@ import {
 import { lookupStyle } from '../components/statusStyle';
 import { SideNav } from '../components/SideNav';
 import { EventDialog } from '../components/EventDialog';
+import { DayFeed } from '../components/DayFeed';
+import { useModules } from '../hooks/useModules';
 import { useAuth } from '../hooks/useAuth';
 import { useCalendarPrefs } from '../hooks/useCalendarPrefs';
 import { useHour12 } from '../hooks/useHour12';
@@ -133,6 +135,9 @@ export function CalendarPage() {
   const { canWriteContent } = useAuth();
   const navigate = useNavigate();
   const { prefs, update } = useCalendarPrefs();
+  const { enabled: enabledModules } = useModules();
+  const enabledKeys = useMemo(() => (enabledModules.length ? new Set(enabledModules.map((m) => m.moduleKey)) : null), [enabledModules]);
+  const isFeed = prefs.view === 'feed';
   const [anchor, setAnchor] = useState<Date>(new Date());
   const [slot, setSlot] = useState<{ start: Date; end: Date } | null>(null);
   // Ticks the "now" line (and the today header highlight) forward without a page reload.
@@ -148,7 +153,7 @@ export function CalendarPage() {
   const resizeRef = useRef<ResizeState | null>(null);
 
   const days = useMemo<Date[]>(() => {
-    if (prefs.view === 'day') return [anchor];
+    if (prefs.view !== 'week') return [anchor];
     const monday = startOfWeek(anchor, { weekStartsOn: 1 });
     return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   }, [anchor, prefs.view]);
@@ -173,7 +178,7 @@ export function CalendarPage() {
   const colHeight = rows * SLOT_PX;
 
   const navStep = (dir: 1 | -1) =>
-    setAnchor((a) => (prefs.view === 'day' ? addDays(a, dir) : addWeeks(a, dir)));
+    setAnchor((a) => (prefs.view !== 'week' ? addDays(a, dir) : addWeeks(a, dir)));
 
   // Open the event dialog for rows [loRow, hiRowExclusive) of a day — a single slot is one row.
   const openRange = useCallback(
@@ -303,7 +308,7 @@ export function CalendarPage() {
             <ChevronRight />
           </IconButton>
           <Typography variant="h6" sx={{ fontWeight: 700, minWidth: 220 }}>
-            {format(rangeFrom, 'MMM d')} – {format(rangeTo, 'MMM d, yyyy')}
+            {prefs.view === 'week' ? `${format(rangeFrom, 'MMM d')} – ${format(rangeTo, 'MMM d, yyyy')}` : format(rangeFrom, 'EEE, MMM d, yyyy')}
             <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
               · ISO week {getISOWeek(rangeFrom)}
             </Typography>
@@ -319,8 +324,12 @@ export function CalendarPage() {
           >
             <ToggleButton value="week">Week</ToggleButton>
             <ToggleButton value="day">Day</ToggleButton>
+            <Tooltip title="Everything added on the day, in the order it was added">
+              <ToggleButton value="feed">Feed</ToggleButton>
+            </Tooltip>
           </ToggleButtonGroup>
 
+          {!isFeed && (<>
           <TextField
             select
             size="small"
@@ -361,6 +370,7 @@ export function CalendarPage() {
               </MenuItem>
             ))}
           </TextField>
+          </>)}
           <Tooltip title="Each day's Shamsi and Hijri dates, and Iran's official occasions (Persian and Arabic)">
             <FormControlLabel
               sx={{ ml: 0.5 }}
@@ -372,6 +382,18 @@ export function CalendarPage() {
 
         {/* Grid + overview */}
         <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          {isFeed ? (
+            <Box sx={{ flex: 1, overflow: 'auto' }}>
+              <DayFeed
+                day={anchor}
+                onDay={setAnchor}
+                hidden={prefs.feedHidden ?? []}
+                onHidden={(h) => update({ feedHidden: h })}
+                enabledModules={enabledKeys}
+                dates={prefs.threeCalendars && calByDate.get(ymd(anchor)) ? <DayDates day={calByDate.get(ymd(anchor))!} /> : undefined}
+              />
+            </Box>
+          ) : (
           <Box sx={{ flex: 1, overflow: 'auto' }}>
             {/* Day headers */}
             <Box sx={{ display: 'flex', position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 2 }}>
@@ -554,6 +576,7 @@ export function CalendarPage() {
               ))}
             </Box>
           </Box>
+          )}
 
           {/* Mini-calendar overview */}
           <Box sx={{ width: 300, flexShrink: 0, borderLeft: 1, borderColor: 'divider', p: 1 }}>

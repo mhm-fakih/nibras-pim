@@ -12,6 +12,9 @@ enum class PrayerEventKind {
     /** The athan itself, at the time. */
     ATHAN,
 
+    /** A Quran recital from the chosen folder, some minutes before the athan (which cuts it off). */
+    RECITAL,
+
     /** Drop the ringer to silent. */
     SILENCE_START,
 
@@ -77,6 +80,10 @@ object PrayerEvents {
 
             // Athan and silence each answer to their own selection rather than to visibility, so a
             // switch means exactly what it says and hiding a row never quietly kills its alarm.
+            if (prayer in settings.effectiveRecital) {
+                val lead = settings.recitalLeadMin.coerceIn(PrayerSettings.MIN_LEAD, PrayerSettings.MAX_LEAD)
+                events += PrayerEvent(PrayerEventKind.RECITAL, prayer, at - lead * 60_000L)
+            }
             if (prayer in settings.effectiveAthan) {
                 events += PrayerEvent(PrayerEventKind.ATHAN, prayer, at)
             }

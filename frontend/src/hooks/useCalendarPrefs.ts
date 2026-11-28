@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 
 export type SlotMinutes = 15 | 30 | 60;
-export type CalendarView = 'week' | 'day';
+export type CalendarView = 'week' | 'day' | 'feed';
 
 export interface CalendarPrefs {
   slotMinutes: SlotMinutes;
@@ -10,10 +10,12 @@ export interface CalendarPrefs {
   view: CalendarView;
   /** Show each day's Shamsi and Hijri dates and Iran's official occasions in the day headers. */
   threeCalendars: boolean;
+  /** Modules left out of the Feed view. */
+  feedHidden: string[];
 }
 
 const KEY = 'nibras.calendarPrefs';
-const DEFAULTS: CalendarPrefs = { slotMinutes: 30, startHour: 7, endHour: 21, view: 'week', threeCalendars: true };
+const DEFAULTS: CalendarPrefs = { slotMinutes: 30, startHour: 7, endHour: 21, view: 'week', threeCalendars: true, feedHidden: [] };
 
 function load(): CalendarPrefs {
   try {

@@ -447,6 +447,45 @@ public abstract class AbstractCrudService<E extends BaseEntity, D extends Versio
         return repo.findAll(bookmarked, pageable).getContent();
     }
 
+    /** One record in the Calendar's day feed: what it is, when it was added, a line of its text. */
+    public record FeedItem(String module, long id, String title, String snippet, String typeCode,
+                           LocalDateTime created, LocalDateTime updated) {
+    }
+
+    /**
+     * Records created in [from, to], oldest first, at most {@code max} — the Calendar's day feed.
+     * Read in one transaction so {@code feedTitle()} can touch lazy fields.
+     */
+    @Transactional(readOnly = true)
+    public List<FeedItem> createdBetween(LocalDateTime from, LocalDateTime to, int max) {
+        Specification<E> in = (root, q, cb) -> cb.between(root.get("dateCreated"), from, to);
+        return repo.findAll(in, PageRequest.of(0, max, Sort.by(Sort.Direction.ASC, "dateCreated", "id")))
+                .getContent().stream()
+                .map(e -> new FeedItem(name(), e.getId(), e.feedTitle(), snippet(e.feedDescription()),
+                        typeCodeOf(e), e.getDateCreated(), e.getLastUpdated()))
+                .toList();
+    }
+
+    /** When the nearest record created before (or after) {@code at} was created, if there is one. */
+    @Transactional(readOnly = true)
+    public java.util.Optional<LocalDateTime> createdNear(LocalDateTime at, boolean before) {
+        Specification<E> side = (root, q, cb) -> before
+                ? cb.lessThan(root.get("dateCreated"), at)
+                : cb.greaterThan(root.get("dateCreated"), at);
+        Sort sort = Sort.by(before ? Sort.Direction.DESC : Sort.Direction.ASC, "dateCreated");
+        return repo.findAll(side, PageRequest.of(0, 1, sort)).getContent().stream()
+                .findFirst().map(BaseEntity::getDateCreated);
+    }
+
+    /** A record's description as one plain line: tags and markup dropped, spaces collapsed, cut. */
+    private static String snippet(String text) {
+        if (text == null || text.isBlank()) return null;
+        String plain = text.replaceAll("<[^>]+>", " ").replaceAll("&nbsp;", " ")
+                .replaceAll("[#*_>`]+", " ").replaceAll("\\s+", " ").trim();
+        if (plain.isEmpty()) return null;
+        return plain.length() <= 220 ? plain : plain.substring(0, 220).trim() + "…";
+    }
+
     @Transactional(readOnly = true)
     public List<Object[]> creationCounts(LocalDateTime from, LocalDateTime to) {
         return repo.countByCreationDay(from, to);

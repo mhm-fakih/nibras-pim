@@ -64,6 +64,21 @@ Les horaires dépendent de l'endroit où vous êtes. Ouvrez **Méthode → Votre
 
 Lorsque l'adhan est joué, une notification apparaît avec un bouton **Arrêter**. Pendant la lecture, les touches de volume du téléphone montent ou baissent l'adhan (et les bips du Chourouq), même écran éteint, et une pression pause ou arrêt sur un casque l'arrête.
 
+### Coran avant l'adhan { #quran-before-the-athan }
+
+Une récitation tirée d'un dossier du téléphone, quelques minutes avant l'adhan des prières choisies
+(**Dhuhr et Maghrib** par défaut).
+
+- **Choisir le dossier** des récitations — des fichiers d'environ 10 minutes conviennent au départ par
+  défaut, **10 min avant**. Rien n'est récité tant qu'aucun dossier n'est choisi ; l'interrupteur
+  l'arrête sans oublier le dossier.
+- Un fichier à chaque fois, dans l'ordre des noms, en reprenant après le dernier joué, et en
+  recommençant après le dernier. La ligne sous le bouton indique le dossier, son nombre de fichiers et
+  le prochain ; **Écouter** le joue tout de suite.
+- Elle joue comme l'adhan de cette prière — même volume, même « plus bas de » et même montée, sur le
+  flux d'alarme — avec une notification munie de **Arrêter**. L'adhan l'interrompt en commençant ; un
+  rappel qui tombe pendant reste silencieux plutôt que de la couper.
+
 ### Rappels et compte à rebours { #reminders-and-countdown }
 
 - **Me rappeler avant chaque horaire** : une notification discrète peu avant chaque horaire que vous avez choisi d'afficher (**10 min avant** par défaut, réglable de 1 à 60 minutes). Activé par défaut.
@@ -93,6 +108,14 @@ Dans les deux cas, elle est ensuite remise exactement comme avant. Avec **Silenc
 
 !!! note "Accès « Ne pas déranger »"
     Android ne permet à une application de modifier la sonnerie que si vous lui accordez l'accès « Ne pas déranger ». S'il manque, le panneau l'indique. Touchez **Autoriser l’accès** et activez Nibras Mobile dans la liste.
+
+## Journal de l'adhan { #athan-log }
+
+En bas de la page, chaque adhan et récitation tel qu'il s'est réellement passé : le jour et la prière,
+l'heure **prévue**, l'heure de **déclenchement** et le **retard** entre les deux (en rouge dès une
+minute). Le retard vient du téléphone — l'économie d'énergie retient l'alarme — c'est donc ici qu'on
+voit si l'adhan est à l'heure. « sans son » signifie que l'alarme est arrivée sans rien pouvoir jouer
+(un fichier déplacé, par exemple). Les 100 derniers sont gardés ; **Vider le journal** l'efface.
 
 ## Hégire { #hijri }
 

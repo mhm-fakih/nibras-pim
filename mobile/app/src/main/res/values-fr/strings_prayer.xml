@@ -227,4 +227,26 @@
     <string name="prayer_athan_gain">Tout l\'adhan : %1$d dB moins fort</string>
     <string name="prayer_athan_gain_note">Baisse tout l\'adhan, du début à la fin, en plus du volume de chaque prière — quand même le volume le plus bas est trop fort. 10 dB sonne environ deux fois moins fort ; 30 dB est très doux.</string>
     <string name="prayer_panel_shamsi">Solaire (Shamsi)</string>
+
+    <string name="prayer_recital_none">Aucun fichier audio dans le dossier de récitations</string>
+    <string name="prayer_recital_notif">Coran avant l’adhan de %1$s</string>
+    <string name="prayer_recital_title">Coran avant l’adhan</string>
+    <string name="prayer_recital_note">Une récitation tirée d’un dossier du téléphone, avant l’adhan des prières ci-dessous.</string>
+    <string name="prayer_recital_before">Réciter avant</string>
+    <string name="prayer_recital_lead">Commencer %1$d min avant</string>
+    <string name="prayer_recital_folder">Choisir le dossier</string>
+    <string name="prayer_recital_no_folder">Aucun dossier choisi — rien n’est récité tant qu’il n’y en a pas.</string>
+    <string name="prayer_recital_empty">Aucun fichier audio dans « %1$s ».</string>
+    <string name="prayer_recital_files">« %1$s » : %2$d fichiers · suivant : %3$s</string>
+    <string name="prayer_recital_volume_note">Un fichier à chaque fois, dans l’ordre des noms, en reprenant après le dernier joué. Même volume, même « plus bas de » et même montée que l’adhan de cette prière ; l’adhan l’interrompt en commençant, donc des récitations d’environ 10 minutes conviennent au départ par défaut.</string>
+    <string name="prayer_log_title">Journal de l’adhan</string>
+    <string name="prayer_log_empty">Rien pour l’instant : chaque adhan et récitation s’inscrit ici quand il se déclenche.</string>
+    <string name="prayer_log_note">Quand chaque adhan s’est réellement déclenché, par rapport à l’heure prévue. Le retard vient du téléphone (économie d’énergie) ; une minute ou plus s’affiche en rouge.</string>
+    <string name="prayer_log_recital">Coran</string>
+    <string name="prayer_log_athan">adhan</string>
+    <string name="prayer_log_times">prévu %1$s · déclenché %2$s</string>
+    <string name="prayer_log_no_sound">sans son</string>
+    <string name="prayer_log_fewer">Moins</string>
+    <string name="prayer_log_all">Tout (%1$d)</string>
+    <string name="prayer_log_clear">Vider le journal</string>
 </resources>

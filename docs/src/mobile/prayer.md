@@ -64,6 +64,21 @@ The times depend on where you are. Open **Method → Where you are**:
 
 When the athan plays, a notification appears with a **Stop** button. The phone's volume keys turn the athan (and the Shurooq beeps) up or down while it plays, even with the screen off, and a pause or stop press on a headset stops it.
 
+### Quran before the athan
+
+A recital from a folder on the phone, some minutes before the athan of the prayers you choose
+(**Dhuhr and Maghrib** unless changed).
+
+- **Choose the folder** holding the recitals — files of about 10 minutes each suit the default
+  start of **10 min before**. Nothing is recited until a folder is chosen; the switch turns it off
+  without forgetting the folder.
+- One file each time, in name order, carrying on from the last one played and starting over after
+  the last. The line under the button shows the folder, how many files it has, and which plays next;
+  **Hear it** plays that one now.
+- It plays like that prayer's athan — the same volume, "quieter by" and rise, on the alarm stream —
+  with a notification that has **Stop**. The athan cuts it off when it begins; a reminder due during
+  it stays quiet rather than interrupt it.
+
 ### Reminders and countdown
 
 - **Remind me before each time**: a quiet notification shortly before every time you've chosen to show (**10 min before** by default, adjustable from 1 to 60 minutes). On by default.
@@ -93,6 +108,14 @@ Either way it is put back exactly as it was afterwards. With **Silence** or **Vi
 
 !!! note "Do Not Disturb access"
     Android only lets an app change the ringer if you grant it Do Not Disturb access. If it's missing, the panel says so. Tap **Grant access** and switch Nibras Mobile on in the list.
+
+## Athan log
+
+At the bottom of the page, every athan and recital as it actually happened: the day and prayer, when
+it was **due**, when it **fired**, and the **delay** between them (in red from a minute). The delay
+is the phone's own — power saving holding the alarm back — so this is where to see whether the
+athan is on time. "no sound" means the alarm came but nothing could be played (a file moved, say).
+The last 100 are kept; **Clear the log** empties it.
 
 ## Hijri
 

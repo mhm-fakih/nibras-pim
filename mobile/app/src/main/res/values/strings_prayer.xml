@@ -225,4 +225,26 @@
     <string name="prayer_athan_gain">Whole athan: %1$d dB quieter</string>
     <string name="prayer_athan_gain_note">Turns the whole athan down, start to end, on top of each prayer\'s volume — for when even the lowest volume is too loud. 10 dB sounds about half as loud; 30 dB is very quiet.</string>
     <string name="prayer_panel_shamsi">Shamsi</string>
+
+    <string name="prayer_recital_none">No audio file in the recital folder</string>
+    <string name="prayer_recital_notif">Quran before the %1$s athan</string>
+    <string name="prayer_recital_title">Quran before the athan</string>
+    <string name="prayer_recital_note">A recital from a folder on the phone, before the athan of the prayers below.</string>
+    <string name="prayer_recital_before">Recite before</string>
+    <string name="prayer_recital_lead">Start %1$d min before</string>
+    <string name="prayer_recital_folder">Choose the folder</string>
+    <string name="prayer_recital_no_folder">No folder chosen yet — nothing is recited until one is.</string>
+    <string name="prayer_recital_empty">No audio files in “%1$s”.</string>
+    <string name="prayer_recital_files">“%1$s”: %2$d files · next: %3$s</string>
+    <string name="prayer_recital_volume_note">One file each time, in name order, carrying on from the last one played. Same volume, “quieter by” and rise as that prayer’s athan; the athan cuts it off when it begins, so recitals of about 10 minutes fit the default start.</string>
+    <string name="prayer_log_title">Athan log</string>
+    <string name="prayer_log_empty">Nothing yet: each athan and recital is listed here when it fires.</string>
+    <string name="prayer_log_note">When each athan actually fired, against when it was due. The delay is the phone’s own (power saving); a minute or more shows in red.</string>
+    <string name="prayer_log_recital">Quran</string>
+    <string name="prayer_log_athan">athan</string>
+    <string name="prayer_log_times">due %1$s · fired %2$s</string>
+    <string name="prayer_log_no_sound">no sound</string>
+    <string name="prayer_log_fewer">Fewer</string>
+    <string name="prayer_log_all">All %1$d</string>
+    <string name="prayer_log_clear">Clear the log</string>
 </resources>

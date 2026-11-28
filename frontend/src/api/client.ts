@@ -3248,6 +3248,30 @@ export interface CalDay {
   occasions: CalOccasion[];
 }
 
+export interface FeedItem {
+  module: string;
+  id: number;
+  title: string | null;
+  snippet: string | null;
+  typeCode: string | null;
+  created: string;
+  updated: string | null;
+}
+
+export interface DayFeed {
+  date: string;
+  items: FeedItem[];
+  truncated: boolean;
+  previous: string | null;
+  next: string | null;
+}
+
+/** Everything added on `date` (yyyy-MM-dd), oldest first — the Calendar's Feed view. */
+export async function getDayFeed(date: string): Promise<DayFeed> {
+  const { data } = await http.get('/calendar/feed', { params: { date } });
+  return data;
+}
+
 export async function getCalendarDays(from: string, to: string): Promise<{ coveredUntil: string | null; hijriOffset: number; days: CalDay[] }> {
   const { data } = await http.get('/calendar-days', { params: { from, to } });
   return data;

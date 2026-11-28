@@ -71,6 +71,22 @@ Entries created here are bookmarked automatically.
 
 Read-only users can look but not add, resize or remove.
 
+## The day feed
+
+**Feed** (beside Week and Day) lists everything added on a day, across all modules, in the order it
+was added: under each hour, the records with their time, their module's icon, title and first line,
+so a day reads like "at 9 PM three resources, then a note".
+
+- Records of one module added one after another are grouped ("3 resources"); a long run (an import,
+  say) shows its first six and **Show all**.
+- The chips at the top count the day's records by module; click one to hide or show that module.
+  The choice is remembered.
+- The arrows beside the date jump to the **nearest day before or after that has records**, skipping
+  the empty days; the mini calendar on the right picks any day.
+- A title opens the record in its module; the small arrow beside it opens it to read in a new tab.
+  "edited" means the record was changed after it was added (hover for when).
+- Records count by when they were **added**, not by their start or due date.
+
 ## Repeating plans
 
 A planner entry whose **Repeats** switch is on is a *series*: the calendar draws every occurrence at

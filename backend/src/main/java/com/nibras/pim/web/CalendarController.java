@@ -112,6 +112,42 @@ public class CalendarController {
         return ref.seriesId();
     }
 
+    /** A day's feed: every record created that day, oldest first, and the nearest days with any. */
+    public record DayFeed(LocalDate date, List<AbstractCrudService.FeedItem> items, boolean truncated,
+                          LocalDate previous, LocalDate next) {
+    }
+
+    private static final int FEED_MAX_PER_MODULE = 400;
+
+    /**
+     * Everything added on {@code date}, across modules, in the order it was added — the Calendar's
+     * Feed view. {@code previous}/{@code next} name the nearest days before and after that have
+     * records, so the view can skip the empty days between.
+     */
+    @GetMapping("/feed")
+    public DayFeed feed(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        LocalDateTime from = date.atStartOfDay();
+        LocalDateTime to = date.atTime(LocalTime.MAX);
+        List<AbstractCrudService.FeedItem> items = new ArrayList<>();
+        boolean truncated = false;
+        LocalDateTime prev = null;
+        LocalDateTime next = null;
+        for (AbstractCrudService<?, ?> service : catalog.all()) {
+            List<AbstractCrudService.FeedItem> got = service.createdBetween(from, to, FEED_MAX_PER_MODULE);
+            truncated |= got.size() >= FEED_MAX_PER_MODULE;
+            items.addAll(got);
+            LocalDateTime p = service.createdNear(from, true).orElse(null);
+            if (p != null && (prev == null || p.isAfter(prev))) prev = p;
+            LocalDateTime n = service.createdNear(to, false).orElse(null);
+            if (n != null && (next == null || n.isBefore(next))) next = n;
+        }
+        items.sort(java.util.Comparator.comparing(AbstractCrudService.FeedItem::created)
+                .thenComparing(AbstractCrudService.FeedItem::module)
+                .thenComparingLong(AbstractCrudService.FeedItem::id));
+        return new DayFeed(date, items, truncated,
+                prev == null ? null : prev.toLocalDate(), next == null ? null : next.toLocalDate());
+    }
+
     @GetMapping
     public List<DayCount> counts(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,

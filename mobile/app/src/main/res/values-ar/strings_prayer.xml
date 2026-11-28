@@ -233,4 +233,26 @@
     <string name="prayer_athan_gain">الأذان كله: أخفض بـ %1$d ديسيبل</string>
     <string name="prayer_athan_gain_note">يخفض الأذان كله من أوله إلى آخره، فوق مستوى كل صلاة — حين يكون حتى أدنى مستوى مرتفعًا. 10 ديسيبل تبدو نحو نصف الارتفاع، و30 ديسيبل خافتة جدًا.</string>
     <string name="prayer_panel_shamsi">الشمسي</string>
+
+    <string name="prayer_recital_none">لا ملف صوتي في مجلد التلاوات</string>
+    <string name="prayer_recital_notif">قرآن قبل أذان %1$s</string>
+    <string name="prayer_recital_title">القرآن قبل الأذان</string>
+    <string name="prayer_recital_note">تلاوة من مجلد على الهاتف، قبل أذان الصلوات المختارة أدناه.</string>
+    <string name="prayer_recital_before">التلاوة قبل</string>
+    <string name="prayer_recital_lead">البدء قبل %1$d دقيقة</string>
+    <string name="prayer_recital_folder">اختيار المجلد</string>
+    <string name="prayer_recital_no_folder">لم يُختر مجلد بعد — لا تلاوة حتى يُختار.</string>
+    <string name="prayer_recital_empty">لا ملفات صوتية في «%1$s».</string>
+    <string name="prayer_recital_files">«%1$s»: %2$d ملفات · التالي: %3$s</string>
+    <string name="prayer_recital_volume_note">ملف واحد في كل مرة، بترتيب الأسماء، متابعًا بعد آخر ملف شُغِّل. بنفس مستوى الصوت و«أخفض بمقدار» والتصاعد كأذان تلك الصلاة؛ ويقطعها الأذان عند بدئه، فتناسب التلاوات التي تقارب ١٠ دقائق البدء الافتراضي.</string>
+    <string name="prayer_log_title">سجلّ الأذان</string>
+    <string name="prayer_log_empty">لا شيء بعد: يُدرج هنا كلّ أذان وتلاوة عند انطلاقه.</string>
+    <string name="prayer_log_note">متى انطلق كلّ أذان فعلًا، مقارنةً بموعده. التأخير من الهاتف نفسه (توفير الطاقة)؛ ويظهر بالأحمر إذا بلغ دقيقة أو أكثر.</string>
+    <string name="prayer_log_recital">قرآن</string>
+    <string name="prayer_log_athan">أذان</string>
+    <string name="prayer_log_times">الموعد %1$s · الانطلاق %2$s</string>
+    <string name="prayer_log_no_sound">بلا صوت</string>
+    <string name="prayer_log_fewer">أقل</string>
+    <string name="prayer_log_all">الكل (%1$d)</string>
+    <string name="prayer_log_clear">مسح السجلّ</string>
 </resources>

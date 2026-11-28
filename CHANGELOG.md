@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Mobile — Quran before the athan:** a recital from a folder on the phone, some minutes (10 by
+  default) before the athan of the chosen prayers (Dhuhr and Maghrib by default) — one file each
+  time in name order, at that athan's volume, cut off by the athan. Off until a folder is chosen.
+- **Mobile — Athan log:** the bottom of the prayer page lists each athan and recital as it fired —
+  due, fired, and the delay the phone added (red from a minute); the last 100 are kept.
+- **Web — Calendar day feed:** a **Feed** view beside Week and Day lists everything added on a day,
+  across all modules, in the order it was added, by hour (runs of one module grouped, "3 resources"),
+  with chips to hide modules and arrows that jump to the nearest day with records.
 - **Mobile — Excerpt library:** a book icon in the server band (after Highlights) opens the web's
   Excerpt library on the phone: the samples by status with search, **Make more** (10/20/50, made on
   the server, no AI), and each sample's text or page images with its one-line summary and details —

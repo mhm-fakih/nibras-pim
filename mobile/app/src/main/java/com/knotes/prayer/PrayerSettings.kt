@@ -108,6 +108,16 @@ data class PrayerSettings(
      */
     val athanGainDb: Int = 0,
 
+    // ---- Quran recital before the athan ----
+    /** Recite before the athan of [recitalPrayers]; nothing happens until a folder is chosen. */
+    val recitalEnabled: Boolean = true,
+    /** The prayers whose athan a recital comes before — Dhuhr and Maghrib unless changed. */
+    val recitalPrayers: Set<Prayer> = setOf(Prayer.DHUHR, Prayer.MAGHRIB),
+    /** A folder on the phone (a document-tree URI) holding the recitals, about 10 minutes each. */
+    val recitalFolderUri: String = "",
+    /** How many minutes before the athan the recital starts; the athan cuts it off. */
+    val recitalLeadMin: Int = 10,
+
     // ---- silence ----
     /** Drop the ringer from the athan until [silenceMinutes] later — to silent, or to vibrate. */
     val silenceEnabled: Boolean = false,
@@ -139,6 +149,11 @@ data class PrayerSettings(
     val effectiveAthan: Set<Prayer> get() = athanPrayers.filter { it.isPrayer }.toSet()
 
     val effectiveSilence: Set<Prayer> get() = silencePrayers.filter { it.isPrayer }.toSet()
+
+    /** The prayers a recital is actually scheduled before: on, a folder chosen, and real prayers. */
+    val effectiveRecital: Set<Prayer>
+        get() = if (!recitalEnabled || recitalFolderUri.isBlank()) emptySet()
+        else recitalPrayers.filter { it.isPrayer }.toSet()
 
     /** Minutes to add to [prayer], clamped to the range the UI offers. */
     fun adjustmentOf(prayer: Prayer): Int =
@@ -266,6 +281,10 @@ class PrayerSettingsStore(context: Context) {
             athanRiseFromDb = prefs.getInt(K_ATHAN_RISE_FROM, d.athanRiseFromDb)
                 .coerceIn(PrayerSettings.MIN_ATHAN_RISE_FROM_DB, PrayerSettings.MAX_ATHAN_RISE_FROM_DB),
             athanGainDb = prefs.getInt(K_ATHAN_GAIN_DB, 0).coerceIn(com.knotes.alarm.SoundGain.MIN_DB, 0),
+            recitalEnabled = prefs.getBoolean(K_REC_ON, d.recitalEnabled),
+            recitalPrayers = decodePrayers(prefs.getString(K_REC_PRAYERS, null)) ?: d.recitalPrayers,
+            recitalFolderUri = prefs.getString(K_REC_FOLDER, "") ?: "",
+            recitalLeadMin = prefs.getInt(K_REC_LEAD, d.recitalLeadMin).coerceIn(PrayerSettings.MIN_LEAD, PrayerSettings.MAX_LEAD),
             silenceEnabled = prefs.getBoolean(K_SIL_ON, d.silenceEnabled),
             silenceVibrate = prefs.getBoolean(K_SIL_VIBRATE, d.silenceVibrate),
             silenceMinutes = prefs.getInt(K_SIL_MIN, d.silenceMinutes),
@@ -317,6 +336,10 @@ class PrayerSettingsStore(context: Context) {
             .putInt(K_ATHAN_RISE, s.athanRiseSeconds.coerceIn(PrayerSettings.MIN_ATHAN_RISE, PrayerSettings.MAX_ATHAN_RISE))
             .putInt(K_ATHAN_RISE_FROM, s.athanRiseFromDb.coerceIn(PrayerSettings.MIN_ATHAN_RISE_FROM_DB, PrayerSettings.MAX_ATHAN_RISE_FROM_DB))
             .putInt(K_ATHAN_GAIN_DB, s.athanGainDb.coerceIn(com.knotes.alarm.SoundGain.MIN_DB, 0))
+            .putBoolean(K_REC_ON, s.recitalEnabled)
+            .putString(K_REC_PRAYERS, encodePrayers(s.recitalPrayers.filter { it.isPrayer }.toSet()))
+            .putString(K_REC_FOLDER, s.recitalFolderUri.trim())
+            .putInt(K_REC_LEAD, s.recitalLeadMin.coerceIn(PrayerSettings.MIN_LEAD, PrayerSettings.MAX_LEAD))
             .putBoolean(K_SIL_ON, s.silenceEnabled)
             .putBoolean(K_SIL_VIBRATE, s.silenceVibrate)
             .putInt(K_SIL_MIN, s.silenceMinutes.coerceIn(PrayerSettings.MIN_SILENCE, PrayerSettings.MAX_SILENCE))
@@ -355,6 +378,10 @@ class PrayerSettingsStore(context: Context) {
         private const val K_ATHAN_RISE = "athan_rise_seconds"
         private const val K_ATHAN_RISE_FROM = "athan_rise_from_db"
         private const val K_ATHAN_GAIN_DB = "athan_gain_db"
+        private const val K_REC_ON = "recital_enabled"
+        private const val K_REC_PRAYERS = "recital_prayers"
+        private const val K_REC_FOLDER = "recital_folder_uri"
+        private const val K_REC_LEAD = "recital_lead_min"
         private const val K_SIL_ON = "silence_enabled"
         private const val K_SIL_VIBRATE = "silence_vibrate"
         private const val K_SIL_MIN = "silence_minutes"

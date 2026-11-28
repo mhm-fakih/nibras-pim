@@ -193,6 +193,8 @@ fun PrayerScreen(store: PrayerSettingsStore) {
             null -> {}
         }
 
+        Spacer(Modifier.height(20.dp))
+        AthanLog(minute)
         Spacer(Modifier.height(28.dp))
     }
 }
@@ -785,6 +787,11 @@ private fun SoundPanel(settings: PrayerSettings, update: ((PrayerSettings) -> Pr
         Spacer(Modifier.height(16.dp))
         HorizontalDivider()
         Spacer(Modifier.height(10.dp))
+        RecitalSection(settings, update)
+
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(10.dp))
         // The widget's countdown, not an alarm — so it sits above the reminder rather than inside it.
         Spacer(Modifier.height(16.dp))
         HorizontalDivider()
@@ -1227,4 +1234,163 @@ private fun countdownLabel(context: Context, minutes: Int): String = when {
 private fun withArabic(prayer: Prayer): String {
     val name = stringResource(prayer.labelRes)
     return if (name == prayer.arabic) name else "$name · ${prayer.arabic}"
+}
+
+// ---- Quran before the athan ---------------------------------------------------------------------
+
+/**
+ * A recital from a folder on the phone, some minutes before the athan of the chosen prayers. The
+ * folder is read in name order, carrying on from the last file played; the athan cuts it off.
+ */
+@Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+private fun RecitalSection(settings: PrayerSettings, update: ((PrayerSettings) -> PrayerSettings) -> Unit) {
+    val context = LocalContext.current
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            // Kept across reboots: the alarm opens these files months later, with the app closed.
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            update { it.copy(recitalFolderUri = uri.toString()) }
+        }
+    }
+    val files = remember(settings.recitalFolderUri) { PrayerReceiver.recitalFiles(context, settings.recitalFolderUri) }
+    val next = remember(settings.recitalFolderUri, files) {
+        PrayerReceiver.nextRecital(context, settings.recitalFolderUri, advance = false)
+    }
+
+    ToggleRow(
+        stringResource(R.string.prayer_recital_title),
+        stringResource(R.string.prayer_recital_note),
+        settings.recitalEnabled,
+    ) { on -> update { it.copy(recitalEnabled = on) } }
+
+    if (settings.recitalEnabled) {
+        Spacer(Modifier.height(6.dp))
+        Text(stringResource(R.string.prayer_recital_before), style = MaterialTheme.typography.bodyMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Prayer.entries.filter { it.isPrayer }.forEach { p ->
+                FilterChip(
+                    selected = p in settings.recitalPrayers,
+                    onClick = {
+                        update { s ->
+                            val set = s.recitalPrayers.filter { it.isPrayer }.toSet()
+                            s.copy(recitalPrayers = if (p in set) set - p else set + p)
+                        }
+                    },
+                    label = { Text(stringResource(p.labelRes)) },
+                )
+            }
+        }
+        StepSlider(
+            stringResource(R.string.prayer_recital_lead, settings.recitalLeadMin),
+            settings.recitalLeadMin.toFloat(),
+            PrayerSettings.MIN_LEAD.toFloat(),
+            30f,
+            1f,
+        ) { v -> update { it.copy(recitalLeadMin = v.toInt()) } }
+
+        Spacer(Modifier.height(6.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Button(onClick = { folderPicker.launch(null) }) { Text(stringResource(R.string.prayer_recital_folder)) }
+            if (next != null) {
+                TextButton(onClick = {
+                    val p = settings.recitalPrayers.firstOrNull { it.isPrayer } ?: Prayer.DHUHR
+                    PrayerReceiver.soundRecital(context, settings, p, next.first)
+                }) { Text(stringResource(R.string.prayer_hear_it)) }
+                TextButton(onClick = { PrayerReceiver.stopSound() }) { Text(stringResource(R.string.prayer_stop)) }
+            }
+        }
+        val folderName = settings.recitalFolderUri.takeIf { it.isNotBlank() }?.let {
+            Uri.decode(it).substringAfterLast(':').ifBlank { Uri.decode(it).substringAfterLast('/') }
+        }
+        Text(
+            when {
+                folderName == null -> stringResource(R.string.prayer_recital_no_folder)
+                files.isEmpty() -> stringResource(R.string.prayer_recital_empty, folderName)
+                else -> stringResource(R.string.prayer_recital_files, folderName, files.size, next?.second ?: "")
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (folderName != null && files.isEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Note(stringResource(R.string.prayer_recital_volume_note))
+    }
+}
+
+// ---- athan log --------------------------------------------------------------------------------
+
+/**
+ * When each athan (and recital) actually fired, against when it was due — the delay is what the
+ * phone's power saving added. Newest first; the last 100 are kept.
+ */
+@Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+private fun AthanLog(minute: Long) {
+    val context = LocalContext.current
+    LaunchedEffect(minute) { PrayerLog.load(context) }
+    val entries by PrayerLog.entries.collectAsState()
+    var showAll by remember { mutableStateOf(false) }
+    val day = remember { java.text.SimpleDateFormat("EEE d MMM", java.util.Locale.getDefault()) }
+    val time = remember { java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()) }
+
+    PanelBody(stringResource(R.string.prayer_log_title)) {
+        if (entries.isEmpty()) {
+            Note(stringResource(R.string.prayer_log_empty))
+            return@PanelBody
+        }
+        Note(stringResource(R.string.prayer_log_note))
+        (if (showAll) entries else entries.take(12)).forEach { f ->
+            val late = f.delayMillis >= 60_000L
+            val what = stringResource(f.prayer.labelRes) + " · " + stringResource(
+                if (f.kind == PrayerEventKind.RECITAL) R.string.prayer_log_recital else R.string.prayer_log_athan,
+            )
+            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${day.format(java.util.Date(f.dueMillis))} · $what",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        delayLabel(f.delayMillis),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (late) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Text(
+                    stringResource(
+                        R.string.prayer_log_times,
+                        time.format(java.util.Date(f.dueMillis)),
+                        time.format(java.util.Date(f.firedMillis)),
+                    ) + (f.soundMillis?.let { "" } ?: (" · " + stringResource(R.string.prayer_log_no_sound))),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                f.note?.let {
+                    Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (entries.size > 12) {
+                TextButton(onClick = { showAll = !showAll }) {
+                    Text(if (showAll) stringResource(R.string.prayer_log_fewer) else stringResource(R.string.prayer_log_all, entries.size))
+                }
+            }
+            TextButton(onClick = { PrayerLog.clear(context) }) { Text(stringResource(R.string.prayer_log_clear)) }
+        }
+    }
+}
+
+/** "+3 s", "+1 min 12 s", "−2 s" (an alarm can come a moment early). */
+private fun delayLabel(ms: Long): String {
+    val sign = if (ms < 0) "−" else "+"
+    val s = kotlin.math.abs(ms) / 1000
+    return if (s < 60) "$sign$s s" else "$sign${s / 60} min ${s % 60} s"
 }

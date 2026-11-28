@@ -79,6 +79,22 @@ Les entrées créées ici sont automatiquement mises en favori.
 
 Les utilisateurs en lecture seule peuvent consulter, mais pas ajouter, redimensionner ni supprimer.
 
+## Le fil du jour { #the-day-feed }
+
+**Fil** (à côté de Semaine et Jour) liste tout ce qui a été ajouté un jour donné, dans tous les
+modules, dans l'ordre d'ajout : sous chaque heure, les fiches avec leur heure, l'icône de leur module,
+leur titre et leur première ligne — la journée se lit comme « à 21 h trois ressources, puis une note ».
+
+- Les fiches d'un même module ajoutées à la suite sont regroupées (« 3 ressources ») ; une longue
+  série (un import, par exemple) montre les six premières et **Tout afficher**.
+- Les puces en haut comptent les fiches du jour par module ; un clic masque ou montre ce module.
+  Le choix est mémorisé.
+- Les flèches à côté de la date sautent au **jour le plus proche, avant ou après, qui a des fiches**,
+  en passant les jours vides ; le mini-calendrier à droite choisit n'importe quel jour.
+- Un titre ouvre la fiche dans son module ; la petite flèche à côté l'ouvre en lecture dans un nouvel
+  onglet. « edited » signale une fiche modifiée après son ajout (survolez pour la date).
+- Les fiches comptent selon leur date d'**ajout**, pas leur date de début ou d'échéance.
+
 ## Plans récurrents { #repeating-plans }
 
 Une entrée du planificateur dont l'interrupteur **Repeats** (Se répète) est activé est une *série* :

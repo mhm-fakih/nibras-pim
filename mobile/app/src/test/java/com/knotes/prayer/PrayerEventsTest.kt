@@ -52,6 +52,31 @@ class PrayerEventsTest {
     }
 
     @Test
+    fun aRecitalNeedsAFolderAndDefaultsToDhuhrAndMaghrib() {
+        // On by default, but nothing is scheduled until a folder is chosen.
+        assertTrue(events(base()).none { it.kind == PrayerEventKind.RECITAL })
+        val s = base().copy(recitalFolderUri = "content://tree/recitals")
+        val day = PrayerCalendar.dayOf(s, date, beirut)
+        val recitals = events(s).filter { it.kind == PrayerEventKind.RECITAL }
+        assertEquals(listOf(Prayer.DHUHR, Prayer.MAGHRIB), recitals.map { it.prayer })
+        assertEquals(day.timeOf(Prayer.DHUHR)!! - 10 * 60_000L, recitals[0].atMillis)
+        // Switched off, it is gone even with the folder kept.
+        assertTrue(events(s.copy(recitalEnabled = false)).none { it.kind == PrayerEventKind.RECITAL })
+    }
+
+    @Test
+    fun aRecitalFollowsItsOwnLeadAndNeverShurooq() {
+        val s = base().copy(
+            recitalFolderUri = "content://tree/recitals", recitalLeadMin = 12,
+            recitalPrayers = setOf(Prayer.SUNRISE, Prayer.FAJR),
+        )
+        val day = PrayerCalendar.dayOf(s, date, beirut)
+        val recitals = events(s).filter { it.kind == PrayerEventKind.RECITAL }
+        assertEquals(listOf(Prayer.FAJR), recitals.map { it.prayer })
+        assertEquals(day.timeOf(Prayer.FAJR)!! - 12 * 60_000L, recitals[0].atMillis)
+    }
+
+    @Test
     fun shurooqNeverGetsAnAthanEvenIfItIsStored() {
         val s = base().copy(athanPrayers = setOf(Prayer.SUNRISE, Prayer.DHUHR))
         assertEquals(
